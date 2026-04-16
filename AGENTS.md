@@ -35,4 +35,4 @@ If you touch changelog content, follow `RULES.md` exactly. Every new entry heade
 
 ## Security & Configuration Tips
 
-Do not hardcode Rainy credentials or commit `.env` data. API keys are stored through the settings flow and resolved in the Electron main process. Because this app is a security reviewer, prefer changes that improve evidence collection and explicit remediation guidance. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, and update `src/contracts/` whenever payloads change.
+Do not hardcode Rainy credentials or commit `.env` data. This app is only the container: the user brings their own Rainy API v3 key from the Rainy platform or dashboard, enters it through Settings, and the key is then resolved in the Electron main process. Because this app is a security reviewer, prefer changes that improve evidence collection and explicit remediation guidance. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, and update `src/contracts/` whenever payloads change.
