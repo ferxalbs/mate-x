@@ -17,8 +17,11 @@ const createWindow = () => {
     minHeight: 620,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: '#0f1011',
+    title: 'MaTE X',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
+    trafficLightPosition: { x: 14, y: 16 },
+    transparent: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

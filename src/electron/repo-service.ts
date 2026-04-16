@@ -44,6 +44,7 @@ export async function getWorkspaceSummary(): Promise<WorkspaceSummary> {
       { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
       { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
       { label: 'AI provider', value: process.env.OPENAI_API_KEY ? 'OpenAI connected' : 'OpenAI key missing' },
+      { label: 'Model', value: DEFAULT_OPENAI_MODEL },
     ],
   };
 }

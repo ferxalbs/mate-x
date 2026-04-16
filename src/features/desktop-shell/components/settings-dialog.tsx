@@ -3,7 +3,6 @@ import { FolderGit2, Search, Sparkles, X } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import type { SearchMatch, WorkspaceSummary } from '../../../contracts/workspace';
-import { formatRelativeTimestamp } from '../model';
 
 interface SettingsDialogProps {
   workspace: WorkspaceSummary | null;
@@ -22,8 +21,8 @@ export function SettingsDialog({ workspace, repoFiles, repoSignals }: SettingsDi
         }
       />
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 flex w-[min(760px,calc(100vw-32px))] max-h-[min(720px,calc(100vh-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[var(--panel)] shadow-[0_24px_90px_rgba(0,0,0,0.45)]">
+        <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[4px]" />
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 flex w-[min(760px,calc(100vw-32px))] max-h-[min(720px,calc(100vh-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[28px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
           <div className="flex items-start justify-between gap-4 border-b border-[var(--panel-border)] px-6 py-5">
             <div>
               <Dialog.Title className="text-lg font-semibold text-[var(--foreground)]">
@@ -59,8 +58,7 @@ export function SettingsDialog({ workspace, repoFiles, repoSignals }: SettingsDi
                     {workspace?.path ?? 'Collecting repo metadata'}
                   </p>
                   <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                    Branch {workspace?.branch ?? '...'} · Updated{' '}
-                    {workspace ? formatRelativeTimestamp(new Date().toISOString()) : 'now'}
+                    Branch {workspace?.branch ?? '...'} · Live snapshot
                   </p>
                 </div>
               </div>

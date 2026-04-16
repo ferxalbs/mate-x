@@ -7,6 +7,9 @@ import { ChatTopbar } from './components/chat-topbar';
 import { ComposerPanel } from './components/composer-panel';
 import { MessageStream } from './components/message-stream';
 
+// Add import for SidebarProvider
+import { SidebarProvider } from '../../components/ui/sidebar';
+
 export function DesktopShell() {
   const workspace = useChatStore((state) => state.workspace);
   const repoFiles = useChatStore((state) => state.repoFiles);
@@ -26,32 +29,46 @@ export function DesktopShell() {
   }, [bootstrap]);
 
   return (
-    <main className="relative flex h-screen w-full overflow-hidden bg-[var(--app-chrome-background)]">
-      <div className="relative flex h-full w-full overflow-hidden bg-[var(--background)]">
-        <AppSidebar
-          activeThreadId={activeThreadId}
-          onCreateThread={createThread}
-          onThemeChange={setTheme}
-          onSelectThread={selectThread}
-          repoFiles={repoFiles}
-          repoSignals={repoSignals}
-          theme={theme}
-          threads={threads}
-          workspace={workspace}
-        />
-
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--background)]">
-          <ChatTopbar
-            conversation={conversation}
+    <SidebarProvider defaultOpen>
+      <main className="flex h-screen w-full overflow-hidden bg-[var(--app-chrome-background)] text-foreground">
+        <div className="flex h-full w-full overflow-hidden bg-background">
+          <AppSidebar
+            activeThreadId={activeThreadId}
+            onCreateThread={createThread}
             onThemeChange={setTheme}
-            resolvedTheme={resolvedTheme}
+            onSelectThread={selectThread}
+            repoFiles={repoFiles}
+            repoSignals={repoSignals}
             theme={theme}
+            threads={threads}
             workspace={workspace}
+            runStatus={runStatus}
           />
-          <MessageStream messages={conversation.messages} />
-          <ComposerPanel isRunning={runStatus === 'running'} onSubmit={submitPrompt} workspace={workspace} />
-        </section>
-      </div>
-    </main>
+
+          <section className="flex min-w-0 flex-1 flex-col bg-background">
+            <ChatTopbar
+              conversation={conversation}
+              onCreateThread={createThread}
+              onThemeChange={setTheme}
+              onSelectThread={selectThread}
+              resolvedTheme={resolvedTheme}
+              runStatus={runStatus}
+              theme={theme}
+              workspace={workspace}
+            />
+            <MessageStream
+              isRunning={runStatus === 'running'}
+              messages={conversation.messages}
+            />
+            <ComposerPanel
+              isRunning={runStatus === 'running'}
+              onSubmit={submitPrompt}
+              workspace={workspace}
+              resolvedTheme={resolvedTheme}
+            />
+          </section>
+        </div>
+      </main>
+    </SidebarProvider>
   );
 }

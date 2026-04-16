@@ -32,21 +32,7 @@ function createEmptyConversation(partial?: Partial<Conversation>): Conversation 
 
 const starterConversation = createEmptyConversation({
   id: 'thread-main',
-  title: 'Mate-X workspace',
-  lastUpdatedAt: new Date().toISOString(),
-  messages: [
-    {
-      id: 'assistant-intro',
-      role: 'assistant',
-      createdAt: new Date().toISOString(),
-      content:
-        'Mate-X is ready. Ask for a UI pass, repo change, implementation step, or code review.',
-      artifacts: [
-        { id: 'intro-provider', label: 'Provider', value: 'OpenAI-ready', tone: 'success' },
-        { id: 'intro-surface', label: 'Surface', value: 'Desktop shell' },
-      ],
-    },
-  ],
+  title: 'New thread',
 });
 
 export const useChatStore = create<ChatState>((set, get) => ({
