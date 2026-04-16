@@ -2,18 +2,16 @@ import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
-import OpenAI from 'openai';
-
 import { GitService } from './git-service';
+import { requestRainyTextResponse } from './rainy-service';
 import { tursoService } from './turso-service';
 import type { Conversation } from '../contracts/chat';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
+import { MATE_AGENT_PROMPT_STOP_WORDS } from '../config/mate-agent';
+import { RAINY_DEFAULT_MODEL } from '../config/rainy';
 
 const execFileAsync = promisify(execFile);
-const RAINY_BASE_URL = 'https://api.rainy.dev/v3';
-const DEFAULT_RAINY_MODEL = process.env.RAINY_MODEL ?? 'rainy-coder-security';
-const RAINY_TIMEOUT_MS = 20_000;
 
 export interface RepoSnapshot {
   workspace: WorkspaceSummary;
@@ -162,7 +160,7 @@ export async function runAssistant(
       events.push({
         id: 'step-rainy',
         label: 'Generate Rainy response',
-        detail: `Answered with ${DEFAULT_RAINY_MODEL}.`,
+        detail: `Answered with ${RAINY_DEFAULT_MODEL}.`,
         status: 'done',
       });
     } catch (error) {
@@ -264,7 +262,7 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
       { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
       { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
       { label: 'AI provider', value: apiKey ? 'Rainy API connected' : 'API key missing' },
-      { label: 'Model', value: DEFAULT_RAINY_MODEL },
+      { label: 'Model', value: RAINY_DEFAULT_MODEL },
     ],
   };
 }
@@ -367,7 +365,7 @@ function buildPromptPattern(prompt: string) {
       prompt
         .toLowerCase()
         .match(/[a-z0-9_-]{4,}/g)
-        ?.filter((term) => !STOP_WORDS.has(term))
+        ?.filter((term) => !MATE_AGENT_PROMPT_STOP_WORDS.has(term))
         .slice(0, 6) ?? [],
     ),
   );
@@ -386,7 +384,7 @@ function buildArtifacts(snapshot: RepoSnapshot, providerReady: boolean): Message
     {
       id: 'artifact-model',
       label: 'Model',
-      value: providerReady ? DEFAULT_RAINY_MODEL : 'repo-grounded summary',
+      value: providerReady ? RAINY_DEFAULT_MODEL : 'repo-grounded summary',
     },
     {
       id: 'artifact-branch',
@@ -415,7 +413,7 @@ function buildFallbackResponse(prompt: string, snapshot: RepoSnapshot, error?: u
       ? snapshot.statusLines.slice(0, 6).map((line) => `- ${line}`).join('\n')
       : '- Working tree clean.';
 
-  const errorLine = error instanceof Error ? `\n\nOpenAI error: ${error.message}` : '';
+  const errorLine = error instanceof Error ? `\n\nRainy API error: ${error.message}` : '';
 
   return [
     `Request: ${prompt}`,
@@ -446,25 +444,12 @@ async function requestRainyResponse({
   prompt: string;
   snapshot: RepoSnapshot;
 }) {
-  const client = new OpenAI({
-    apiKey,
-    baseURL: RAINY_BASE_URL,
-  });
-
   const files = snapshot.files.slice(0, 80).join('\n');
   const matches = snapshot.promptMatches
     .slice(0, 12)
     .map((match) => `${match.file}:${match.line} ${match.text}`)
     .join('\n');
   const gitStatus = snapshot.statusLines.slice(0, 40).join('\n');
-
-  const systemPrompt = [
-    'Eres MaTE X, un agente local de revisión de código especializado en seguridad.',
-    'Tu trabajo es analizar el repositorio activo, detectar vulnerabilidades,',
-    'malos patrones y riesgos de seguridad. Responde con precisión quirúrgica.',
-    'Si la evidencia en el repo es débil, dilo explícitamente y propón la siguiente',
-    'acción concreta (qué archivo abrir, qué buscar, qué comando ejecutar).',
-  ].join(' ');
 
   const userContext = [
     `Workspace: ${snapshot.workspace.name}`,
@@ -487,33 +472,10 @@ async function requestRainyResponse({
     `User prompt: ${prompt}`,
   ].join('\n');
 
-  const response = await client.chat.completions.create(
-    {
-      model: DEFAULT_RAINY_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContext },
-      ],
-    },
-    { timeout: RAINY_TIMEOUT_MS },
-  );
+  const responseText = await requestRainyTextResponse({
+    apiKey,
+    userContext,
+  });
 
-  return response.choices[0]?.message?.content?.trim() || buildFallbackResponse(prompt, snapshot);
+  return responseText || buildFallbackResponse(prompt, snapshot);
 }
-
-const STOP_WORDS = new Set([
-  'this',
-  'that',
-  'with',
-  'from',
-  'have',
-  'need',
-  'make',
-  'into',
-  'about',
-  'your',
-  'project',
-  'workspace',
-  'please',
-  'could',
-]);
