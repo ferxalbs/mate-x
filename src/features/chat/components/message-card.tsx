@@ -1,6 +1,5 @@
-import { AlertTriangle, CheckCircle2, Info, TerminalSquare } from 'lucide-react';
+import { TerminalSquare } from 'lucide-react';
 
-import type { AuditFinding } from '../../../contracts/audit';
 import type { ChatMessage } from '../../../contracts/chat';
 import { cn } from '../../../lib/utils';
 import { formatTimestamp } from '../../../lib/time';
@@ -57,62 +56,18 @@ export function MessageCard({ message }: MessageCardProps) {
         </div>
       ) : null}
 
-      {message.report ? (
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="rounded-[1.25rem] border border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_16%,transparent)] p-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-              audit summary
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-              {message.report.summary}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {message.report.checkedAreas.map((area) => (
-                <span
-                  key={area}
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs"
-                >
-                  {area}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {message.report.findings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} />
+      {message.artifacts?.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {message.artifacts.map((artifact) => (
+            <span
+              key={artifact.id}
+              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs"
+            >
+              {artifact.label}: {artifact.value}
+            </span>
           ))}
         </div>
       ) : null}
     </article>
-  );
-}
-
-function FindingCard({ finding }: { finding: AuditFinding }) {
-  const icon =
-    finding.severity === 'critical' ? (
-      <AlertTriangle className="size-4" />
-    ) : finding.severity === 'warning' ? (
-      <Info className="size-4" />
-    ) : (
-      <CheckCircle2 className="size-4" />
-    );
-
-  return (
-    <section className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface)] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          {icon}
-          {finding.title}
-        </div>
-        <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-          {finding.severity}
-        </span>
-      </div>
-      <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">{finding.summary}</p>
-      <p className="mt-3 text-xs uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-        {finding.file}
-      </p>
-      <p className="mt-2 text-sm leading-6">{finding.recommendation}</p>
-    </section>
   );
 }

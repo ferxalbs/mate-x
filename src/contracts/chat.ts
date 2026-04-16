@@ -1,13 +1,20 @@
-import type { AuditReport } from './audit';
-
 export type MessageRole = 'user' | 'assistant';
-export type RunStatus = 'idle' | 'running' | 'completed';
+export type RunStatus = 'idle' | 'running' | 'completed' | 'failed';
+export type ToolEventStatus = 'done' | 'active' | 'error';
+export type MessageArtifactTone = 'default' | 'success' | 'warning';
 
 export interface ToolEvent {
   id: string;
   label: string;
   detail: string;
-  status: 'done' | 'active';
+  status: ToolEventStatus;
+}
+
+export interface MessageArtifact {
+  id: string;
+  label: string;
+  value: string;
+  tone?: MessageArtifactTone;
 }
 
 export interface ChatMessage {
@@ -16,7 +23,7 @@ export interface ChatMessage {
   content: string;
   createdAt: string;
   events?: ToolEvent[];
-  report?: AuditReport;
+  artifacts?: MessageArtifact[];
 }
 
 export interface Conversation {
@@ -24,4 +31,9 @@ export interface Conversation {
   title: string;
   messages: ChatMessage[];
   lastUpdatedAt: string;
+}
+
+export interface AssistantExecution {
+  message: ChatMessage;
+  suggestedTitle?: string;
 }

@@ -1,18 +1,21 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import type { AuditReport } from '../contracts/audit';
-import type { ToolEvent } from '../contracts/chat';
+import OpenAI from 'openai';
+
+import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceSummary } from '../contracts/workspace';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.2';
+const OPENAI_TIMEOUT_MS = 20_000;
 
 export interface RepoSnapshot {
   workspace: WorkspaceSummary;
   files: string[];
   packageJson: string | null;
   statusLines: string[];
-  ipcMentions: SearchMatch[];
+  promptMatches: SearchMatch[];
 }
 
 export async function getWorkspaceSummary(): Promise<WorkspaceSummary> {
@@ -40,6 +43,7 @@ export async function getWorkspaceSummary(): Promise<WorkspaceSummary> {
       { label: 'Tracked files', value: String(files.length) },
       { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
       { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
+      { label: 'AI provider', value: process.env.OPENAI_API_KEY ? 'OpenAI connected' : 'OpenAI key missing' },
     ],
   };
 }
@@ -88,13 +92,14 @@ export async function searchInFiles(query: string, limit = 20): Promise<SearchMa
   }
 }
 
-export async function collectRepoSnapshot(): Promise<RepoSnapshot> {
-  const [workspace, files, packageJson, statusOutput, ipcMentions] = await Promise.all([
+export async function collectRepoSnapshot(prompt: string): Promise<RepoSnapshot> {
+  const promptPattern = buildPromptPattern(prompt);
+  const [workspace, files, packageJson, statusOutput, promptMatches] = await Promise.all([
     getWorkspaceSummary(),
     listFiles(200),
     readFileMaybe('package.json'),
     runGit(['status', '--short']),
-    searchInFiles('ipcMain|ipcRenderer|contextBridge|invoke', 20),
+    promptPattern ? searchInFiles(promptPattern, 16) : Promise.resolve([]),
   ]);
 
   return {
@@ -102,62 +107,12 @@ export async function collectRepoSnapshot(): Promise<RepoSnapshot> {
     files,
     packageJson,
     statusLines: statusOutput.split('\n').map((line) => line.trim()).filter(Boolean),
-    ipcMentions,
+    promptMatches,
   };
 }
 
-export async function runAudit(prompt: string): Promise<{ events: ToolEvent[]; report: AuditReport }> {
-  const snapshot = await collectRepoSnapshot();
-  const findings = [];
-
-  if (snapshot.ipcMentions.length === 0) {
-    findings.push({
-      id: 'finding-ipc-missing',
-      severity: 'critical' as const,
-      title: 'Typed IPC boundary is not implemented broadly enough yet',
-      summary:
-        'The repo does not expose enough preload/main channels to support repo inspection, command execution, and artifact retrieval.',
-      file: 'src/preload.ts',
-      recommendation:
-        'Define a narrow API surface for workspace summary, git status, file search, command execution, and future permission-gated actions.',
-    });
-  }
-
-  if (!snapshot.files.some((file) => file.includes('store/chat-store.ts'))) {
-    findings.push({
-      id: 'finding-chat-state',
-      severity: 'warning' as const,
-      title: 'Conversation state module is missing',
-      summary: 'The app needs a dedicated store for session, run, and artifact state.',
-      file: 'src/store/chat-store.ts',
-      recommendation: 'Keep runtime state isolated from presentation components and persist sessions by workspace.',
-    });
-  }
-
-  if (!snapshot.files.some((file) => file.includes('contracts/ipc.ts'))) {
-    findings.push({
-      id: 'finding-contracts',
-      severity: 'warning' as const,
-      title: 'IPC contracts are not centralized',
-      summary: 'Renderer and main process should share request/response types.',
-      file: 'src/contracts/ipc.ts',
-      recommendation: 'Promote IPC payloads into shared contracts before the tool surface grows.',
-    });
-  }
-
-  if (findings.length === 0) {
-    findings.push({
-      id: 'finding-next-step',
-      severity: 'note' as const,
-      title: 'Repo inspection boundary is present',
-      summary:
-        'The app already exposes the first repo inspection services; the next step is adding command execution permissions and persistence.',
-      file: 'src/electron/repo-service.ts',
-      recommendation:
-        'Add explicit command policies, persist conversations per workspace, and attach artifacts like logs and diffs to each run.',
-    });
-  }
-
+export async function runAssistant(prompt: string, history: string[]): Promise<AssistantExecution> {
+  const snapshot = await collectRepoSnapshot(prompt);
   const events: ToolEvent[] = [
     {
       id: 'step-workspace',
@@ -167,31 +122,67 @@ export async function runAudit(prompt: string): Promise<{ events: ToolEvent[]; r
     },
     {
       id: 'step-files',
-      label: 'Inspect repository files',
-      detail: `Scanned ${snapshot.files.length} files and ${snapshot.statusLines.length} git changes.`,
+      label: 'Inventory repository surface',
+      detail: `Indexed ${snapshot.files.length} files and ${snapshot.statusLines.length} git changes.`,
       status: 'done',
     },
     {
       id: 'step-query',
-      label: 'Search implementation signals',
-      detail: `Prompt: "${prompt}". IPC-related matches found: ${snapshot.ipcMentions.length}.`,
+      label: 'Search prompt-linked files',
+      detail:
+        snapshot.promptMatches.length > 0
+          ? `Found ${snapshot.promptMatches.length} repo matches connected to the request.`
+          : 'No direct file matches from the current prompt terms.',
       status: 'done',
     },
   ];
 
+  const artifacts = buildArtifacts(snapshot);
+  const providerReady = Boolean(process.env.OPENAI_API_KEY);
+  const createdAt = new Date().toISOString();
+  let content: string;
+
+  if (providerReady) {
+    try {
+      content = await requestOpenAIResponse({
+        history,
+        prompt,
+        snapshot,
+      });
+      events.push({
+        id: 'step-openai',
+        label: 'Generate OpenAI response',
+        detail: `Answered with ${DEFAULT_OPENAI_MODEL}.`,
+        status: 'done',
+      });
+    } catch (error) {
+      content = buildFallbackResponse(prompt, snapshot, error);
+      events.push({
+        id: 'step-openai-fallback',
+        label: 'OpenAI fallback',
+        detail: 'The API request failed, so Mate-X returned a local repo-grounded response.',
+        status: 'error',
+      });
+    }
+  } else {
+    content = buildFallbackResponse(prompt, snapshot);
+    events.push({
+      id: 'step-openai-missing',
+      label: 'OpenAI unavailable',
+      detail: 'Set OPENAI_API_KEY to enable live model responses. Using local repo context for now.',
+      status: 'error',
+    });
+  }
+
   return {
-    events,
-    report: {
-      id: `audit-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      headline:
-        findings[0]?.severity === 'critical'
-          ? findings[0].title
-          : 'Repo inspection completed; use these findings to guide the next runtime modules.',
-      summary:
-        'This audit is generated from live repository inspection through Electron main, not from static mock data.',
-      checkedAreas: ['workspace summary', 'git status', 'file inventory', 'IPC surface'],
-      findings,
+    suggestedTitle: history.length === 0 ? buildThreadTitle(prompt) : undefined,
+    message: {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content,
+      createdAt,
+      events,
+      artifacts,
     },
   };
 }
@@ -236,3 +227,154 @@ function parseSearchLine(line: string): SearchMatch | null {
     text: match[3].trim(),
   };
 }
+
+function buildThreadTitle(prompt: string) {
+  const collapsed = prompt.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= 42) {
+    return collapsed;
+  }
+  return `${collapsed.slice(0, 39).trimEnd()}...`;
+}
+
+function buildPromptPattern(prompt: string) {
+  const terms = Array.from(
+    new Set(
+      prompt
+        .toLowerCase()
+        .match(/[a-z0-9_-]{4,}/g)
+        ?.filter((term) => !STOP_WORDS.has(term))
+        .slice(0, 6) ?? [],
+    ),
+  );
+
+  return terms.length > 0 ? terms.join('|') : '';
+}
+
+function buildArtifacts(snapshot: RepoSnapshot): MessageArtifact[] {
+  return [
+    {
+      id: 'artifact-provider',
+      label: 'Provider',
+      value: process.env.OPENAI_API_KEY ? 'OpenAI' : 'Local fallback',
+      tone: process.env.OPENAI_API_KEY ? 'success' : 'warning',
+    },
+    {
+      id: 'artifact-model',
+      label: 'Model',
+      value: process.env.OPENAI_API_KEY ? DEFAULT_OPENAI_MODEL : 'repo-grounded summary',
+    },
+    {
+      id: 'artifact-branch',
+      label: 'Branch',
+      value: snapshot.workspace.branch,
+    },
+    {
+      id: 'artifact-matches',
+      label: 'Matches',
+      value: String(snapshot.promptMatches.length),
+    },
+  ];
+}
+
+async function requestOpenAIResponse(input: {
+  prompt: string;
+  history: string[];
+  snapshot: RepoSnapshot;
+}) {
+  const client = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: OPENAI_TIMEOUT_MS,
+  });
+
+  const response = await client.responses.create({
+    model: DEFAULT_OPENAI_MODEL,
+    instructions: buildSystemPrompt(input.snapshot),
+    input: buildUserInput(input),
+  });
+
+  const text = response.output_text?.trim();
+
+  if (!text) {
+    throw new Error('OpenAI response did not contain output text.');
+  }
+
+  return text;
+}
+
+function buildSystemPrompt(snapshot: RepoSnapshot) {
+  return [
+    'You are Mate-X, a desktop coding assistant.',
+    'Answer like a senior engineer: concise, direct, and specific.',
+    'Base your response on the provided repository snapshot.',
+    'Prefer practical next steps over general theory.',
+    `Current workspace: ${snapshot.workspace.name} on branch ${snapshot.workspace.branch}.`,
+  ].join(' ');
+}
+
+function buildUserInput(input: {
+  prompt: string;
+  history: string[];
+  snapshot: RepoSnapshot;
+}) {
+  const transcript =
+    input.history.length > 0
+      ? input.history.map((entry, index) => `${index + 1}. ${entry}`).join('\n')
+      : '(new thread)';
+  const matches =
+    input.snapshot.promptMatches.length > 0
+      ? input.snapshot.promptMatches
+          .slice(0, 8)
+          .map((match) => `${match.file}:${match.line} ${match.text}`)
+          .join('\n')
+      : 'No prompt-linked matches found.';
+
+  return [
+    `User request:\n${input.prompt}`,
+    `Conversation history:\n${transcript}`,
+    `Workspace:\n- Path: ${input.snapshot.workspace.path}\n- Branch: ${input.snapshot.workspace.branch}\n- Stack: ${input.snapshot.workspace.stack.join(', ') || 'Unknown'}`,
+    `Git status:\n${input.snapshot.statusLines.slice(0, 12).join('\n') || 'clean'}`,
+    `Relevant file matches:\n${matches}`,
+    `Top files:\n${input.snapshot.files.slice(0, 18).join('\n')}`,
+    'Respond in plain text. Mention concrete files when useful. If the repo context is thin, say so.',
+  ].join('\n\n');
+}
+
+function buildFallbackResponse(prompt: string, snapshot: RepoSnapshot, error?: unknown) {
+  const topMatch = snapshot.promptMatches[0];
+  const lines = [
+    `I mapped your request against \`${snapshot.workspace.name}\` on \`${snapshot.workspace.branch}\`.`,
+    topMatch
+      ? `The closest live repo signal is \`${topMatch.file}:${topMatch.line}\`, which suggests that area is the right place to extend next.`
+      : 'The prompt did not map cleanly to an existing file, so the next step is expanding the shell and store around the current desktop surface.',
+    `Right now the workspace has ${snapshot.statusLines.length} pending git changes and ${snapshot.files.length} indexed files.`,
+    `Request focus: ${prompt.trim()}`,
+  ];
+
+  if (error instanceof Error) {
+    lines.push(`OpenAI request failed: ${error.message}`);
+  } else if (error) {
+    lines.push('OpenAI request failed before a model response was returned.');
+  } else {
+    lines.push('Set `OPENAI_API_KEY` to replace this local fallback with live OpenAI responses.');
+  }
+
+  return lines.join('\n\n');
+}
+
+const STOP_WORDS = new Set([
+  'that',
+  'this',
+  'with',
+  'from',
+  'have',
+  'your',
+  'will',
+  'just',
+  'into',
+  'most',
+  'repo',
+  'design',
+  'desktop',
+  'build',
+  'make',
+]);

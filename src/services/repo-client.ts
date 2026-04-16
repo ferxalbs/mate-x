@@ -20,6 +20,6 @@ export function searchRepoFiles(query: string, limit?: number) {
   return getMateApi().searchInFiles(query, limit);
 }
 
-export function runRepositoryAudit(prompt: string) {
-  return getMateApi().runAudit(prompt);
+export function runAssistant(prompt: string, history: string[]) {
+  return getMateApi().runAssistant(prompt, history);
 }

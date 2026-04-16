@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 
-import { getWorkspaceSummary, listFiles, runAudit, searchInFiles } from './repo-service';
+import { getWorkspaceSummary, listFiles, runAssistant, searchInFiles } from './repo-service';
 
 export function registerIpcHandlers() {
   ipcMain.handle('repo:get-workspace-summary', async () => getWorkspaceSummary());
@@ -8,5 +8,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('repo:search', async (_event, query: string, limit?: number) =>
     searchInFiles(query, limit),
   );
-  ipcMain.handle('repo:run-audit', async (_event, prompt: string) => runAudit(prompt));
+  ipcMain.handle('repo:run-assistant', async (_event, prompt: string, history: string[]) =>
+    runAssistant(prompt, history),
+  );
 }
