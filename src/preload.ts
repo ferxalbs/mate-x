@@ -9,6 +9,8 @@ const repoApi: RepoInspectorApi = {
   openWorkspacePicker: () => ipcRenderer.invoke('repo:open-workspace-picker'),
   setActiveWorkspace: (workspaceId) => ipcRenderer.invoke('repo:set-active-workspace', workspaceId),
   removeWorkspace: (workspaceId) => ipcRenderer.invoke('repo:remove-workspace', workspaceId),
+  saveWorkspaceSession: (workspaceId, threads, activeThreadId) =>
+    ipcRenderer.invoke('repo:save-workspace-session', workspaceId, threads, activeThreadId),
   listFiles: (limit) => ipcRenderer.invoke('repo:list-files', limit),
   searchInFiles: (query, limit) => ipcRenderer.invoke('repo:search', query, limit),
   runAssistant: (prompt, history) => ipcRenderer.invoke('repo:run-assistant', prompt, history),

@@ -5,7 +5,8 @@ import { promisify } from 'node:util';
 import OpenAI from 'openai';
 
 import { GitService } from './git-service';
-import { workspaceRegistry } from './workspace-registry';
+import { tursoService } from './turso-service';
+import type { Conversation } from '../contracts/chat';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 
@@ -22,55 +23,57 @@ export interface RepoSnapshot {
 }
 
 export async function bootstrapWorkspaceState(): Promise<WorkspaceSnapshot> {
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-  return buildWorkspaceSnapshot(state.activeWorkspaceId);
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
+  return buildWorkspaceSnapshot(activeWorkspaceId);
 }
 
 export async function getWorkspaceEntries(): Promise<WorkspaceEntry[]> {
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-  return state.workspaces;
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  return tursoService.getWorkspaces();
 }
 
 export async function setActiveWorkspace(workspaceId: string): Promise<WorkspaceSnapshot> {
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-  if (!state.workspaces.some((workspace) => workspace.id === workspaceId)) {
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  const workspaces = await tursoService.getWorkspaces();
+  if (!workspaces.some((workspace) => workspace.id === workspaceId)) {
     throw new Error('Workspace not found.');
   }
 
-  const nextState = {
-    ...state,
-    activeWorkspaceId: workspaceId,
-    workspaces: state.workspaces.map((workspace) =>
-      workspace.id === workspaceId
-        ? { ...workspace, lastOpenedAt: new Date().toISOString() }
-        : workspace,
-    ),
-  };
-
-  await workspaceRegistry.save(nextState);
+  await tursoService.setActiveWorkspaceId(workspaceId);
+  const workspace = workspaces.find((entry) => entry.id === workspaceId);
+  if (workspace) {
+    await tursoService.upsertWorkspace(workspace.path, true);
+  }
   return buildWorkspaceSnapshot(workspaceId);
 }
 
 export async function addWorkspace(workspacePath: string): Promise<WorkspaceSnapshot> {
   await access(workspacePath);
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-  const nextState = workspaceRegistry.upsertWorkspace(state, workspacePath, true);
-  await workspaceRegistry.save(nextState);
-  return buildWorkspaceSnapshot(nextState.activeWorkspaceId);
+  const workspaceId = await tursoService.upsertWorkspace(workspacePath, true);
+  return buildWorkspaceSnapshot(workspaceId);
 }
 
 export async function removeWorkspace(workspaceId: string): Promise<WorkspaceSnapshot> {
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-  const nextState = workspaceRegistry.removeWorkspace(state, workspaceId);
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  await tursoService.removeWorkspace(workspaceId);
+  const remaining = await tursoService.getWorkspaces();
 
-  if (nextState.workspaces.length === 0) {
-    const seededState = workspaceRegistry.upsertWorkspace(nextState, process.cwd(), true);
-    await workspaceRegistry.save(seededState);
-    return buildWorkspaceSnapshot(seededState.activeWorkspaceId);
+  if (remaining.length === 0) {
+    const seededWorkspaceId = await tursoService.upsertWorkspace(process.cwd(), true);
+    return buildWorkspaceSnapshot(seededWorkspaceId);
   }
 
-  await workspaceRegistry.save(nextState);
-  return buildWorkspaceSnapshot(nextState.activeWorkspaceId);
+  const activeWorkspaceId = (await tursoService.getActiveWorkspaceId()) ?? remaining[0].id;
+  return buildWorkspaceSnapshot(activeWorkspaceId);
+}
+
+export async function saveWorkspaceSession(
+  workspaceId: string,
+  threads: Conversation[],
+  activeThreadId: string,
+) {
+  await tursoService.saveWorkspaceSession(workspaceId, threads, activeThreadId);
 }
 
 export async function getWorkspaceSummary(workspaceId?: string): Promise<WorkspaceSummary> {
@@ -193,26 +196,30 @@ export async function runAssistant(
 }
 
 async function buildWorkspaceSnapshot(activeWorkspaceId: string | null): Promise<WorkspaceSnapshot> {
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-  const resolvedWorkspaceId = activeWorkspaceId ?? state.activeWorkspaceId;
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  const workspaces = await tursoService.getWorkspaces();
+  const resolvedWorkspaceId = activeWorkspaceId ?? (await tursoService.getActiveWorkspaceId());
 
   if (!resolvedWorkspaceId) {
     throw new Error('No workspace is available.');
   }
 
-  const workspace = await resolveWorkspace(resolvedWorkspaceId, state.workspaces);
-  const [summary, files, signals] = await Promise.all([
+  const workspace = await resolveWorkspace(resolvedWorkspaceId, workspaces);
+  const [summary, files, signals, session] = await Promise.all([
     buildWorkspaceSummary(workspace),
     listWorkspaceFiles(workspace.path, 18),
     searchWorkspaceFiles(workspace.path, 'OpenAI|ipc|thread|sidebar|composer', 10),
+    tursoService.getWorkspaceSession(workspace.id),
   ]);
 
   return {
     activeWorkspaceId: workspace.id,
-    workspaces: state.workspaces,
+    workspaces,
     workspace: summary,
     files,
     signals,
+    threads: session.threads,
+    activeThreadId: session.activeThreadId,
   };
 }
 
@@ -220,12 +227,9 @@ async function resolveWorkspace(
   workspaceId?: string,
   cachedWorkspaces?: WorkspaceEntry[],
 ): Promise<WorkspaceEntry> {
-  const state = cachedWorkspaces
-    ? { workspaces: cachedWorkspaces, activeWorkspaceId: workspaceId ?? null }
-    : await workspaceRegistry.ensureSeedWorkspace(process.cwd());
-
-  const resolvedId = workspaceId ?? state.activeWorkspaceId ?? state.workspaces[0]?.id;
-  const workspace = state.workspaces.find((entry) => entry.id === resolvedId);
+  const workspaces = cachedWorkspaces ?? (await tursoService.getWorkspaces());
+  const resolvedId = workspaceId ?? (await tursoService.getActiveWorkspaceId()) ?? workspaces[0]?.id;
+  const workspace = workspaces.find((entry) => entry.id === resolvedId);
 
   if (!workspace) {
     throw new Error('Workspace not found.');

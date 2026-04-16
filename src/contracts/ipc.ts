@@ -1,4 +1,4 @@
-import type { AssistantExecution } from './chat';
+import type { AssistantExecution, Conversation } from './chat';
 import type { GitCommit, GitDiff, GitStatus } from './git';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from './workspace';
 
@@ -9,6 +9,11 @@ export interface RepoInspectorApi {
   openWorkspacePicker: () => Promise<WorkspaceSnapshot | null>;
   setActiveWorkspace: (workspaceId: string) => Promise<WorkspaceSnapshot>;
   removeWorkspace: (workspaceId: string) => Promise<WorkspaceSnapshot>;
+  saveWorkspaceSession: (
+    workspaceId: string,
+    threads: Conversation[],
+    activeThreadId: string,
+  ) => Promise<void>;
   listFiles: (limit?: number) => Promise<string[]>;
   searchInFiles: (query: string, limit?: number) => Promise<SearchMatch[]>;
   runAssistant: (prompt: string, history: string[]) => Promise<AssistantExecution>;

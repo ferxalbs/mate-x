@@ -1,3 +1,5 @@
+import type { Conversation } from './chat';
+
 export type WorkspaceStatus = 'ready' | 'indexing' | 'offline';
 
 export interface RepoFact {
@@ -35,4 +37,6 @@ export interface WorkspaceSnapshot {
   workspace: WorkspaceSummary;
   files: string[];
   signals: SearchMatch[];
+  threads: Conversation[];
+  activeThreadId: string;
 }

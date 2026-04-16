@@ -1,3 +1,4 @@
+import type { Conversation } from '../contracts/chat';
 import type { RepoInspectorApi } from '../contracts/ipc';
 
 function getMateApi(): RepoInspectorApi {
@@ -30,6 +31,14 @@ export function setActiveWorkspace(workspaceId: string) {
 
 export function removeWorkspace(workspaceId: string) {
   return getMateApi().removeWorkspace(workspaceId);
+}
+
+export function saveWorkspaceSession(
+  workspaceId: string,
+  threads: Conversation[],
+  activeThreadId: string,
+) {
+  return getMateApi().saveWorkspaceSession(workspaceId, threads, activeThreadId);
 }
 
 export function listRepoFiles(limit?: number) {

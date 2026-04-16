@@ -9,16 +9,19 @@ import {
   listFiles,
   removeWorkspace,
   runAssistant,
+  saveWorkspaceSession,
   searchInFiles,
   setActiveWorkspace,
 } from './repo-service';
-import { workspaceRegistry } from './workspace-registry';
+import { tursoService } from './turso-service';
 
 async function resolveActiveWorkspacePath() {
-  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  const workspaces = await tursoService.getWorkspaces();
+  const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
   const activeWorkspace =
-    state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId) ??
-    state.workspaces[0];
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
+    workspaces[0];
 
   if (!activeWorkspace) {
     throw new Error('No active workspace available.');
@@ -41,6 +44,11 @@ export function registerIpcHandlers() {
   );
   ipcMain.handle('repo:remove-workspace', async (_event, workspaceId: string) =>
     removeWorkspace(workspaceId),
+  );
+  ipcMain.handle(
+    'repo:save-workspace-session',
+    async (_event, workspaceId: string, threads, activeThreadId: string) =>
+      saveWorkspaceSession(workspaceId, threads, activeThreadId),
   );
   ipcMain.handle('repo:open-workspace-picker', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
