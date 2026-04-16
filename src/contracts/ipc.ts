@@ -38,4 +38,7 @@ export interface SettingsApi {
   getModel: () => Promise<string | null>;
   setModel: (model: string) => Promise<void>;
   clearModel: () => Promise<void>;
+  getApiMode: () => Promise<'chat_completions' | 'responses' | null>;
+  setApiMode: (mode: 'chat_completions' | 'responses') => Promise<void>;
+  clearApiMode: () => Promise<void>;
 }

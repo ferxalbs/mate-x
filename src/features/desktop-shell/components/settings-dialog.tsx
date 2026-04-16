@@ -5,10 +5,13 @@ import { CheckIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Loader2Icon, X } from 'lu
 import { Button } from '../../../components/ui/button';
 import {
   clearApiKey,
+  clearApiMode,
   clearModel,
   getApiKey,
+  getApiMode,
   getModel,
   setApiKey,
+  setApiMode,
   setModel,
 } from '../../../services/settings-client';
 
@@ -27,8 +30,11 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
   const [open, setOpen] = useState(false);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [currentApiMode, setCurrentApiMode] = useState<'chat_completions' | 'responses' | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [modelInputValue, setModelInputValue] = useState('');
+  const [apiModeInputValue, setApiModeInputValue] =
+    useState<'chat_completions' | 'responses'>('chat_completions');
   const [showKey, setShowKey] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -39,19 +45,23 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
     if (!open) return;
     setInputValue('');
     setModelInputValue('');
+    setApiModeInputValue('chat_completions');
     setSaveState('idle');
     setErrorMsg('');
     setShowKey(false);
-    void Promise.all([getApiKey(), getModel()]).then(([apiKey, model]) => {
+    void Promise.all([getApiKey(), getModel(), getApiMode()]).then(([apiKey, model, apiMode]) => {
       setCurrentKey(apiKey);
       setCurrentModel(model);
+      setCurrentApiMode(apiMode);
+      setApiModeInputValue(apiMode ?? 'chat_completions');
     });
   }, [open]);
 
   const handleSave = useCallback(async () => {
     const trimmed = inputValue.trim();
     const trimmedModel = modelInputValue.trim();
-    if (!trimmed && !trimmedModel) return;
+    const shouldSaveApiMode = currentApiMode !== apiModeInputValue;
+    if (!trimmed && !trimmedModel && !shouldSaveApiMode) return;
     setSaveState('saving');
     setErrorMsg('');
     try {
@@ -65,20 +75,26 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
         setCurrentModel(trimmedModel);
         setModelInputValue('');
       }
+      if (shouldSaveApiMode) {
+        await setApiMode(apiModeInputValue);
+        setCurrentApiMode(apiModeInputValue);
+      }
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2200);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Could not save the key.');
       setSaveState('error');
     }
-  }, [inputValue]);
+  }, [apiModeInputValue, currentApiMode, inputValue, modelInputValue]);
 
   const handleClear = useCallback(async () => {
     setSaveState('saving');
     try {
-      await Promise.all([clearApiKey(), clearModel()]);
+      await Promise.all([clearApiKey(), clearModel(), clearApiMode()]);
       setCurrentKey(null);
       setCurrentModel(null);
+      setCurrentApiMode(null);
+      setApiModeInputValue('chat_completions');
       setSaveState('idle');
     } catch {
       setSaveState('idle');
@@ -92,7 +108,10 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
     [handleSave],
   );
 
-  const hasNewInput = inputValue.trim().length > 0 || modelInputValue.trim().length > 0;
+  const hasNewInput =
+    inputValue.trim().length > 0 ||
+    modelInputValue.trim().length > 0 ||
+    currentApiMode !== apiModeInputValue;
   const isBusy = saveState === 'saving';
 
   return (
@@ -178,6 +197,20 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+                  Rainy API Mode
+                </p>
+                <p className="mt-1 font-mono text-sm font-medium text-[var(--foreground)]">
+                  {currentApiMode ?? 'chat_completions'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-[22px] border border-[var(--panel-border)] bg-[var(--surface)] p-4">
+              <div className="rounded-2xl bg-[var(--surface-soft)] p-3 text-[var(--foreground)]">
+                <KeyRoundIcon className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
                   Rainy Model
                 </p>
                 {currentModel ? (
@@ -246,6 +279,27 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
                 disabled={isBusy}
                 className="w-full rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3 font-mono text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/40 outline-none transition-colors focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20 disabled:opacity-50"
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="settings-api-mode-input"
+                className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]"
+              >
+                API mode
+              </label>
+              <select
+                id="settings-api-mode-input"
+                value={apiModeInputValue}
+                onChange={(e) =>
+                  setApiModeInputValue(e.target.value as 'chat_completions' | 'responses')
+                }
+                disabled={isBusy}
+                className="w-full rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3 font-mono text-sm text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20 disabled:opacity-50"
+              >
+                <option value="chat_completions">chat_completions</option>
+                <option value="responses">responses</option>
+              </select>
             </div>
 
             {/* Action row */}

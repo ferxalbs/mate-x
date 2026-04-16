@@ -121,6 +121,8 @@ export function AppSidebar({
   activeWorkspaceId,
   activeThreadId,
   threads,
+  repoFiles,
+  repoSignals,
   theme,
   runStatus,
   onImportWorkspace,

@@ -280,6 +280,33 @@ export class TursoService {
     });
   }
 
+  async getApiMode(): Promise<string | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT value FROM app_state WHERE key = ? LIMIT 1`,
+      args: ['rainy_api_mode'],
+    });
+    const raw = result.rows[0]?.value;
+    return raw ? String(raw) : null;
+  }
+
+  async setApiMode(mode: 'chat_completions' | 'responses') {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: ['rainy_api_mode', mode],
+    });
+  }
+
+  async clearApiMode() {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `DELETE FROM app_state WHERE key = ?`,
+      args: ['rainy_api_mode'],
+    });
+  }
+
   // ── Session ──────────────────────────────────────────────────────────────
 
   private async ensureWorkspaceSession(workspaceId: string) {

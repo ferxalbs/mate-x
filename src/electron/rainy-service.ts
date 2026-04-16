@@ -4,7 +4,7 @@ import { MATE_AGENT_SYSTEM_PROMPT } from '../config/mate-agent';
 import {
   RAINY_API_BASE_URL,
   RAINY_REQUEST_TIMEOUT_MS,
-  resolveRainyApiMode,
+  type RainyApiMode,
 } from '../config/rainy';
 
 function createRainyClient(apiKey: string): OpenAI {
@@ -38,11 +38,11 @@ export async function requestRainyTextResponse(params: {
   apiKey: string;
   userContext: string;
   model: string;
+  apiMode: RainyApiMode;
 }): Promise<string> {
   const client = createRainyClient(params.apiKey);
-  const apiMode = resolveRainyApiMode(params.model);
 
-  if (apiMode === 'responses') {
+  if (params.apiMode === 'responses') {
     const response = await client.responses.create(
       {
         model: params.model,

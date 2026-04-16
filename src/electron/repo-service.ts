@@ -9,7 +9,7 @@ import type { Conversation } from '../contracts/chat';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 import { MATE_AGENT_PROMPT_STOP_WORDS } from '../config/mate-agent';
-import { resolveConfiguredRainyModel } from '../config/rainy';
+import { resolveConfiguredRainyApiMode, resolveConfiguredRainyModel } from '../config/rainy';
 
 const execFileAsync = promisify(execFile);
 
@@ -144,10 +144,15 @@ export async function runAssistant(
     },
   ];
 
-  const [apiKey, storedModel] = await Promise.all([tursoService.getApiKey(), tursoService.getModel()]);
+  const [apiKey, storedModel, storedApiMode] = await Promise.all([
+    tursoService.getApiKey(),
+    tursoService.getModel(),
+    tursoService.getApiMode(),
+  ]);
   const configuredModel = resolveConfiguredRainyModel(storedModel);
+  const configuredApiMode = resolveConfiguredRainyApiMode(storedApiMode);
   const hasRainyConfig = Boolean(apiKey && configuredModel);
-  const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel);
+  const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel, configuredApiMode);
   const createdAt = new Date().toISOString();
   let content: string;
 
@@ -155,6 +160,7 @@ export async function runAssistant(
     try {
       content = await requestRainyResponse({
         apiKey,
+        apiMode: configuredApiMode,
         history,
         model: configuredModel,
         prompt,
@@ -258,8 +264,13 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
 
   const stack = deriveStack(files, packageJson);
   const dirtyCount = status?.files.length ?? 0;
-  const [apiKey, storedModel] = await Promise.all([tursoService.getApiKey(), tursoService.getModel()]);
+  const [apiKey, storedModel, storedApiMode] = await Promise.all([
+    tursoService.getApiKey(),
+    tursoService.getModel(),
+    tursoService.getApiMode(),
+  ]);
   const configuredModel = resolveConfiguredRainyModel(storedModel);
+  const configuredApiMode = resolveConfiguredRainyApiMode(storedApiMode);
 
   return {
     id: workspace.id,
@@ -278,6 +289,7 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
         value: apiKey && configuredModel ? 'Rainy API connected' : 'Rainy API incomplete',
       },
       { label: 'Model', value: configuredModel ?? 'not configured' },
+      { label: 'API mode', value: configuredApiMode },
     ],
   };
 }
@@ -392,6 +404,7 @@ function buildArtifacts(
   snapshot: RepoSnapshot,
   providerReady: boolean,
   configuredModel: string | null,
+  configuredApiMode: 'chat_completions' | 'responses',
 ): MessageArtifact[] {
   return [
     {
@@ -404,6 +417,11 @@ function buildArtifacts(
       id: 'artifact-model',
       label: 'Model',
       value: providerReady ? (configuredModel ?? 'unknown') : configuredModel ?? 'not configured',
+    },
+    {
+      id: 'artifact-api-mode',
+      label: 'API mode',
+      value: configuredApiMode,
     },
     {
       id: 'artifact-branch',
@@ -454,12 +472,14 @@ function buildFallbackResponse(prompt: string, snapshot: RepoSnapshot, error?: u
 
 async function requestRainyResponse({
   apiKey,
+  apiMode,
   history,
   model,
   prompt,
   snapshot,
 }: {
   apiKey: string;
+  apiMode: 'chat_completions' | 'responses';
   history: string[];
   model: string;
   prompt: string;
@@ -495,6 +515,7 @@ async function requestRainyResponse({
 
   const responseText = await requestRainyTextResponse({
     apiKey,
+    apiMode,
     model,
     userContext,
   });

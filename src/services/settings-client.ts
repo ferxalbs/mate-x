@@ -30,3 +30,15 @@ export function setModel(model: string) {
 export function clearModel() {
   return getSettingsApi().clearModel();
 }
+
+export function getApiMode() {
+  return getSettingsApi().getApiMode();
+}
+
+export function setApiMode(mode: 'chat_completions' | 'responses') {
+  return getSettingsApi().setApiMode(mode);
+}
+
+export function clearApiMode() {
+  return getSettingsApi().clearApiMode();
+}

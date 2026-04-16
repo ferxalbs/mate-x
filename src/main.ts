@@ -4,6 +4,33 @@ import started from 'electron-squirrel-startup';
 
 import { registerIpcHandlers } from './electron/ipc-handlers';
 
+// Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
+// Ignore that single deprecation noise so actual app warnings stay visible.
+const originalEmitWarning = process.emitWarning.bind(process);
+process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+  const warningCode =
+    typeof warning === 'object' && warning !== null && 'code' in warning
+      ? String((warning as { code?: unknown }).code)
+      : typeof args[1] === 'string'
+        ? args[1]
+        : typeof args[0] === 'string'
+          ? args[0]
+          : null;
+
+  if (warningCode === 'DEP0040') {
+    return;
+  }
+
+  return (originalEmitWarning as (...emitArgs: unknown[]) => void)(warning, ...args);
+}) as typeof process.emitWarning;
+
+// Chromium/EGL device probing is noisy on some Linux desktops.
+// This app does not need GPU acceleration, so keep rendering on the CPU path.
+if (process.platform === 'linux') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+}
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();

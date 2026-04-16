@@ -1,5 +1,3 @@
-import * as Schema from "effect/Schema";
-import * as Record from "effect/Record";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const isomorphicLocalStorage: Storage =
@@ -10,7 +8,7 @@ const isomorphicLocalStorage: Storage =
         return {
           clear: () => store.clear(),
           getItem: (_) => store.get(_) ?? null,
-          key: (_) => Record.keys(store).at(_) ?? null,
+          key: (_) => Array.from(store.keys()).at(_) ?? null,
           get length() {
             return store.size;
           },
@@ -19,19 +17,33 @@ const isomorphicLocalStorage: Storage =
         };
       })();
 
-const decode = <T, E>(schema: Schema.Codec<T, E>, value: string) =>
-  Schema.decodeSync(Schema.fromJsonString(schema))(value);
-
-const encode = <T, E>(schema: Schema.Codec<T, E>, value: T) =>
-  Schema.encodeSync(Schema.fromJsonString(schema))(value);
-
-export const getLocalStorageItem = <T, E>(key: string, schema: Schema.Codec<T, E>): T | null => {
-  const item = isomorphicLocalStorage.getItem(key);
-  return item ? decode(schema, item) : null;
+export type LocalStorageCodec<T> = {
+  parse: (raw: string) => T;
+  serialize: (value: T) => string;
 };
 
-export const setLocalStorageItem = <T, E>(key: string, value: T, schema: Schema.Codec<T, E>) => {
-  const valueToSet = encode(schema, value);
+export const numberCodec: LocalStorageCodec<number> = {
+  parse: (raw) => {
+    const value = Number(raw);
+    if (!Number.isFinite(value)) {
+      throw new Error("Stored value is not a finite number.");
+    }
+    return value;
+  },
+  serialize: (value) => String(value),
+};
+
+const decode = <T>(codec: LocalStorageCodec<T>, value: string) => codec.parse(value);
+
+const encode = <T>(codec: LocalStorageCodec<T>, value: T) => codec.serialize(value);
+
+export const getLocalStorageItem = <T>(key: string, codec: LocalStorageCodec<T>): T | null => {
+  const item = isomorphicLocalStorage.getItem(key);
+  return item ? decode(codec, item) : null;
+};
+
+export const setLocalStorageItem = <T>(key: string, value: T, codec: LocalStorageCodec<T>) => {
+  const valueToSet = encode(codec, value);
   isomorphicLocalStorage.setItem(key, valueToSet);
 };
 
@@ -54,15 +66,15 @@ function dispatchLocalStorageChange(key: string) {
   );
 }
 
-export function useLocalStorage<T, E>(
+export function useLocalStorage<T>(
   key: string,
   initialValue: T,
-  schema: Schema.Codec<T, E>,
+  codec: LocalStorageCodec<T>,
 ): [T, (value: T | ((val: T) => T)) => void] {
   // Get the initial value from localStorage or use the provided initialValue
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
-      const item = getLocalStorageItem(key, schema);
+      const item = getLocalStorageItem(key, codec);
       return item ?? initialValue;
     } catch (error) {
       console.error("[LOCALSTORAGE] Error:", error);
@@ -79,7 +91,7 @@ export function useLocalStorage<T, E>(
           if (valueToStore === null) {
             removeLocalStorageItem(key);
           } else {
-            setLocalStorageItem(key, valueToStore, schema);
+            setLocalStorageItem(key, valueToStore, codec);
           }
           // Dispatch event after state update completes to avoid nested state updates
           queueMicrotask(() => dispatchLocalStorageChange(key));
@@ -89,7 +101,7 @@ export function useLocalStorage<T, E>(
         console.error("[LOCALSTORAGE] Error:", error);
       }
     },
-    [key, schema],
+    [codec, key],
   );
 
   const prevKeyRef = useRef(key);
@@ -99,19 +111,19 @@ export function useLocalStorage<T, E>(
     if (prevKeyRef.current !== key) {
       prevKeyRef.current = key;
       try {
-        const newValue = getLocalStorageItem(key, schema);
+        const newValue = getLocalStorageItem(key, codec);
         setStoredValue(newValue ?? initialValue);
       } catch (error) {
         console.error("[LOCALSTORAGE] Error:", error);
       }
     }
-  }, [key, initialValue, schema]);
+  }, [codec, key, initialValue]);
 
   // Listen for storage events from other tabs AND custom events from the same tab
   useEffect(() => {
     const syncFromStorage = () => {
       try {
-        const newValue = getLocalStorageItem(key, schema);
+        const newValue = getLocalStorageItem(key, codec);
         setStoredValue(newValue ?? initialValue);
       } catch (error) {
         console.error("[LOCALSTORAGE] Error:", error);
@@ -137,7 +149,7 @@ export function useLocalStorage<T, E>(
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(LOCAL_STORAGE_CHANGE_EVENT, handleLocalChange as EventListener);
     };
-  }, [key, initialValue, schema]);
+  }, [codec, key, initialValue]);
 
   return [storedValue, setValue];
 }

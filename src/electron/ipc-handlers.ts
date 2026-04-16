@@ -121,4 +121,10 @@ export function registerIpcHandlers() {
     tursoService.setModel(model),
   );
   ipcMain.handle('settings:clear-model', async () => tursoService.clearModel());
+  ipcMain.handle('settings:get-api-mode', async () => tursoService.getApiMode());
+  ipcMain.handle(
+    'settings:set-api-mode',
+    async (_event, mode: 'chat_completions' | 'responses') => tursoService.setApiMode(mode),
+  );
+  ipcMain.handle('settings:clear-api-mode', async () => tursoService.clearApiMode());
 }

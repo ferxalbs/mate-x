@@ -1,9 +1,9 @@
 "use client";
 
 import { Toast } from "@base-ui/react/toast";
+import * as React from "react";
 import { useEffect, type CSSProperties } from "react";
 import { useParams } from "@tanstack/react-router";
-import { ThreadId } from "@t3tools/contracts";
 import {
   CheckIcon,
   CircleAlertIcon,
@@ -16,8 +16,9 @@ import {
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
-import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { buildVisibleToastLayout, shouldHideCollapsedToastContent } from "./toast.logic";
+
+type ThreadId = string;
 
 export type ThreadToastData = {
   threadId?: ThreadId | null;
@@ -40,7 +41,17 @@ const TOAST_ICONS = {
 } as const;
 
 function CopyErrorButton({ text }: { text: string }) {
-  const { copyToClipboard, isCopied } = useCopyToClipboard();
+  const [isCopied, setIsCopied] = React.useState(false);
+
+  const copyToClipboard = async (value: string) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(value);
+    setIsCopied(true);
+    window.setTimeout(() => setIsCopied(false), 1500);
+  };
 
   return (
     <button
@@ -80,11 +91,8 @@ function shouldRenderForActiveThread(
 }
 
 function useActiveThreadIdFromRoute(): ThreadId | null {
-  return useParams({
-    strict: false,
-    select: (params) =>
-      typeof params.threadId === "string" ? ThreadId.makeUnsafe(params.threadId) : null,
-  });
+  const params = useParams({ strict: false }) as Record<string, unknown>;
+  return typeof params.threadId === "string" ? params.threadId : null;
 }
 
 function ThreadToastVisibleAutoDismiss({
