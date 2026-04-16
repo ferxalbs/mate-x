@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`src/electron/` contains the Electron main-process services, IPC handlers, Git integration, and Rainy API orchestration. `src/features/` holds renderer features such as the desktop shell and chat UI. Shared cross-boundary contracts live in `src/contracts/`, reusable renderer services in `src/services/`, Zustand stores in `src/store/`, and generic helpers in `src/lib/`. UI primitives and tests are mostly under `src/components/ui/`. Entry points are `src/main.ts` for Electron, `src/preload.ts` for the bridge, and `src/renderer.tsx` / `src/app.tsx` for the React app.
+MaTE X is a desktop security review agent for local repositories, so changes should preserve grounded analysis and strict IPC boundaries. `src/electron/` contains main-process services, IPC handlers, Git integration, and Rainy orchestration. `src/features/` holds renderer features. Shared contracts live in `src/contracts/`, service facades in `src/services/`, Zustand stores in `src/store/`, helpers in `src/lib/`, and UI primitives plus colocated tests in `src/components/ui/`. Entry points are `src/main.ts`, `src/preload.ts`, and `src/renderer.tsx`.
 
 ## Build, Test, and Development Commands
 
@@ -19,16 +19,20 @@ Run `bun run lint && bun run typecheck` before opening a PR.
 
 ## Coding Style & Naming Conventions
 
-The codebase uses TypeScript with React 19, Electron 41, and Tailwind CSS v4. Follow the existing style in each file: most renderer files use double quotes and trailing commas; main-process files currently favor single quotes. Keep that local consistency instead of reformatting unrelated code. Use `PascalCase` for React components, `camelCase` for functions and Zustand actions, and `kebab-case` for feature folders. IPC channels follow `<domain>:<action>` patterns such as `repo:run-assistant`.
+The codebase uses TypeScript with React 19, Electron 41, and Tailwind CSS v4. Follow the existing file style: renderer files usually use double quotes and trailing commas, while main-process files favor single quotes. Use `PascalCase` for components, `camelCase` for functions and store actions, and `kebab-case` for feature folders. IPC channels follow `<domain>:<action>` such as `repo:run-assistant`.
 
 ## Testing Guidelines
 
-There is no dedicated `test` script yet. Existing tests are colocated as `*.test.ts` and `*.test.tsx`, for example `src/components/ui/sidebar.test.tsx`. Keep new tests near the code they exercise and prefer focused unit coverage for UI logic, stores, and helper modules. At minimum, verify linting and type-checking on every change.
+There is no dedicated `test` script yet. Existing tests are colocated as `*.test.ts` and `*.test.tsx`, for example `src/components/ui/sidebar.test.tsx`. Keep new tests near the code they exercise and prefer focused unit coverage for UI logic, stores, and helpers. At minimum, verify linting and type-checking on every change.
 
 ## Commit & Pull Request Guidelines
 
-Recent history follows Conventional Commit prefixes such as `feat(settings): ...`, `refactor(api): ...`, and `chore(main): ...`. Continue using `type(scope): summary` with small, reviewable commits. PRs should explain user-visible changes, note any IPC or settings impact, link the related issue when available, and include screenshots or short recordings for renderer/UI updates.
+Recent history follows Conventional Commit prefixes such as `feat(settings): ...`, `refactor(api): ...`, and `chore(main): ...`. Continue using `type(scope): summary`. PRs should explain user-visible changes, note any IPC or settings impact, link the related issue when available, and include screenshots for UI updates.
+
+## Changelog Rules
+
+If you touch changelog content, follow `RULES.md` exactly. Every new entry header must use `# Unreleased - YYYY.MM.DD (N) [Entry Name]`, where the date is zero-padded, `(N)` is the daily sequence number, and `[Entry Name]` is required.
 
 ## Security & Configuration Tips
 
-Do not hardcode Rainy credentials or commit `.env` data. API keys are stored through the settings flow and resolved in the Electron main process. Keep security-sensitive logic grounded in `src/electron/` and update shared contracts in `src/contracts/` whenever IPC payloads change.
+Do not hardcode Rainy credentials or commit `.env` data. API keys are stored through the settings flow and resolved in the Electron main process. Because this app is a security reviewer, prefer changes that improve evidence collection and explicit remediation guidance. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, and update `src/contracts/` whenever payloads change.
