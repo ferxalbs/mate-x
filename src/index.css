@@ -1,8 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --background: oklch(0.16 0.02 250);
+  --foreground: oklch(0.96 0.01 255);
+  --surface: oklch(0.22 0.02 250 / 0.92);
+  --surface-strong: oklch(0.28 0.03 248);
+  --border: oklch(0.36 0.03 248 / 0.8);
+  --muted-foreground: oklch(0.74 0.02 250);
+  --accent: oklch(0.78 0.14 230);
+  --accent-soft: oklch(0.34 0.06 235 / 0.5);
+  --ring: oklch(0.72 0.12 230);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    "SF Pro Display",
+    "Inter Tight",
+    "Segoe UI",
     sans-serif;
-  margin: auto;
-  max-width: 38rem;
-  padding: 2rem;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
