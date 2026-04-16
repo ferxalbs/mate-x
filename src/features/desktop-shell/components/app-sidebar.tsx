@@ -9,6 +9,7 @@ import {
   Settings2,
   SunMedium,
 } from 'lucide-react';
+import { Fragment } from 'react';
 
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -23,6 +24,24 @@ import {
 } from '../model';
 import { SettingsDialog } from './settings-dialog';
 import type { Theme } from '../../../hooks/use-theme';
+
+function MateWordmark() {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5">
+        <span className="size-2.5 rounded-full bg-[#ff5f57]" />
+        <span className="size-2.5 rounded-full bg-[#febc2e]" />
+        <span className="size-2.5 rounded-full bg-[#28c840]" />
+      </div>
+      <span className="text-[13px] font-semibold tracking-[0.12em] text-[var(--foreground)]">
+        MATE X
+      </span>
+      <span className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+        Desktop
+      </span>
+    </div>
+  );
+}
 
 interface AppSidebarProps {
   workspace: WorkspaceSummary | null;
@@ -50,14 +69,9 @@ export function AppSidebar({
   const aiProvider = getWorkspaceFact(workspace, 'AI provider');
 
   return (
-    <aside className="relative flex h-full min-h-0 w-[272px] shrink-0 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)]">
-      <div className="drag-region flex h-10 items-center gap-2 border-b border-[var(--titlebar-border)] px-5">
-        <p className="truncate text-[13px] font-semibold tracking-[0.08em] text-[var(--sidebar-foreground)]">
-          MATE X
-        </p>
-        <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-          Desktop
-        </span>
+    <aside className="relative flex h-full min-h-0 w-[274px] shrink-0 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)]">
+      <div className="drag-region flex h-10 items-center border-b border-[var(--titlebar-border)] px-4">
+        <MateWordmark />
       </div>
 
       <div className="px-4 py-4">
@@ -115,9 +129,9 @@ export function AppSidebar({
               {workspace?.status ?? 'ready'}
             </Badge>
           </div>
-          <div className="rounded-xl border border-[var(--sidebar-border)] bg-[var(--surface)] px-3 py-3">
+          <div className="rounded-2xl border border-[var(--sidebar-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--surface)_96%,white_4%)_0%,var(--surface)_100%)] px-3 py-3">
             <div className="flex items-start gap-3">
-              <div className="rounded-md bg-[var(--sidebar-accent)] p-2 text-[var(--foreground)]">
+              <div className="rounded-xl bg-[var(--sidebar-accent)] p-2 text-[var(--foreground)]">
                 <FolderGit2 className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
@@ -146,7 +160,7 @@ export function AppSidebar({
             </p>
             <span className="text-xs text-[var(--muted-foreground)]">{threads.length}</span>
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {threads.map((thread) => {
               const isActive = thread.id === activeThreadId;
 
@@ -154,17 +168,19 @@ export function AppSidebar({
                 <button
                   key={thread.id}
                   className={cn(
-                    'w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors',
+                    'w-full rounded-xl border px-3 py-3 text-left transition-colors',
                     isActive
-                      ? 'bg-[var(--sidebar-accent)] text-[var(--foreground)]'
-                      : 'text-[var(--muted-foreground)] hover:bg-[var(--sidebar-accent)]/70 hover:text-[var(--foreground)]',
+                      ? 'border-[color-mix(in_srgb,var(--primary)_18%,var(--sidebar-border))] bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))] text-[var(--foreground)]'
+                      : 'border-transparent text-[var(--muted-foreground)] hover:bg-[var(--sidebar-accent)]/60 hover:text-[var(--foreground)]',
                   )}
                   onClick={() => onSelectThread(thread.id)}
                   type="button"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{thread.title}</p>
+                      <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                        {thread.title}
+                      </p>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">
                         {getConversationPreview(thread)}
                       </p>
@@ -186,24 +202,26 @@ export function AppSidebar({
             </p>
             <span className="text-xs text-[var(--muted-foreground)]">{repoSignals.length}</span>
           </div>
-          <div className="space-y-1">
-            {repoSignals.slice(0, 3).map((item) => (
-              <div
-                key={`${item.file}:${item.line}`}
-                className="rounded-md border border-transparent px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--sidebar-accent)]"
-              >
-                <p className="truncate uppercase tracking-[0.16em]">{item.file}:{item.line}</p>
-                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--foreground)]">
-                  {item.text}
-                </p>
-              </div>
+          <div className="space-y-1.5">
+            {repoSignals.slice(0, 3).map((item, index) => (
+              <Fragment key={`${item.file}:${item.line}`}>
+                <div className="px-3 py-1 text-xs text-[var(--muted-foreground)]">
+                  <p className="truncate uppercase tracking-[0.16em]">{item.file}:{item.line}</p>
+                  <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--foreground)]">
+                    {item.text}
+                  </p>
+                </div>
+                {index < Math.min(repoSignals.length, 3) - 1 ? (
+                  <div className="mx-3 border-b border-[var(--sidebar-border)]" />
+                ) : null}
+              </Fragment>
             ))}
           </div>
         </section>
       </div>
 
       <div className="border-t border-[var(--sidebar-border)] px-3 py-3">
-        <Button className="w-full justify-start rounded-md" size="sm" variant="secondary">
+        <Button className="w-full justify-start rounded-xl" size="sm" variant="secondary">
           <RefreshCcw className="size-3.5" />
           Restart to update
         </Button>

@@ -56,6 +56,7 @@ export function ChatTopbar({
         <div className="drag-region ml-1 flex items-center gap-1">
           <Button
             aria-label="Light theme"
+            className="rounded-full"
             onClick={() => onThemeChange('light')}
             size="icon-xs"
             variant={theme === 'light' ? 'outline' : 'ghost'}
@@ -64,6 +65,7 @@ export function ChatTopbar({
           </Button>
           <Button
             aria-label="Dark theme"
+            className="rounded-full"
             onClick={() => onThemeChange('dark')}
             size="icon-xs"
             variant={theme === 'dark' ? 'outline' : 'ghost'}
@@ -72,6 +74,7 @@ export function ChatTopbar({
           </Button>
           <Button
             aria-label="System theme"
+            className="rounded-full"
             onClick={() => onThemeChange('system')}
             size="icon-xs"
             variant={theme === 'system' ? 'outline' : 'ghost'}

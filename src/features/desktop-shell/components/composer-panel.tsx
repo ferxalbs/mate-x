@@ -29,7 +29,7 @@ export function ComposerPanel({ isRunning, workspace, onSubmit }: ComposerPanelP
 
   return (
     <div className="border-t border-[var(--panel-border)] bg-[var(--background)] px-6 py-5">
-      <div className="mx-auto w-full max-w-[860px] border border-[var(--panel-border)] bg-[var(--panel)]">
+      <div className="mx-auto w-full max-w-[900px] border border-[var(--panel-border)] bg-[var(--panel)]">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-4 py-3">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
@@ -47,7 +47,7 @@ export function ComposerPanel({ isRunning, workspace, onSubmit }: ComposerPanelP
 
         <div className="px-4 py-4">
           <Textarea
-            className="min-h-[140px] rounded-md border-[var(--panel-border)] bg-[var(--surface)]"
+            className="min-h-[138px] rounded-xl border-[var(--panel-border)] bg-[var(--surface)]"
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -61,7 +61,7 @@ export function ComposerPanel({ isRunning, workspace, onSubmit }: ComposerPanelP
 
           <div className="mt-3 flex items-center justify-between gap-3">
             <p className="text-xs text-[var(--muted-foreground)]">Press `Cmd/Ctrl + Enter` to send.</p>
-            <Button className="h-9 px-4" disabled={isRunning} onClick={handleSubmit} size="sm">
+            <Button className="h-9 rounded-xl px-4" disabled={isRunning} onClick={handleSubmit} size="sm">
               {isRunning ? <LoaderCircle className="size-4 animate-spin" /> : null}
               {isRunning ? 'Thinking' : 'Send to Mate-X'}
               <ArrowUpRight className="size-4" />

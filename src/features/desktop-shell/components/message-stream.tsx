@@ -29,7 +29,7 @@ export function MessageStream({ messages }: MessageStreamProps) {
       ref={scrollerRef}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[var(--background)] px-6 pb-12 pt-8"
     >
-      <div className="mx-auto flex w-full max-w-[860px] flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-[900px] flex-col gap-6">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}
@@ -47,7 +47,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         'border border-[var(--panel-border)] bg-[var(--surface)]',
         isUser
           ? 'ml-auto w-full max-w-[760px] border-[color-mix(in_srgb,var(--primary)_24%,var(--panel-border))] bg-[color-mix(in_srgb,var(--primary)_9%,var(--surface))]'
-          : 'w-full',
+          : 'w-full max-w-[820px]',
       )}
     >
       <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-5 py-3">
@@ -67,7 +67,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         <span className="text-xs text-[var(--muted-foreground)]">{formatTimestamp(message.createdAt)}</span>
       </div>
 
-      <div className="px-5 py-5">
+      <div className="px-5 py-6">
         <p className="whitespace-pre-wrap text-[15px] leading-7 text-[var(--foreground)]">
           {message.content}
         </p>
