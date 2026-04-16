@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { GitApi, RepoInspectorApi } from './contracts/ipc';
+import type { GitApi, RepoInspectorApi, SettingsApi } from './contracts/ipc';
 
 const repoApi: RepoInspectorApi = {
   bootstrap: () => ipcRenderer.invoke('repo:bootstrap'),
@@ -28,7 +28,14 @@ const gitApi: GitApi = {
   getDiff: () => ipcRenderer.invoke('git:diff'),
 };
 
+const settingsApi: SettingsApi = {
+  getApiKey: () => ipcRenderer.invoke('settings:get-api-key'),
+  setApiKey: (apiKey) => ipcRenderer.invoke('settings:set-api-key', apiKey),
+  clearApiKey: () => ipcRenderer.invoke('settings:clear-api-key'),
+};
+
 contextBridge.exposeInMainWorld('mate', {
   repo: repoApi,
   git: gitApi,
+  settings: settingsApi,
 });

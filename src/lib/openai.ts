@@ -1,29 +1,31 @@
 import OpenAI from 'openai';
 
-// Since this is a client-side Electron app, for a real deployment 
-// the user would likely provide this via settings. For now we use the env map.
-const getClient = () => {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY || localStorage.getItem('openai_api_key');
+const RAINY_BASE_URL = 'https://api.rainy.dev/v3';
+const DEFAULT_RAINY_MODEL = 'rainy-coder-security';
+
+async function getRainyClient(): Promise<OpenAI> {
+  const apiKey = await window.mate?.settings?.getApiKey();
   if (!apiKey) {
-    throw new Error('OpenAI API key is missing. Please set VITE_OPENAI_API_KEY or save it in settings.');
+    throw new Error('Rainy API key is not configured. Add it in Settings to start using MaTE X.');
   }
 
   return new OpenAI({
     apiKey,
-    dangerouslyAllowBrowser: true // This is required since we run in the renderer process
+    baseURL: RAINY_BASE_URL,
+    dangerouslyAllowBrowser: true,
   });
-};
+}
 
 export async function chatStream(prompt: string, onUpdate: (chunk: string) => void) {
-  const openai = getClient();
-  const stream = await openai.chat.completions.create({
-    model: 'gpt-4o', // Fast default model
+  const client = await getRainyClient();
+  const stream = await client.chat.completions.create({
+    model: DEFAULT_RAINY_MODEL,
     messages: [{ role: 'user', content: prompt }],
     stream: true,
   });
 
   for await (const chunk of stream) {
-    const content = chunk.choices[0]?.delta?.content || '';
+    const content = chunk.choices[0]?.delta?.content ?? '';
     if (content) {
       onUpdate(content);
     }

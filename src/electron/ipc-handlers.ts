@@ -109,4 +109,11 @@ export function registerIpcHandlers() {
   ipcMain.handle('git:unstage', async (_event, files: string[]) =>
     (await resolveGitService()).unstageFiles(files),
   );
+
+  // ── Settings ─────────────────────────────────────────────────────────────
+  ipcMain.handle('settings:get-api-key', async () => tursoService.getApiKey());
+  ipcMain.handle('settings:set-api-key', async (_event, apiKey: string) =>
+    tursoService.setApiKey(apiKey),
+  );
+  ipcMain.handle('settings:clear-api-key', async () => tursoService.clearApiKey());
 }

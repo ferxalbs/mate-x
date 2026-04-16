@@ -11,8 +11,9 @@ import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contract
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.2';
-const OPENAI_TIMEOUT_MS = 20_000;
+const RAINY_BASE_URL = 'https://api.rainy.dev/v3';
+const DEFAULT_RAINY_MODEL = process.env.RAINY_MODEL ?? 'rainy-coder-security';
+const RAINY_TIMEOUT_MS = 20_000;
 
 export interface RepoSnapshot {
   workspace: WorkspaceSummary;
@@ -145,39 +146,40 @@ export async function runAssistant(
     },
   ];
 
-  const artifacts = buildArtifacts(snapshot);
-  const providerReady = Boolean(process.env.OPENAI_API_KEY);
+  const apiKey = await tursoService.getApiKey();
+  const artifacts = buildArtifacts(snapshot, Boolean(apiKey));
   const createdAt = new Date().toISOString();
   let content: string;
 
-  if (providerReady) {
+  if (apiKey) {
     try {
-      content = await requestOpenAIResponse({
+      content = await requestRainyResponse({
+        apiKey,
         history,
         prompt,
         snapshot,
       });
       events.push({
-        id: 'step-openai',
-        label: 'Generate OpenAI response',
-        detail: `Answered with ${DEFAULT_OPENAI_MODEL}.`,
+        id: 'step-rainy',
+        label: 'Generate Rainy response',
+        detail: `Answered with ${DEFAULT_RAINY_MODEL}.`,
         status: 'done',
       });
     } catch (error) {
       content = buildFallbackResponse(prompt, snapshot, error);
       events.push({
-        id: 'step-openai-fallback',
-        label: 'OpenAI fallback',
-        detail: 'The API request failed, so Mate-X returned a local repo-grounded response.',
+        id: 'step-rainy-fallback',
+        label: 'Rainy API fallback',
+        detail: 'The API request failed. Returning a local repo-grounded response.',
         status: 'error',
       });
     }
   } else {
     content = buildFallbackResponse(prompt, snapshot);
     events.push({
-      id: 'step-openai-missing',
-      label: 'OpenAI unavailable',
-      detail: 'Set OPENAI_API_KEY to enable live model responses. Using local repo context for now.',
+      id: 'step-rainy-missing',
+      label: 'API key not configured',
+      detail: 'Add your Rainy API key in Settings to enable live responses.',
       status: 'error',
     });
   }
@@ -247,6 +249,7 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
 
   const stack = deriveStack(files, packageJson);
   const dirtyCount = status?.files.length ?? 0;
+  const apiKey = await tursoService.getApiKey();
 
   return {
     id: workspace.id,
@@ -260,8 +263,8 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
       { label: 'Tracked files', value: String(files.length) },
       { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
       { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
-      { label: 'AI provider', value: process.env.OPENAI_API_KEY ? 'OpenAI connected' : 'OpenAI key missing' },
-      { label: 'Model', value: DEFAULT_OPENAI_MODEL },
+      { label: 'AI provider', value: apiKey ? 'Rainy API connected' : 'API key missing' },
+      { label: 'Model', value: DEFAULT_RAINY_MODEL },
     ],
   };
 }
@@ -372,18 +375,18 @@ function buildPromptPattern(prompt: string) {
   return terms.length > 0 ? terms.join('|') : '';
 }
 
-function buildArtifacts(snapshot: RepoSnapshot): MessageArtifact[] {
+function buildArtifacts(snapshot: RepoSnapshot, providerReady: boolean): MessageArtifact[] {
   return [
     {
       id: 'artifact-provider',
       label: 'Provider',
-      value: process.env.OPENAI_API_KEY ? 'OpenAI' : 'Local fallback',
-      tone: process.env.OPENAI_API_KEY ? 'success' : 'warning',
+      value: providerReady ? 'Rainy API v3' : 'Local fallback',
+      tone: providerReady ? 'success' : 'warning',
     },
     {
       id: 'artifact-model',
       label: 'Model',
-      value: process.env.OPENAI_API_KEY ? DEFAULT_OPENAI_MODEL : 'repo-grounded summary',
+      value: providerReady ? DEFAULT_RAINY_MODEL : 'repo-grounded summary',
     },
     {
       id: 'artifact-branch',
@@ -432,16 +435,22 @@ function buildFallbackResponse(prompt: string, snapshot: RepoSnapshot, error?: u
   ].join('\n');
 }
 
-async function requestOpenAIResponse({
+async function requestRainyResponse({
+  apiKey,
   history,
   prompt,
   snapshot,
 }: {
+  apiKey: string;
   history: string[];
   prompt: string;
   snapshot: RepoSnapshot;
 }) {
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({
+    apiKey,
+    baseURL: RAINY_BASE_URL,
+  });
+
   const files = snapshot.files.slice(0, 80).join('\n');
   const matches = snapshot.promptMatches
     .slice(0, 12)
@@ -449,58 +458,47 @@ async function requestOpenAIResponse({
     .join('\n');
   const gitStatus = snapshot.statusLines.slice(0, 40).join('\n');
 
-  const response = await client.responses.create(
+  const systemPrompt = [
+    'Eres MaTE X, un agente local de revisión de código especializado en seguridad.',
+    'Tu trabajo es analizar el repositorio activo, detectar vulnerabilidades,',
+    'malos patrones y riesgos de seguridad. Responde con precisión quirúrgica.',
+    'Si la evidencia en el repo es débil, dilo explícitamente y propón la siguiente',
+    'acción concreta (qué archivo abrir, qué buscar, qué comando ejecutar).',
+  ].join(' ');
+
+  const userContext = [
+    `Workspace: ${snapshot.workspace.name}`,
+    `Path: ${snapshot.workspace.path}`,
+    `Branch: ${snapshot.workspace.branch}`,
+    `Stack: ${snapshot.workspace.stack.join(', ') || 'unknown'}`,
+    '',
+    'Files:',
+    files || '(none)',
+    '',
+    'Git status:',
+    gitStatus || '(clean)',
+    '',
+    'Prompt-linked matches:',
+    matches || '(none)',
+    '',
+    'Conversation history:',
+    history.join('\n') || '(none)',
+    '',
+    `User prompt: ${prompt}`,
+  ].join('\n');
+
+  const response = await client.chat.completions.create(
     {
-      model: DEFAULT_OPENAI_MODEL,
-      input: [
-        {
-          role: 'system',
-          content: [
-            {
-              type: 'input_text',
-              text: [
-                'You are Mate-X, an Electron coding copilot grounded in the local repository.',
-                'Use the supplied workspace inventory, git status, and search matches to answer precisely.',
-                'If repo evidence is weak, say so explicitly and propose the next repo action.',
-              ].join(' '),
-            },
-          ],
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: [
-                `Workspace: ${snapshot.workspace.name}`,
-                `Path: ${snapshot.workspace.path}`,
-                `Branch: ${snapshot.workspace.branch}`,
-                '',
-                'Files:',
-                files || '(none)',
-                '',
-                'Git status:',
-                gitStatus || '(clean)',
-                '',
-                'Prompt-linked matches:',
-                matches || '(none)',
-                '',
-                'Conversation history:',
-                history.join('\n') || '(none)',
-                '',
-                `User prompt: ${prompt}`,
-              ].join('\n'),
-            },
-          ],
-        },
+      model: DEFAULT_RAINY_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContext },
       ],
     },
-    {
-      timeout: OPENAI_TIMEOUT_MS,
-    },
+    { timeout: RAINY_TIMEOUT_MS },
   );
 
-  return response.output_text?.trim() || buildFallbackResponse(prompt, snapshot);
+  return response.choices[0]?.message?.content?.trim() || buildFallbackResponse(prompt, snapshot);
 }
 
 const STOP_WORDS = new Set([

@@ -39,9 +39,11 @@ MaTE X consume el modelo de lenguaje a través de **Rainy API v3**, una API priv
 
 ```ts
 // src/electron/repo-service.ts (main process)
+// La apiKey se lee en tiempo de ejecución desde la DB local (tursoService)
+const apiKey = await tursoService.getApiKey();
 const client = new OpenAI({
-  apiKey: process.env.RAINY_API_KEY,
-  baseURL: process.env.RAINY_API_BASE_URL, // e.g. https://api.rainy.dev/v3
+  apiKey,
+  baseURL: 'https://api.rainy.dev/v3', // constante — no configurable por el usuario
 });
 ```
 
@@ -107,13 +109,13 @@ mate-x/
 │   │   ├── ipc-handlers.ts         # Registro de todos los canales IPC
 │   │   ├── repo-service.ts         # Core: snapshot, search, AI request
 │   │   ├── git-service.ts          # Git operations (simple-git)
-│   │   └── workspace-registry.ts   # Gestión de workspaces (JSON persist)
+│   │   └── turso-service.ts        # Persistencia: workspaces, sessions, API key
 │   │
 │   ├── contracts/                  # TypeScript interfaces (shared)
 │   │   ├── chat.ts                 # ChatMessage, Conversation, AssistantExecution
 │   │   ├── audit.ts                # AuditFinding, AuditReport (seguridad)
 │   │   ├── git.ts                  # GitStatus, GitCommit, GitDiff
-│   │   ├── ipc.ts                  # RepoInspectorApi, GitApi (preload contract)
+│   │   ├── ipc.ts                  # RepoInspectorApi, GitApi, SettingsApi
 │   │   └── workspace.ts            # WorkspaceEntry, WorkspaceSnapshot
 │   │
 │   ├── features/
@@ -126,14 +128,15 @@ mate-x/
 │   │
 │   ├── services/                   # Renderer-side service façades
 │   │   ├── repo-client.ts          # Llama a window.mate.repo.* (IPC bridge)
+│   │   ├── settings-client.ts      # Llama a window.mate.settings.* (IPC bridge)
 │   │   ├── assistant-service.ts    # Streaming wrapper (renderer side)
 │   │   └── workspace-service.ts    # Workspace helpers renderer
 │   │
 │   ├── lib/
-│   │   ├── openai.ts               # Cliente OpenAI-compat (renderer — para streaming)
+│   │   ├── openai.ts               # Cliente Rainy API v3 (renderer — streaming)
 │   │   └── id.ts                   # Generador de IDs únicos
 │   │
-│   ├── preload.ts                  # contextBridge — expone window.mate.repo y window.mate.git
+│   ├── preload.ts                  # contextBridge — expone window.mate.{repo,git,settings}
 │   └── router.tsx                  # TanStack Router routes
 │
 ├── agents.md                       ← ESTE ARCHIVO
@@ -172,6 +175,14 @@ mate-x/
 | `git:push` | Push al remoto |
 | `git:pull` | Pull del remoto |
 | `git:diff` | Diff completo del working tree |
+
+### `settings:*` — API Key Management
+
+| Canal | Descripción |
+|-------|-------------|
+| `settings:get-api-key` | Recupera la API key guardada (`null` si no configurada) |
+| `settings:set-api-key` | Persiste la API key del usuario en la DB local |
+| `settings:clear-api-key` | Elimina la API key del usuario |
 
 ---
 
@@ -261,13 +272,15 @@ acción concreta (qué archivo abrir, qué buscar, qué comando ejecutar).
 
 ## Variables de Entorno
 
-| Variable | Descripción | Requerida |
-|----------|-------------|-----------|
-| `RAINY_API_KEY` | API key para Rainy API v3 | ✅ Sí |
-| `RAINY_API_BASE_URL` | Base URL de la API (e.g. `https://api.rainy.dev/v3`) | ✅ Sí |
-| `RAINY_MODEL` | Modelo a usar (default: `rainy-coder-security`) | ⚙️ Opcional |
+> **Nota**: MaTE X es una app Electron empaquetada. El usuario obtiene su API key desde la plataforma
+> y la guarda en la UI (Settings panel). La key se persiste en la DB local de Turso (userData).
+> No se usan variables de entorno en producción.
 
-> Crear un archivo `.env` en la raíz del proyecto con estas variables.  
+| Variable | Descripción | Uso |
+|----------|-------------|-----|
+| `RAINY_MODEL` | Override del modelo (default: `rainy-coder-security`) | Desarrollo / testing |
+
+> En desarrollo, puede usarse `RAINY_MODEL` para apuntar a modelos alternativos.
 > El archivo `.env` **nunca** se commitea al repositorio.
 
 ---
@@ -282,12 +295,16 @@ acción concreta (qué archivo abrir, qué buscar, qué comando ejecutar).
 - [x] Tool events visibles en la UI
 - [x] Stack detection automática
 
-### v1.1 — Rainy API v3 Integration 🚧
-- [ ] Migrar `repo-service.ts` de OpenAI API a Rainy API v3 (`baseURL` + `apiKey`)
-- [ ] Migrar `lib/openai.ts` (renderer) a Rainy API v3
-- [ ] Sistema de prompt de seguridad especializado
-- [ ] Configuración de API key desde la UI (Settings panel)
-- [ ] Streaming de respuestas en tiempo real
+### v1.1 — Rainy API v3 Integration ✅
+- [x] Migrar `repo-service.ts` a Rainy API v3 (`baseURL` constante + `apiKey` desde Turso DB)
+- [x] Migrar `lib/openai.ts` (renderer) a Rainy API v3 vía `window.mate.settings`
+- [x] API key guardada en `app_state` de la DB local (Turso/libSQL, userData)
+- [x] Nuevos canales IPC: `settings:get-api-key`, `settings:set-api-key`, `settings:clear-api-key`
+- [x] `SettingsApi` como contrato TypeScript de primera clase (`contracts/ipc.ts`)
+- [x] `window.mate.settings` expuesto en el contextBridge
+- [x] Sistema de prompt de seguridad especializado (español, rol MaTE X)
+- [x] Fallback local cuando no hay API key configurada
+- [ ] Settings panel en la UI para que el usuario introduzca su API key
 
 ### v1.2 — Security Audit Engine 🗓️
 - [ ] Comando `/audit` para iniciar una revisión completa

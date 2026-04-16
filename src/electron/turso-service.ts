@@ -224,6 +224,37 @@ export class TursoService {
     });
   }
 
+  // ── API Key ─────────────────────────────────────────────────────────────
+
+  async getApiKey(): Promise<string | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT value FROM app_state WHERE key = ? LIMIT 1`,
+      args: ['rainy_api_key'],
+    });
+    const raw = result.rows[0]?.value;
+    return raw ? String(raw) : null;
+  }
+
+  async setApiKey(apiKey: string) {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: ['rainy_api_key', apiKey],
+    });
+  }
+
+  async clearApiKey() {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `DELETE FROM app_state WHERE key = ?`,
+      args: ['rainy_api_key'],
+    });
+  }
+
+  // ── Session ──────────────────────────────────────────────────────────────
+
   private async ensureWorkspaceSession(workspaceId: string) {
     const existing = await this.getClient().execute({
       sql: `SELECT workspace_id FROM workspace_sessions WHERE workspace_id = ? LIMIT 1`,

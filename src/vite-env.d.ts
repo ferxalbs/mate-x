@@ -1,10 +1,11 @@
-import type { RepoInspectorApi } from './contracts/ipc';
+import type { GitApi, RepoInspectorApi, SettingsApi } from './contracts/ipc';
 
 declare global {
   interface Window {
     mate: {
       repo: RepoInspectorApi;
-      git: import('./contracts/ipc').GitApi;
+      git: GitApi;
+      settings: SettingsApi;
     };
   }
 }

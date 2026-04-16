@@ -30,3 +30,9 @@ export interface GitApi {
   pull: () => Promise<void>;
   getDiff: () => Promise<GitDiff>;
 }
+
+export interface SettingsApi {
+  getApiKey: () => Promise<string | null>;
+  setApiKey: (apiKey: string) => Promise<void>;
+  clearApiKey: () => Promise<void>;
+}

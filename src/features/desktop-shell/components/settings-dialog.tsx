@@ -1,126 +1,218 @@
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { FolderGit2, Search, Sparkles, X } from 'lucide-react';
+import { CheckIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Loader2Icon, X } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
-import type { SearchMatch, WorkspaceSummary } from '../../../contracts/workspace';
+import { clearApiKey, getApiKey, setApiKey } from '../../../services/settings-client';
 
-interface SettingsDialogProps {
-  workspace: WorkspaceSummary | null;
-  repoFiles: string[];
-  repoSignals: SearchMatch[];
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+function maskKey(key: string) {
+  if (key.length <= 8) return '••••••••';
+  return key.slice(0, 4) + '•'.repeat(Math.min(key.length - 8, 24)) + key.slice(-4);
 }
 
-export function SettingsDialog({ workspace, repoFiles, repoSignals }: SettingsDialogProps) {
+interface SettingsDialogProps {
+  trigger?: ReactNode;
+}
+
+export function SettingsDialog({ trigger }: SettingsDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [currentKey, setCurrentKey] = useState<string | null>(null);
+  const [inputValue, setInputValue] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load stored key when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setInputValue('');
+    setSaveState('idle');
+    setErrorMsg('');
+    setShowKey(false);
+    void getApiKey().then(setCurrentKey);
+  }, [open]);
+
+  const handleSave = useCallback(async () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    setSaveState('saving');
+    setErrorMsg('');
+    try {
+      await setApiKey(trimmed);
+      setCurrentKey(trimmed);
+      setInputValue('');
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2200);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Could not save the key.');
+      setSaveState('error');
+    }
+  }, [inputValue]);
+
+  const handleClear = useCallback(async () => {
+    setSaveState('saving');
+    try {
+      await clearApiKey();
+      setCurrentKey(null);
+      setSaveState('idle');
+    } catch {
+      setSaveState('idle');
+    }
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') void handleSave();
+    },
+    [handleSave],
+  );
+
+  const hasNewInput = inputValue.trim().length > 0;
+  const isBusy = saveState === 'saving';
+
   return (
-    <Dialog.Root>
+    <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger
         render={
-          <Button size="icon-sm" variant="ghost" aria-label="Open workspace overview">
-            <Sparkles className="size-4" />
-          </Button>
+          trigger ?? (
+            <Button size="icon-sm" variant="ghost" aria-label="Open settings">
+              <KeyRoundIcon className="size-4" />
+            </Button>
+          )
         }
       />
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[4px]" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 flex w-[min(760px,calc(100vw-32px))] max-h-[min(720px,calc(100vh-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[28px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 flex w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[28px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+          {/* ── Header ── */}
           <div className="flex items-start justify-between gap-4 border-b border-[var(--panel-border)] px-6 py-5">
             <div>
               <Dialog.Title className="text-lg font-semibold text-[var(--foreground)]">
-                Workspace overview
+                Settings
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-sm text-[var(--muted-foreground)]">
-                Repo surface, AI runtime readiness, and the files currently shaping the shell.
+                Configure your Rainy API key to start using MaTE X.
               </Dialog.Description>
             </div>
             <Dialog.Close
               render={
-                <Button size="icon-sm" variant="ghost" aria-label="Close overview">
+                <Button size="icon-sm" variant="ghost" aria-label="Close settings">
                   <X className="size-4" />
                 </Button>
               }
             />
           </div>
 
-          <div className="grid min-h-0 flex-1 gap-0 overflow-hidden md:grid-cols-[1.1fr_0.9fr]">
-            <section className="min-h-0 overflow-y-auto border-r border-[var(--panel-border)] px-6 py-5">
-              <div className="flex items-start gap-3 rounded-[22px] border border-[var(--panel-border)] bg-[var(--surface)] p-4">
-                <div className="rounded-2xl bg-[var(--surface-soft)] p-3 text-[var(--foreground)]">
-                  <FolderGit2 className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-                    Workspace
-                  </p>
-                  <h3 className="mt-1 truncate text-base font-semibold text-[var(--foreground)]">
-                    {workspace?.name ?? 'Loading'}
-                  </h3>
-                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                    {workspace?.path ?? 'Collecting repo metadata'}
-                  </p>
-                  <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                    Branch {workspace?.branch ?? '...'} · Live snapshot
-                  </p>
-                </div>
+          {/* ── Body ── */}
+          <div className="flex flex-col gap-5 px-6 py-5">
+            {/* Current key status */}
+            <div className="flex items-start gap-3 rounded-[22px] border border-[var(--panel-border)] bg-[var(--surface)] p-4">
+              <div className="rounded-2xl bg-[var(--surface-soft)] p-3 text-[var(--foreground)]">
+                <KeyRoundIcon className="size-4" />
               </div>
-
-              <div className="mt-5 space-y-2">
-                {workspace?.facts.map((fact) => (
-                  <div
-                    key={fact.label}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3"
-                  >
-                    <span className="text-sm text-[var(--muted-foreground)]">{fact.label}</span>
-                    <span className="text-sm font-medium text-[var(--foreground)]">{fact.value}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="grid min-h-0 grid-rows-[auto_1fr] overflow-hidden">
-              <div className="border-b border-[var(--panel-border)] px-6 py-5">
-                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-                  <Search className="size-3.5" />
-                  Prompt-linked files
-                </div>
-                <div className="mt-3 space-y-2">
-                  {repoSignals.length > 0 ? (
-                    repoSignals.slice(0, 5).map((signal) => (
-                      <div
-                        key={`${signal.file}:${signal.line}`}
-                        className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3"
-                      >
-                        <p className="text-sm font-medium text-[var(--foreground)]">
-                          {signal.file}:{signal.line}
-                        </p>
-                        <p className="mt-1 line-clamp-2 text-sm text-[var(--muted-foreground)]">
-                          {signal.text}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-[var(--panel-border)] px-4 py-4 text-sm text-[var(--muted-foreground)]">
-                      No repo signals loaded yet.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="min-h-0 overflow-y-auto px-6 py-5">
+              <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-                  File inventory
+                  Rainy API Key
                 </p>
-                <div className="mt-3 space-y-2">
-                  {repoFiles.map((file) => (
-                    <div
-                      key={file}
-                      className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-2.5 font-mono text-xs text-[var(--foreground)]"
-                    >
-                      {file}
+                {currentKey ? (
+                  <>
+                    <p className="mt-1 font-mono text-sm font-medium text-[var(--foreground)]">
+                      {maskKey(currentKey)}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                        <span className="size-1.5 rounded-full bg-emerald-500" />
+                        Connected
+                      </span>
+                      <button
+                        onClick={() => void handleClear()}
+                        disabled={isBusy}
+                        className="text-[11px] text-[var(--muted-foreground)] underline-offset-2 hover:text-red-400 hover:underline disabled:opacity-50"
+                      >
+                        Remove key
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                      No key configured
+                    </p>
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                      <span className="size-1.5 rounded-full bg-amber-500" />
+                      Not connected
+                    </span>
+                  </>
+                )}
               </div>
-            </section>
+            </div>
+
+            {/* Input */}
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="settings-api-key-input"
+                className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]"
+              >
+                {currentKey ? 'Replace key' : 'Enter your API key'}
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  id="settings-api-key-input"
+                  ref={inputRef}
+                  type={showKey ? 'text' : 'password'}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="rainy-••••••••••••••••••••••"
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={isBusy}
+                  className="w-full rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3 pr-10 font-mono text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/40 outline-none transition-colors focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20 disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  className="absolute right-3 text-[var(--muted-foreground)]/50 transition-colors hover:text-[var(--foreground)]"
+                  aria-label={showKey ? 'Hide key' : 'Show key'}
+                >
+                  {showKey ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                </button>
+              </div>
+              {saveState === 'error' && (
+                <p className="text-xs text-destructive-foreground">{errorMsg}</p>
+              )}
+            </div>
+
+            {/* Action row */}
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-[var(--muted-foreground)]/60">
+                Get your key at{' '}
+                <span className="font-medium text-[var(--muted-foreground)]">rainy.dev</span>
+              </p>
+              <button
+                onClick={() => void handleSave()}
+                disabled={!hasNewInput || isBusy}
+                className="inline-flex items-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isBusy ? (
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                ) : saveState === 'saved' ? (
+                  <CheckIcon className="size-3.5" />
+                ) : null}
+                {saveState === 'saved' ? 'Saved' : 'Save key'}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="border-t border-[var(--panel-border)] px-6 py-4">
+            <p className="text-xs text-[var(--muted-foreground)]/50">
+              Your key is stored locally in the app database — never sent anywhere except to the
+              Rainy API.
+            </p>
           </div>
         </Dialog.Popup>
       </Dialog.Portal>
