@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 
 import OpenAI from 'openai';
 
+import { gitService } from './git-service';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceSummary } from '../contracts/workspace';
 
@@ -20,22 +21,20 @@ export interface RepoSnapshot {
 
 export async function getWorkspaceSummary(): Promise<WorkspaceSummary> {
   const root = process.cwd();
-  const [branch, statusOutput, files, packageJson] = await Promise.all([
-    runGit(['rev-parse', '--abbrev-ref', 'HEAD']),
-    runGit(['status', '--short']),
+  const [status, files, packageJson] = await Promise.all([
+    gitService.getStatus(),
     listFiles(180),
     readFileMaybe('package.json'),
   ]);
-  const statusLines = statusOutput.split('\n').map((line) => line.trim()).filter(Boolean);
 
   const stack = deriveStack(files, packageJson);
-  const dirtyCount = statusLines.length;
+  const dirtyCount = status.files.length;
 
   return {
     id: 'workspace-main',
     name: root.split('/').filter(Boolean).at(-1) ?? 'workspace',
     path: root,
-    branch: branch.trim() || 'unknown',
+    branch: status.current || 'unknown',
     status: 'ready',
     stack,
     facts: [
@@ -95,11 +94,11 @@ export async function searchInFiles(query: string, limit = 20): Promise<SearchMa
 
 export async function collectRepoSnapshot(prompt: string): Promise<RepoSnapshot> {
   const promptPattern = buildPromptPattern(prompt);
-  const [workspace, files, packageJson, statusOutput, promptMatches] = await Promise.all([
+  const [workspace, files, packageJson, status, promptMatches] = await Promise.all([
     getWorkspaceSummary(),
     listFiles(200),
     readFileMaybe('package.json'),
-    runGit(['status', '--short']),
+    gitService.getStatus(),
     promptPattern ? searchInFiles(promptPattern, 16) : Promise.resolve([]),
   ]);
 
@@ -107,7 +106,7 @@ export async function collectRepoSnapshot(prompt: string): Promise<RepoSnapshot>
     workspace,
     files,
     packageJson,
-    statusLines: statusOutput.split('\n').map((line) => line.trim()).filter(Boolean),
+    statusLines: status.files.map((f) => `${f.index}${f.working_dir} ${f.path}`),
     promptMatches,
   };
 }
@@ -186,11 +185,6 @@ export async function runAssistant(prompt: string, history: string[]): Promise<A
       artifacts,
     },
   };
-}
-
-async function runGit(args: string[]) {
-  const { stdout } = await execFileAsync('git', args, { cwd: process.cwd() });
-  return stdout.trimEnd();
 }
 
 async function readFileMaybe(path: string) {

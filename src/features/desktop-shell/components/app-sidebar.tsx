@@ -1,4 +1,8 @@
-import { MoonStar, PlusIcon, SettingsIcon, SunMedium } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, GitBranchIcon, MoonStar, PlusIcon, SettingsIcon, SunMedium } from 'lucide-react';
+
+import { GitPanel } from './git-panel';
+import { useGitStore } from '../../../store/git-store';
 
 import {
   Sidebar,
@@ -54,6 +58,45 @@ function getThreadStatusLabel(thread: Conversation, isActive: boolean, runStatus
     return { label: 'Idle', colorClass: 'text-zinc-500 dark:text-zinc-400', dotClass: 'bg-zinc-500 dark:bg-zinc-400', pulse: false };
   }
   return { label: 'New', colorClass: 'text-zinc-400 dark:text-zinc-500', dotClass: 'bg-zinc-400 dark:bg-zinc-500', pulse: false };
+}
+
+function GitSidebarSection() {
+  const [open, setOpen] = useState(true);
+  const status = useGitStore((s) => s.status);
+  const changeCount = status?.files.length ?? 0;
+
+  return (
+    <SidebarGroup className="px-2 py-1">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="mb-0.5 flex w-full items-center justify-between rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/40"
+      >
+        <div className="flex items-center gap-1.5">
+          <GitBranchIcon className="size-3 text-muted-foreground/50" />
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            Source Control
+          </span>
+          {changeCount > 0 && (
+            <span className="rounded-full bg-amber-500/20 px-1.5 py-px text-[9px] font-semibold text-amber-400">
+              {changeCount}
+            </span>
+          )}
+        </div>
+        <ChevronDown
+          className={cn(
+            'size-3 text-muted-foreground/40 transition-transform duration-200',
+            open ? 'rotate-0' : '-rotate-90',
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="overflow-hidden">
+          <GitPanel />
+        </div>
+      )}
+    </SidebarGroup>
+  );
 }
 
 export function AppSidebar({
@@ -152,9 +195,13 @@ export function AppSidebar({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
+        <SidebarSeparator />
+
+        {/* ── Git section ── */}
+        <GitSidebarSection />
       </SidebarContent>
 
-      <SidebarSeparator />
+      <SidebarSeparator className="mt-0" />
       <SidebarFooter className="no-drag p-2">
         <SidebarMenu>
           <SidebarMenuItem>
