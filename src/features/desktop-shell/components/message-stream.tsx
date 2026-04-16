@@ -25,8 +25,11 @@ export function MessageStream({ messages }: MessageStreamProps) {
   }, [messages]);
 
   return (
-    <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 pt-4 sm:px-6">
-      <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4">
+    <div
+      ref={scrollerRef}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[var(--background)] px-6 pb-12 pt-8"
+    >
+      <div className="mx-auto flex w-full max-w-[860px] flex-col gap-6">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}
@@ -41,17 +44,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <article
       className={cn(
-        'rounded-[24px] border shadow-[0_14px_40px_rgba(0,0,0,0.18)]',
+        'border border-[var(--panel-border)] bg-[var(--surface)]',
         isUser
-          ? 'ml-auto w-full max-w-[720px] border-[color-mix(in_srgb,var(--primary)_24%,var(--border))] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_14%,var(--surface))_0%,var(--surface)_100%)]'
-          : 'w-full border-[var(--border)] bg-[var(--surface)]',
+          ? 'ml-auto w-full max-w-[760px] border-[color-mix(in_srgb,var(--primary)_24%,var(--panel-border))] bg-[color-mix(in_srgb,var(--primary)_9%,var(--surface))]'
+          : 'w-full',
       )}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-[color-mix(in_oklab,var(--border)_80%,transparent)] px-5 py-4">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-5 py-3">
+        <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
           <span
             className={cn(
-              'inline-flex size-8 items-center justify-center rounded-full',
+              'inline-flex size-7 items-center justify-center rounded-md',
               isUser
                 ? 'bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] text-[var(--primary)]'
                 : 'bg-[var(--surface-soft)] text-[var(--foreground)]',
@@ -65,7 +68,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
 
       <div className="px-5 py-5">
-        <p className="whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">{message.content}</p>
+        <p className="whitespace-pre-wrap text-[15px] leading-7 text-[var(--foreground)]">
+          {message.content}
+        </p>
 
         {message.artifacts?.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -75,9 +80,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 className={cn(
                   'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs',
                   artifact.tone === 'success'
-                    ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100'
+                    ? 'border-emerald-400/18 bg-emerald-400/10 text-emerald-300'
                     : artifact.tone === 'warning'
-                      ? 'border-amber-400/20 bg-amber-400/10 text-amber-100'
+                      ? 'border-amber-400/18 bg-amber-400/10 text-amber-300'
                       : 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--foreground)]',
                 )}
               >
@@ -90,7 +95,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         ) : null}
 
         {message.events?.length ? (
-          <section className="mt-4 rounded-[20px] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+          <section className="mt-4 rounded-lg border border-[var(--panel-border)] bg-[var(--surface-soft)] p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
               <TerminalSquare className="size-4 text-[var(--primary)]" />
               Work log
@@ -99,7 +104,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               {message.events.map((event) => (
                 <div
                   key={event.id}
-                  className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-3 py-3"
+                  className="rounded-md border border-[var(--panel-border)] bg-[var(--surface)] px-3 py-3"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex items-center gap-2 text-sm font-medium">

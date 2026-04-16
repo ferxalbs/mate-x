@@ -1,7 +1,18 @@
-import { ArrowUpRight, FolderGit2, GitBranch, Plus, Search, Sparkles } from 'lucide-react';
+import {
+  Folder,
+  FolderGit2,
+  GitBranch,
+  MoonStar,
+  Plus,
+  RefreshCcw,
+  Search,
+  Settings2,
+  SunMedium,
+} from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
+import { Badge } from '../../../components/ui/badge';
 import type { Conversation } from '../../../contracts/chat';
 import type { SearchMatch, WorkspaceSummary } from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
@@ -11,6 +22,7 @@ import {
   getWorkspaceFact,
 } from '../model';
 import { SettingsDialog } from './settings-dialog';
+import type { Theme } from '../../../hooks/use-theme';
 
 interface AppSidebarProps {
   workspace: WorkspaceSummary | null;
@@ -18,8 +30,10 @@ interface AppSidebarProps {
   threads: Conversation[];
   repoFiles: string[];
   repoSignals: SearchMatch[];
+  theme: Theme;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
+  onThemeChange: (theme: Theme) => void;
 }
 
 export function AppSidebar({
@@ -28,87 +42,111 @@ export function AppSidebar({
   threads,
   repoFiles,
   repoSignals,
+  theme,
   onCreateThread,
   onSelectThread,
+  onThemeChange,
 }: AppSidebarProps) {
   const aiProvider = getWorkspaceFact(workspace, 'AI provider');
 
   return (
-    <aside className="relative flex h-full min-h-0 w-full flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)]">
-      <div className="drag-region flex h-[52px] items-center justify-between gap-2 px-4 pl-[88px]">
-        <p className="truncate text-[11px] font-medium uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-          Mate-X
+    <aside className="relative flex h-full min-h-0 w-[272px] shrink-0 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)]">
+      <div className="drag-region flex h-10 items-center gap-2 border-b border-[var(--titlebar-border)] px-5">
+        <p className="truncate text-[13px] font-semibold tracking-[0.08em] text-[var(--sidebar-foreground)]">
+          MATE X
         </p>
-        <div className="h-2 w-2 rounded-full bg-emerald-400/80 shadow-[0_0_18px_rgba(74,222,128,0.65)]" />
+        <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+          Desktop
+        </span>
       </div>
 
-      <div className="border-b border-[var(--sidebar-border)] px-3 pb-3 pt-2">
-        <div className="flex items-center justify-between gap-2 px-1">
+      <div className="px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
-              Desktop agent
+            <p className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted-foreground)]">
+              Projects
             </p>
-            <h1 className="truncate text-base font-semibold text-[var(--sidebar-foreground)]">
+            <h1 className="truncate pt-1 text-sm font-medium text-[var(--sidebar-foreground)]">
               {workspace?.name ?? 'Mate-X'}
             </h1>
           </div>
-          <SettingsDialog repoFiles={repoFiles} repoSignals={repoSignals} workspace={workspace} />
+          <div className="flex items-center gap-1">
+            <Button
+              aria-label="Create thread"
+              className="text-[var(--muted-foreground)]"
+              onClick={onCreateThread}
+              size="icon-xs"
+              variant="ghost"
+            >
+              <Plus className="size-3.5" />
+            </Button>
+            <SettingsDialog repoFiles={repoFiles} repoSignals={repoSignals} workspace={workspace} />
+          </div>
         </div>
 
-        <div className="relative mt-3">
+        <button
+          className="mt-3 flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm text-[var(--sidebar-foreground)] transition-colors hover:bg-[var(--sidebar-accent)]"
+          onClick={() => workspace && onSelectThread(activeThreadId)}
+          type="button"
+        >
+          <Folder className="size-4 text-[var(--muted-foreground)]" />
+          <span className="truncate">{workspace?.name ?? 'workspace'}</span>
+        </button>
+      </div>
+
+      <div className="border-t border-[var(--sidebar-border)] px-4 py-4">
+        <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
-          <Input className="[&_[data-slot=input]]:pl-8" placeholder="Search threads, files, commands" />
-        </div>
-
-        <div className="mt-3 flex items-center gap-2">
-          <Button className="flex-1 justify-center" size="sm" onClick={onCreateThread}>
-            <Plus className="size-4" />
-            New thread
-          </Button>
-          <Button size="icon-sm" variant="ghost" className="shrink-0">
-            <Sparkles className="size-4" />
-          </Button>
+          <Input
+            className="bg-transparent [&_[data-slot=input]]:pl-8"
+            placeholder="Search threads"
+            size="sm"
+          />
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-3">
-        <section>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3">
+        <section className="border-b border-[var(--sidebar-border)] px-1 pb-4">
           <div className="mb-2 flex items-center justify-between px-2">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
               Workspace
             </p>
-            <span className="text-xs text-[var(--muted-foreground)]">{workspace?.status ?? '...'}</span>
+            <Badge variant="outline" size="sm">
+              {workspace?.status ?? 'ready'}
+            </Badge>
           </div>
-          <div className="mx-1 rounded-[22px] border border-[var(--sidebar-border)] bg-[var(--surface)] p-3">
+          <div className="rounded-xl border border-[var(--sidebar-border)] bg-[var(--surface)] px-3 py-3">
             <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-[var(--surface-soft)] p-2 text-[var(--foreground)]">
-                <FolderGit2 className="size-3.5" />
+              <div className="rounded-md bg-[var(--sidebar-accent)] p-2 text-[var(--foreground)]">
+                <FolderGit2 className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{workspace?.name ?? 'Loading workspace'}</p>
-                <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                  {workspace?.name ?? 'mate-x'}
+                </p>
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
                   <GitBranch className="size-3.5" />
-                  <span>{workspace?.branch ?? '...'}</span>
+                  <span>{workspace?.branch ?? 'main'}</span>
                 </div>
-                <p className="mt-2 truncate text-[11px] text-[var(--muted-foreground)]">
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">
                   {workspace?.path ?? 'Preparing workspace metadata'}
                 </p>
-                <div className="mt-3 inline-flex rounded-full border border-[var(--sidebar-border)] bg-[var(--sidebar-accent)] px-2.5 py-1 text-[11px] text-[var(--foreground)]">
-                  {aiProvider ?? 'Checking OpenAI'}
-                </div>
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  {aiProvider ?? 'OpenAI key missing'}
+                </p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mt-5">
+        <section className="px-1 py-4">
           <div className="mb-2 flex items-center justify-between px-2">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
               Threads
             </p>
             <span className="text-xs text-[var(--muted-foreground)]">{threads.length}</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-0.5">
             {threads.map((thread) => {
               const isActive = thread.id === activeThreadId;
 
@@ -116,24 +154,22 @@ export function AppSidebar({
                 <button
                   key={thread.id}
                   className={cn(
-                    'w-full rounded-[20px] border px-3 py-3 text-left transition',
+                    'w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors',
                     isActive
-                      ? 'border-[color-mix(in_srgb,var(--primary)_30%,var(--sidebar-border))] bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))]'
-                      : 'border-[var(--sidebar-border)] bg-[var(--surface)] hover:bg-[var(--surface-soft)]',
+                      ? 'bg-[var(--sidebar-accent)] text-[var(--foreground)]'
+                      : 'text-[var(--muted-foreground)] hover:bg-[var(--sidebar-accent)]/70 hover:text-[var(--foreground)]',
                   )}
                   onClick={() => onSelectThread(thread.id)}
                   type="button"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                        {thread.title}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{thread.title}</p>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">
                         {getConversationPreview(thread)}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                    <span className="shrink-0 pt-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                       {formatRelativeTimestamp(thread.lastUpdatedAt)}
                     </span>
                   </div>
@@ -143,40 +179,62 @@ export function AppSidebar({
           </div>
         </section>
 
-        <section className="mt-5">
+        <section className="mt-auto px-1 pt-4">
           <div className="mb-2 flex items-center justify-between px-2">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
               Repo surface
             </p>
             <span className="text-xs text-[var(--muted-foreground)]">{repoSignals.length}</span>
           </div>
-          <div className="space-y-1.5">
-            {repoSignals.slice(0, 4).map((item) => (
+          <div className="space-y-1">
+            {repoSignals.slice(0, 3).map((item) => (
               <div
                 key={`${item.file}:${item.line}`}
-                className="w-full rounded-[18px] border border-[var(--sidebar-border)] bg-[var(--surface)] px-3 py-2.5"
+                className="rounded-md border border-transparent px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--sidebar-accent)]"
               >
-                <p className="truncate text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                  {item.file}:{item.line}
+                <p className="truncate uppercase tracking-[0.16em]">{item.file}:{item.line}</p>
+                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--foreground)]">
+                  {item.text}
                 </p>
-                <p className="mt-1 text-sm leading-5 text-[var(--foreground)]">{item.text}</p>
               </div>
             ))}
           </div>
         </section>
       </div>
 
-      <div className="border-t border-[var(--sidebar-border)] p-3">
-        <div className="flex items-center justify-between rounded-[20px] border border-[var(--sidebar-border)] bg-[var(--surface)] px-3 py-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-              System
-            </p>
-            <p className="mt-1 text-sm text-[var(--foreground)]">{repoFiles.length} mapped files</p>
+      <div className="border-t border-[var(--sidebar-border)] px-3 py-3">
+        <Button className="w-full justify-start rounded-md" size="sm" variant="secondary">
+          <RefreshCcw className="size-3.5" />
+          Restart to update
+        </Button>
+        <div className="mt-3 flex items-center justify-between gap-2 px-2">
+          <div className="flex items-center gap-1">
+            <Button
+              aria-label="Use light theme"
+              onClick={() => onThemeChange('light')}
+              size="icon-xs"
+              variant={theme === 'light' ? 'outline' : 'ghost'}
+            >
+              <SunMedium className="size-3.5" />
+            </Button>
+            <Button
+              aria-label="Use dark theme"
+              onClick={() => onThemeChange('dark')}
+              size="icon-xs"
+              variant={theme === 'dark' ? 'outline' : 'ghost'}
+            >
+              <MoonStar className="size-3.5" />
+            </Button>
+            <Button
+              aria-label="Use system theme"
+              onClick={() => onThemeChange('system')}
+              size="icon-xs"
+              variant={theme === 'system' ? 'outline' : 'ghost'}
+            >
+              <Settings2 className="size-3.5" />
+            </Button>
           </div>
-          <div className="inline-flex size-9 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--foreground)]">
-            <ArrowUpRight className="size-4" />
-          </div>
+          <p className="text-xs text-[var(--muted-foreground)]">{repoFiles.length} mapped files</p>
         </div>
       </div>
     </aside>

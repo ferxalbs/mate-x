@@ -28,15 +28,15 @@ export function ComposerPanel({ isRunning, workspace, onSubmit }: ComposerPanelP
   }
 
   return (
-    <div className="border-t border-[var(--border)] px-4 py-4 sm:px-6">
-      <div className="mx-auto w-full max-w-[880px] rounded-[28px] border border-[var(--border)] bg-[linear-gradient(180deg,var(--panel)_0%,var(--surface)_100%)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] pb-3">
+    <div className="border-t border-[var(--panel-border)] bg-[var(--background)] px-6 py-5">
+      <div className="mx-auto w-full max-w-[860px] border border-[var(--panel-border)] bg-[var(--panel)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-4 py-3">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
               Composer
             </p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Ship the next desktop step, review a file, or ask for a repo-grounded plan.
+              Ship the next desktop step or ask for a repo-grounded implementation pass.
             </p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-[var(--panel-border)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs text-[var(--foreground)]">
@@ -45,9 +45,9 @@ export function ComposerPanel({ isRunning, workspace, onSubmit }: ComposerPanelP
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="px-4 py-4">
           <Textarea
-            className="rounded-[22px]"
+            className="min-h-[140px] rounded-md border-[var(--panel-border)] bg-[var(--surface)]"
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
