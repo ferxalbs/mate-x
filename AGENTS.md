@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-MaTE X is a desktop security review agent for local repositories, so changes should preserve grounded analysis and strict IPC boundaries. `src/electron/` contains main-process services, IPC handlers, Git integration, and Rainy orchestration. `src/features/` holds renderer features. Shared contracts live in `src/contracts/`, service facades in `src/services/`, Zustand stores in `src/store/`, helpers in `src/lib/`, and UI primitives plus colocated tests in `src/components/ui/`. Entry points are `src/main.ts`, `src/preload.ts`, and `src/renderer.tsx`.
+MaTE X is a desktop security review agent for local repositories. Changes should preserve grounded analysis, strict IPC boundaries, and fast local execution. Target platforms are macOS on Intel and Apple Silicon plus Windows 10+; Linux is out of scope. `src/electron/` contains main-process services, IPC handlers, Git integration, and Rainy orchestration. `src/features/` holds renderer features. Shared contracts live in `src/contracts/`, service facades in `src/services/`, Zustand stores in `src/store/`, helpers in `src/lib/`, and UI primitives plus colocated tests in `src/components/ui/`. Entry points are `src/main.ts`, `src/preload.ts`, and `src/renderer.tsx`.
 
 ## Build, Test, and Development Commands
 
@@ -35,4 +35,4 @@ If you touch changelog content, follow `RULES.md` exactly. Every new entry heade
 
 ## Security & Configuration Tips
 
-Do not hardcode Rainy credentials or commit `.env` data. This app is only the container: the user brings their own Rainy API v3 key from the Rainy platform or dashboard, enters it through Settings, and the key is then resolved in the Electron main process. Because this app is a security reviewer, prefer changes that improve evidence collection and explicit remediation guidance. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, and update `src/contracts/` whenever payloads change.
+Do not hardcode Rainy credentials or commit `.env` data. This app is only the container: the user brings their own Rainy API v3 key from the Rainy platform or dashboard, enters it through Settings, and the key is then resolved in the Electron main process. Because this app is a security reviewer, optimize for security first, then responsiveness and low overhead on supported desktop targets. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, avoid platform-specific regressions on macOS x86/ARM and Windows 10+, and update `src/contracts/` whenever payloads change.
