@@ -116,4 +116,9 @@ export function registerIpcHandlers() {
     tursoService.setApiKey(apiKey),
   );
   ipcMain.handle('settings:clear-api-key', async () => tursoService.clearApiKey());
+  ipcMain.handle('settings:get-model', async () => tursoService.getModel());
+  ipcMain.handle('settings:set-model', async (_event, model: string) =>
+    tursoService.setModel(model),
+  );
+  ipcMain.handle('settings:clear-model', async () => tursoService.clearModel());
 }

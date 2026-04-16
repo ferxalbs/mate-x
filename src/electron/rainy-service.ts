@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import { MATE_AGENT_SYSTEM_PROMPT } from '../config/mate-agent';
 import {
   RAINY_API_BASE_URL,
-  RAINY_DEFAULT_MODEL,
   RAINY_REQUEST_TIMEOUT_MS,
   resolveRainyApiMode,
 } from '../config/rainy';
@@ -38,16 +37,15 @@ function buildResponsesInput(userContext: string) {
 export async function requestRainyTextResponse(params: {
   apiKey: string;
   userContext: string;
-  model?: string;
+  model: string;
 }): Promise<string> {
-  const model = params.model ?? RAINY_DEFAULT_MODEL;
   const client = createRainyClient(params.apiKey);
-  const apiMode = resolveRainyApiMode(model);
+  const apiMode = resolveRainyApiMode(params.model);
 
   if (apiMode === 'responses') {
     const response = await client.responses.create(
       {
-        model,
+        model: params.model,
         input: buildResponsesInput(params.userContext),
       },
       { timeout: RAINY_REQUEST_TIMEOUT_MS },
@@ -58,7 +56,7 @@ export async function requestRainyTextResponse(params: {
 
   const response = await client.chat.completions.create(
     {
-      model,
+      model: params.model,
       messages: buildChatCompletionsInput(params.userContext),
     },
     { timeout: RAINY_REQUEST_TIMEOUT_MS },
@@ -66,4 +64,3 @@ export async function requestRainyTextResponse(params: {
 
   return response.choices[0]?.message?.content?.trim() ?? '';
 }
-

@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { CheckIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Loader2Icon, X } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
-import { clearApiKey, getApiKey, setApiKey } from '../../../services/settings-client';
+import {
+  clearApiKey,
+  clearModel,
+  getApiKey,
+  getModel,
+  setApiKey,
+  setModel,
+} from '../../../services/settings-client';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -13,13 +20,15 @@ function maskKey(key: string) {
 }
 
 interface SettingsDialogProps {
-  trigger?: ReactNode;
+  trigger?: ReactElement;
 }
 
 export function SettingsDialog({ trigger }: SettingsDialogProps) {
   const [open, setOpen] = useState(false);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [modelInputValue, setModelInputValue] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -29,21 +38,33 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
   useEffect(() => {
     if (!open) return;
     setInputValue('');
+    setModelInputValue('');
     setSaveState('idle');
     setErrorMsg('');
     setShowKey(false);
-    void getApiKey().then(setCurrentKey);
+    void Promise.all([getApiKey(), getModel()]).then(([apiKey, model]) => {
+      setCurrentKey(apiKey);
+      setCurrentModel(model);
+    });
   }, [open]);
 
   const handleSave = useCallback(async () => {
     const trimmed = inputValue.trim();
-    if (!trimmed) return;
+    const trimmedModel = modelInputValue.trim();
+    if (!trimmed && !trimmedModel) return;
     setSaveState('saving');
     setErrorMsg('');
     try {
-      await setApiKey(trimmed);
-      setCurrentKey(trimmed);
-      setInputValue('');
+      if (trimmed) {
+        await setApiKey(trimmed);
+        setCurrentKey(trimmed);
+        setInputValue('');
+      }
+      if (trimmedModel) {
+        await setModel(trimmedModel);
+        setCurrentModel(trimmedModel);
+        setModelInputValue('');
+      }
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2200);
     } catch (err) {
@@ -55,8 +76,9 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
   const handleClear = useCallback(async () => {
     setSaveState('saving');
     try {
-      await clearApiKey();
+      await Promise.all([clearApiKey(), clearModel()]);
       setCurrentKey(null);
+      setCurrentModel(null);
       setSaveState('idle');
     } catch {
       setSaveState('idle');
@@ -70,7 +92,7 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
     [handleSave],
   );
 
-  const hasNewInput = inputValue.trim().length > 0;
+  const hasNewInput = inputValue.trim().length > 0 || modelInputValue.trim().length > 0;
   const isBusy = saveState === 'saving';
 
   return (
@@ -150,6 +172,26 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
               </div>
             </div>
 
+            <div className="flex items-start gap-3 rounded-[22px] border border-[var(--panel-border)] bg-[var(--surface)] p-4">
+              <div className="rounded-2xl bg-[var(--surface-soft)] p-3 text-[var(--foreground)]">
+                <KeyRoundIcon className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+                  Rainy Model
+                </p>
+                {currentModel ? (
+                  <p className="mt-1 font-mono text-sm font-medium text-[var(--foreground)]">
+                    {currentModel}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                    No model configured
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* Input */}
             <div className="flex flex-col gap-2">
               <label
@@ -186,6 +228,26 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
               )}
             </div>
 
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="settings-model-input"
+                className="text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--muted-foreground)]"
+              >
+                {currentModel ? 'Replace model' : 'Enter Rainy model'}
+              </label>
+              <input
+                id="settings-model-input"
+                type="text"
+                value={modelInputValue}
+                onChange={(e) => setModelInputValue(e.target.value)}
+                placeholder="gpt-5.4-mini"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={isBusy}
+                className="w-full rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3 font-mono text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/40 outline-none transition-colors focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20 disabled:opacity-50"
+              />
+            </div>
+
             {/* Action row */}
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-[var(--muted-foreground)]/60">
@@ -210,8 +272,8 @@ export function SettingsDialog({ trigger }: SettingsDialogProps) {
           {/* ── Footer ── */}
           <div className="border-t border-[var(--panel-border)] px-6 py-4">
             <p className="text-xs text-[var(--muted-foreground)]/50">
-              Your key is stored locally in the app database — never sent anywhere except to the
-              Rainy API.
+              Your key and model are stored locally in the app database. Live calls use {` `}
+              <span className="font-mono">{'https://rainy-api-v3-us-179843975974.us-east4.run.app'}</span>.
             </p>
           </div>
         </Dialog.Popup>

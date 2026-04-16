@@ -35,4 +35,7 @@ export interface SettingsApi {
   getApiKey: () => Promise<string | null>;
   setApiKey: (apiKey: string) => Promise<void>;
   clearApiKey: () => Promise<void>;
+  getModel: () => Promise<string | null>;
+  setModel: (model: string) => Promise<void>;
+  clearModel: () => Promise<void>;
 }

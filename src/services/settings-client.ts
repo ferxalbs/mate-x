@@ -18,3 +18,15 @@ export function setApiKey(apiKey: string) {
 export function clearApiKey() {
   return getSettingsApi().clearApiKey();
 }
+
+export function getModel() {
+  return getSettingsApi().getModel();
+}
+
+export function setModel(model: string) {
+  return getSettingsApi().setModel(model);
+}
+
+export function clearModel() {
+  return getSettingsApi().clearModel();
+}

@@ -9,7 +9,7 @@ import type { Conversation } from '../contracts/chat';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 import { MATE_AGENT_PROMPT_STOP_WORDS } from '../config/mate-agent';
-import { RAINY_DEFAULT_MODEL } from '../config/rainy';
+import { resolveConfiguredRainyModel } from '../config/rainy';
 
 const execFileAsync = promisify(execFile);
 
@@ -144,23 +144,26 @@ export async function runAssistant(
     },
   ];
 
-  const apiKey = await tursoService.getApiKey();
-  const artifacts = buildArtifacts(snapshot, Boolean(apiKey));
+  const [apiKey, storedModel] = await Promise.all([tursoService.getApiKey(), tursoService.getModel()]);
+  const configuredModel = resolveConfiguredRainyModel(storedModel);
+  const hasRainyConfig = Boolean(apiKey && configuredModel);
+  const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel);
   const createdAt = new Date().toISOString();
   let content: string;
 
-  if (apiKey) {
+  if (apiKey && configuredModel) {
     try {
       content = await requestRainyResponse({
         apiKey,
         history,
+        model: configuredModel,
         prompt,
         snapshot,
       });
       events.push({
         id: 'step-rainy',
         label: 'Generate Rainy response',
-        detail: `Answered with ${RAINY_DEFAULT_MODEL}.`,
+        detail: `Answered with ${configuredModel}.`,
         status: 'done',
       });
     } catch (error) {
@@ -172,12 +175,20 @@ export async function runAssistant(
         status: 'error',
       });
     }
-  } else {
+  } else if (!apiKey) {
     content = buildFallbackResponse(prompt, snapshot);
     events.push({
       id: 'step-rainy-missing',
       label: 'API key not configured',
       detail: 'Add your Rainy API key in Settings to enable live responses.',
+      status: 'error',
+    });
+  } else {
+    content = buildFallbackResponse(prompt, snapshot);
+    events.push({
+      id: 'step-rainy-model-missing',
+      label: 'Model not configured',
+      detail: 'Set a Rainy model in Settings or via RAINY_MODEL to enable live responses.',
       status: 'error',
     });
   }
@@ -247,7 +258,8 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
 
   const stack = deriveStack(files, packageJson);
   const dirtyCount = status?.files.length ?? 0;
-  const apiKey = await tursoService.getApiKey();
+  const [apiKey, storedModel] = await Promise.all([tursoService.getApiKey(), tursoService.getModel()]);
+  const configuredModel = resolveConfiguredRainyModel(storedModel);
 
   return {
     id: workspace.id,
@@ -261,8 +273,11 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
       { label: 'Tracked files', value: String(files.length) },
       { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
       { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
-      { label: 'AI provider', value: apiKey ? 'Rainy API connected' : 'API key missing' },
-      { label: 'Model', value: RAINY_DEFAULT_MODEL },
+      {
+        label: 'AI provider',
+        value: apiKey && configuredModel ? 'Rainy API connected' : 'Rainy API incomplete',
+      },
+      { label: 'Model', value: configuredModel ?? 'not configured' },
     ],
   };
 }
@@ -373,7 +388,11 @@ function buildPromptPattern(prompt: string) {
   return terms.length > 0 ? terms.join('|') : '';
 }
 
-function buildArtifacts(snapshot: RepoSnapshot, providerReady: boolean): MessageArtifact[] {
+function buildArtifacts(
+  snapshot: RepoSnapshot,
+  providerReady: boolean,
+  configuredModel: string | null,
+): MessageArtifact[] {
   return [
     {
       id: 'artifact-provider',
@@ -384,7 +403,7 @@ function buildArtifacts(snapshot: RepoSnapshot, providerReady: boolean): Message
     {
       id: 'artifact-model',
       label: 'Model',
-      value: providerReady ? RAINY_DEFAULT_MODEL : 'repo-grounded summary',
+      value: providerReady ? (configuredModel ?? 'unknown') : configuredModel ?? 'not configured',
     },
     {
       id: 'artifact-branch',
@@ -436,11 +455,13 @@ function buildFallbackResponse(prompt: string, snapshot: RepoSnapshot, error?: u
 async function requestRainyResponse({
   apiKey,
   history,
+  model,
   prompt,
   snapshot,
 }: {
   apiKey: string;
   history: string[];
+  model: string;
   prompt: string;
   snapshot: RepoSnapshot;
 }) {
@@ -474,6 +495,7 @@ async function requestRainyResponse({
 
   const responseText = await requestRainyTextResponse({
     apiKey,
+    model,
     userContext,
   });
 

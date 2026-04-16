@@ -32,6 +32,9 @@ const settingsApi: SettingsApi = {
   getApiKey: () => ipcRenderer.invoke('settings:get-api-key'),
   setApiKey: (apiKey) => ipcRenderer.invoke('settings:set-api-key', apiKey),
   clearApiKey: () => ipcRenderer.invoke('settings:clear-api-key'),
+  getModel: () => ipcRenderer.invoke('settings:get-model'),
+  setModel: (model) => ipcRenderer.invoke('settings:set-model', model),
+  clearModel: () => ipcRenderer.invoke('settings:clear-model'),
 };
 
 contextBridge.exposeInMainWorld('mate', {

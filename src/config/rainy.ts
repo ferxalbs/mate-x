@@ -1,6 +1,7 @@
-export const RAINY_API_BASE_URL = 'https://api.rainy.dev/v3';
-export const RAINY_DEFAULT_MODEL = process.env.RAINY_MODEL ?? 'rainy-coder-security';
+export const RAINY_API_BASE_URL =
+  'https://rainy-api-v3-us-179843975974.us-east4.run.app';
 export const RAINY_REQUEST_TIMEOUT_MS = 20_000;
+export const RAINY_ENV_MODEL = process.env.RAINY_MODEL?.trim() || null;
 
 export type RainyApiMode = 'chat_completions' | 'responses';
 
@@ -14,3 +15,11 @@ export function resolveRainyApiMode(model: string): RainyApiMode {
     : 'chat_completions';
 }
 
+export function resolveConfiguredRainyModel(storedModel: string | null | undefined) {
+  const normalizedStoredModel = storedModel?.trim();
+  if (normalizedStoredModel) {
+    return normalizedStoredModel;
+  }
+
+  return RAINY_ENV_MODEL;
+}
