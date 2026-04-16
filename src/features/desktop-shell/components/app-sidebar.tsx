@@ -1,4 +1,4 @@
-import { PlusIcon, SettingsIcon, MoonStar, SunMedium, FolderIcon } from 'lucide-react';
+import { MoonStar, PlusIcon, SettingsIcon, SunMedium } from 'lucide-react';
 
 import {
   Sidebar,
@@ -15,7 +15,7 @@ import type { Conversation, RunStatus } from '../../../contracts/chat';
 import type { SearchMatch, WorkspaceSummary } from '../../../contracts/workspace';
 import type { Theme } from '../../../hooks/use-theme';
 import { cn } from '../../../lib/utils';
-import { formatRelativeTimestamp, getConversationPreview } from '../model';
+import { formatRelativeTimestamp } from '../model';
 
 interface AppSidebarProps {
   workspace: WorkspaceSummary | null;
@@ -33,7 +33,7 @@ interface AppSidebarProps {
 function T3Wordmark() {
   return (
     <svg
-      aria-label="T3"
+      aria-label="Mate"
       className="h-2.5 w-auto shrink-0 text-foreground"
       viewBox="15.5309 37 94.3941 56.96"
       xmlns="http://www.w3.org/2000/svg"
@@ -67,22 +67,27 @@ export function AppSidebar({
   onThemeChange,
 }: AppSidebarProps) {
   return (
-    <Sidebar side="left" collapsible="offcanvas" className="border-r border-border bg-card text-foreground transition-colors duration-200 drag-region" style={{ minWidth: '208px' }}>
-      <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[90px]">
-        <div className="flex items-center gap-2">
-          <div className="ml-1 flex min-w-0 flex-1 items-center gap-1">
+    <Sidebar
+      side="left"
+      collapsible="offcanvas"
+      className="drag-region border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
+      style={{ minWidth: '220px' }}
+    >
+      <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="ml-1 flex min-w-0 items-center gap-1.5">
             <T3Wordmark />
-            <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
-              Code
+            <span className="truncate text-sm font-medium tracking-tight text-foreground">
+              Mate X
             </span>
-            <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
+            <span className="rounded-full bg-muted/45 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
               ALPHA
             </span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0 no-drag">
+      <SidebarContent className="no-drag gap-0">
         <SidebarGroup className="px-2 py-2">
           <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
@@ -98,12 +103,15 @@ export function AppSidebar({
 
           <SidebarMenu>
             <SidebarMenuItem className="rounded-md">
-              <SidebarMenuButton size="sm" className="gap-2 px-2" isActive>
-                <FolderIcon className="size-3.5" />
-                <span className="text-xs font-semibold">{workspace?.name || 'project-directory'}</span>
+              <SidebarMenuButton
+                size="sm"
+                className="gap-2 px-2 text-[13px] font-medium"
+                isActive
+              >
+                <span className="truncate">{workspace?.name || 'mate-x'}</span>
               </SidebarMenuButton>
 
-              <div className="pl-4 pr-1 mt-1 flex flex-col gap-0.5">
+              <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
                 {threads.map((thread) => {
                   const isActive = thread.id === activeThreadId;
                   const status = getThreadStatusLabel(thread, isActive, runStatus);
@@ -113,18 +121,27 @@ export function AppSidebar({
                       key={thread.id}
                       onClick={() => onSelectThread(thread.id)}
                       className={cn(
-                        "group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1 text-left text-xs outline-none transition-colors",
+                        'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs outline-none transition-colors',
                         isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                          ? 'bg-accent text-accent-foreground font-medium'
+                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                       )}
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                        <span className="truncate flex-1">{thread.title || 'New thread'}</span>
+                        <span
+                          className={cn(
+                            'size-1.5 rounded-full',
+                            status.dotClass,
+                            status.pulse ? 'animate-pulse' : '',
+                          )}
+                        />
+                        <span className="flex-1 truncate">
+                          {thread.title || 'New thread'}
+                        </span>
                       </div>
-                      
+
                       <div className="flex shrink-0 items-center justify-end">
-                        <span className="text-[10px] text-muted-foreground/40 hidden group-hover:inline-block">
+                        <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
                           {formatRelativeTimestamp(thread.lastUpdatedAt)}
                         </span>
                       </div>
@@ -138,10 +155,10 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarSeparator />
-      <SidebarFooter className="p-2 no-drag">
+      <SidebarFooter className="no-drag p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex justify-between items-center w-full px-2 py-1.5">
+            <div className="flex w-full items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2 text-muted-foreground/70">
                 <SettingsIcon className="size-3.5" />
                 <span className="text-xs">Settings</span>
@@ -149,14 +166,20 @@ export function AppSidebar({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onThemeChange('light')}
-                  className={cn("p-1.5 rounded-md hover:bg-accent hover:text-foreground transition-colors", theme === 'light' ? 'bg-accent text-foreground' : 'text-muted-foreground/60')}
+                  className={cn(
+                    'rounded-md p-1.5 transition-colors hover:bg-accent hover:text-foreground',
+                    theme === 'light' ? 'bg-accent text-foreground' : 'text-muted-foreground/60',
+                  )}
                   aria-label="Light theme"
                 >
                   <SunMedium className="size-3.5" />
                 </button>
                 <button
                   onClick={() => onThemeChange('dark')}
-                  className={cn("p-1.5 rounded-md hover:bg-accent hover:text-foreground transition-colors", theme === 'dark' ? 'bg-accent text-foreground' : 'text-muted-foreground/60')}
+                  className={cn(
+                    'rounded-md p-1.5 transition-colors hover:bg-accent hover:text-foreground',
+                    theme === 'dark' ? 'bg-accent text-foreground' : 'text-muted-foreground/60',
+                  )}
                   aria-label="Dark theme"
                 >
                   <MoonStar className="size-3.5" />

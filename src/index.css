@@ -69,19 +69,19 @@
   color-scheme: light;
   --radius: 0.625rem;
   --background: var(--color-white);
-  --foreground: var(--color-neutral-800);
+  --foreground: oklch(0.28 0.014 260);
   --card: var(--color-white);
-  --card-foreground: var(--color-neutral-800);
+  --card-foreground: var(--foreground);
   --popover: var(--color-white);
-  --popover-foreground: var(--color-neutral-800);
+  --popover-foreground: var(--foreground);
   --primary: oklch(0.488 0.217 264);
   --primary-foreground: var(--color-white);
   --secondary: --alpha(var(--color-black) / 4%);
-  --secondary-foreground: var(--color-neutral-800);
+  --secondary-foreground: var(--foreground);
   --muted: --alpha(var(--color-black) / 4%);
   --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
   --accent: --alpha(var(--color-black) / 4%);
-  --accent-foreground: var(--color-neutral-800);
+  --accent-foreground: var(--foreground);
   --destructive: var(--color-red-500);
   --border: --alpha(var(--color-black) / 8%);
   --input: --alpha(var(--color-black) / 10%);
@@ -93,26 +93,26 @@
   --success-foreground: var(--color-emerald-700);
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-700);
-  --app-chrome-background: var(--background);
+  --app-chrome-background: #050506;
   --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
-  --sidebar: color-mix(in srgb, var(--background) 96%, #f5f7fb);
+  --sidebar: color-mix(in srgb, var(--background) 97%, #f4f4f6);
   --sidebar-foreground: var(--foreground);
   --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
   --sidebar-accent: color-mix(in srgb, var(--accent) 88%, white 12%);
-  --surface: color-mix(in srgb, var(--background) 97%, white 3%);
+  --surface: color-mix(in srgb, var(--background) 97%, #f8f8fa);
   --surface-soft: color-mix(in srgb, var(--muted) 84%, white 16%);
-  --panel: color-mix(in srgb, var(--background) 96%, #f8fafc);
+  --panel: color-mix(in srgb, var(--background) 96%, #f6f6f8);
   --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
-  --titlebar: color-mix(in srgb, var(--background) 98%, white 2%);
+  --titlebar: color-mix(in srgb, var(--background) 98%, #f7f7f9);
   --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 
   @variant dark {
     color-scheme: dark;
-    --background: color-mix(in srgb, #0d0d10 94%, black 6%);
+    --background: #161617;
     --foreground: color-mix(in srgb, white 92%, #c8cbd4 8%);
-    --card: color-mix(in srgb, var(--background) 97%, white 3%);
+    --card: color-mix(in srgb, #1b1b1d 96%, black 4%);
     --card-foreground: var(--color-neutral-100);
-    --popover: color-mix(in srgb, var(--background) 97%, white 3%);
+    --popover: color-mix(in srgb, #1b1b1d 96%, black 4%);
     --popover-foreground: var(--color-neutral-100);
     --primary: oklch(0.588 0.217 264);
     --primary-foreground: var(--color-white);
@@ -133,17 +133,17 @@
     --success-foreground: var(--color-emerald-400);
     --warning: var(--color-amber-500);
     --warning-foreground: var(--color-amber-400);
-    --app-chrome-background: var(--background);
+    --app-chrome-background: #050506;
     --app-frame-border: color-mix(in srgb, white 6%, transparent);
-    --sidebar: color-mix(in srgb, #121215 96%, black 4%);
+    --sidebar: color-mix(in srgb, #18181a 97%, black 3%);
     --sidebar-foreground: var(--foreground);
     --sidebar-border: color-mix(in srgb, white 7%, transparent);
     --sidebar-accent: color-mix(in srgb, white 4%, #191b20 96%);
-    --surface: color-mix(in srgb, #17181c 92%, #0f1014 8%);
-    --surface-soft: color-mix(in srgb, white 3%, #131419 97%);
-    --panel: color-mix(in srgb, #15161a 94%, black 6%);
+    --surface: color-mix(in srgb, #1d1d1f 96%, black 4%);
+    --surface-soft: color-mix(in srgb, white 3%, #151518 97%);
+    --panel: color-mix(in srgb, #1b1b1d 96%, black 4%);
     --panel-border: color-mix(in srgb, white 7%, transparent);
-    --titlebar: color-mix(in srgb, #131316 96%, black 4%);
+    --titlebar: color-mix(in srgb, #18181a 97%, black 3%);
     --titlebar-border: color-mix(in srgb, white 7%, transparent);
   }
 }
@@ -179,7 +179,7 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.02;
+  opacity: 0.035;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px 256px;
@@ -202,6 +202,10 @@ input {
 .drag-region textarea,
 .drag-region select,
 .drag-region a {
+  -webkit-app-region: no-drag;
+}
+
+.no-drag {
   -webkit-app-region: no-drag;
 }
 

@@ -17,6 +17,6 @@ export async function runAssistant(prompt: string, history: string[]): Promise<A
       content: fullResponse,
       createdAt: new Date().toISOString(),
     },
-    suggestedTitle: null
+    suggestedTitle: undefined,
   };
 }

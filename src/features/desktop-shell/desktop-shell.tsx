@@ -30,8 +30,8 @@ export function DesktopShell() {
 
   return (
     <SidebarProvider defaultOpen>
-      <main className="flex h-screen w-full overflow-hidden bg-[var(--app-chrome-background)] text-foreground">
-        <div className="flex h-full w-full overflow-hidden bg-background">
+      <main className="flex h-screen w-full overflow-hidden bg-[var(--app-chrome-background)] p-3 text-foreground">
+        <div className="flex h-full w-full overflow-hidden rounded-[16px] border border-[var(--app-frame-border)] bg-background">
           <AppSidebar
             activeThreadId={activeThreadId}
             onCreateThread={createThread}
@@ -59,6 +59,7 @@ export function DesktopShell() {
             <MessageStream
               isRunning={runStatus === 'running'}
               messages={conversation.messages}
+              workspace={workspace}
             />
             <ComposerPanel
               isRunning={runStatus === 'running'}
