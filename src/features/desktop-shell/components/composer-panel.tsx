@@ -2,9 +2,15 @@ import { ArrowUpIcon, LoaderCircle } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from '../../../components/ui/select';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
-import { getWorkspaceFact } from '../model';
 
 interface ComposerPanelProps {
   isRunning: boolean;
@@ -20,7 +26,10 @@ export function ComposerPanel({
   onSubmit,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
-  const model = getWorkspaceFact(workspace, 'Model') ?? 'GPT-5.3 Codex';
+  const [modelValue, setModelValue] = useState('gpt-5.2');
+  const [reasoningValue, setReasoningValue] = useState('high');
+  const [modeValue, setModeValue] = useState('build');
+  const [accessValue, setAccessValue] = useState('full');
 
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
@@ -54,10 +63,24 @@ export function ComposerPanel({
 
           <div className="flex items-center justify-between gap-3 border-t border-[var(--panel-border)] px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
-              <ControlChip label={model} />
-              <ControlChip label="High" />
-              <ControlChip label="Build" />
-              <ControlChip label="Full access" />
+              <InlineSelect value={modelValue} onValueChange={setModelValue}>
+                <SelectItem value="gpt-5.2">gpt-5.2</SelectItem>
+                <SelectItem value="gpt-5.3-codex">GPT-5.3 Codex</SelectItem>
+                <SelectItem value="gpt-5.4-mini">GPT-5.4 Mini</SelectItem>
+              </InlineSelect>
+              <InlineSelect value={reasoningValue} onValueChange={setReasoningValue}>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="max">Max</SelectItem>
+              </InlineSelect>
+              <InlineSelect value={modeValue} onValueChange={setModeValue}>
+                <SelectItem value="build">Build</SelectItem>
+                <SelectItem value="plan">Plan</SelectItem>
+              </InlineSelect>
+              <InlineSelect value={accessValue} onValueChange={setAccessValue}>
+                <SelectItem value="full">Full access</SelectItem>
+                <SelectItem value="approval">Approval required</SelectItem>
+              </InlineSelect>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -95,11 +118,32 @@ export function ComposerPanel({
   );
 }
 
-function ControlChip({ label, icon }: { label: string; icon?: ReactNode }) {
+function InlineSelect({
+  value,
+  onValueChange,
+  children,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  children: ReactNode;
+}) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-[12px] text-muted-foreground">
-      {icon}
-      {label}
-    </span>
+    <Select
+      value={value}
+      onValueChange={(nextValue) => {
+        if (nextValue) {
+          onValueChange(nextValue);
+        }
+      }}
+    >
+      <SelectTrigger
+        size="xs"
+        variant="ghost"
+        className="h-6 min-w-fit shrink-0 rounded-md border-0 px-2 text-[12px] text-muted-foreground shadow-none hover:bg-accent"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectPopup>{children}</SelectPopup>
+    </Select>
   );
 }
