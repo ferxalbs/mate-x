@@ -25,10 +25,12 @@ process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
 }) as typeof process.emitWarning;
 
 // Chromium/EGL device probing is noisy on some Linux desktops.
-// This app does not need GPU acceleration, so keep rendering on the CPU path.
-if (process.platform === 'linux') {
-  app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch('disable-gpu');
+// Linux is not a supported target yet. Keep startup behavior explicit.
+if (!['darwin', 'win32'].includes(process.platform)) {
+  app.whenReady().then(() => {
+    console.error(`Unsupported platform: ${process.platform}. MaTE X currently supports macOS and Windows only.`);
+    app.quit();
+  });
 }
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
