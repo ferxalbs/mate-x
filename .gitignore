@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# T3CODE
+t3code
