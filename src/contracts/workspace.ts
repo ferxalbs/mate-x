@@ -5,6 +5,14 @@ export interface RepoFact {
   value: string;
 }
 
+export interface WorkspaceEntry {
+  id: string;
+  name: string;
+  path: string;
+  addedAt: string;
+  lastOpenedAt: string;
+}
+
 export interface WorkspaceSummary {
   id: string;
   name: string;
@@ -19,4 +27,12 @@ export interface SearchMatch {
   file: string;
   line: number;
   text: string;
+}
+
+export interface WorkspaceSnapshot {
+  activeWorkspaceId: string;
+  workspaces: WorkspaceEntry[];
+  workspace: WorkspaceSummary;
+  files: string[];
+  signals: SearchMatch[];
 }

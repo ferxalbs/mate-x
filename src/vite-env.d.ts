@@ -4,6 +4,7 @@ declare global {
   interface Window {
     mate: {
       repo: RepoInspectorApi;
+      git: import('./contracts/ipc').GitApi;
     };
   }
 }

@@ -28,6 +28,14 @@ export class GitService {
     };
   }
 
+  async getStatusSafe(): Promise<GitStatus | null> {
+    try {
+      return await this.getStatus();
+    } catch {
+      return null;
+    }
+  }
+
   async getLog(limit = 20): Promise<GitCommit[]> {
     const log = await this.git.log({ maxCount: limit });
     return log.all.map((entry) => ({

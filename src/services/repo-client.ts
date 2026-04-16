@@ -8,8 +8,28 @@ function getMateApi(): RepoInspectorApi {
   return window.mate.repo;
 }
 
+export function bootstrapWorkspaceState() {
+  return getMateApi().bootstrap();
+}
+
+export function listWorkspaces() {
+  return getMateApi().getWorkspaces();
+}
+
 export function getWorkspaceSummary() {
   return getMateApi().getWorkspaceSummary();
+}
+
+export function openWorkspacePicker() {
+  return getMateApi().openWorkspacePicker();
+}
+
+export function setActiveWorkspace(workspaceId: string) {
+  return getMateApi().setActiveWorkspace(workspaceId);
+}
+
+export function removeWorkspace(workspaceId: string) {
+  return getMateApi().removeWorkspace(workspaceId);
 }
 
 export function listRepoFiles(limit?: number) {
@@ -22,4 +42,8 @@ export function searchRepoFiles(query: string, limit?: number) {
 
 export function runAssistant(prompt: string, history: string[]) {
   return getMateApi().runAssistant(prompt, history);
+}
+
+export function openWorkspacePath(target: 'folder' | 'vscode' | 'terminal') {
+  return getMateApi().openWorkspacePath(target);
 }

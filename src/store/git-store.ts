@@ -51,7 +51,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   async refresh() {
-    set({ loadStatus: "loading", error: null });
+    set({ loadStatus: "loading", error: null, status: null, log: [], diff: null });
     try {
       const [status, log, diff] = await Promise.all([
         git().getStatus(),

@@ -12,6 +12,7 @@ import {
 
 import { useGitStore } from '../../../store/git-store';
 import { cn } from '../../../lib/utils';
+import { useChatStore } from '../../../store/chat-store';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ function FileRow({
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function GitPanel() {
+  const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const {
     status,
     log,
@@ -117,7 +119,7 @@ export function GitPanel() {
   // Auto-refresh on mount
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [activeWorkspaceId, refresh]);
 
   const staged = status?.files.filter((f) => f.index !== ' ' && f.index !== '?') ?? [];
   const unstaged = status?.files.filter((f) => f.working_dir !== ' ' || f.index === '?') ?? [];

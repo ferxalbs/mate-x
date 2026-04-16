@@ -10,18 +10,32 @@ import { MessageStream } from './components/message-stream';
 // Add import for SidebarProvider
 import { SidebarProvider } from '../../components/ui/sidebar';
 
+const fallbackConversation = {
+  id: 'thread-fallback',
+  title: 'New thread',
+  lastUpdatedAt: new Date(0).toISOString(),
+  messages: [],
+};
+
 export function DesktopShell() {
+  const workspaces = useChatStore((state) => state.workspaces);
   const workspace = useChatStore((state) => state.workspace);
+  const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const repoFiles = useChatStore((state) => state.repoFiles);
   const repoSignals = useChatStore((state) => state.repoSignals);
-  const threads = useChatStore((state) => state.threads);
-  const activeThreadId = useChatStore((state) => state.activeThreadId);
+  const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
+  const activeThreadIds = useChatStore((state) => state.activeThreadIds);
   const runStatus = useChatStore((state) => state.runStatus);
   const bootstrap = useChatStore((state) => state.bootstrap);
+  const importWorkspace = useChatStore((state) => state.importWorkspace);
+  const activateWorkspace = useChatStore((state) => state.activateWorkspace);
+  const removeWorkspace = useChatStore((state) => state.removeWorkspace);
   const createThread = useChatStore((state) => state.createThread);
   const selectThread = useChatStore((state) => state.selectThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
-  const conversation = threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+  const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
+  const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
+  const conversation = threads.find((thread) => thread.id === activeThreadId) ?? threads[0] ?? fallbackConversation;
   const { theme, resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -33,14 +47,19 @@ export function DesktopShell() {
       <main className="flex h-screen w-full overflow-hidden bg-background text-foreground">
         <div className="flex h-full w-full overflow-hidden bg-background">
           <AppSidebar
+            activeWorkspaceId={activeWorkspaceId}
             activeThreadId={activeThreadId}
+            onActivateWorkspace={activateWorkspace}
             onCreateThread={createThread}
+            onImportWorkspace={importWorkspace}
+            onRemoveWorkspace={removeWorkspace}
             onThemeChange={setTheme}
             onSelectThread={selectThread}
             repoFiles={repoFiles}
             repoSignals={repoSignals}
             theme={theme}
             threads={threads}
+            workspaces={workspaces}
             workspace={workspace}
             runStatus={runStatus}
           />
@@ -49,6 +68,7 @@ export function DesktopShell() {
             <ChatTopbar
               conversation={conversation}
               onCreateThread={createThread}
+              onImportWorkspace={importWorkspace}
               onThemeChange={setTheme}
               onSelectThread={selectThread}
               resolvedTheme={resolvedTheme}

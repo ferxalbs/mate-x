@@ -1,11 +1,13 @@
 import { execFile } from 'node:child_process';
+import { access } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import OpenAI from 'openai';
 
-import { gitService } from './git-service';
+import { GitService } from './git-service';
+import { workspaceRegistry } from './workspace-registry';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
-import type { SearchMatch, WorkspaceSummary } from '../contracts/workspace';
+import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.2';
@@ -19,91 +21,90 @@ export interface RepoSnapshot {
   promptMatches: SearchMatch[];
 }
 
-export async function getWorkspaceSummary(): Promise<WorkspaceSummary> {
-  const root = process.cwd();
-  const [status, files, packageJson] = await Promise.all([
-    gitService.getStatus(),
-    listFiles(180),
-    readFileMaybe('package.json'),
-  ]);
+export async function bootstrapWorkspaceState(): Promise<WorkspaceSnapshot> {
+  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  return buildWorkspaceSnapshot(state.activeWorkspaceId);
+}
 
-  const stack = deriveStack(files, packageJson);
-  const dirtyCount = status.files.length;
+export async function getWorkspaceEntries(): Promise<WorkspaceEntry[]> {
+  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  return state.workspaces;
+}
 
-  return {
-    id: 'workspace-main',
-    name: root.split('/').filter(Boolean).at(-1) ?? 'workspace',
-    path: root,
-    branch: status.current || 'unknown',
-    status: 'ready',
-    stack,
-    facts: [
-      { label: 'Package manager', value: packageJson?.includes('"bun') ? 'bun' : 'unknown' },
-      { label: 'Tracked files', value: String(files.length) },
-      { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
-      { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
-      { label: 'AI provider', value: process.env.OPENAI_API_KEY ? 'OpenAI connected' : 'OpenAI key missing' },
-      { label: 'Model', value: DEFAULT_OPENAI_MODEL },
-    ],
+export async function setActiveWorkspace(workspaceId: string): Promise<WorkspaceSnapshot> {
+  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  if (!state.workspaces.some((workspace) => workspace.id === workspaceId)) {
+    throw new Error('Workspace not found.');
+  }
+
+  const nextState = {
+    ...state,
+    activeWorkspaceId: workspaceId,
+    workspaces: state.workspaces.map((workspace) =>
+      workspace.id === workspaceId
+        ? { ...workspace, lastOpenedAt: new Date().toISOString() }
+        : workspace,
+    ),
   };
+
+  await workspaceRegistry.save(nextState);
+  return buildWorkspaceSnapshot(workspaceId);
 }
 
-export async function listFiles(limit = 120): Promise<string[]> {
-  const { stdout } = await execFileAsync('rg', ['--files', '.'], { cwd: process.cwd() });
-
-  return stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, limit);
+export async function addWorkspace(workspacePath: string): Promise<WorkspaceSnapshot> {
+  await access(workspacePath);
+  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  const nextState = workspaceRegistry.upsertWorkspace(state, workspacePath, true);
+  await workspaceRegistry.save(nextState);
+  return buildWorkspaceSnapshot(nextState.activeWorkspaceId);
 }
 
-export async function searchInFiles(query: string, limit = 20): Promise<SearchMatch[]> {
-  if (!query.trim()) {
-    return [];
+export async function removeWorkspace(workspaceId: string): Promise<WorkspaceSnapshot> {
+  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  const nextState = workspaceRegistry.removeWorkspace(state, workspaceId);
+
+  if (nextState.workspaces.length === 0) {
+    const seededState = workspaceRegistry.upsertWorkspace(nextState, process.cwd(), true);
+    await workspaceRegistry.save(seededState);
+    return buildWorkspaceSnapshot(seededState.activeWorkspaceId);
   }
 
-  const args = ['-n', '--no-heading', '--color', 'never', '-S', query, '.'];
-
-  try {
-    const { stdout } = await execFileAsync('rg', args, { cwd: process.cwd() });
-
-    return stdout
-      .split('\n')
-      .map((line) => parseSearchLine(line))
-      .filter((match): match is SearchMatch => match !== null)
-      .slice(0, limit);
-  } catch (error) {
-    const failed = error as { stdout?: string; code?: number };
-
-    if (failed.code === 1 && !failed.stdout) {
-      return [];
-    }
-
-    if (failed.stdout) {
-      return failed.stdout
-        .split('\n')
-        .map((line) => parseSearchLine(line))
-        .filter((match): match is SearchMatch => match !== null)
-        .slice(0, limit);
-    }
-
-    throw error;
-  }
+  await workspaceRegistry.save(nextState);
+  return buildWorkspaceSnapshot(nextState.activeWorkspaceId);
 }
 
-export async function collectRepoSnapshot(prompt: string): Promise<RepoSnapshot> {
+export async function getWorkspaceSummary(workspaceId?: string): Promise<WorkspaceSummary> {
+  const workspace = await resolveWorkspace(workspaceId);
+  return buildWorkspaceSummary(workspace);
+}
+
+export async function listFiles(limit = 120, workspaceId?: string): Promise<string[]> {
+  const workspace = await resolveWorkspace(workspaceId);
+  return listWorkspaceFiles(workspace.path, limit);
+}
+
+export async function searchInFiles(
+  query: string,
+  limit = 20,
+  workspaceId?: string,
+): Promise<SearchMatch[]> {
+  const workspace = await resolveWorkspace(workspaceId);
+  return searchWorkspaceFiles(workspace.path, query, limit);
+}
+
+export async function collectRepoSnapshot(prompt: string, workspaceId?: string): Promise<RepoSnapshot> {
+  const workspace = await resolveWorkspace(workspaceId);
   const promptPattern = buildPromptPattern(prompt);
-  const [workspace, files, packageJson, status, promptMatches] = await Promise.all([
-    getWorkspaceSummary(),
-    listFiles(200),
-    readFileMaybe('package.json'),
-    gitService.getStatus(),
-    promptPattern ? searchInFiles(promptPattern, 16) : Promise.resolve([]),
+  const [summary, files, packageJson, status, promptMatches] = await Promise.all([
+    buildWorkspaceSummary(workspace),
+    listWorkspaceFiles(workspace.path, 200),
+    readFileMaybe(workspace.path, 'package.json'),
+    new GitService(workspace.path).getStatus(),
+    promptPattern ? searchWorkspaceFiles(workspace.path, promptPattern, 16) : Promise.resolve([]),
   ]);
 
   return {
-    workspace,
+    workspace: summary,
     files,
     packageJson,
     statusLines: status.files.map((f) => `${f.index}${f.working_dir} ${f.path}`),
@@ -111,8 +112,12 @@ export async function collectRepoSnapshot(prompt: string): Promise<RepoSnapshot>
   };
 }
 
-export async function runAssistant(prompt: string, history: string[]): Promise<AssistantExecution> {
-  const snapshot = await collectRepoSnapshot(prompt);
+export async function runAssistant(
+  prompt: string,
+  history: string[],
+  workspaceId?: string,
+): Promise<AssistantExecution> {
+  const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const events: ToolEvent[] = [
     {
       id: 'step-workspace',
@@ -187,9 +192,127 @@ export async function runAssistant(prompt: string, history: string[]): Promise<A
   };
 }
 
-async function readFileMaybe(path: string) {
+async function buildWorkspaceSnapshot(activeWorkspaceId: string | null): Promise<WorkspaceSnapshot> {
+  const state = await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+  const resolvedWorkspaceId = activeWorkspaceId ?? state.activeWorkspaceId;
+
+  if (!resolvedWorkspaceId) {
+    throw new Error('No workspace is available.');
+  }
+
+  const workspace = await resolveWorkspace(resolvedWorkspaceId, state.workspaces);
+  const [summary, files, signals] = await Promise.all([
+    buildWorkspaceSummary(workspace),
+    listWorkspaceFiles(workspace.path, 18),
+    searchWorkspaceFiles(workspace.path, 'OpenAI|ipc|thread|sidebar|composer', 10),
+  ]);
+
+  return {
+    activeWorkspaceId: workspace.id,
+    workspaces: state.workspaces,
+    workspace: summary,
+    files,
+    signals,
+  };
+}
+
+async function resolveWorkspace(
+  workspaceId?: string,
+  cachedWorkspaces?: WorkspaceEntry[],
+): Promise<WorkspaceEntry> {
+  const state = cachedWorkspaces
+    ? { workspaces: cachedWorkspaces, activeWorkspaceId: workspaceId ?? null }
+    : await workspaceRegistry.ensureSeedWorkspace(process.cwd());
+
+  const resolvedId = workspaceId ?? state.activeWorkspaceId ?? state.workspaces[0]?.id;
+  const workspace = state.workspaces.find((entry) => entry.id === resolvedId);
+
+  if (!workspace) {
+    throw new Error('Workspace not found.');
+  }
+
+  return workspace;
+}
+
+async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<WorkspaceSummary> {
+  const [status, files, packageJson] = await Promise.all([
+    new GitService(workspace.path).getStatusSafe(),
+    listWorkspaceFiles(workspace.path, 180),
+    readFileMaybe(workspace.path, 'package.json'),
+  ]);
+
+  const stack = deriveStack(files, packageJson);
+  const dirtyCount = status?.files.length ?? 0;
+
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    path: workspace.path,
+    branch: status?.current || 'not-a-repo',
+    status: 'ready',
+    stack,
+    facts: [
+      { label: 'Package manager', value: packageJson?.includes('"bun') ? 'bun' : 'unknown' },
+      { label: 'Tracked files', value: String(files.length) },
+      { label: 'Git changes', value: dirtyCount > 0 ? `${dirtyCount} pending` : 'clean' },
+      { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
+      { label: 'AI provider', value: process.env.OPENAI_API_KEY ? 'OpenAI connected' : 'OpenAI key missing' },
+      { label: 'Model', value: DEFAULT_OPENAI_MODEL },
+    ],
+  };
+}
+
+async function listWorkspaceFiles(workspacePath: string, limit = 120): Promise<string[]> {
+  const { stdout } = await execFileAsync('rg', ['--files', '.'], { cwd: workspacePath });
+
+  return stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+async function searchWorkspaceFiles(
+  workspacePath: string,
+  query: string,
+  limit = 20,
+): Promise<SearchMatch[]> {
+  if (!query.trim()) {
+    return [];
+  }
+
+  const args = ['-n', '--no-heading', '--color', 'never', '-S', query, '.'];
+
   try {
-    const { stdout } = await execFileAsync('cat', [path], { cwd: process.cwd() });
+    const { stdout } = await execFileAsync('rg', args, { cwd: workspacePath });
+
+    return stdout
+      .split('\n')
+      .map((line) => parseSearchLine(line))
+      .filter((match): match is SearchMatch => match !== null)
+      .slice(0, limit);
+  } catch (error) {
+    const failed = error as { stdout?: string; code?: number };
+
+    if (failed.code === 1 && !failed.stdout) {
+      return [];
+    }
+
+    if (failed.stdout) {
+      return failed.stdout
+        .split('\n')
+        .map((line) => parseSearchLine(line))
+        .filter((match): match is SearchMatch => match !== null)
+        .slice(0, limit);
+    }
+
+    throw error;
+  }
+}
+
+async function readFileMaybe(workspacePath: string, relativePath: string) {
+  try {
+    const { stdout } = await execFileAsync('cat', [relativePath], { cwd: workspacePath });
     return stdout;
   } catch {
     return null;
@@ -264,112 +387,131 @@ function buildArtifacts(snapshot: RepoSnapshot): MessageArtifact[] {
       value: snapshot.workspace.branch,
     },
     {
-      id: 'artifact-matches',
-      label: 'Matches',
-      value: String(snapshot.promptMatches.length),
+      id: 'artifact-files',
+      label: 'Files indexed',
+      value: String(snapshot.files.length),
     },
   ];
 }
 
-async function requestOpenAIResponse(input: {
-  prompt: string;
-  history: string[];
-  snapshot: RepoSnapshot;
-}) {
-  const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    timeout: OPENAI_TIMEOUT_MS,
-  });
-
-  const response = await client.responses.create({
-    model: DEFAULT_OPENAI_MODEL,
-    instructions: buildSystemPrompt(input.snapshot),
-    input: buildUserInput(input),
-  });
-
-  const text = response.output_text?.trim();
-
-  if (!text) {
-    throw new Error('OpenAI response did not contain output text.');
-  }
-
-  return text;
-}
-
-function buildSystemPrompt(snapshot: RepoSnapshot) {
-  return [
-    'You are Mate-X, a desktop coding assistant.',
-    'Answer like a senior engineer: concise, direct, and specific.',
-    'Base your response on the provided repository snapshot.',
-    'Prefer practical next steps over general theory.',
-    `Current workspace: ${snapshot.workspace.name} on branch ${snapshot.workspace.branch}.`,
-  ].join(' ');
-}
-
-function buildUserInput(input: {
-  prompt: string;
-  history: string[];
-  snapshot: RepoSnapshot;
-}) {
-  const transcript =
-    input.history.length > 0
-      ? input.history.map((entry, index) => `${index + 1}. ${entry}`).join('\n')
-      : '(new thread)';
-  const matches =
-    input.snapshot.promptMatches.length > 0
-      ? input.snapshot.promptMatches
-          .slice(0, 8)
-          .map((match) => `${match.file}:${match.line} ${match.text}`)
-          .join('\n')
-      : 'No prompt-linked matches found.';
-
-  return [
-    `User request:\n${input.prompt}`,
-    `Conversation history:\n${transcript}`,
-    `Workspace:\n- Path: ${input.snapshot.workspace.path}\n- Branch: ${input.snapshot.workspace.branch}\n- Stack: ${input.snapshot.workspace.stack.join(', ') || 'Unknown'}`,
-    `Git status:\n${input.snapshot.statusLines.slice(0, 12).join('\n') || 'clean'}`,
-    `Relevant file matches:\n${matches}`,
-    `Top files:\n${input.snapshot.files.slice(0, 18).join('\n')}`,
-    'Respond in plain text. Mention concrete files when useful. If the repo context is thin, say so.',
-  ].join('\n\n');
-}
-
 function buildFallbackResponse(prompt: string, snapshot: RepoSnapshot, error?: unknown) {
-  const topMatch = snapshot.promptMatches[0];
-  const lines = [
-    `I mapped your request against \`${snapshot.workspace.name}\` on \`${snapshot.workspace.branch}\`.`,
-    topMatch
-      ? `The closest live repo signal is \`${topMatch.file}:${topMatch.line}\`, which suggests that area is the right place to extend next.`
-      : 'The prompt did not map cleanly to an existing file, so the next step is expanding the shell and store around the current desktop surface.',
-    `Right now the workspace has ${snapshot.statusLines.length} pending git changes and ${snapshot.files.length} indexed files.`,
-    `Request focus: ${prompt.trim()}`,
-  ];
+  const matches =
+    snapshot.promptMatches.length > 0
+      ? snapshot.promptMatches
+          .slice(0, 4)
+          .map((match) => `- ${match.file}:${match.line} ${match.text}`)
+          .join('\n')
+      : '- No prompt-linked file matches were found.';
 
-  if (error instanceof Error) {
-    lines.push(`OpenAI request failed: ${error.message}`);
-  } else if (error) {
-    lines.push('OpenAI request failed before a model response was returned.');
-  } else {
-    lines.push('Set `OPENAI_API_KEY` to replace this local fallback with live OpenAI responses.');
-  }
+  const gitLines =
+    snapshot.statusLines.length > 0
+      ? snapshot.statusLines.slice(0, 6).map((line) => `- ${line}`).join('\n')
+      : '- Working tree clean.';
 
-  return lines.join('\n\n');
+  const errorLine = error instanceof Error ? `\n\nOpenAI error: ${error.message}` : '';
+
+  return [
+    `Request: ${prompt}`,
+    '',
+    `Workspace: ${snapshot.workspace.name}`,
+    `Path: ${snapshot.workspace.path}`,
+    `Branch: ${snapshot.workspace.branch}`,
+    '',
+    'Relevant matches:',
+    matches,
+    '',
+    'Git status:',
+    gitLines,
+    '',
+    'Next move: inspect the matched files and update the active workspace flow before making changes.',
+    errorLine,
+  ].join('\n');
+}
+
+async function requestOpenAIResponse({
+  history,
+  prompt,
+  snapshot,
+}: {
+  history: string[];
+  prompt: string;
+  snapshot: RepoSnapshot;
+}) {
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const files = snapshot.files.slice(0, 80).join('\n');
+  const matches = snapshot.promptMatches
+    .slice(0, 12)
+    .map((match) => `${match.file}:${match.line} ${match.text}`)
+    .join('\n');
+  const gitStatus = snapshot.statusLines.slice(0, 40).join('\n');
+
+  const response = await client.responses.create(
+    {
+      model: DEFAULT_OPENAI_MODEL,
+      input: [
+        {
+          role: 'system',
+          content: [
+            {
+              type: 'input_text',
+              text: [
+                'You are Mate-X, an Electron coding copilot grounded in the local repository.',
+                'Use the supplied workspace inventory, git status, and search matches to answer precisely.',
+                'If repo evidence is weak, say so explicitly and propose the next repo action.',
+              ].join(' '),
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: [
+                `Workspace: ${snapshot.workspace.name}`,
+                `Path: ${snapshot.workspace.path}`,
+                `Branch: ${snapshot.workspace.branch}`,
+                '',
+                'Files:',
+                files || '(none)',
+                '',
+                'Git status:',
+                gitStatus || '(clean)',
+                '',
+                'Prompt-linked matches:',
+                matches || '(none)',
+                '',
+                'Conversation history:',
+                history.join('\n') || '(none)',
+                '',
+                `User prompt: ${prompt}`,
+              ].join('\n'),
+            },
+          ],
+        },
+      ],
+    },
+    {
+      timeout: OPENAI_TIMEOUT_MS,
+    },
+  );
+
+  return response.output_text?.trim() || buildFallbackResponse(prompt, snapshot);
 }
 
 const STOP_WORDS = new Set([
-  'that',
   'this',
+  'that',
   'with',
   'from',
   'have',
-  'your',
-  'will',
-  'just',
-  'into',
-  'most',
-  'repo',
-  'design',
-  'desktop',
-  'build',
+  'need',
   'make',
+  'into',
+  'about',
+  'your',
+  'project',
+  'workspace',
+  'please',
+  'could',
 ]);

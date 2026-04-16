@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { ChevronDown, GitBranchIcon, MoonStar, PlusIcon, SettingsIcon, SunMedium } from 'lucide-react';
+import {
+  ChevronDown,
+  FolderGit2Icon,
+  GitBranchIcon,
+  MoonStar,
+  PlusIcon,
+  SettingsIcon,
+  SunMedium,
+  Trash2Icon,
+} from 'lucide-react';
 
 import { GitPanel } from './git-panel';
 import { useGitStore } from '../../../store/git-store';
@@ -16,19 +25,24 @@ import {
   SidebarSeparator,
 } from '../../../components/ui/sidebar';
 import type { Conversation, RunStatus } from '../../../contracts/chat';
-import type { SearchMatch, WorkspaceSummary } from '../../../contracts/workspace';
+import type { SearchMatch, WorkspaceEntry, WorkspaceSummary } from '../../../contracts/workspace';
 import type { Theme } from '../../../hooks/use-theme';
 import { cn } from '../../../lib/utils';
 import { formatRelativeTimestamp } from '../model';
 
 interface AppSidebarProps {
+  workspaces: WorkspaceEntry[];
   workspace: WorkspaceSummary | null;
+  activeWorkspaceId: string | null;
   activeThreadId: string;
   threads: Conversation[];
   repoFiles: string[];
   repoSignals: SearchMatch[];
   theme: Theme;
   runStatus: RunStatus;
+  onImportWorkspace: () => void;
+  onActivateWorkspace: (workspaceId: string) => Promise<void>;
+  onRemoveWorkspace: (workspaceId: string) => Promise<void>;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
   onThemeChange: (theme: Theme) => void;
@@ -100,11 +114,16 @@ function GitSidebarSection() {
 }
 
 export function AppSidebar({
+  workspaces,
   workspace,
+  activeWorkspaceId,
   activeThreadId,
   threads,
   theme,
   runStatus,
+  onImportWorkspace,
+  onActivateWorkspace,
+  onRemoveWorkspace,
   onCreateThread,
   onSelectThread,
   onThemeChange,
@@ -137,62 +156,108 @@ export function AppSidebar({
               Projects
             </span>
             <button
-              onClick={onCreateThread}
+              onClick={onImportWorkspace}
               className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+              title="Import folder"
             >
               <PlusIcon className="size-3.5" />
             </button>
           </div>
 
           <SidebarMenu>
-            <SidebarMenuItem className="rounded-md">
-              <SidebarMenuButton
-                size="sm"
-                className="gap-2 px-2 text-[13px] font-medium"
-                isActive
-              >
-                <span className="truncate">{workspace?.name || 'mate-x'}</span>
-              </SidebarMenuButton>
+            {workspaces.map((project) => {
+              const isWorkspaceActive = project.id === activeWorkspaceId;
 
-              <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
-                {threads.map((thread) => {
-                  const isActive = thread.id === activeThreadId;
-                  const status = getThreadStatusLabel(thread, isActive, runStatus);
-
-                  return (
-                    <button
-                      key={thread.id}
-                      onClick={() => onSelectThread(thread.id)}
-                      className={cn(
-                        'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs outline-none transition-colors',
-                        isActive
-                          ? 'bg-accent text-accent-foreground font-medium'
-                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                      )}
+              return (
+                <SidebarMenuItem key={project.id} className="rounded-md">
+                  <div className="group/project flex items-center gap-1">
+                    <SidebarMenuButton
+                      size="sm"
+                      className="gap-2 px-2 text-[13px] font-medium"
+                      isActive={isWorkspaceActive}
+                      onClick={() => void onActivateWorkspace(project.id)}
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                        <span
-                          className={cn(
-                            'size-1.5 rounded-full',
-                            status.dotClass,
-                            status.pulse ? 'animate-pulse' : '',
-                          )}
-                        />
-                        <span className="flex-1 truncate">
-                          {thread.title || 'New thread'}
-                        </span>
+                      <FolderGit2Icon className="size-3.5 shrink-0 text-muted-foreground/60" />
+                      <span className="truncate">{project.name}</span>
+                    </SidebarMenuButton>
+                    {workspaces.length > 1 ? (
+                      <button
+                        onClick={() => void onRemoveWorkspace(project.id)}
+                        className="hidden rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
+                        title={`Remove ${project.name}`}
+                      >
+                        <Trash2Icon className="size-3" />
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {isWorkspaceActive ? (
+                    <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
+                      <div className="flex items-start justify-between gap-2 px-2 pb-1 text-[10px] text-muted-foreground/40">
+                        <div className="min-w-0">
+                          <div className="truncate">{workspace?.path}</div>
+                          <div className="truncate">
+                            {workspace?.branch === 'not-a-repo'
+                              ? 'No git repository'
+                              : `Branch ${workspace?.branch ?? 'unknown'}`}
+                          </div>
+                        </div>
+                        <button
+                          onClick={onCreateThread}
+                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+                          title="New thread"
+                        >
+                          <PlusIcon className="size-3" />
+                        </button>
                       </div>
 
-                      <div className="flex shrink-0 items-center justify-end">
-                        <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
-                          {formatRelativeTimestamp(thread.lastUpdatedAt)}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+                      {threads.map((thread) => {
+                        const isActive = thread.id === activeThreadId;
+                        const status = getThreadStatusLabel(thread, isActive, runStatus);
+
+                        return (
+                          <button
+                            key={thread.id}
+                            onClick={() => onSelectThread(thread.id)}
+                            className={cn(
+                              'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs outline-none transition-colors',
+                              isActive
+                                ? 'bg-accent text-accent-foreground font-medium'
+                                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                            )}
+                          >
+                            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  'size-1.5 rounded-full',
+                                  status.dotClass,
+                                  status.pulse ? 'animate-pulse' : '',
+                                )}
+                              />
+                              <span className="flex-1 truncate">
+                                {thread.title || 'New thread'}
+                              </span>
+                            </div>
+
+                            <div className="flex shrink-0 items-center justify-end">
+                              <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
+                                {formatRelativeTimestamp(thread.lastUpdatedAt)}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </SidebarMenuItem>
+              );
+            })}
+
+            {workspaces.length === 0 ? (
+              <div className="px-2 py-3 text-xs text-muted-foreground/50">
+                Import a folder to start working.
               </div>
-            </SidebarMenuItem>
+            ) : null}
           </SidebarMenu>
         </SidebarGroup>
         <SidebarSeparator />

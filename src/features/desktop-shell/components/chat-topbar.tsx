@@ -12,6 +12,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from '../../../components/ui/m
 import type { Conversation, RunStatus } from '../../../contracts/chat';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import type { Theme } from '../../../hooks/use-theme';
+import { openWorkspacePath } from '../../../services/repo-client';
 
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
@@ -20,6 +21,7 @@ interface ChatTopbarProps {
   resolvedTheme: 'light' | 'dark';
   runStatus: RunStatus;
   onCreateThread: () => void;
+  onImportWorkspace: () => Promise<void>;
   onSelectThread: (threadId: string) => void;
   onThemeChange: (theme: Theme) => void;
 }
@@ -49,6 +51,7 @@ export function ChatTopbar({
   theme,
   runStatus,
   onCreateThread,
+  onImportWorkspace,
   onSelectThread,
   onThemeChange,
 }: ChatTopbarProps) {
@@ -74,7 +77,7 @@ export function ChatTopbar({
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem onClick={onCreateThread}>New thread</MenuItem>
-            <MenuItem>Attach files</MenuItem>
+            <MenuItem onClick={() => void onImportWorkspace()}>Import folder</MenuItem>
             <MenuItem>Search project</MenuItem>
           </MenuPopup>
         </Menu>
@@ -88,13 +91,27 @@ export function ChatTopbar({
             <MenuItem
               onClick={() => {
                 setOpenTarget('folder');
-                onSelectThread(conversation.id);
+                void openWorkspacePath('folder');
               }}
             >
               Open
             </MenuItem>
-            <MenuItem onClick={() => setOpenTarget('vscode')}>Open in VS Code</MenuItem>
-            <MenuItem onClick={() => setOpenTarget('terminal')}>Open in Terminal</MenuItem>
+            <MenuItem
+              onClick={() => {
+                setOpenTarget('vscode');
+                void openWorkspacePath('vscode');
+              }}
+            >
+              Open in VS Code
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setOpenTarget('terminal');
+                void openWorkspacePath('terminal');
+              }}
+            >
+              Open in Terminal
+            </MenuItem>
           </MenuPopup>
         </Menu>
         <Menu>
