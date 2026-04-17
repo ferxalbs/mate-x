@@ -11,6 +11,10 @@ import { networkMapTool } from './tools/network';
 import { sqlAuditTool } from './tools/sql';
 import { envSafetyTool } from './tools/env_safety';
 import { containerAuditTool } from './tools/container';
+import { flowTraceTool } from './tools/flow';
+import { entropyScannerTool } from './tools/entropy';
+import { accessControlAuditTool } from './tools/auth';
+import { securityReportTool } from './tools/report';
 
 export interface Tool {
   name: string;
@@ -40,6 +44,10 @@ export class ToolService {
     this.registerTool(sqlAuditTool);
     this.registerTool(envSafetyTool);
     this.registerTool(containerAuditTool);
+    this.registerTool(flowTraceTool);
+    this.registerTool(entropyScannerTool);
+    this.registerTool(accessControlAuditTool);
+    this.registerTool(securityReportTool);
     // Future tools can be registered here or dynamically loaded
   }
 
