@@ -1,5 +1,13 @@
 # CHANGELOG
 
+# Unreleased - 2026.04.17 (4) [Chat Flow and Context Extraction Repair]
+
+- Reworked the assistant conversation surface to remove the dedicated `Agent trace` / execution-trace blocks from chat and present in-flight progress as normal inline assistant updates, matching the T3CODE-style flow more closely.
+- Removed the visible artifact pill strip from assistant messages so the main conversation stays focused on the reply itself instead of internal telemetry.
+- Fixed the broken `ast_grep` context extraction path that was incorrectly parsing ripgrep output with escaped newline and digit patterns, which caused valid matches to degrade into the useless `Matches found, but context extraction failed.` error.
+- Added a safer fallback in `ast_grep` so when full block reconstruction is not possible, the tool still returns usable local snippet context instead of collapsing into a hard failure string.
+- Corrected assistant history replay inside the tool loop so prior turns are reconstructed from their stored `user:` / `assistant:` roles rather than being reassigned by index parity, improving multi-pass model behavior during iterative tool use.
+
 ## Unreleased - 2026.04.17 (3) [Ultimate Enterprise Security Arsenal Expansion]
 
 - Expanded the MaTE X intelligence suite from basic static analysis to an enterprise-grade agent with 24 specialized security tools for localized auditing.

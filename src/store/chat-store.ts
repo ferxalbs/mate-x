@@ -292,7 +292,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const assistantPlaceholder: ChatMessage = {
       id: createId('assistant'),
       role: 'assistant',
-      content: 'Reviewing the repository and building a tool-backed answer.',
+      content:
+        "Reviewing the repository structure and locating the files tied to your request. I'll keep iterating with tools before answering.",
       createdAt: new Date().toISOString(),
       events: [],
       artifacts: [],

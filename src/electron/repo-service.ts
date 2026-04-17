@@ -233,19 +233,10 @@ export async function runAssistant(
       return;
     }
 
-    const currentEvent =
-      [...events].reverse().find((event) => event.status === 'active') ??
-      events.at(-1);
-    const progressContent = currentEvent
-      ? `${currentEvent.label}: ${currentEvent.detail}`
-      : resolvedOptions.mode === "plan"
-        ? "Planning the investigation with a tool-backed loop."
-        : "Reviewing the repository and iterating on tool calls.";
-
     progressReporter.emit({
       runId: progressReporter.runId,
       status: "running",
-      content: progressContent,
+      content: renderInlineProgress(events, resolvedOptions.mode),
       events: cloneEvents(events),
       artifacts: cloneArtifacts(artifacts),
     });
@@ -586,6 +577,85 @@ function summarizeToolOutput(content: unknown) {
   return summary ?? "Tool returned no textual output.";
 }
 
+function buildHistoryMessages(
+  history: string[],
+): Array<{ role: "user" | "assistant"; content: string }> {
+  return history.flatMap((entry) => {
+    const match = entry.match(/^(user|assistant):\s*/i);
+    if (!match) {
+      const collapsed = entry.trim();
+      return collapsed ? [{ role: "user" as const, content: collapsed }] : [];
+    }
+
+    const role: "user" | "assistant" =
+      match[1].toLowerCase() === "assistant" ? "assistant" : "user";
+    const content = entry.slice(match[0].length).trim();
+
+    return content ? [{ role, content }] : [];
+  });
+}
+
+function describeProgressPhase(label: string | undefined, mode: AssistantRunOptions["mode"]) {
+  if (!label) {
+    return mode === "plan"
+      ? "Planning the investigation and preparing the next tool-backed pass."
+      : "Reviewing the repository and collecting evidence before answering.";
+  }
+
+  if (label.startsWith("Agent pass")) {
+    return "Inspecting the repository and pushing the model through another investigation pass.";
+  }
+
+  if (label.startsWith("Tool batch")) {
+    return "Running a batch of repository tools to gather more concrete evidence.";
+  }
+
+  if (label.startsWith("Executing ")) {
+    return "Working through repository evidence now and folding tool results back into the loop.";
+  }
+
+  if (label === "Continue investigation") {
+    return "The model tried to stop early, so the loop is forcing another evidence-gathering pass.";
+  }
+
+  if (label === "Tool budget reached") {
+    return "Enough tool evidence is collected. Preparing the final repo-grounded response.";
+  }
+
+  if (label === "Response complete") {
+    return "Finalizing the answer from the evidence already collected.";
+  }
+
+  return "Reviewing the repository and keeping the tool loop moving.";
+}
+
+function formatProgressEvent(event: ToolEvent) {
+  const prefix =
+    event.status === "active"
+      ? "Running"
+      : event.status === "error"
+        ? "Issue"
+        : "Done";
+  return `${prefix} ${event.label} · ${event.detail}`;
+}
+
+function renderInlineProgress(
+  events: ToolEvent[],
+  mode: AssistantRunOptions["mode"],
+) {
+  const currentEvent =
+    [...events].reverse().find((event) => event.status === "active") ??
+    events.at(-1);
+  const visibleEvents = events.slice(-6);
+  const intro = describeProgressPhase(currentEvent?.label, mode);
+
+  if (visibleEvents.length === 0) {
+    return intro;
+  }
+
+  return `${intro}\n\n\`\`\`text\n${visibleEvents.map(formatProgressEvent).join("\n")}\n\`\`\``;
+}
+
 function cloneArtifacts(artifacts: MessageArtifact[]) {
   return artifacts.map((artifact) => ({ ...artifact }));
 }
@@ -787,10 +857,7 @@ async function requestRainyChatAgenticResponse({
   events: ToolEvent[];
   emitProgress: () => void;
 }) {
-  const historyMessages = history.map((entry, index) => ({
-    role: (index % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
-    content: entry,
-  }));
+  const historyMessages = buildHistoryMessages(history);
   const messages: any[] = [
     { role: "system", content: systemPrompt },
     ...historyMessages,
@@ -1026,10 +1093,7 @@ async function requestRainyResponsesAgenticResponse({
   emitProgress: () => void;
 }) {
   const initialInput = buildResponsesMessageInput([
-    ...history.map((entry, index) => ({
-      role: (index % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
-      content: entry,
-    })),
+    ...buildHistoryMessages(history),
     { role: "user", content: prompt },
   ]);
   const responseTools = toolService.getResponsesToolDefinitions();

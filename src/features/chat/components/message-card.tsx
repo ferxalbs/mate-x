@@ -1,5 +1,3 @@
-import { TerminalSquare } from 'lucide-react';
-
 import type { ChatMessage } from '../../../contracts/chat';
 import { cn } from '../../../lib/utils';
 import { formatTimestamp } from '../../../lib/time';
@@ -28,46 +26,6 @@ export function MessageCard({ message }: MessageCardProps) {
       </div>
 
       <p className="mt-3 whitespace-pre-wrap text-sm leading-7">{message.content}</p>
-
-      {message.events && message.events.length > 0 ? (
-        <div className="mt-4 rounded-[1.25rem] border border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_16%,transparent)] p-4">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <TerminalSquare className="size-4" />
-            Execution trace
-          </div>
-          <div className="mt-3 flex flex-col gap-3">
-            {message.events.map((event) => (
-              <div
-                key={event.id}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium">{event.label}</span>
-                  <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                    {event.status}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                  {event.detail}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {message.artifacts?.length ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {message.artifacts.map((artifact) => (
-            <span
-              key={artifact.id}
-              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs"
-            >
-              {artifact.label}: {artifact.value}
-            </span>
-          ))}
-        </div>
-      ) : null}
     </article>
   );
 }
