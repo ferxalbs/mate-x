@@ -1,4 +1,4 @@
-import { ArrowUpIcon, LoaderCircle, RefreshCcwIcon } from 'lucide-react';
+import { ArrowUpIcon, LoaderCircle } from 'lucide-react';
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
@@ -125,25 +125,6 @@ export function ComposerPanel({
     await onSubmit(nextPrompt);
   }
 
-  async function handleRefreshModels() {
-    setIsCatalogLoading(true);
-    setCatalogError('');
-
-    try {
-      const nextCatalog = await listModels(true);
-      startTransition(() => {
-        setCatalog(nextCatalog);
-        setModelValue((currentValue) => resolveModelValue(currentValue, nextCatalog));
-      });
-    } catch (error) {
-      setCatalogError(
-        error instanceof Error ? error.message : 'Could not refresh Rainy models.',
-      );
-    } finally {
-      setIsCatalogLoading(false);
-    }
-  }
-
   async function handleModelChange(nextModel: string) {
     if (!nextModel || nextModel === modelValue) {
       return;
@@ -246,19 +227,7 @@ export function ComposerPanel({
         </div>
 
         <div className="mt-2 flex items-center justify-between px-1 text-xs text-muted-foreground">
-          <span className="flex items-center gap-2">
-            {catalogError ? catalogError : `Model: ${modelLabel}`}
-            <Button
-              aria-label="Refresh Rainy models"
-              className="size-6 rounded-md"
-              disabled={isCatalogLoading || isModelSaving}
-              onClick={() => void handleRefreshModels()}
-              size="icon-xs"
-              variant="ghost"
-            >
-              <RefreshCcwIcon className={cn('size-3.5', isCatalogLoading ? 'animate-spin' : '')} />
-            </Button>
-          </span>
+          <span>{catalogError ? catalogError : `Model: ${modelLabel}`}</span>
           <span>{workspace?.branch ?? 'main'}</span>
         </div>
       </div>

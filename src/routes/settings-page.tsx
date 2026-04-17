@@ -16,6 +16,15 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { SettingsRow, SettingsSection } from '../components/ui/settings-layout';
 import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -61,6 +70,7 @@ export function SettingsPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshingModels, setIsRefreshingModels] = useState(false);
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [diffLineWrapping, setDiffLineWrapping] = useState(false);
   const [assistantOutput, setAssistantOutput] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
@@ -113,6 +123,12 @@ export function SettingsPage() {
 
     try {
       if (trimmedKey) {
+        if (!isValidRainyApiKey(trimmedKey)) {
+          setSaveState('idle');
+          setIsApiKeyDialogOpen(true);
+          return;
+        }
+
         await setApiKey(trimmedKey);
         setCurrentKey(trimmedKey);
         setInputValue('');
@@ -249,30 +265,31 @@ export function SettingsPage() {
   }, [currentModel]);
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="drag-region flex h-[52px] shrink-0 items-center border-b border-border/70 px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="text-sm font-medium tracking-tight text-foreground">Settings</span>
-          <span className="rounded-full bg-muted/45 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
-            {section}
-          </span>
-        </div>
-        <div className="ms-auto no-drag">
-          <Button
-            size="xs"
-            variant="outline"
-            className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] font-medium shadow-none"
-            onClick={() => void handleRestoreDefaults()}
-            disabled={isBusy || changedSettingLabels.length === 0}
-          >
-            <RefreshCcwIcon className="size-3.5" />
-            Restore defaults
-          </Button>
-        </div>
-      </header>
+    <>
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <header className="drag-region flex h-[52px] shrink-0 items-center border-b border-border/70 px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="text-sm font-medium tracking-tight text-foreground">Settings</span>
+            <span className="rounded-full bg-muted/45 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
+              {section}
+            </span>
+          </div>
+          <div className="ms-auto no-drag">
+            <Button
+              size="xs"
+              variant="outline"
+              className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] font-medium shadow-none"
+              onClick={() => void handleRestoreDefaults()}
+              disabled={isBusy || changedSettingLabels.length === 0}
+            >
+              <RefreshCcwIcon className="size-3.5" />
+              Restore defaults
+            </Button>
+          </div>
+        </header>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
           {section === 'general' ? (
             <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
               <>
@@ -386,7 +403,7 @@ export function SettingsPage() {
                   title="Rainy API key"
                   description={
                     currentKey
-                      ? `Stored and ready. Current key ${maskKey(currentKey)}.`
+                      ? `Stored locally on this device and ready. Current key ${maskKey(currentKey)}.`
                       : 'Connect your Rainy account to enable live responses.'
                   }
                   control={
@@ -397,7 +414,7 @@ export function SettingsPage() {
                         value={inputValue}
                         onChange={(event) => setInputValue(event.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="rainy-••••••••••••••••"
+                        placeholder="ra-••••••••••••••••"
                         className="w-[220px]"
                         disabled={isBusy}
                       />
@@ -542,8 +559,23 @@ export function SettingsPage() {
             </Button>
           </div>
         </div>
-      </div>
-    </section>
+        </div>
+      </section>
+
+      <AlertDialog open={isApiKeyDialogOpen} onOpenChange={setIsApiKeyDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rainy API key invalid</AlertDialogTitle>
+            <AlertDialogDescription>
+              The Rainy API v3 key must start with <code>ra-</code>. Enter a valid key before saving.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose render={<Button />}>Understood</AlertDialogClose>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -575,4 +607,8 @@ function resolveSelectedApiMode(
   }
 
   return model.supportedApiModes[0] ?? fallbackMode;
+}
+
+function isValidRainyApiKey(value: string) {
+  return value.startsWith('ra-');
 }

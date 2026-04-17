@@ -8,7 +8,13 @@ import {
 } from '../config/rainy';
 import type { RainyApiMode, RainyModelCatalogEntry } from '../contracts/rainy';
 
-const RAINY_MODELS_ENDPOINT = `${RAINY_API_BASE_URL.replace(/\/+$/, '')}/models`;
+const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, '');
+const RAINY_MODELS_ENDPOINTS = [
+  `${RAINY_BASE_URL}/api/v1/models/catalog`,
+  `${RAINY_BASE_URL}/api/v1/models`,
+  `${RAINY_BASE_URL}/models/catalog`,
+  `${RAINY_BASE_URL}/models`,
+];
 const MODEL_CACHE_TTL_MS = 60_000;
 
 let cachedCatalog:
@@ -62,29 +68,60 @@ export async function listRainyModels(params: {
     return cachedCatalog.models;
   }
 
-  const response = await fetch(RAINY_MODELS_ENDPOINT, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${trimmedApiKey}`,
-      Accept: 'application/json',
-    },
-    signal: AbortSignal.timeout(RAINY_REQUEST_TIMEOUT_MS),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    throw new Error(`Rainy models request failed with status ${response.status}.`);
+  for (const endpoint of RAINY_MODELS_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${trimmedApiKey}`,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(RAINY_REQUEST_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        lastError = new Error(
+          `Rainy models request failed with status ${response.status} at ${new URL(endpoint).pathname}.`,
+        );
+
+        if (response.status === 404) {
+          continue;
+        }
+
+        throw lastError;
+      }
+
+      const payload = (await response.json()) as unknown;
+      const models = normalizeRainyModelsPayload(payload);
+
+      cachedCatalog = {
+        apiKey: trimmedApiKey,
+        expiresAt: now + MODEL_CACHE_TTL_MS,
+        models,
+      };
+
+      return models;
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error : new Error('Rainy models request failed.');
+
+      if (
+        error instanceof Error &&
+        /status 404/.test(error.message)
+      ) {
+        continue;
+      }
+
+      throw lastError;
+    }
   }
 
-  const payload = (await response.json()) as unknown;
-  const models = normalizeRainyModelsPayload(payload);
-
-  cachedCatalog = {
-    apiKey: trimmedApiKey,
-    expiresAt: now + MODEL_CACHE_TTL_MS,
-    models,
-  };
-
-  return models;
+  throw (
+    lastError ??
+    new Error('Rainy models request failed for all known catalog endpoints.')
+  );
 }
 
 export async function validateRainyModelSelection(params: {
