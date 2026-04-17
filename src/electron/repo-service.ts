@@ -3,7 +3,8 @@ import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { GitService } from "./git-service";
-import { listRainyModels, requestRainyTextResponse } from "./rainy-service";
+import { listRainyModels, requestRainyChatCompletion } from "./rainy-service";
+import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
 import type {
   AssistantExecution,
@@ -183,7 +184,6 @@ export async function runAssistant(
     ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
     : null;
   const configuredModel = runtimeConfig?.model ?? null;
-  const configuredApiMode = runtimeConfig?.apiMode ?? "responses";
 
   const hasRainyConfig = Boolean(apiKey && configuredModel);
   const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel);
@@ -192,21 +192,17 @@ export async function runAssistant(
 
   if (apiKey && configuredModel) {
     try {
-      content = await requestRainyResponse({
+      const result = await requestRainyAgenticResponse({
         apiKey,
-        apiMode: configuredApiMode,
         history,
         model: configuredModel,
         prompt,
         snapshot,
+        events,
       });
-      events.push({
-        id: "step-rainy",
-        label: "Generate Rainy response",
-        detail: `Answered with ${configuredModel}.`,
-        status: "done",
-      });
+      content = result.content;
     } catch (error) {
+      console.error("Agentic loop failed:", error);
       content = buildFallbackResponse(prompt, snapshot, error);
       events.push({
         id: "step-rainy-fallback",
@@ -532,20 +528,20 @@ function buildFallbackResponse(
   ].join("\n");
 }
 
-async function requestRainyResponse({
+async function requestRainyAgenticResponse({
   apiKey,
-  apiMode,
   history,
   model,
   prompt,
   snapshot,
+  events,
 }: {
   apiKey: string;
-  apiMode: "chat_completions" | "responses";
   history: string[];
   model: string;
   prompt: string;
   snapshot: RepoSnapshot;
+  events: ToolEvent[];
 }) {
   const files = snapshot.files.slice(0, 80).join("\n");
   const matches = snapshot.promptMatches
@@ -554,35 +550,101 @@ async function requestRainyResponse({
     .join("\n");
   const gitStatus = snapshot.statusLines.slice(0, 40).join("\n");
 
-  const userContext = [
-    `Workspace: ${snapshot.workspace.name}`,
-    `Path: ${snapshot.workspace.path}`,
-    `Branch: ${snapshot.workspace.branch}`,
-    `Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}`,
-    "",
-    "Files:",
-    files || "(none)",
-    "",
-    "Git status:",
-    gitStatus || "(clean)",
-    "",
-    "Prompt-linked matches:",
-    matches || "(none)",
-    "",
-    "Conversation history:",
-    history.join("\n") || "(none)",
-    "",
-    `User prompt: ${prompt}`,
-  ].join("\n");
+  const systemPrompt = `Workspace: ${snapshot.workspace.name}
+Path: ${snapshot.workspace.path}
+Branch: ${snapshot.workspace.branch}
+Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
 
-  const responseText = await requestRainyTextResponse({
-    apiKey,
-    apiMode,
-    model,
-    userContext,
-  });
+Files:
+${files || "(none)"}
 
-  return responseText || buildFallbackResponse(prompt, snapshot);
+Git status:
+${gitStatus || "(clean)"}
+
+Prompt-linked matches:
+${matches || "(none)"}
+
+You are an expert software engineer and security reviewer. You have access to tools to analyze the repository.
+When you need to search for something, use the 'rg' tool.
+Be thorough and precise. Always explain your reasoning before taking actions.`;
+
+  const messages: any[] = [
+    { role: "system", content: systemPrompt },
+    ...history.map((h, i) => ({
+      role: i % 2 === 0 ? "user" : "assistant",
+      content: h,
+    })),
+    { role: "user", content: prompt },
+  ];
+
+  const tools = toolService.getToolDefinitions();
+  const maxIterations = 8;
+  let iterations = 0;
+
+  while (iterations < maxIterations) {
+    iterations++;
+
+    const response = await requestRainyChatCompletion({
+      apiKey,
+      messages,
+      model,
+      tools,
+    });
+
+    const responseMessage = response.choices[0]?.message;
+    if (!responseMessage) {
+      throw new Error("Empty response from Rainy API.");
+    }
+
+    messages.push(responseMessage);
+
+    if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
+      events.push({
+        id: `step-agent-done-${iterations}`,
+        label: "Response complete",
+        detail: `Agent finished after ${iterations} iteration(s).`,
+        status: "done",
+      });
+      return { content: responseMessage.content || "" };
+    }
+
+    // Handle tool calls
+    for (const toolCall of responseMessage.tool_calls) {
+      const toolName = toolCall.function.name;
+      const toolArgs = JSON.parse(toolCall.function.arguments);
+
+      const eventId = `tool-${toolName}-${Date.now()}`;
+      events.push({
+        id: eventId,
+        label: `Executing ${toolName}`,
+        detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
+        status: "active",
+      });
+
+      const result = await toolService.callTool(toolName, toolArgs, {
+        workspacePath: snapshot.workspace.path,
+      });
+
+      events.forEach((e) => {
+        if (e.id === eventId) {
+          e.status = "done";
+          e.detail = `Tool ${toolName} finished successfully.`;
+        }
+      });
+
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content: result,
+      });
+    }
+  }
+
+  return {
+    content:
+      messages[messages.length - 1]?.content ||
+      "Maximum agent iterations reached without a final response.",
+  };
 }
 
 async function resolveDefaultRainyRuntimeConfig(

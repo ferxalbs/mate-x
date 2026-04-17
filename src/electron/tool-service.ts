@@ -1,0 +1,71 @@
+import { rgTool } from './tools/rg';
+import { lsTool } from './tools/ls';
+import { readTool } from './tools/read';
+import { gitTool } from './tools/git';
+import { secretScanTool } from './tools/secrets';
+import { fileMetadataTool } from './tools/metadata';
+import { projectTreeTool } from './tools/tree';
+
+export interface Tool {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, any>;
+    required?: string[];
+  };
+  execute: (args: any, context: { workspacePath: string }) => Promise<string>;
+}
+
+export class ToolService {
+  private tools: Map<string, Tool> = new Map();
+
+  constructor() {
+    this.registerTool(rgTool);
+    this.registerTool(lsTool);
+    this.registerTool(readTool);
+    this.registerTool(gitTool);
+    this.registerTool(secretScanTool);
+    this.registerTool(fileMetadataTool);
+    this.registerTool(projectTreeTool);
+    // Future tools can be registered here or dynamically loaded
+  }
+
+  registerTool(tool: Tool) {
+    this.tools.set(tool.name, tool);
+  }
+
+  getToolDefinitions() {
+    return Array.from(this.tools.values()).map((tool) => ({
+      type: 'function' as const,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      },
+    }));
+  }
+
+  async callTool(
+    name: string,
+    args: any,
+    context: { workspacePath: string },
+  ): Promise<string> {
+    const tool = this.tools.get(name);
+    if (!tool) {
+      throw new Error(`Tool "${name}" not found.`);
+    }
+
+    try {
+      return await tool.execute(args, context);
+    } catch (error) {
+      return `Error executing tool "${name}": ${(error as Error).message}`;
+    }
+  }
+
+  hasTools() {
+    return this.tools.size > 0;
+  }
+}
+
+export const toolService = new ToolService();

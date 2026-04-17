@@ -239,7 +239,9 @@ export async function requestRainyTextResponse(params: {
   userContext: string;
   model: string;
   apiMode: RainyApiMode;
-}): Promise<string> {
+  tools?: any[];
+  toolChoice?: string;
+}): Promise<{ content: string; toolCalls?: any[] }> {
   const client = createRainyClient(params.apiKey);
 
   if (params.apiMode === "responses") {
@@ -247,22 +249,48 @@ export async function requestRainyTextResponse(params: {
       {
         model: params.model,
         input: buildResponsesInput(params.userContext),
+        // Rainy responses API might not support tools in the same way as chat completions
       },
       { timeout: RAINY_REQUEST_TIMEOUT_MS },
     );
 
-    return extractTextFromResponsesPayload(response);
+    return { content: extractTextFromResponsesPayload(response) };
   }
 
   const response = await client.chat.completions.create(
     {
       model: params.model,
       messages: buildChatCompletionsInput(params.userContext),
+      tools: params.tools,
+      tool_choice: params.toolChoice as any,
     },
     { timeout: RAINY_REQUEST_TIMEOUT_MS },
   );
 
-  return extractTextFromChatPayload(response);
+  const message = response.choices[0]?.message;
+  return {
+    content: extractTextFromChatPayload(response),
+    toolCalls: message?.tool_calls,
+  };
+}
+
+export async function requestRainyChatCompletion(params: {
+  apiKey: string;
+  messages: any[];
+  model: string;
+  tools?: any[];
+  toolChoice?: string;
+}): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const client = createRainyClient(params.apiKey);
+  return client.chat.completions.create(
+    {
+      model: params.model,
+      messages: params.messages,
+      tools: params.tools,
+      tool_choice: params.toolChoice as any,
+    },
+    { timeout: RAINY_REQUEST_TIMEOUT_MS },
+  );
 }
 
 function normalizeRainyModelsPayload(
