@@ -1,4 +1,4 @@
-import { ArrowUpIcon, LoaderCircle } from 'lucide-react';
+import { ArrowUpIcon, LoaderCircle, RotateCcwIcon } from 'lucide-react';
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
@@ -15,17 +15,21 @@ import { cn } from '../../../lib/utils';
 import { getModel, listModels, setModel } from '../../../services/settings-client';
 
 interface ComposerPanelProps {
+  canUndoLastTurn: boolean;
   isRunning: boolean;
   workspace: WorkspaceSummary | null;
   resolvedTheme: 'light' | 'dark';
   onSubmit: (prompt: string) => Promise<void>;
+  onUndoLastTurn: () => Promise<string | null>;
 }
 
 export function ComposerPanel({
+  canUndoLastTurn,
   isRunning,
   workspace,
   resolvedTheme: _resolvedTheme,
   onSubmit,
+  onUndoLastTurn,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [modelValue, setModelValue] = useState('');
@@ -135,6 +139,13 @@ export function ComposerPanel({
     }
   }
 
+  async function handleUndoLastTurn() {
+    const restoredPrompt = await onUndoLastTurn();
+    if (restoredPrompt) {
+      setPrompt(restoredPrompt);
+    }
+  }
+
   return (
     <div className="px-8 pb-6 pt-2">
       <div className="mx-auto w-full max-w-[820px]">
@@ -153,6 +164,9 @@ export function ComposerPanel({
               value={prompt}
             />
           </div>
+          {catalogError ? (
+            <div className="px-5 pb-1 text-[11px] text-amber-300/90">{catalogError}</div>
+          ) : null}
 
           <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-0.5">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
@@ -184,6 +198,19 @@ export function ComposerPanel({
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
+              {canUndoLastTurn ? (
+                <Button
+                  aria-label="Undo last turn"
+                  className="h-8 rounded-full border-border/60 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
+                  disabled={isRunning || isModelSaving}
+                  onClick={() => void handleUndoLastTurn()}
+                  size="xs"
+                  variant="outline"
+                >
+                  <RotateCcwIcon className="size-3.5" />
+                  Undo
+                </Button>
+              ) : null}
               <Button
                 aria-label={isRunning ? 'Thinking' : 'Send'}
                 className={cn(

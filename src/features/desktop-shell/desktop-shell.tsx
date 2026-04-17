@@ -21,7 +21,7 @@ export function DesktopShell() {
   const selectThread = useChatStore((state) => state.selectThread);
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
 
   useEffect(() => {
     void bootstrap();
@@ -38,7 +38,6 @@ export function DesktopShell() {
             onCreateThread={createThread}
             onImportWorkspace={importWorkspace}
             onRemoveWorkspace={removeWorkspace}
-            onThemeChange={setTheme}
             onSelectThread={selectThread}
             theme={theme}
             threads={threads}

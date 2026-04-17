@@ -30,6 +30,7 @@ interface ChatState {
   createThread: () => void;
   selectThread: (threadId: string) => void;
   submitPrompt: (prompt: string) => Promise<void>;
+  undoLastTurn: () => Promise<string | null>;
 }
 
 function createEmptyConversation(partial?: Partial<Conversation>): Conversation {
@@ -304,5 +305,59 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       });
     }
+  },
+  async undoLastTurn() {
+    const workspaceId = get().activeWorkspaceId;
+
+    if (!workspaceId || get().runStatus === 'running') {
+      return null;
+    }
+
+    const threads = get().threadsByWorkspace[workspaceId] ?? [];
+    const activeThreadId = get().activeThreadIds[workspaceId];
+    const currentThread = threads.find((thread) => thread.id === activeThreadId);
+
+    if (!currentThread) {
+      return null;
+    }
+
+    const lastUserIndex = currentThread.messages.findLastIndex((message) => message.role === 'user');
+    if (lastUserIndex === -1) {
+      return null;
+    }
+
+    const restoredPrompt = currentThread.messages[lastUserIndex]?.content ?? null;
+    const nextMessages = currentThread.messages.slice(0, lastUserIndex);
+    const nextLastUpdatedAt =
+      nextMessages.at(-1)?.createdAt ?? new Date().toISOString();
+
+    const nextThreads = threads.map((thread) =>
+      thread.id !== activeThreadId
+        ? thread
+        : {
+            ...thread,
+            lastUpdatedAt: nextLastUpdatedAt,
+            messages: nextMessages,
+            title: nextMessages.length === 0 ? 'New thread' : thread.title,
+          },
+    );
+
+    set((state) => ({
+      threadsByWorkspace: {
+        ...state.threadsByWorkspace,
+        [workspaceId]: nextThreads,
+      },
+    }));
+
+    await persistWorkspaceState(
+      workspaceId,
+      {
+        ...get().threadsByWorkspace,
+        [workspaceId]: nextThreads,
+      },
+      get().activeThreadIds,
+    );
+
+    return restoredPrompt;
   },
 }));

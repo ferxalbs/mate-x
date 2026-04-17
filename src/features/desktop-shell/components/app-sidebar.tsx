@@ -44,7 +44,6 @@ interface AppSidebarProps {
   onRemoveWorkspace: (workspaceId: string) => Promise<void>;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
-  onThemeChange: (theme: Theme) => void;
 }
 
 function getThreadStatusLabel(thread: Conversation, isActive: boolean, runStatus: RunStatus) {
@@ -109,7 +108,6 @@ export function AppSidebar({
   onRemoveWorkspace,
   onCreateThread,
   onSelectThread,
-  onThemeChange,
 }: AppSidebarProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isSettingsRoute = pathname === '/settings' || pathname.startsWith('/settings/');

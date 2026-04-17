@@ -1,6 +1,12 @@
-import { LoaderCircle } from 'lucide-react';
-import { useDeferredValue, useEffect, useRef } from 'react';
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  LoaderCircle,
+} from 'lucide-react';
+import { useDeferredValue, useEffect, useState, type ReactNode, useRef } from 'react';
 
+import { Button } from '../../../components/ui/button';
 import type { ChatMessage } from '../../../contracts/chat';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import { formatTimestamp } from '../../../lib/time';
@@ -8,23 +14,58 @@ import { cn } from '../../../lib/utils';
 import { ChatMarkdown } from './chat-markdown';
 
 interface MessageStreamProps {
+  canUndoLastTurn: boolean;
   messages: ChatMessage[];
   isRunning: boolean;
   workspace: WorkspaceSummary | null;
   hasActiveThread: boolean;
+  onUndoLastTurn: () => Promise<string | null>;
 }
 
 export function MessageStream({
+  canUndoLastTurn,
   messages,
   isRunning,
   workspace,
   hasActiveThread,
+  onUndoLastTurn,
 }: MessageStreamProps) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  useEffect(() => {
+    const element = scrollerRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateScrollState = () => {
+      const distanceFromBottom =
+        element.scrollHeight - element.scrollTop - element.clientHeight;
+      const nextShowScrollButton = distanceFromBottom > 140;
+      const nextStickToBottom = distanceFromBottom < 32;
+
+      shouldStickToBottomRef.current = nextStickToBottom;
+      setShowScrollButton((current) =>
+        current === nextShowScrollButton ? current : nextShowScrollButton,
+      );
+    };
+
+    updateScrollState();
+    element.addEventListener('scroll', updateScrollState, { passive: true });
+
+    return () => {
+      element.removeEventListener('scroll', updateScrollState);
+    };
+  }, []);
 
   useEffect(() => {
     const element = scrollerRef.current;
     if (!element) return;
+    if (!shouldStickToBottomRef.current && messages.length > 0) {
+      return;
+    }
 
     element.scrollTo({
       top: element.scrollHeight,
@@ -40,12 +81,34 @@ export function MessageStream({
             <EmptyState hasActiveThread={hasActiveThread} workspace={workspace} />
           ) : null}
 
-          {messages.map((message) => (
-            <MessageEntry key={message.id} message={message} />
+          {messages.map((message, index) => (
+            <MessageEntry
+              key={message.id}
+              canUndo={canUndoLastTurn && message.role === 'user' && index === messages.length - 1}
+              isStreaming={isRunning && index === messages.length - 1 && message.role === 'assistant'}
+              message={message}
+              onUndo={onUndoLastTurn}
+            />
           ))}
 
           {isRunning ? <ThinkingRow /> : null}
         </div>
+        {showScrollButton ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+            <Button
+              className="pointer-events-auto h-8 rounded-full border-border/60 bg-background/85 px-3 text-[11px] text-muted-foreground shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)] backdrop-blur-md hover:bg-accent"
+              onClick={() => {
+                shouldStickToBottomRef.current = true;
+                scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
+              }}
+              size="xs"
+              variant="outline"
+            >
+              <ChevronDownIcon className="size-3.5" />
+              Scroll to bottom
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -73,31 +136,73 @@ function EmptyState({
   );
 }
 
-function MessageEntry({ message }: { message: ChatMessage }) {
+function MessageEntry({
+  message,
+  isStreaming,
+  canUndo,
+  onUndo,
+}: {
+  message: ChatMessage;
+  isStreaming: boolean;
+  canUndo: boolean;
+  onUndo: () => Promise<string | null>;
+}) {
   const isUser = message.role === 'user';
   const deferredContent = useDeferredValue(message.content);
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
 
   if (isUser) {
     return (
       <article className="ml-auto flex w-full max-w-[610px] justify-end">
-        <div className="rounded-[20px] border border-border/65 bg-[var(--surface)] px-5 py-4 text-left shadow-none">
+        <div className="group rounded-[20px] border border-border/65 bg-[var(--surface)] px-5 py-4 text-left shadow-none">
           <p className="whitespace-pre-wrap text-[14px] leading-6 text-foreground">
             {message.content}
           </p>
-          <p className="mt-2 text-[11px] text-muted-foreground/55">
-            {formatTimestamp(message.createdAt)}
-          </p>
+          <div className="mt-2 flex items-center justify-end gap-1.5">
+            <p className="text-[11px] text-muted-foreground/55">
+              {formatTimestamp(message.createdAt)}
+            </p>
+            <MessageActionButton
+              ariaLabel={copied ? 'Copied message' : 'Copy message'}
+              icon={copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+              onClick={() => void handleCopy()}
+            />
+            {canUndo ? (
+              <MessageActionButton
+                ariaLabel="Undo last turn"
+                icon={<RotateUndoIcon />}
+                onClick={() => void onUndo()}
+              />
+            ) : null}
+          </div>
         </div>
       </article>
     );
   }
 
   return (
-    <article className="pl-6">
+    <article className="group pl-6">
       <div className="max-w-[760px] text-[14px] leading-6 text-foreground">
-        <ChatMarkdown content={deferredContent} />
+        <ChatMarkdown content={deferredContent} isStreaming={isStreaming} />
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground/55">{formatTimestamp(message.createdAt)}</p>
+      <div className="mt-2 flex items-center gap-1.5">
+        <p className="text-[11px] text-muted-foreground/55">{formatTimestamp(message.createdAt)}</p>
+        <MessageActionButton
+          ariaLabel={copied ? 'Copied message' : 'Copy message'}
+          icon={copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+          onClick={() => void handleCopy()}
+        />
+      </div>
 
       {message.artifacts?.length ? (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -120,6 +225,46 @@ function MessageEntry({ message }: { message: ChatMessage }) {
         </div>
       ) : null}
     </article>
+  );
+}
+
+function MessageActionButton({
+  ariaLabel,
+  icon,
+  onClick,
+}: {
+  ariaLabel: string;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-label={ariaLabel}
+      className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground/45 opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+    </button>
+  );
+}
+
+function RotateUndoIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M9 10H4V5M4 10a8 8 0 1 1-2 5.2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
 

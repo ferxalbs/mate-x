@@ -38,7 +38,7 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
   document.documentElement.classList.toggle('dark', isDark);
 
   if (suppressTransitions) {
-    document.documentElement.offsetHeight;
+    void document.documentElement.offsetHeight;
     requestAnimationFrame(() => {
       document.documentElement.classList.remove('no-transitions');
     });

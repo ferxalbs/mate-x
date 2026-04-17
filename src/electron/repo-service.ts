@@ -5,8 +5,7 @@ import { promisify } from 'node:util';
 import { GitService } from './git-service';
 import { listRainyModels, requestRainyTextResponse } from './rainy-service';
 import { tursoService } from './turso-service';
-import type { Conversation } from '../contracts/chat';
-import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
+import type { AssistantExecution, Conversation, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 import { MATE_AGENT_PROMPT_STOP_WORDS } from '../config/mate-agent';
 

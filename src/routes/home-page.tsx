@@ -13,11 +13,15 @@ export function HomePage() {
   const importWorkspace = useChatStore((state) => state.importWorkspace);
   const createThread = useChatStore((state) => state.createThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
+  const undoLastTurn = useChatStore((state) => state.undoLastTurn);
   const { theme, resolvedTheme, setTheme } = useTheme();
 
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
   const selectedThread = threads.find((thread) => thread.id === activeThreadId) ?? null;
+  const canUndoLastTurn =
+    runStatus !== 'running' &&
+    (selectedThread?.messages ?? []).some((message) => message.role === 'user');
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-background">
@@ -32,14 +36,18 @@ export function HomePage() {
         workspace={workspace}
       />
       <MessageStream
+        canUndoLastTurn={canUndoLastTurn}
         hasActiveThread={selectedThread !== null}
         isRunning={runStatus === 'running'}
         messages={selectedThread?.messages ?? []}
+        onUndoLastTurn={undoLastTurn}
         workspace={workspace}
       />
       <ComposerPanel
+        canUndoLastTurn={canUndoLastTurn}
         isRunning={runStatus === 'running'}
         onSubmit={submitPrompt}
+        onUndoLastTurn={undoLastTurn}
         workspace={workspace}
         resolvedTheme={resolvedTheme}
       />
