@@ -21,6 +21,7 @@ import { threatModelTool } from './tools/threat_model';
 import { autoPatchTool } from './tools/auto_patch';
 import { dynamicFuzzerTool } from './tools/fuzzer';
 import { cveAuditTool } from './tools/cve_audit';
+import { mutationTesterTool } from './tools/mutation';
 
 export interface Tool {
   name: string;
@@ -60,6 +61,7 @@ export class ToolService {
     this.registerTool(autoPatchTool);
     this.registerTool(dynamicFuzzerTool);
     this.registerTool(cveAuditTool);
+    this.registerTool(mutationTesterTool);
     // Future tools can be registered here or dynamically loaded
   }
 
