@@ -136,12 +136,12 @@ export function ComposerPanel({
   }
 
   return (
-    <div className="px-8 pb-8 pt-2">
-      <div className="mx-auto w-full max-w-[840px]">
-        <div className="rounded-2xl border border-[var(--panel-border)] bg-[var(--panel)]/80 shadow-xl shadow-black/10 backdrop-blur-md">
-          <div className="px-4 py-3">
+    <div className="px-8 pb-6 pt-2">
+      <div className="mx-auto w-full max-w-[820px]">
+        <div className="rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)]/92 shadow-[0_22px_80px_-42px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+          <div className="px-5 py-4">
             <textarea
-              className="min-h-[82px] w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
+              className="min-h-[60px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -154,7 +154,7 @@ export function ComposerPanel({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-1">
+          <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-0.5">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
               <InlineSelect
                 value={modelValue}
@@ -184,11 +184,10 @@ export function ComposerPanel({
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
-              <span>{workspace?.branch ?? 'main'}</span>
               <Button
                 aria-label={isRunning ? 'Thinking' : 'Send'}
                 className={cn(
-                  'size-8 rounded-full border-0 bg-[#2f5cff] p-0 text-white shadow-none hover:bg-[#3b66ff]',
+                  'size-9 rounded-full border-0 bg-[#2454ff] p-0 text-white shadow-none hover:bg-[#3462ff]',
                   isRunning ? 'opacity-90' : '',
                 )}
                 disabled={isRunning || isModelSaving}
@@ -204,6 +203,10 @@ export function ComposerPanel({
               </Button>
             </div>
           </div>
+        </div>
+        <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
+          <span>Current checkout</span>
+          <span>{workspace?.branch ?? 'main'}</span>
         </div>
       </div>
     </div>
@@ -236,7 +239,7 @@ function InlineSelect({
       <SelectTrigger
         size="xs"
         variant="ghost"
-        className="h-6 min-w-fit shrink-0 rounded-md border-0 px-2 text-[12px] text-muted-foreground shadow-none hover:bg-accent"
+        className="h-6 min-w-fit shrink-0 rounded-md border-0 px-2 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
       >
         <SelectValue>{label}</SelectValue>
       </SelectTrigger>

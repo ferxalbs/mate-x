@@ -12,35 +12,29 @@ export function HomePage() {
   const runStatus = useChatStore((state) => state.runStatus);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
   const createThread = useChatStore((state) => state.createThread);
-  const selectThread = useChatStore((state) => state.selectThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const fallbackConversation = {
-    id: 'thread-fallback',
-    title: 'New thread',
-    lastUpdatedAt: new Date(0).toISOString(),
-    messages: [],
-  };
+
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
-  const conversation = threads.find((thread) => thread.id === activeThreadId) ?? threads[0] ?? fallbackConversation;
+  const selectedThread = threads.find((thread) => thread.id === activeThreadId) ?? null;
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-background">
       <ChatTopbar
-        conversation={conversation}
+        conversation={selectedThread}
         onCreateThread={createThread}
         onImportWorkspace={importWorkspace}
         onThemeChange={setTheme}
-        onSelectThread={selectThread}
         resolvedTheme={resolvedTheme}
         runStatus={runStatus}
         theme={theme}
         workspace={workspace}
       />
       <MessageStream
+        hasActiveThread={selectedThread !== null}
         isRunning={runStatus === 'running'}
-        messages={conversation.messages}
+        messages={selectedThread?.messages ?? []}
         workspace={workspace}
       />
       <ComposerPanel

@@ -16,13 +16,12 @@ import { openWorkspacePath } from '../../../services/repo-client';
 
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
-  conversation: Conversation;
+  conversation: Conversation | null;
   theme: Theme;
   resolvedTheme: 'light' | 'dark';
   runStatus: RunStatus;
   onCreateThread: () => void;
   onImportWorkspace: () => Promise<void>;
-  onSelectThread: (threadId: string) => void;
   onThemeChange: (theme: Theme) => void;
 }
 
@@ -52,18 +51,25 @@ export function ChatTopbar({
   runStatus,
   onCreateThread,
   onImportWorkspace,
-  onSelectThread,
   onThemeChange,
 }: ChatTopbarProps) {
   const [openTarget, setOpenTarget] = useState('folder');
   const [gitAction, setGitAction] = useState('commit-push');
+  const title = conversation?.title ?? 'No active thread';
 
   return (
     <header className="drag-region flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] bg-[var(--titlebar)] px-4">
       <div className="flex min-w-0 items-center gap-3">
-        <h2 className="truncate text-sm font-semibold text-foreground">{conversation.title}</h2>
+        <h2 className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">
+          {title}
+        </h2>
+        {workspace ? (
+          <span className="rounded-md border border-border/60 bg-background/55 px-2 py-1 text-[11px] text-muted-foreground">
+            {workspace.name}
+          </span>
+        ) : null}
         {runStatus === 'running' ? (
-          <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="rounded-md bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Running
           </span>
         ) : null}
@@ -134,7 +140,7 @@ export function ChatTopbar({
           aria-label="Create thread"
           size="icon-xs"
           variant="outline"
-          className="size-8 rounded-full border-border/70 bg-background/65 shadow-none hover:bg-accent"
+          className="size-8 rounded-lg border-border/70 bg-background/65 shadow-none hover:bg-accent"
           onClick={onCreateThread}
         >
           <PlusIcon className="size-3.5" />
@@ -143,7 +149,7 @@ export function ChatTopbar({
           aria-label="Toggle theme"
           size="icon-xs"
           variant="outline"
-          className="size-8 rounded-full border-border/70 bg-background/65 shadow-none hover:bg-accent"
+          className="size-8 rounded-lg border-border/70 bg-background/65 shadow-none hover:bg-accent"
           onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
         >
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">
@@ -159,7 +165,7 @@ export function ChatTopbar({
                 }
                 size="icon-xs"
                 variant="outline"
-                className="size-8 rounded-full border-border/70 bg-background/65 shadow-none hover:bg-accent"
+                className="size-8 rounded-lg border-border/70 bg-background/65 shadow-none hover:bg-accent"
               />
             }
           >
