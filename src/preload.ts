@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type { GitApi, RepoInspectorApi, SettingsApi } from './contracts/ipc';
 
+const ASSISTANT_PROGRESS_CHANNEL = 'repo:assistant-progress';
+
 const repoApi: RepoInspectorApi = {
   bootstrap: () => ipcRenderer.invoke('repo:bootstrap'),
   getWorkspaces: () => ipcRenderer.invoke('repo:get-workspaces'),
@@ -13,8 +15,22 @@ const repoApi: RepoInspectorApi = {
     ipcRenderer.invoke('repo:save-workspace-session', workspaceId, threads, activeThreadId),
   listFiles: (limit) => ipcRenderer.invoke('repo:list-files', limit),
   searchInFiles: (query, limit) => ipcRenderer.invoke('repo:search', query, limit),
-  runAssistant: (prompt, history, options) =>
-    ipcRenderer.invoke('repo:run-assistant', prompt, history, options),
+  runAssistant: (prompt, history, options, runId) =>
+    ipcRenderer.invoke('repo:run-assistant', prompt, history, options, runId),
+  onAssistantProgress: (listener) => {
+    const handleProgress = (
+      _event: Electron.IpcRendererEvent,
+      progress: Parameters<typeof listener>[0],
+    ) => {
+      listener(progress);
+    };
+
+    ipcRenderer.on(ASSISTANT_PROGRESS_CHANNEL, handleProgress);
+
+    return () => {
+      ipcRenderer.removeListener(ASSISTANT_PROGRESS_CHANNEL, handleProgress);
+    };
+  },
   openWorkspacePath: (target) => ipcRenderer.invoke('repo:open-workspace-path', target),
 };
 

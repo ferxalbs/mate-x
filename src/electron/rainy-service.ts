@@ -1,4 +1,10 @@
 import OpenAI from "openai";
+import type {
+  FunctionTool as ResponsesFunctionTool,
+  Response as OpenAIResponse,
+  ResponseFunctionToolCall,
+  ResponseInputItem,
+} from "openai/resources/responses/responses";
 
 import { MATE_AGENT_SYSTEM_PROMPT } from "../config/mate-agent";
 import {
@@ -55,6 +61,16 @@ function buildResponsesInput(userContext: string) {
       content: [{ type: "input_text" as const, text: userContext }],
     },
   ];
+}
+
+export function buildResponsesMessageInput(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+): ResponseInputItem[] {
+  return messages.map((message) => ({
+    type: "message",
+    role: message.role === "system" ? "developer" : message.role,
+    content: [{ type: "input_text", text: message.content }],
+  }));
 }
 
 function buildChatCompletionRequest(params: {
@@ -380,6 +396,82 @@ export async function requestRainyChatCompletion(params: {
 
     throw error;
   }
+}
+
+export async function requestRainyResponsesCompletion(params: {
+  apiKey: string;
+  input: string | ResponseInputItem[];
+  instructions?: string;
+  model: string;
+  previousResponseId?: string;
+  tools?: ResponsesFunctionTool[];
+  toolChoice?: "auto" | "required" | "none";
+}): Promise<OpenAIResponse> {
+  const client = createRainyClient(params.apiKey);
+
+  return client.responses.create(
+    {
+      model: params.model,
+      input: params.input,
+      instructions: params.instructions,
+      previous_response_id: params.previousResponseId,
+      tools: params.tools,
+      tool_choice: params.toolChoice,
+      store: false,
+    },
+    {
+      timeout: RAINY_REQUEST_TIMEOUT_MS,
+    },
+  );
+}
+
+export function extractResponseFunctionCalls(
+  response: OpenAIResponse,
+): ResponseFunctionToolCall[] {
+  return response.output.filter(
+    (item): item is ResponseFunctionToolCall => item.type === "function_call",
+  );
+}
+
+export function isOpenAIGpt5OrNewerModel(modelId: string) {
+  const normalizedModelId = modelId.trim().toLowerCase();
+  if (!normalizedModelId) {
+    return false;
+  }
+
+  const bareModelId = normalizedModelId.includes("/")
+    ? normalizedModelId.split("/").at(-1) ?? normalizedModelId
+    : normalizedModelId;
+  const match = bareModelId.match(/^gpt-(\d+)(?:[.-]|$)/);
+
+  return normalizedModelId.startsWith("openai/") && Number(match?.[1] ?? 0) >= 5;
+}
+
+export function resolvePreferredRainyApiMode(
+  modelId: string,
+  entry?: RainyModelCatalogEntry | null,
+): RainyApiMode {
+  if (isOpenAIGpt5OrNewerModel(modelId)) {
+    if (entry?.supportedApiModes.includes("responses")) {
+      return "responses";
+    }
+
+    if (entry?.supportedApiModes.includes("chat_completions")) {
+      return "chat_completions";
+    }
+
+    return entry?.preferredApiMode ?? "responses";
+  }
+
+  if (entry?.supportedApiModes.includes("chat_completions")) {
+    return "chat_completions";
+  }
+
+  if (entry?.supportedApiModes.includes("responses")) {
+    return "responses";
+  }
+
+  return entry?.preferredApiMode ?? "chat_completions";
 }
 
 function normalizeRainyModelsPayload(

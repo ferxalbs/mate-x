@@ -12,6 +12,14 @@ export interface AssistantRunOptions {
   access: AssistantAccess;
 }
 
+export interface AssistantRunProgress {
+  runId: string;
+  status: Extract<RunStatus, "running" | "failed">;
+  content: string;
+  events: ToolEvent[];
+  artifacts: MessageArtifact[];
+}
+
 export interface ToolEvent {
   id: string;
   label: string;

@@ -29,6 +29,8 @@ export function MessageStream({
   scrollerRef,
 }: MessageStreamProps) {
   const shouldStickToBottomRef = useRef(true);
+  const hasStreamingAssistantMessage =
+    isRunning && messages.at(-1)?.role === 'assistant';
 
   useEffect(() => {
     const element = scrollerRef.current;
@@ -86,7 +88,7 @@ export function MessageStream({
             />
           ))}
 
-          {isRunning ? <ThinkingRow /> : null}
+          {isRunning && !hasStreamingAssistantMessage ? <ThinkingRow /> : null}
         </div>
       </div>
     </div>

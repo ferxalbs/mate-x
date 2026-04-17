@@ -1,4 +1,9 @@
-import type { AssistantExecution, AssistantRunOptions, Conversation } from './chat';
+import type {
+  AssistantExecution,
+  AssistantRunOptions,
+  AssistantRunProgress,
+  Conversation,
+} from './chat';
 import type { GitCommit, GitDiff, GitStatus } from './git';
 import type { RainyModelCatalogEntry } from './rainy';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from './workspace';
@@ -21,7 +26,11 @@ export interface RepoInspectorApi {
     prompt: string,
     history: string[],
     options?: AssistantRunOptions,
+    runId?: string,
   ) => Promise<AssistantExecution>;
+  onAssistantProgress: (
+    listener: (progress: AssistantRunProgress) => void,
+  ) => () => void;
   openWorkspacePath: (target: 'folder' | 'vscode' | 'terminal') => Promise<void>;
 }
 

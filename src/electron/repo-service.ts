@@ -3,11 +3,19 @@ import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { GitService } from "./git-service";
-import { listRainyModels, requestRainyChatCompletion } from "./rainy-service";
+import {
+  buildResponsesMessageInput,
+  extractResponseFunctionCalls,
+  listRainyModels,
+  requestRainyChatCompletion,
+  requestRainyResponsesCompletion,
+  resolvePreferredRainyApiMode,
+} from "./rainy-service";
 import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
 import type {
   AssistantExecution,
+  AssistantRunProgress,
   AssistantRunOptions,
   Conversation,
   MessageArtifact,
@@ -40,6 +48,11 @@ interface AgentRuntimeConfig {
   minToolRounds: number;
   maxToolCalls: number;
   requireToolingFirst: boolean;
+}
+
+interface AssistantProgressReporter {
+  runId: string;
+  emit: (progress: AssistantRunProgress) => void;
 }
 
 const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
@@ -169,6 +182,7 @@ export async function runAssistant(
   history: string[],
   workspaceId?: string,
   options?: AssistantRunOptions,
+  progressReporter?: AssistantProgressReporter,
 ): Promise<AssistantExecution> {
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
@@ -214,6 +228,30 @@ export async function runAssistant(
   );
   const createdAt = new Date().toISOString();
   let content: string;
+  const emitProgress = () => {
+    if (!progressReporter) {
+      return;
+    }
+
+    const currentEvent =
+      [...events].reverse().find((event) => event.status === 'active') ??
+      events.at(-1);
+    const progressContent = currentEvent
+      ? `${currentEvent.label}: ${currentEvent.detail}`
+      : resolvedOptions.mode === "plan"
+        ? "Planning the investigation with a tool-backed loop."
+        : "Reviewing the repository and iterating on tool calls.";
+
+    progressReporter.emit({
+      runId: progressReporter.runId,
+      status: "running",
+      content: progressContent,
+      events: cloneEvents(events),
+      artifacts: cloneArtifacts(artifacts),
+    });
+  };
+
+  emitProgress();
 
   if (apiKey && configuredModel) {
     try {
@@ -226,6 +264,7 @@ export async function runAssistant(
         snapshot,
         events,
         options: resolvedOptions,
+        emitProgress,
       });
       content = result.content;
     } catch (error) {
@@ -238,6 +277,7 @@ export async function runAssistant(
           "The API request failed. Returning a local repo-grounded response.",
         status: "error",
       });
+      emitProgress();
     }
   } else if (!apiKey) {
     content = buildFallbackResponse(prompt, snapshot);
@@ -247,6 +287,7 @@ export async function runAssistant(
       detail: "Add your Rainy API key in Settings to enable live responses.",
       status: "error",
     });
+    emitProgress();
   } else {
     content = buildFallbackResponse(prompt, snapshot);
     events.push({
@@ -255,6 +296,7 @@ export async function runAssistant(
       detail: "No compatible Rainy models were found for the current API key.",
       status: "error",
     });
+    emitProgress();
   }
 
   return {
@@ -539,6 +581,19 @@ function summarizeCheckpoint(content: unknown) {
     : `${collapsed.slice(0, 217).trimEnd()}...`;
 }
 
+function summarizeToolOutput(content: unknown) {
+  const summary = summarizeCheckpoint(content);
+  return summary ?? "Tool returned no textual output.";
+}
+
+function cloneArtifacts(artifacts: MessageArtifact[]) {
+  return artifacts.map((artifact) => ({ ...artifact }));
+}
+
+function cloneEvents(events: ToolEvent[]) {
+  return events.map((event) => ({ ...event }));
+}
+
 function buildArtifacts(
   snapshot: RepoSnapshot,
   providerReady: boolean,
@@ -638,6 +693,7 @@ async function requestRainyAgenticResponse({
   snapshot,
   events,
   options,
+  emitProgress,
 }: {
   apiKey: string;
   history: string[];
@@ -647,6 +703,7 @@ async function requestRainyAgenticResponse({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   options: AssistantRunOptions;
+  emitProgress: () => void;
 }) {
   const runtime = buildAgentRuntimeConfig(options);
   const files = snapshot.files.slice(0, 80).join("\n");
@@ -682,17 +739,64 @@ If you include pre-tool reasoning, keep it short and action-oriented. The final 
 When you need to search for something, use the 'rg' tool first.
 If a tool fails, adapt and continue.`;
 
+  if (apiMode === "responses") {
+    return requestRainyResponsesAgenticResponse({
+      apiKey,
+      model,
+      prompt,
+      history,
+      runtime,
+      systemPrompt,
+      snapshot,
+      events,
+      emitProgress,
+    });
+  }
+
+  return requestRainyChatAgenticResponse({
+    apiKey,
+    model,
+    prompt,
+    history,
+    runtime,
+    systemPrompt,
+    snapshot,
+    events,
+    emitProgress,
+  });
+}
+
+async function requestRainyChatAgenticResponse({
+  apiKey,
+  history,
+  model,
+  prompt,
+  runtime,
+  systemPrompt,
+  snapshot,
+  events,
+  emitProgress,
+}: {
+  apiKey: string;
+  history: string[];
+  model: string;
+  prompt: string;
+  runtime: AgentRuntimeConfig;
+  systemPrompt: string;
+  snapshot: RepoSnapshot;
+  events: ToolEvent[];
+  emitProgress: () => void;
+}) {
+  const historyMessages = history.map((entry, index) => ({
+    role: (index % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
+    content: entry,
+  }));
   const messages: any[] = [
     { role: "system", content: systemPrompt },
-    ...history.map((h, i) => ({
-      role: i % 2 === 0 ? "user" : "assistant",
-      content: h,
-    })),
+    ...historyMessages,
     { role: "user", content: prompt },
   ];
-
-  const tools = toolService.getToolDefinitions();
-  const forceToolChoice = apiMode === "chat_completions";
+  const chatTools = toolService.getChatToolDefinitions();
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
@@ -705,18 +809,18 @@ If a tool fails, adapt and continue.`;
       label: `Agent pass ${iterations}`,
       detail:
         iterations === 1
-          ? `Starting ${options.mode} mode with ${options.reasoning} reasoning.`
+          ? "Starting the chat-completions tool loop."
           : `Continuing agent loop after ${toolRounds} tool round(s).`,
       status: "active",
     });
+    emitProgress();
 
     const response = await requestRainyChatCompletion({
       apiKey,
       messages,
       model,
-      tools,
+      tools: chatTools,
       toolChoice:
-        forceToolChoice &&
         runtime.requireToolingFirst &&
         toolRounds < runtime.minToolRounds &&
         totalToolCalls < runtime.maxToolCalls
@@ -730,6 +834,13 @@ If a tool fails, adapt and continue.`;
     }
 
     messages.push(responseMessage);
+    const toolCalls = responseMessage.tool_calls
+      ?.filter((toolCall) => toolCall.type === "function")
+      .map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.function.name,
+        arguments: toolCall.function.arguments,
+      }));
 
     const loopEvent = events.find((event) => event.id === `step-agent-loop-${iterations}`);
     const checkpoint = summarizeCheckpoint(responseMessage.content);
@@ -738,9 +849,10 @@ If a tool fails, adapt and continue.`;
       loopEvent.detail = checkpoint
         ? `Checkpoint: ${checkpoint}`
         : `Pass ${iterations} completed.`;
+      emitProgress();
     }
 
-    if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
+    if (!toolCalls || toolCalls.length === 0) {
       if (
         toolRounds < runtime.minToolRounds &&
         iterations < runtime.maxIterations &&
@@ -752,6 +864,7 @@ If a tool fails, adapt and continue.`;
           detail: "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
+        emitProgress();
 
         messages.push({
           role: "user",
@@ -767,16 +880,15 @@ If a tool fails, adapt and continue.`;
         detail: `Agent finished after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`,
         status: "done",
       });
+      emitProgress();
       return { content: responseMessage.content || "" };
     }
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
-    const toolCalls = responseMessage.tool_calls
-      .filter((toolCall) => toolCall.type === "function")
-      .slice(0, Math.max(remainingBudget, 0));
+    const executableToolCalls = toolCalls.slice(0, Math.max(remainingBudget, 0));
 
-    if (toolCalls.length === 0) {
+    if (executableToolCalls.length === 0) {
       messages.push({
         role: "user",
         content: "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
@@ -787,15 +899,16 @@ If a tool fails, adapt and continue.`;
     events.push({
       id: `step-tool-batch-${iterations}`,
       label: `Tool batch ${toolRounds}`,
-      detail: `Executing ${toolCalls.length} tool call(s) in parallel.`,
+      detail: `Executing ${executableToolCalls.length} tool call(s) in parallel.`,
       status: "done",
     });
+    emitProgress();
 
     const toolResults = await Promise.all(
-      toolCalls.map(async (toolCall, toolIndex) => {
-        const toolName = toolCall.function.name;
+      executableToolCalls.map(async (toolCall, toolIndex) => {
+        const toolName = toolCall.name;
         const eventId = `tool-${iterations}-${toolIndex}-${toolName}`;
-        const rawArguments = toolCall.function.arguments;
+        const rawArguments = toolCall.arguments;
         let toolArgs: Record<string, unknown>;
 
         try {
@@ -808,6 +921,7 @@ If a tool fails, adapt and continue.`;
             detail: reason,
             status: "error",
           });
+          emitProgress();
 
           return {
             toolCallId: toolCall.id,
@@ -821,17 +935,18 @@ If a tool fails, adapt and continue.`;
           detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
           status: "active",
         });
+        emitProgress();
 
         try {
           const result = await toolService.callTool(toolName, toolArgs, {
             workspacePath: snapshot.workspace.path,
           });
-
-          const currentEvent = events.find((event) => event.id === eventId);
-          if (currentEvent) {
-            currentEvent.status = "done";
-            currentEvent.detail = `Tool ${toolName} completed successfully.`;
+          const toolEvent = events.find((event) => event.id === eventId);
+          if (toolEvent) {
+            toolEvent.status = "done";
+            toolEvent.detail = summarizeToolOutput(result);
           }
+          emitProgress();
 
           return {
             toolCallId: toolCall.id,
@@ -840,11 +955,12 @@ If a tool fails, adapt and continue.`;
         } catch (error) {
           const message =
             error instanceof Error ? error.message : `Tool ${toolName} failed.`;
-          const currentEvent = events.find((event) => event.id === eventId);
-          if (currentEvent) {
-            currentEvent.status = "error";
-            currentEvent.detail = message;
+          const toolEvent = events.find((event) => event.id === eventId);
+          if (toolEvent) {
+            toolEvent.status = "error";
+            toolEvent.detail = message;
           }
+          emitProgress();
 
           return {
             toolCallId: toolCall.id,
@@ -871,6 +987,7 @@ If a tool fails, adapt and continue.`;
         detail: `Collected ${totalToolCalls} tool call(s). Asking the model to conclude from the evidence.`,
         status: "done",
       });
+      emitProgress();
 
       messages.push({
         role: "user",
@@ -887,6 +1004,249 @@ If a tool fails, adapt and continue.`;
   };
 }
 
+async function requestRainyResponsesAgenticResponse({
+  apiKey,
+  history,
+  model,
+  prompt,
+  runtime,
+  systemPrompt,
+  snapshot,
+  events,
+  emitProgress,
+}: {
+  apiKey: string;
+  history: string[];
+  model: string;
+  prompt: string;
+  runtime: AgentRuntimeConfig;
+  systemPrompt: string;
+  snapshot: RepoSnapshot;
+  events: ToolEvent[];
+  emitProgress: () => void;
+}) {
+  const initialInput = buildResponsesMessageInput([
+    ...history.map((entry, index) => ({
+      role: (index % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
+      content: entry,
+    })),
+    { role: "user", content: prompt },
+  ]);
+  const responseTools = toolService.getResponsesToolDefinitions();
+  let iterations = 0;
+  let toolRounds = 0;
+  let totalToolCalls = 0;
+  let previousResponseId: string | undefined;
+  let nextInput = initialInput;
+  let lastContent = "";
+
+  while (iterations < runtime.maxIterations) {
+    iterations++;
+
+    events.push({
+      id: `step-agent-loop-${iterations}`,
+      label: `Agent pass ${iterations}`,
+      detail:
+        iterations === 1
+          ? "Starting the responses tool loop."
+          : `Continuing agent loop after ${toolRounds} tool round(s).`,
+      status: "active",
+    });
+    emitProgress();
+
+    const response = await requestRainyResponsesCompletion({
+      apiKey,
+      model,
+      instructions: iterations === 1 ? systemPrompt : undefined,
+      input: nextInput,
+      previousResponseId,
+      tools: responseTools,
+      toolChoice:
+        runtime.requireToolingFirst &&
+        toolRounds < runtime.minToolRounds &&
+        totalToolCalls < runtime.maxToolCalls
+          ? "required"
+          : totalToolCalls >= runtime.maxToolCalls
+            ? "none"
+            : "auto",
+    });
+
+    previousResponseId = response.id;
+    lastContent = response.output_text || lastContent;
+
+    const loopEvent = events.find((event) => event.id === `step-agent-loop-${iterations}`);
+    const checkpoint = summarizeCheckpoint(response.output_text);
+    if (loopEvent) {
+      loopEvent.status = "done";
+      loopEvent.detail = checkpoint
+        ? `Checkpoint: ${checkpoint}`
+        : `Pass ${iterations} completed.`;
+      emitProgress();
+    }
+
+    const toolCalls = extractResponseFunctionCalls(response).map((toolCall) => ({
+      id: toolCall.call_id,
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    }));
+
+    if (toolCalls.length === 0) {
+      if (
+        toolRounds < runtime.minToolRounds &&
+        iterations < runtime.maxIterations &&
+        totalToolCalls < runtime.maxToolCalls
+      ) {
+        events.push({
+          id: `step-agent-nudge-${iterations}`,
+          label: "Continue investigation",
+          detail: "Model tried to conclude early. Requesting another tool-backed pass.",
+          status: "done",
+        });
+        emitProgress();
+
+        nextInput = [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
+              },
+            ],
+          },
+        ];
+        continue;
+      }
+
+      events.push({
+        id: `step-agent-done-${iterations}`,
+        label: "Response complete",
+        detail: `Agent finished after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`,
+        status: "done",
+      });
+      emitProgress();
+
+      return {
+        content:
+          response.output_text ||
+          lastContent ||
+          "The model completed the tool loop without returning text.",
+      };
+    }
+
+    toolRounds++;
+    const remainingBudget = runtime.maxToolCalls - totalToolCalls;
+    const executableToolCalls = toolCalls.slice(0, Math.max(remainingBudget, 0));
+
+    if (executableToolCalls.length === 0) {
+      nextInput = [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
+            },
+          ],
+        },
+      ];
+      continue;
+    }
+
+    events.push({
+      id: `step-tool-batch-${iterations}`,
+      label: `Tool batch ${toolRounds}`,
+      detail: `Executing ${executableToolCalls.length} tool call(s) in parallel.`,
+      status: "done",
+    });
+    emitProgress();
+
+    const toolResults = await Promise.all(
+      executableToolCalls.map(async (toolCall, toolIndex) => {
+        const toolName = toolCall.name;
+        const eventId = `tool-${iterations}-${toolIndex}-${toolName}`;
+        const rawArguments = toolCall.arguments;
+        let toolArgs: Record<string, unknown>;
+
+        try {
+          toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Invalid tool arguments.";
+          events.push({
+            id: eventId,
+            label: `Failed ${toolName}`,
+            detail: reason,
+            status: "error",
+          });
+          emitProgress();
+
+          return {
+            toolCallId: toolCall.id,
+            content: `Tool argument parsing failed for ${toolName}: ${reason}`,
+          };
+        }
+
+        events.push({
+          id: eventId,
+          label: `Executing ${toolName}`,
+          detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
+          status: "active",
+        });
+        emitProgress();
+
+        const result = await toolService.callTool(toolName, toolArgs, {
+          workspacePath: snapshot.workspace.path,
+        });
+        const toolEvent = events.find((event) => event.id === eventId);
+        if (toolEvent) {
+          toolEvent.status = "done";
+          toolEvent.detail = summarizeToolOutput(result);
+        }
+        emitProgress();
+
+        return {
+          toolCallId: toolCall.id,
+          content: result,
+        };
+      }),
+    );
+
+    totalToolCalls += toolResults.length;
+    nextInput = toolResults.map((result) => ({
+      type: "function_call_output" as const,
+      call_id: result.toolCallId,
+      output: result.content,
+    }));
+
+    if (totalToolCalls >= runtime.maxToolCalls) {
+      nextInput.push({
+        type: "message",
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "You have enough evidence. Stop calling tools and provide the final answer grounded in the collected outputs.",
+          },
+        ],
+      });
+
+      events.push({
+        id: `step-budget-${iterations}`,
+        label: "Tool budget reached",
+        detail: `Collected ${totalToolCalls} tool call(s). Asking the model to conclude from the evidence.`,
+        status: "done",
+      });
+      emitProgress();
+    }
+  }
+
+  return {
+    content: lastContent || "Maximum agent iterations reached without a final response.",
+  };
+}
+
 async function resolveDefaultRainyRuntimeConfig(
   apiKey: string,
   preferredStoredModel: string | null,
@@ -895,9 +1255,11 @@ async function resolveDefaultRainyRuntimeConfig(
   apiMode: "chat_completions" | "responses";
 } | null> {
   const preferredModels = [
-    "openai/gpt-5.4-mini",
     "openai/gpt-5.4",
-    "openai/gpt-5.3-chat",
+    "openai/gpt-5.4-mini",
+    "openai/gpt-5.4-pro",
+    "openai/gpt-5",
+    "openai/gpt-5-mini",
     "anthropic/claude-sonnet-4.6",
   ];
 
@@ -908,23 +1270,11 @@ async function resolveDefaultRainyRuntimeConfig(
     }
 
     const normalizedStoredModel = preferredStoredModel?.trim() ?? "";
-
-    const pickApiMode = (modelId: string): "chat_completions" | "responses" => {
-      const entry = catalog.find((item) => item.id === modelId);
-      if (!entry) {
-        return "responses";
-      }
-
-      if (entry.supportedApiModes.includes("chat_completions")) {
-        return "chat_completions";
-      }
-
-      if (entry.supportedApiModes.includes("responses")) {
-        return "responses";
-      }
-
-      return entry.preferredApiMode ?? "chat_completions";
-    };
+    const pickApiMode = (modelId: string): "chat_completions" | "responses" =>
+      resolvePreferredRainyApiMode(
+        modelId,
+        catalog.find((item) => item.id === modelId),
+      );
 
     if (
       normalizedStoredModel &&

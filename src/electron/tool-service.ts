@@ -1,3 +1,6 @@
+import type OpenAI from 'openai';
+import type { FunctionTool as ResponsesFunctionTool } from 'openai/resources/responses/responses';
+
 import { rgTool } from './tools/rg';
 import { lsTool } from './tools/ls';
 import { readTool } from './tools/read';
@@ -75,7 +78,7 @@ export class ToolService {
     this.tools.set(tool.name, tool);
   }
 
-  getToolDefinitions() {
+  getChatToolDefinitions(): OpenAI.Chat.Completions.ChatCompletionTool[] {
     return Array.from(this.tools.values()).map((tool) => ({
       type: 'function' as const,
       function: {
@@ -83,6 +86,16 @@ export class ToolService {
         description: tool.description,
         parameters: tool.parameters,
       },
+    }));
+  }
+
+  getResponsesToolDefinitions(): ResponsesFunctionTool[] {
+    return Array.from(this.tools.values()).map((tool) => ({
+      type: 'function' as const,
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+      strict: true,
     }));
   }
 

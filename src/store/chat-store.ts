@@ -10,6 +10,7 @@ import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary }
 import { createId } from '../lib/id';
 import {
   bootstrapWorkspaceState,
+  onAssistantProgress,
   openWorkspacePicker,
   removeWorkspace,
   runAssistant,
@@ -26,6 +27,12 @@ interface ChatState {
   repoSignals: SearchMatch[];
   threadsByWorkspace: Record<string, Conversation[]>;
   activeThreadIds: Record<string, string>;
+  activeRun: {
+    runId: string;
+    workspaceId: string;
+    threadId: string;
+    messageId: string;
+  } | null;
   runStatus: RunStatus;
   isBootstrapped: boolean;
   bootstrap: () => Promise<void>;
@@ -37,6 +44,8 @@ interface ChatState {
   submitPrompt: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   undoLastTurn: () => Promise<string | null>;
 }
+
+let assistantProgressUnsubscribe: (() => void) | null = null;
 
 function createEmptyConversation(partial?: Partial<Conversation>): Conversation {
   return {
@@ -96,6 +105,20 @@ async function persistWorkspaceState(
   await saveWorkspaceSession(workspaceId, threads, activeThreadId);
 }
 
+function replaceMessageById(
+  messages: ChatMessage[],
+  messageId: string,
+  nextMessage: ChatMessage,
+) {
+  const messageIndex = messages.findIndex((message) => message.id === messageId);
+
+  if (messageIndex === -1) {
+    return [...messages, nextMessage];
+  }
+
+  return messages.map((message, index) => (index === messageIndex ? nextMessage : message));
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   workspaces: [],
   workspace: null,
@@ -104,11 +127,51 @@ export const useChatStore = create<ChatState>((set, get) => ({
   repoSignals: [],
   threadsByWorkspace: {},
   activeThreadIds: {},
+  activeRun: null,
   runStatus: 'idle',
   isBootstrapped: false,
   async bootstrap() {
     if (get().isBootstrapped) {
       return;
+    }
+
+    if (!assistantProgressUnsubscribe) {
+      assistantProgressUnsubscribe = onAssistantProgress((progress) => {
+        set((state) => {
+          const activeRun = state.activeRun;
+          if (!activeRun || activeRun.runId !== progress.runId) {
+            return state;
+          }
+
+          const nextThreadsByWorkspace = {
+            ...state.threadsByWorkspace,
+            [activeRun.workspaceId]: (state.threadsByWorkspace[activeRun.workspaceId] ?? []).map(
+              (thread) =>
+                thread.id !== activeRun.threadId
+                  ? thread
+                  : {
+                      ...thread,
+                      lastUpdatedAt: new Date().toISOString(),
+                      messages: thread.messages.map((message) =>
+                        message.id !== activeRun.messageId
+                          ? message
+                          : {
+                              ...message,
+                              content: progress.content,
+                              events: progress.events,
+                              artifacts: progress.artifacts,
+                            },
+                      ),
+                    },
+            ),
+          };
+
+          return {
+            runStatus: progress.status,
+            threadsByWorkspace: nextThreadsByWorkspace,
+          };
+        });
+      });
     }
 
     const snapshot = await bootstrapWorkspaceState();
@@ -126,6 +189,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set((state) => ({
       ...applyWorkspaceSnapshot(snapshot, state.threadsByWorkspace, state.activeThreadIds),
+      activeRun: null,
       runStatus: 'idle',
     }));
   },
@@ -133,6 +197,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const snapshot = await setActiveWorkspace(workspaceId);
     set((state) => ({
       ...applyWorkspaceSnapshot(snapshot, state.threadsByWorkspace, state.activeThreadIds),
+      activeRun: null,
       runStatus: 'idle',
     }));
   },
@@ -147,6 +212,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       return {
         ...applyWorkspaceSnapshot(snapshot, nextThreadsByWorkspace, nextActiveThreadIds),
+        activeRun: null,
         runStatus: 'idle',
       };
     });
@@ -222,6 +288,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       content: trimmedPrompt,
       createdAt: new Date().toISOString(),
     };
+    const runId = createId('run');
+    const assistantPlaceholder: ChatMessage = {
+      id: createId('assistant'),
+      role: 'assistant',
+      content: 'Reviewing the repository and building a tool-backed answer.',
+      createdAt: new Date().toISOString(),
+      events: [],
+      artifacts: [],
+    };
 
     set((state) => {
       const nextThreadsByWorkspace = {
@@ -235,8 +310,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   thread.messages.length === 0 || thread.title === 'New thread'
                     ? buildThreadTitle(trimmedPrompt)
                     : thread.title,
-                lastUpdatedAt: userMessage.createdAt,
-                messages: [...thread.messages, userMessage],
+                lastUpdatedAt: assistantPlaceholder.createdAt,
+                messages: [...thread.messages, userMessage, assistantPlaceholder],
               },
         ),
       };
@@ -244,26 +319,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
       void persistWorkspaceState(workspaceId, nextThreadsByWorkspace, state.activeThreadIds);
 
       return {
+        activeRun: {
+          runId,
+          workspaceId,
+          threadId: activeThreadId,
+          messageId: assistantPlaceholder.id,
+        },
         runStatus: 'running',
         threadsByWorkspace: nextThreadsByWorkspace,
       };
     });
 
     try {
-      const execution = await runAssistant(trimmedPrompt, historyBeforePrompt, options);
+      const execution = await runAssistant(trimmedPrompt, historyBeforePrompt, options, runId);
 
       set((state) => {
+        const activeRun = state.activeRun;
         const nextThreadsByWorkspace = {
           ...state.threadsByWorkspace,
           [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? [])
             .map((thread) =>
-              thread.id !== state.activeThreadIds[workspaceId]
+              thread.id !== (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
                 ? thread
                 : {
                     ...thread,
                     title: execution.suggestedTitle ?? thread.title,
                     lastUpdatedAt: execution.message.createdAt,
-                    messages: [...thread.messages, execution.message],
+                    messages:
+                      activeRun && activeRun.runId === runId
+                        ? replaceMessageById(
+                            thread.messages,
+                            activeRun.messageId,
+                            execution.message,
+                          )
+                        : [...thread.messages, execution.message],
                   },
             )
             .toSorted((left, right) => right.lastUpdatedAt.localeCompare(left.lastUpdatedAt)),
@@ -272,6 +361,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         void persistWorkspaceState(workspaceId, nextThreadsByWorkspace, state.activeThreadIds);
 
         return {
+          activeRun:
+            state.activeRun?.runId === runId ? null : state.activeRun,
           runStatus: 'completed',
           threadsByWorkspace: nextThreadsByWorkspace,
         };
@@ -289,15 +380,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       set((state) => {
+        const activeRun = state.activeRun;
         const nextThreadsByWorkspace = {
           ...state.threadsByWorkspace,
           [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? []).map((thread) =>
-            thread.id !== state.activeThreadIds[workspaceId]
+            thread.id !== (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
               ? thread
               : {
                   ...thread,
                   lastUpdatedAt: fallbackMessage.createdAt,
-                  messages: [...thread.messages, fallbackMessage],
+                  messages:
+                    activeRun && activeRun.runId === runId
+                      ? replaceMessageById(
+                          thread.messages,
+                          activeRun.messageId,
+                          fallbackMessage,
+                        )
+                      : [...thread.messages, fallbackMessage],
                 },
           ),
         };
@@ -305,6 +404,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         void persistWorkspaceState(workspaceId, nextThreadsByWorkspace, state.activeThreadIds);
 
         return {
+          activeRun:
+            state.activeRun?.runId === runId ? null : state.activeRun,
           runStatus: 'failed',
           threadsByWorkspace: nextThreadsByWorkspace,
         };

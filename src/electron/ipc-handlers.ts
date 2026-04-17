@@ -106,12 +106,22 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     'repo:run-assistant',
     async (
-      _event,
+      event,
       prompt: string,
       history: string[],
       options?: AssistantRunOptions,
+      runId?: string,
     ) =>
-      runAssistant(prompt, history, undefined, options),
+      runAssistant(prompt, history, undefined, options, runId
+        ? {
+            runId,
+            emit: (progress) => {
+              if (!event.sender.isDestroyed()) {
+                event.sender.send('repo:assistant-progress', progress);
+              }
+            },
+          }
+        : undefined),
   );
 
   ipcMain.handle('git:status', async () => (await resolveGitService()).getStatus());

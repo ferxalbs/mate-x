@@ -1,6 +1,10 @@
 import { assert, describe, it } from "vitest";
 
-import { listRainyModels } from "./rainy-service";
+import {
+  isOpenAIGpt5OrNewerModel,
+  listRainyModels,
+  resolvePreferredRainyApiMode,
+} from "./rainy-service";
 
 describe("listRainyModels", () => {
   it("keeps providers returned by /models even when catalog is partial", async () => {
@@ -124,5 +128,38 @@ describe("listRainyModels", () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+
+  it("routes OpenAI GPT-5-family models through responses when supported", () => {
+    assert.equal(isOpenAIGpt5OrNewerModel("openai/gpt-5.4"), true);
+    assert.equal(isOpenAIGpt5OrNewerModel("openai/gpt-5.4-mini"), true);
+    assert.equal(isOpenAIGpt5OrNewerModel("openai/gpt-4.1"), false);
+    assert.equal(isOpenAIGpt5OrNewerModel("anthropic/claude-sonnet-4.6"), false);
+
+    assert.equal(
+      resolvePreferredRainyApiMode("openai/gpt-5.4", {
+        id: "openai/gpt-5.4",
+        label: "OpenAI GPT-5.4",
+        description: null,
+        ownedBy: "openai",
+        supportedApiModes: ["chat_completions", "responses"],
+        preferredApiMode: "chat_completions",
+      }),
+      "responses",
+    );
+  });
+
+  it("keeps non-GPT-5 models on chat completions when available", () => {
+    assert.equal(
+      resolvePreferredRainyApiMode("anthropic/claude-sonnet-4.6", {
+        id: "anthropic/claude-sonnet-4.6",
+        label: "Claude Sonnet 4.6",
+        description: null,
+        ownedBy: "anthropic",
+        supportedApiModes: ["chat_completions", "responses"],
+        preferredApiMode: "responses",
+      }),
+      "chat_completions",
+    );
   });
 });

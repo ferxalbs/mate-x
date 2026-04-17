@@ -1,4 +1,8 @@
-import type { AssistantRunOptions, Conversation } from '../contracts/chat';
+import type {
+  AssistantRunOptions,
+  AssistantRunProgress,
+  Conversation,
+} from '../contracts/chat';
 import type { RepoInspectorApi } from '../contracts/ipc';
 
 function getMateApi(): RepoInspectorApi {
@@ -53,8 +57,15 @@ export function runAssistant(
   prompt: string,
   history: string[],
   options?: AssistantRunOptions,
+  runId?: string,
 ) {
-  return getMateApi().runAssistant(prompt, history, options);
+  return getMateApi().runAssistant(prompt, history, options, runId);
+}
+
+export function onAssistantProgress(
+  listener: (progress: AssistantRunProgress) => void,
+) {
+  return getMateApi().onAssistantProgress(listener);
 }
 
 export function openWorkspacePath(target: 'folder' | 'vscode' | 'terminal') {
