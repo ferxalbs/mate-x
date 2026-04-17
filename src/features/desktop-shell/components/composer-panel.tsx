@@ -9,10 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select';
-import type { RainyApiMode, RainyModelCatalogEntry } from '../../../contracts/rainy';
+import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
-import { getApiMode, getModel, listModels, setApiMode, setModel } from '../../../services/settings-client';
+import { getModel, listModels, setModel } from '../../../services/settings-client';
 
 interface ComposerPanelProps {
   isRunning: boolean;
@@ -24,7 +24,7 @@ interface ComposerPanelProps {
 export function ComposerPanel({
   isRunning,
   workspace,
-  resolvedTheme,
+  resolvedTheme: _resolvedTheme,
   onSubmit,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
@@ -33,7 +33,6 @@ export function ComposerPanel({
   const [catalogError, setCatalogError] = useState('');
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [isModelSaving, setIsModelSaving] = useState(false);
-  const [currentApiMode, setCurrentApiMode] = useState<RainyApiMode>('chat_completions');
   const [reasoningValue, setReasoningValue] = useState('high');
   const [modeValue, setModeValue] = useState('build');
   const [accessValue, setAccessValue] = useState('full');
@@ -46,9 +45,8 @@ export function ComposerPanel({
       setCatalogError('');
 
       try {
-        const [storedModel, storedApiMode, nextCatalog] = await Promise.all([
+        const [storedModel, nextCatalog] = await Promise.all([
           getModel(),
-          getApiMode(),
           listModels(forceRefresh),
         ]);
 
@@ -58,7 +56,6 @@ export function ComposerPanel({
 
         startTransition(() => {
           setCatalog(nextCatalog);
-          setCurrentApiMode(storedApiMode ?? 'chat_completions');
           setModelValue(resolveModelValue(storedModel, nextCatalog));
         });
       } catch (error) {
@@ -89,27 +86,20 @@ export function ComposerPanel({
     [catalog, modelValue],
   );
   const modelLabel = selectedModel?.label ?? (modelValue || 'Select model');
+  const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
 
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
-
     if (!nextPrompt || isRunning || isModelSaving) {
       return;
     }
 
     if (modelValue) {
-      const nextApiMode = resolveNextApiMode(selectedModel, currentApiMode);
-
       setIsModelSaving(true);
       setCatalogError('');
 
       try {
         await setModel(modelValue);
-
-        if (nextApiMode !== currentApiMode) {
-          await setApiMode(nextApiMode);
-          setCurrentApiMode(nextApiMode);
-        }
       } catch (error) {
         setCatalogError(
           error instanceof Error ? error.message : 'Could not activate Rainy model.',
@@ -130,20 +120,11 @@ export function ComposerPanel({
       return;
     }
 
-    const selectedEntry = catalog.find((entry) => entry.id === nextModel) ?? null;
-    const nextApiMode = resolveNextApiMode(selectedEntry, currentApiMode);
-
     setCatalogError('');
     setIsModelSaving(true);
 
     try {
       await setModel(nextModel);
-
-      if (nextApiMode && nextApiMode !== currentApiMode) {
-        await setApiMode(nextApiMode);
-        setCurrentApiMode(nextApiMode);
-      }
-
       setModelValue(nextModel);
     } catch (error) {
       setCatalogError(
@@ -153,8 +134,6 @@ export function ComposerPanel({
       setIsModelSaving(false);
     }
   }
-
-  const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
 
   return (
     <div className="px-6 pb-5 pt-2">
@@ -279,23 +258,4 @@ function resolveModelValue(
   }
 
   return catalog[0]?.id ?? storedModel ?? '';
-}
-
-function resolveNextApiMode(
-  model: RainyModelCatalogEntry | null,
-  currentApiMode: RainyApiMode,
-) {
-  if (!model) {
-    return currentApiMode;
-  }
-
-  if (model.preferredApiMode) {
-    return model.preferredApiMode;
-  }
-
-  if (model.supportedApiModes.includes(currentApiMode)) {
-    return currentApiMode;
-  }
-
-  return model.supportedApiModes[0] ?? currentApiMode;
 }

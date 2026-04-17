@@ -19,8 +19,8 @@ import { tursoService } from './turso-service';
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
 
-  if (!trimmedApiKey.startsWith('ra-')) {
-    throw new Error('Rainy API key must start with "ra-".');
+  if (!trimmedApiKey.startsWith('ra-') && !trimmedApiKey.startsWith('rk_live_')) {
+    throw new Error('Rainy API key must start with "ra-" or "rk_live_".');
   }
 
   return trimmedApiKey;
@@ -126,7 +126,6 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:set-api-key', async (_event, apiKey: string) =>
     tursoService.setApiKey(normalizeRainyApiKey(apiKey)),
   );
-  ipcMain.handle('settings:clear-api-key', async () => tursoService.clearApiKey());
   ipcMain.handle('settings:list-models', async (_event, forceRefresh?: boolean) =>
     listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh }),
   );
@@ -136,11 +135,4 @@ export function registerIpcHandlers() {
     await validateRainyModelSelection({ apiKey, model });
     await tursoService.setModel(model);
   });
-  ipcMain.handle('settings:clear-model', async () => tursoService.clearModel());
-  ipcMain.handle('settings:get-api-mode', async () => tursoService.getApiMode());
-  ipcMain.handle(
-    'settings:set-api-mode',
-    async (_event, mode: 'chat_completions' | 'responses') => tursoService.setApiMode(mode),
-  );
-  ipcMain.handle('settings:clear-api-mode', async () => tursoService.clearApiMode());
 }

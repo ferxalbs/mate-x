@@ -234,7 +234,7 @@ export async function requestRainyTextResponse(params: {
       { timeout: RAINY_REQUEST_TIMEOUT_MS },
     );
 
-    return response.output_text.trim();
+    return extractTextFromResponsesPayload(response);
   }
 
   const response = await client.chat.completions.create(
@@ -245,7 +245,7 @@ export async function requestRainyTextResponse(params: {
     { timeout: RAINY_REQUEST_TIMEOUT_MS },
   );
 
-  return response.choices[0]?.message?.content?.trim() ?? '';
+  return extractTextFromChatPayload(response);
 }
 
 function normalizeRainyModelsPayload(payload: unknown): RainyModelCatalogEntry[] {
@@ -288,6 +288,10 @@ function extractModelItems(payload: unknown): unknown[] {
   }
 
   if (isRecord(payload.data)) {
+    if (Array.isArray(payload.data.data)) {
+      return payload.data.data;
+    }
+
     if (Array.isArray(payload.data.models)) {
       return payload.data.models;
     }
@@ -449,4 +453,95 @@ function firstString(...values: unknown[]): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function extractTextFromChatPayload(response: unknown): string {
+  if (!isRecord(response) || !Array.isArray(response.choices)) {
+    return '';
+  }
+
+  for (const choice of response.choices) {
+    if (!isRecord(choice) || !isRecord(choice.message)) {
+      continue;
+    }
+
+    const content = choice.message.content;
+    const text = extractTextFromMessageContent(content);
+    if (text) {
+      return text;
+    }
+  }
+
+  return '';
+}
+
+function extractTextFromResponsesPayload(response: unknown): string {
+  if (!isRecord(response)) {
+    return '';
+  }
+
+  const directOutputText = firstString(response.output_text);
+  if (directOutputText) {
+    return directOutputText;
+  }
+
+  if (!Array.isArray(response.output)) {
+    return '';
+  }
+
+  const chunks: string[] = [];
+  for (const outputItem of response.output) {
+    if (!isRecord(outputItem) || !Array.isArray(outputItem.content)) {
+      continue;
+    }
+
+    for (const contentItem of outputItem.content) {
+      if (!isRecord(contentItem)) {
+        continue;
+      }
+
+      if (contentItem.type === 'output_text' || contentItem.type === 'text') {
+        const text = firstString(contentItem.text);
+        if (text) {
+          chunks.push(text);
+        }
+      }
+    }
+  }
+
+  return chunks.join('\n').trim();
+}
+
+function extractTextFromMessageContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  const chunks: string[] = [];
+  for (const item of content) {
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    if (item.type === 'text') {
+      const text = firstString(item.text);
+      if (text) {
+        chunks.push(text);
+      }
+      continue;
+    }
+
+    if (isRecord(item.text)) {
+      const nestedText = firstString(item.text.value);
+      if (nestedText) {
+        chunks.push(nestedText);
+      }
+    }
+  }
+
+  return chunks.join('\n').trim();
 }

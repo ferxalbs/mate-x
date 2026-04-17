@@ -3,13 +3,12 @@ import { access } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import { GitService } from './git-service';
-import { requestRainyTextResponse } from './rainy-service';
+import { listRainyModels, requestRainyTextResponse } from './rainy-service';
 import { tursoService } from './turso-service';
 import type { Conversation } from '../contracts/chat';
 import type { AssistantExecution, MessageArtifact, ToolEvent } from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 import { MATE_AGENT_PROMPT_STOP_WORDS } from '../config/mate-agent';
-import { resolveConfiguredRainyApiMode, resolveConfiguredRainyModel } from '../config/rainy';
 
 const execFileAsync = promisify(execFile);
 
@@ -144,15 +143,18 @@ export async function runAssistant(
     },
   ];
 
-  const [apiKey, storedModel, storedApiMode] = await Promise.all([
+  const [apiKey, storedModel] = await Promise.all([
     tursoService.getApiKey(),
     tursoService.getModel(),
-    tursoService.getApiMode(),
   ]);
-  const configuredModel = resolveConfiguredRainyModel(storedModel);
-  const configuredApiMode = resolveConfiguredRainyApiMode(storedApiMode);
+  const runtimeConfig = apiKey
+    ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
+    : null;
+  const configuredModel = runtimeConfig?.model ?? null;
+  const configuredApiMode = runtimeConfig?.apiMode ?? 'responses';
+
   const hasRainyConfig = Boolean(apiKey && configuredModel);
-  const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel, configuredApiMode);
+  const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel);
   const createdAt = new Date().toISOString();
   let content: string;
 
@@ -193,8 +195,8 @@ export async function runAssistant(
     content = buildFallbackResponse(prompt, snapshot);
     events.push({
       id: 'step-rainy-model-missing',
-      label: 'Model not configured',
-      detail: 'Set a Rainy model in Settings or via RAINY_MODEL to enable live responses.',
+      label: 'Model unavailable',
+      detail: 'No compatible Rainy models were found for the current API key.',
       status: 'error',
     });
   }
@@ -264,13 +266,7 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
 
   const stack = deriveStack(files, packageJson);
   const dirtyCount = status?.files.length ?? 0;
-  const [apiKey, storedModel, storedApiMode] = await Promise.all([
-    tursoService.getApiKey(),
-    tursoService.getModel(),
-    tursoService.getApiMode(),
-  ]);
-  const configuredModel = resolveConfiguredRainyModel(storedModel);
-  const configuredApiMode = resolveConfiguredRainyApiMode(storedApiMode);
+  const apiKey = await tursoService.getApiKey();
 
   return {
     id: workspace.id,
@@ -286,10 +282,8 @@ async function buildWorkspaceSummary(workspace: WorkspaceEntry): Promise<Workspa
       { label: 'IPC', value: files.some((file) => file.includes('preload')) ? 'present' : 'missing' },
       {
         label: 'AI provider',
-        value: apiKey && configuredModel ? 'Rainy API connected' : 'Rainy API incomplete',
+        value: apiKey ? 'Rainy API connected' : 'Rainy API incomplete',
       },
-      { label: 'Model', value: configuredModel ?? 'not configured' },
-      { label: 'API mode', value: configuredApiMode },
     ],
   };
 }
@@ -404,7 +398,6 @@ function buildArtifacts(
   snapshot: RepoSnapshot,
   providerReady: boolean,
   configuredModel: string | null,
-  configuredApiMode: 'chat_completions' | 'responses',
 ): MessageArtifact[] {
   return [
     {
@@ -417,11 +410,6 @@ function buildArtifacts(
       id: 'artifact-model',
       label: 'Model',
       value: providerReady ? (configuredModel ?? 'unknown') : configuredModel ?? 'not configured',
-    },
-    {
-      id: 'artifact-api-mode',
-      label: 'API mode',
-      value: configuredApiMode,
     },
     {
       id: 'artifact-branch',
@@ -521,4 +509,73 @@ async function requestRainyResponse({
   });
 
   return responseText || buildFallbackResponse(prompt, snapshot);
+}
+
+async function resolveDefaultRainyRuntimeConfig(
+  apiKey: string,
+  preferredStoredModel: string | null,
+): Promise<{
+  model: string;
+  apiMode: 'chat_completions' | 'responses';
+} | null> {
+  const preferredModels = [
+    'openai/gpt-5.4-mini',
+    'openai/gpt-5.4',
+    'openai/gpt-5.3-chat',
+    'anthropic/claude-sonnet-4.6',
+  ];
+
+  try {
+    const catalog = await listRainyModels({ apiKey });
+    if (catalog.length === 0) {
+      return null;
+    }
+
+    const normalizedStoredModel = preferredStoredModel?.trim() ?? '';
+
+    const pickApiMode = (modelId: string): 'chat_completions' | 'responses' => {
+      const entry = catalog.find((item) => item.id === modelId);
+      if (!entry) {
+        return 'responses';
+      }
+
+      if (entry.preferredApiMode) {
+        return entry.preferredApiMode;
+      }
+
+      if (entry.supportedApiModes.includes('responses')) {
+        return 'responses';
+      }
+
+      return 'chat_completions';
+    };
+
+    if (normalizedStoredModel && catalog.some((entry) => entry.id === normalizedStoredModel)) {
+      return {
+        model: normalizedStoredModel,
+        apiMode: pickApiMode(normalizedStoredModel),
+      };
+    }
+
+    for (const preferredModel of preferredModels) {
+      if (catalog.some((entry) => entry.id === preferredModel)) {
+        return {
+          model: preferredModel,
+          apiMode: pickApiMode(preferredModel),
+        };
+      }
+    }
+
+    const fallbackModel = catalog[0]?.id;
+    if (!fallbackModel) {
+      return null;
+    }
+
+    return {
+      model: fallbackModel,
+      apiMode: pickApiMode(fallbackModel),
+    };
+  } catch {
+    return null;
+  }
 }

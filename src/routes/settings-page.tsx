@@ -5,10 +5,10 @@ import {
   FolderArchiveIcon,
   KeyRoundIcon,
   Loader2Icon,
+  PencilIcon,
   RefreshCcwIcon,
   ServerIcon,
   Settings2Icon,
-  Trash2Icon,
   WaypointsIcon,
 } from 'lucide-react';
 
@@ -32,21 +32,9 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
-import type { RainyApiMode, RainyModelCatalogEntry } from '../contracts/rainy';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { cn } from '../lib/utils';
-import {
-  clearApiKey,
-  clearApiMode,
-  clearModel,
-  getApiKey,
-  getApiMode,
-  getModel,
-  listModels,
-  setApiKey,
-  setApiMode,
-  setModel,
-} from '../services/settings-client';
+import { getApiKey, setApiKey } from '../services/settings-client';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type SettingsSectionId = 'general' | 'connections' | 'archive';
@@ -60,16 +48,12 @@ export function SettingsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { theme, setTheme } = useTheme();
   const [currentKey, setCurrentKey] = useState<string | null>(null);
-  const [currentModel, setCurrentModel] = useState<string | null>(null);
-  const [currentApiMode, setCurrentApiMode] = useState<RainyApiMode | null>(null);
-  const [modelCatalog, setModelCatalog] = useState<RainyModelCatalogEntry[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [modelInputValue, setModelInputValue] = useState('');
-  const [apiModeInputValue, setApiModeInputValue] = useState<RainyApiMode>('chat_completions');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [isEditingKey, setIsEditingKey] = useState(false);
   const [diffLineWrapping, setDiffLineWrapping] = useState(false);
   const [assistantOutput, setAssistantOutput] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
@@ -81,20 +65,9 @@ export function SettingsPage() {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        const [apiKey, model, apiMode, catalog] = await Promise.all([
-          getApiKey(),
-          getModel(),
-          getApiMode(),
-          listModels().catch(() => []),
-        ]);
+        const apiKey = await getApiKey();
         if (cancelled) return;
-
         setCurrentKey(apiKey);
-        setCurrentModel(model);
-        setCurrentApiMode(apiMode);
-        setModelCatalog(catalog);
-        setModelInputValue(resolveModelSelectionValue(model, catalog));
-        setApiModeInputValue(apiMode ?? 'chat_completions');
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -109,15 +82,13 @@ export function SettingsPage() {
     };
   }, []);
 
+  const hasKeyDraft = inputValue.trim().length > 0 && inputValue.trim() !== (currentKey ?? '');
+  const isBusy = isLoading || saveState === 'saving';
+  const saveLabel = saveState === 'saved' ? 'Saved' : 'Save changes';
+
   const handleSave = useCallback(async () => {
     const trimmedKey = inputValue.trim();
-    const trimmedModel = modelInputValue.trim();
-    const selectedModel = modelCatalog.find((entry) => entry.id === trimmedModel) ?? null;
-    const resolvedApiMode = resolveSelectedApiMode(selectedModel, apiModeInputValue);
-    const shouldSaveModel = trimmedModel.length > 0 && trimmedModel !== (currentModel ?? '');
-    const shouldSaveApiMode = currentApiMode !== resolvedApiMode;
-
-    if (!trimmedKey && !shouldSaveModel && !shouldSaveApiMode) {
+    if (!trimmedKey || trimmedKey === currentKey) {
       return;
     }
 
@@ -125,85 +96,30 @@ export function SettingsPage() {
     setErrorMsg('');
 
     try {
-      if (trimmedKey) {
-        if (!isValidRainyApiKey(trimmedKey)) {
-          setSaveState('idle');
-          setIsApiKeyDialogOpen(true);
-          return;
-        }
-
-        await setApiKey(trimmedKey);
-        setCurrentKey(trimmedKey);
-        setInputValue('');
+      if (!isValidRainyApiKey(trimmedKey)) {
+        setSaveState('idle');
+        setIsApiKeyDialogOpen(true);
+        return;
       }
 
-      if (shouldSaveModel) {
-        await setModel(trimmedModel);
-        setCurrentModel(trimmedModel);
-      }
-
-      if (shouldSaveApiMode) {
-        await setApiMode(resolvedApiMode);
-        setCurrentApiMode(resolvedApiMode);
-        setApiModeInputValue(resolvedApiMode);
-      }
-
-      const catalog = await listModels(true).catch(() => []);
-      setModelCatalog(catalog);
-      setModelInputValue((currentValue) =>
-        resolveModelSelectionValue(currentValue || trimmedModel || currentModel, catalog),
-      );
-
+      await setApiKey(trimmedKey);
+      setCurrentKey(trimmedKey);
+      setInputValue('');
+      setIsEditingKey(false);
       setSaveState('saved');
-      window.setTimeout(() => setSaveState('idle'), 2200);
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
       setSaveState('error');
     }
-  }, [apiModeInputValue, currentApiMode, currentModel, inputValue, modelCatalog, modelInputValue]);
+  }, [currentKey, inputValue]);
 
-  const handleRestoreDefaults = useCallback(async () => {
-    setSaveState('saving');
-    setErrorMsg('');
-
-    try {
-      await Promise.all([clearApiMode(), clearModel()]);
-      setCurrentModel(null);
-      setCurrentApiMode(null);
-      setModelInputValue('');
-      setApiModeInputValue('chat_completions');
-      setTheme('system');
-      setDiffLineWrapping(false);
-      setAssistantOutput(false);
-      setArchiveConfirmation(false);
-      setDeleteConfirmation(true);
-      setSaveState('idle');
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Could not restore defaults.');
-      setSaveState('error');
-    }
+  const handleRestoreDefaults = useCallback(() => {
+    setTheme('system');
+    setDiffLineWrapping(false);
+    setAssistantOutput(false);
+    setArchiveConfirmation(false);
+    setDeleteConfirmation(true);
   }, [setTheme]);
-
-  const handleClearSavedConfig = useCallback(async () => {
-    setSaveState('saving');
-    setErrorMsg('');
-
-    try {
-      await Promise.all([clearApiKey(), clearApiMode(), clearModel()]);
-      const catalog = await listModels(true).catch(() => []);
-      setCurrentKey(null);
-      setCurrentModel(null);
-      setCurrentApiMode(null);
-      setModelCatalog(catalog);
-      setInputValue('');
-      setModelInputValue(resolveModelSelectionValue('', catalog));
-      setApiModeInputValue('chat_completions');
-      setSaveState('idle');
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Could not clear saved config.');
-      setSaveState('error');
-    }
-  }, []);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
@@ -214,34 +130,17 @@ export function SettingsPage() {
     [handleSave],
   );
 
-  const selectedCatalogModel = useMemo(
-    () => modelCatalog.find((entry) => entry.id === modelInputValue) ?? null,
-    [modelCatalog, modelInputValue],
+  const changedSettingLabels = useMemo(
+    () => [
+      ...(theme !== 'system' ? ['Theme'] : []),
+      ...(diffLineWrapping ? ['Diff line wrapping'] : []),
+      ...(assistantOutput ? ['Assistant output'] : []),
+      ...(archiveConfirmation ? ['Archive confirmation'] : []),
+      ...(!deleteConfirmation ? ['Delete confirmation'] : []),
+    ],
+    [archiveConfirmation, assistantOutput, deleteConfirmation, diffLineWrapping, theme],
   );
-  const hasModelChange =
-    modelInputValue.trim().length > 0 && modelInputValue.trim() !== (currentModel ?? '');
-  const pendingChanges = useMemo(
-    () =>
-      inputValue.trim().length > 0 ||
-      hasModelChange ||
-      currentApiMode !== resolveSelectedApiMode(selectedCatalogModel, apiModeInputValue),
-    [apiModeInputValue, currentApiMode, hasModelChange, inputValue, selectedCatalogModel],
-  );
-  const isBusy = isLoading || saveState === 'saving';
-  const isCatalogAvailable = modelCatalog.length > 0;
-  const saveLabel = saveState === 'saved' ? 'Saved' : 'Save changes';
-  const changedSettingLabels = [
-    ...(theme !== 'system' ? ['Theme'] : []),
-    ...(diffLineWrapping ? ['Diff line wrapping'] : []),
-    ...(assistantOutput ? ['Assistant output'] : []),
-    ...(archiveConfirmation ? ['Archive confirmation'] : []),
-    ...(!deleteConfirmation ? ['Delete confirmation'] : []),
-    ...(inputValue.trim().length > 0 ? ['Rainy API key'] : []),
-    ...(hasModelChange ? ['Text generation model'] : []),
-    ...(currentApiMode !== resolveSelectedApiMode(selectedCatalogModel, apiModeInputValue)
-      ? ['Request mode']
-      : []),
-  ];
+
   const section: SettingsSectionId =
     pathname === '/settings/connections'
       ? 'connections'
@@ -264,7 +163,7 @@ export function SettingsPage() {
               size="xs"
               variant="outline"
               className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] font-medium shadow-none"
-              onClick={() => void handleRestoreDefaults()}
+              onClick={handleRestoreDefaults}
               disabled={isBusy || changedSettingLabels.length === 0}
             >
               <RefreshCcwIcon className="size-3.5" />
@@ -275,259 +174,198 @@ export function SettingsPage() {
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-          {section === 'general' ? (
-            <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
-              <>
-                <SettingsRow
-                  title="Theme"
-                  description="Choose how Mate X looks across the app."
-                  control={
-                    <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="system">System</SelectItem>
-                        <SelectItem value="light">Light</SelectItem>
-                        <SelectItem value="dark">Dark</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  }
-                />
-                <SettingsRow
-                  title="Time format"
-                  description="System default follows your browser or OS clock preference."
-                  control={
-                    <Select defaultValue="system">
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="system">System default</SelectItem>
-                        <SelectItem value="24h">24-hour</SelectItem>
-                        <SelectItem value="12h">12-hour</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  }
-                />
-                <SettingsRow
-                  title="Diff line wrapping"
-                  description="Set the default wrap state when the diff panel opens."
-                  control={
-                    <Switch checked={diffLineWrapping} onCheckedChange={setDiffLineWrapping} />
-                  }
-                />
-                <SettingsRow
-                  title="Assistant output"
-                  description="Show token-by-token output while a response is in progress."
-                  control={
-                    <Switch checked={assistantOutput} onCheckedChange={setAssistantOutput} />
-                  }
-                />
-                <SettingsRow
-                  title="Text generation model"
-                  description="Configure the model used for generated commit messages and shell text."
-                  status={
-                    currentModel ? (
-                      <span className="font-mono text-[11px] text-muted-foreground/80">
-                        Current: {currentModel}
-                      </span>
-                    ) : null
-                  }
-                  control={
-                    <div className="flex items-center gap-2">
-                      {isCatalogAvailable ? (
-                        <Select
-                          value={modelInputValue}
-                          onValueChange={(value) => setModelInputValue(value ?? '')}
-                          disabled={isBusy}
-                        >
-                          <SelectTrigger className="w-[220px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {modelCatalog.map((entry) => (
-                              <SelectItem key={entry.id} value={entry.id}>
-                                {entry.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          nativeInput
-                          value={modelInputValue}
-                          onChange={(event) => setModelInputValue(event.target.value)}
-                          onKeyDown={handleKeyDown}
-                          placeholder={currentModel ?? 'gpt-5.4-mini'}
-                          className="w-[220px]"
-                          disabled={isBusy}
-                        />
-                      )}
-                      <Select defaultValue="high">
-                        <SelectTrigger className="w-[92px]">
+            {section === 'general' ? (
+              <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
+                <>
+                  <SettingsRow
+                    title="Theme"
+                    description="Choose how Mate X looks across the app."
+                    control={
+                      <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+                        <SelectTrigger className="w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="system">System</SelectItem>
+                          <SelectItem value="light">Light</SelectItem>
+                          <SelectItem value="dark">Dark</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  }
-                />
-              </>
-            </SettingsSection>
-          ) : null}
+                    }
+                  />
+                  <SettingsRow
+                    title="Time format"
+                    description="System default follows your browser or OS clock preference."
+                    control={
+                      <Select defaultValue="system">
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="system">System default</SelectItem>
+                          <SelectItem value="24h">24-hour</SelectItem>
+                          <SelectItem value="12h">12-hour</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingsRow
+                    title="Diff line wrapping"
+                    description="Set the default wrap state when the diff panel opens."
+                    control={
+                      <Switch checked={diffLineWrapping} onCheckedChange={setDiffLineWrapping} />
+                    }
+                  />
+                  <SettingsRow
+                    title="Assistant output"
+                    description="Show token-by-token output while a response is in progress."
+                    control={
+                      <Switch checked={assistantOutput} onCheckedChange={setAssistantOutput} />
+                    }
+                  />
+                </>
+              </SettingsSection>
+            ) : null}
 
-          {section === 'connections' ? (
-            <SettingsSection title="Connections" icon={<WaypointsIcon className="size-3.5" />}>
-              <>
-                <SettingsRow
-                  title="Rainy API key"
-                  description={
-                    currentKey
-                      ? `Stored locally on this device and ready. Current key ${maskKey(currentKey)}.`
-                      : 'Connect your Rainy account to enable live responses.'
-                  }
-                  control={
-                    <div className="flex items-center gap-2">
-                      <Input
-                        nativeInput
-                        type="password"
-                        value={inputValue}
-                        onChange={(event) => setInputValue(event.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="ra-••••••••••••••••"
-                        className="w-[220px]"
-                        disabled={isBusy}
-                      />
-                      <span
-                        className={cn(
-                          'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
-                          currentKey
-                            ? 'bg-emerald-500/12 text-emerald-500'
-                            : 'bg-amber-500/12 text-amber-500',
+            {section === 'connections' ? (
+              <SettingsSection title="Connections" icon={<WaypointsIcon className="size-3.5" />}>
+                <>
+                  <SettingsRow
+                    title="Rainy API key"
+                    description={
+                      currentKey
+                        ? `Stored locally on this device. Current key ${maskKey(currentKey)}.`
+                        : 'Connect your Rainy account to enable live responses.'
+                    }
+                    control={
+                      <div className="flex items-center gap-2">
+                        {currentKey && !isEditingKey ? (
+                          <div className="flex h-10 w-[220px] items-center rounded-md border border-input bg-background px-3 text-xs text-muted-foreground">
+                            Saved: {maskKey(currentKey)}
+                          </div>
+                        ) : (
+                          <Input
+                            nativeInput
+                            type="password"
+                            value={inputValue}
+                            onChange={(event) => {
+                              setInputValue(event.target.value);
+                              if (saveState === 'saved') {
+                                setSaveState('idle');
+                              }
+                            }}
+                            onKeyDown={handleKeyDown}
+                            placeholder="ra-••••••••••••••••"
+                            className="w-[220px]"
+                            disabled={isBusy}
+                          />
                         )}
-                      >
-                        {currentKey ? 'Connected' : 'Missing'}
-                      </span>
-                    </div>
-                  }
-                />
-                <SettingsRow
-                  title="Request mode"
-                  description="When the selected Rainy model advertises a preferred endpoint, this value is adjusted automatically."
-                  control={
-                    <Select
-                      value={resolveSelectedApiMode(selectedCatalogModel, apiModeInputValue)}
-                      onValueChange={(value) => setApiModeInputValue(value as RainyApiMode)}
-                      disabled={isBusy}
-                    >
-                      <SelectTrigger className="w-[170px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="chat_completions">chat_completions</SelectItem>
-                        <SelectItem value="responses">responses</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  }
-                />
-                <SettingsRow
-                  title="Connection status"
-                  description="Main-process credentials are isolated from the renderer."
-                  control={
-                    <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
-                      <ServerIcon className="size-3.5" />
-                      {currentKey ? 'IPC secured' : 'Waiting for key'}
-                    </div>
-                  }
-                />
-                <SettingsRow
-                  title="Catalog status"
-                  description="Loaded automatically from Rainy API v3 `/api/v1/models`."
-                  control={
-                    <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
-                      <ServerIcon className="size-3.5" />
-                      {modelCatalog.length > 0
-                        ? `${modelCatalog.length} models available`
-                        : 'Catalog unavailable'}
-                    </div>
-                  }
-                />
-              </>
-            </SettingsSection>
-          ) : null}
 
-          {section === 'archive' ? (
-            <SettingsSection title="Archive" icon={<FolderArchiveIcon className="size-3.5" />}>
-              <>
-                <SettingsRow
-                  title="Archive confirmation"
-                  description="Require a second click on the inline archive action before a thread is archived."
-                  control={
-                    <Switch checked={archiveConfirmation} onCheckedChange={setArchiveConfirmation} />
-                  }
-                />
-                <SettingsRow
-                  title="Delete confirmation"
-                  description="Ask before deleting a thread and its local chat history."
-                  control={
-                    <Switch checked={deleteConfirmation} onCheckedChange={setDeleteConfirmation} />
-                  }
-                />
-                <SettingsRow
-                  title="Clear saved config"
-                  description="Remove the stored Rainy key, request mode, and default model."
-                  control={
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] shadow-none"
-                      onClick={() => void handleClearSavedConfig()}
-                      disabled={isBusy}
-                    >
-                      <Trash2Icon className="size-3.5" />
-                      Clear config
-                    </Button>
-                  }
-                />
-              </>
-            </SettingsSection>
-          ) : null}
+                        <span
+                          className={cn(
+                            'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
+                            currentKey
+                              ? 'bg-emerald-500/12 text-emerald-500'
+                              : 'bg-amber-500/12 text-amber-500',
+                          )}
+                        >
+                          {saveState === 'saved' ? 'Saved' : currentKey ? 'Connected' : 'Missing'}
+                        </span>
 
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <div className="flex min-h-5 items-center gap-2 text-xs text-muted-foreground">
-              {saveState === 'error' ? (
-                <span className="text-destructive-foreground">{errorMsg}</span>
-              ) : (
-                <span>
-                  {changedSettingLabels.length > 0
-                    ? `Pending: ${changedSettingLabels.join(', ')}`
-                    : currentModel ?? 'No model configured'}
-                </span>
-              )}
+                        {currentKey && !isEditingKey ? (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                            onClick={() => {
+                              setIsEditingKey(true);
+                              setInputValue('');
+                              setSaveState('idle');
+                            }}
+                            disabled={isBusy}
+                          >
+                            <PencilIcon className="size-3.5" />
+                            Replace
+                          </Button>
+                        ) : null}
+                      </div>
+                    }
+                  />
+                  <SettingsRow
+                    title="Connection status"
+                    description="Main-process credentials are isolated from the renderer."
+                    control={
+                      <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
+                        <ServerIcon className="size-3.5" />
+                        {currentKey ? 'IPC secured' : 'Waiting for key'}
+                      </div>
+                    }
+                  />
+                </>
+              </SettingsSection>
+            ) : null}
+
+            {section === 'archive' ? (
+              <SettingsSection title="Archive" icon={<FolderArchiveIcon className="size-3.5" />}>
+                <>
+                  <SettingsRow
+                    title="Archive confirmation"
+                    description="Require a second click on the inline archive action before a thread is archived."
+                    control={
+                      <Switch checked={archiveConfirmation} onCheckedChange={setArchiveConfirmation} />
+                    }
+                  />
+                  <SettingsRow
+                    title="Delete confirmation"
+                    description="Ask before deleting a thread and its local chat history."
+                    control={
+                      <Switch checked={deleteConfirmation} onCheckedChange={setDeleteConfirmation} />
+                    }
+                  />
+                </>
+              </SettingsSection>
+            ) : null}
+
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <div className="flex min-h-5 items-center gap-2 text-xs text-muted-foreground">
+                {saveState === 'error' ? (
+                  <span className="text-destructive-foreground">{errorMsg}</span>
+                ) : section === 'connections' ? (
+                  <span>
+                    {hasKeyDraft
+                      ? 'Pending: Rainy API key'
+                      : currentKey
+                        ? 'Rainy key saved and active'
+                        : 'Rainy API key not configured'}
+                  </span>
+                ) : (
+                  <span>
+                    {changedSettingLabels.length > 0
+                      ? `Pending: ${changedSettingLabels.join(', ')}`
+                      : 'No pending settings changes'}
+                  </span>
+                )}
+              </div>
+
+              {section === 'connections' ? (
+                <Button
+                  size="sm"
+                  className="h-9 rounded-lg px-4"
+                  onClick={() => void handleSave()}
+                  disabled={!hasKeyDraft || isBusy}
+                >
+                  {isBusy ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : saveState === 'saved' ? (
+                    <CheckIcon className="size-4" />
+                  ) : (
+                    <KeyRoundIcon className="size-4" />
+                  )}
+                  {saveLabel}
+                </Button>
+              ) : null}
             </div>
-
-            <Button
-              size="sm"
-              className="h-9 rounded-lg px-4"
-              onClick={() => void handleSave()}
-              disabled={!pendingChanges || isBusy}
-            >
-              {isBusy ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : saveState === 'saved' ? (
-                <CheckIcon className="size-4" />
-              ) : (
-                <KeyRoundIcon className="size-4" />
-              )}
-              {saveLabel}
-            </Button>
           </div>
-        </div>
         </div>
       </section>
 
@@ -536,7 +374,8 @@ export function SettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Rainy API key invalid</AlertDialogTitle>
             <AlertDialogDescription>
-              The Rainy API v3 key must start with <code>ra-</code>. Enter a valid key before saving.
+              The Rainy API v3 key must start with <code>ra-</code> or <code>rk_live_</code>. Enter a valid key
+              before saving.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -548,36 +387,6 @@ export function SettingsPage() {
   );
 }
 
-function resolveModelSelectionValue(
-  model: string | null | undefined,
-  catalog: RainyModelCatalogEntry[],
-) {
-  if (model && catalog.some((entry) => entry.id === model)) {
-    return model;
-  }
-
-  return model ?? '';
-}
-
-function resolveSelectedApiMode(
-  model: RainyModelCatalogEntry | null,
-  fallbackMode: RainyApiMode,
-) {
-  if (!model) {
-    return fallbackMode;
-  }
-
-  if (model.preferredApiMode) {
-    return model.preferredApiMode;
-  }
-
-  if (model.supportedApiModes.includes(fallbackMode)) {
-    return fallbackMode;
-  }
-
-  return model.supportedApiModes[0] ?? fallbackMode;
-}
-
 function isValidRainyApiKey(value: string) {
-  return value.startsWith('ra-');
+  return value.startsWith('ra-') || value.startsWith('rk_live_');
 }
