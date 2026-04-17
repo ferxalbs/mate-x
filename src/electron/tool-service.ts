@@ -7,6 +7,10 @@ import { fileMetadataTool } from './tools/metadata';
 import { projectTreeTool } from './tools/tree';
 import { securityAuditTool } from './tools/audit';
 import { dependencyAnalyzerTool } from './tools/deps';
+import { networkMapTool } from './tools/network';
+import { sqlAuditTool } from './tools/sql';
+import { envSafetyTool } from './tools/env_safety';
+import { containerAuditTool } from './tools/container';
 
 export interface Tool {
   name: string;
@@ -32,6 +36,10 @@ export class ToolService {
     this.registerTool(projectTreeTool);
     this.registerTool(securityAuditTool);
     this.registerTool(dependencyAnalyzerTool);
+    this.registerTool(networkMapTool);
+    this.registerTool(sqlAuditTool);
+    this.registerTool(envSafetyTool);
+    this.registerTool(containerAuditTool);
     // Future tools can be registered here or dynamically loaded
   }
 
