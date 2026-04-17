@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select';
+import type { AssistantRunOptions } from '../../../contracts/chat';
 import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
@@ -20,7 +21,7 @@ interface ComposerPanelProps {
   onScrollToBottom: () => void;
   workspace: WorkspaceSummary | null;
   resolvedTheme: 'light' | 'dark';
-  onSubmit: (prompt: string) => Promise<void>;
+  onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   showScrollButton: boolean;
 }
@@ -120,7 +121,11 @@ export function ComposerPanel({
     }
 
     setPrompt('');
-    await onSubmit(nextPrompt);
+    await onSubmit(nextPrompt, {
+      reasoning: reasoningValue as AssistantRunOptions['reasoning'],
+      mode: modeValue as AssistantRunOptions['mode'],
+      access: accessValue as AssistantRunOptions['access'],
+    });
   }
 
   async function handleModelChange(nextModel: string) {

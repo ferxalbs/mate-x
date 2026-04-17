@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
+import type { AssistantRunOptions } from '../contracts/chat';
 import { GitService } from './git-service';
 import {
   addWorkspace,
@@ -102,8 +103,15 @@ export function registerIpcHandlers() {
   ipcMain.handle('repo:search', async (_event, query: string, limit?: number) =>
     searchInFiles(query, limit),
   );
-  ipcMain.handle('repo:run-assistant', async (_event, prompt: string, history: string[]) =>
-    runAssistant(prompt, history),
+  ipcMain.handle(
+    'repo:run-assistant',
+    async (
+      _event,
+      prompt: string,
+      history: string[],
+      options?: AssistantRunOptions,
+    ) =>
+      runAssistant(prompt, history, undefined, options),
   );
 
   ipcMain.handle('git:status', async () => (await resolveGitService()).getStatus());

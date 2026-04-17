@@ -8,6 +8,7 @@ import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
 import type {
   AssistantExecution,
+  AssistantRunOptions,
   Conversation,
   MessageArtifact,
   ToolEvent,
@@ -18,7 +19,10 @@ import type {
   WorkspaceSnapshot,
   WorkspaceSummary,
 } from "../contracts/workspace";
-import { MATE_AGENT_PROMPT_STOP_WORDS } from "../config/mate-agent";
+import {
+  MATE_AGENT_PROMPT_STOP_WORDS,
+  MATE_AGENT_SYSTEM_PROMPT,
+} from "../config/mate-agent";
 
 const execFileAsync = promisify(execFile);
 
@@ -29,6 +33,19 @@ export interface RepoSnapshot {
   statusLines: string[];
   promptMatches: SearchMatch[];
 }
+
+interface AgentRuntimeConfig {
+  maxIterations: number;
+  minToolRounds: number;
+  maxToolCalls: number;
+  requireToolingFirst: boolean;
+}
+
+const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
+  reasoning: "high",
+  mode: "build",
+  access: "full",
+};
 
 export async function bootstrapWorkspaceState(): Promise<WorkspaceSnapshot> {
   await tursoService.ensureSeedWorkspace(process.cwd());
@@ -150,8 +167,10 @@ export async function runAssistant(
   prompt: string,
   history: string[],
   workspaceId?: string,
+  options?: AssistantRunOptions,
 ): Promise<AssistantExecution> {
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
+  const resolvedOptions = resolveAssistantRunOptions(options);
   const events: ToolEvent[] = [
     {
       id: "step-workspace",
@@ -186,7 +205,12 @@ export async function runAssistant(
   const configuredModel = runtimeConfig?.model ?? null;
 
   const hasRainyConfig = Boolean(apiKey && configuredModel);
-  const artifacts = buildArtifacts(snapshot, hasRainyConfig, configuredModel);
+  const artifacts = buildArtifacts(
+    snapshot,
+    hasRainyConfig,
+    configuredModel,
+    resolvedOptions,
+  );
   const createdAt = new Date().toISOString();
   let content: string;
 
@@ -199,6 +223,7 @@ export async function runAssistant(
         prompt,
         snapshot,
         events,
+        options: resolvedOptions,
       });
       content = result.content;
     } catch (error) {
@@ -454,10 +479,69 @@ function buildPromptPattern(prompt: string) {
   return terms.length > 0 ? terms.join("|") : "";
 }
 
+function resolveAssistantRunOptions(
+  options?: AssistantRunOptions,
+): AssistantRunOptions {
+  return {
+    reasoning:
+      options?.reasoning === "low" || options?.reasoning === "max"
+        ? options.reasoning
+        : DEFAULT_ASSISTANT_OPTIONS.reasoning,
+    mode:
+      options?.mode === "plan"
+        ? options.mode
+        : DEFAULT_ASSISTANT_OPTIONS.mode,
+    access:
+      options?.access === "approval"
+        ? options.access
+        : DEFAULT_ASSISTANT_OPTIONS.access,
+  };
+}
+
+function buildAgentRuntimeConfig(
+  options: AssistantRunOptions,
+): AgentRuntimeConfig {
+  switch (options.reasoning) {
+    case "low":
+      return {
+        maxIterations: options.mode === "plan" ? 5 : 6,
+        minToolRounds: 1,
+        maxToolCalls: 6,
+        requireToolingFirst: true,
+      };
+    case "max":
+      return {
+        maxIterations: options.mode === "plan" ? 10 : 12,
+        minToolRounds: 3,
+        maxToolCalls: 24,
+        requireToolingFirst: true,
+      };
+    default:
+      return {
+        maxIterations: options.mode === "plan" ? 8 : 9,
+        minToolRounds: 2,
+        maxToolCalls: 14,
+        requireToolingFirst: true,
+      };
+  }
+}
+
+function summarizeCheckpoint(content: unknown) {
+  const collapsed = typeof content === "string" ? content.replace(/\s+/g, " ").trim() : "";
+  if (!collapsed) {
+    return null;
+  }
+
+  return collapsed.length <= 220
+    ? collapsed
+    : `${collapsed.slice(0, 217).trimEnd()}...`;
+}
+
 function buildArtifacts(
   snapshot: RepoSnapshot,
   providerReady: boolean,
   configuredModel: string | null,
+  options: AssistantRunOptions,
 ): MessageArtifact[] {
   return [
     {
@@ -472,6 +556,21 @@ function buildArtifacts(
       value: providerReady
         ? (configuredModel ?? "unknown")
         : (configuredModel ?? "not configured"),
+    },
+    {
+      id: "artifact-mode",
+      label: "Mode",
+      value: options.mode,
+    },
+    {
+      id: "artifact-reasoning",
+      label: "Reasoning",
+      value: options.reasoning,
+    },
+    {
+      id: "artifact-access",
+      label: "Access",
+      value: options.access,
     },
     {
       id: "artifact-branch",
@@ -535,6 +634,7 @@ async function requestRainyAgenticResponse({
   prompt,
   snapshot,
   events,
+  options,
 }: {
   apiKey: string;
   history: string[];
@@ -542,7 +642,9 @@ async function requestRainyAgenticResponse({
   prompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
+  options: AssistantRunOptions;
 }) {
+  const runtime = buildAgentRuntimeConfig(options);
   const files = snapshot.files.slice(0, 80).join("\n");
   const matches = snapshot.promptMatches
     .slice(0, 12)
@@ -550,10 +652,15 @@ async function requestRainyAgenticResponse({
     .join("\n");
   const gitStatus = snapshot.statusLines.slice(0, 40).join("\n");
 
-  const systemPrompt = `Workspace: ${snapshot.workspace.name}
+  const systemPrompt = `${MATE_AGENT_SYSTEM_PROMPT}
+
+Workspace: ${snapshot.workspace.name}
 Path: ${snapshot.workspace.path}
 Branch: ${snapshot.workspace.branch}
 Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
+Operating mode: ${options.mode}
+Reasoning level: ${options.reasoning}
+Filesystem access policy: ${options.access}
 
 Files:
 ${files || "(none)"}
@@ -564,9 +671,12 @@ ${gitStatus || "(clean)"}
 Prompt-linked matches:
 ${matches || "(none)"}
 
-You are an expert software engineer and security reviewer. You have access to tools to analyze the repository.
-When you need to search for something, use the 'rg' tool.
-Be thorough and precise. Always explain your reasoning before taking actions.`;
+You are running in an agent loop, not a single reply.
+Use the repository tools aggressively before concluding. Prefer multiple tool calls in the same turn whenever they are independent.
+Do not stop after a shallow pass. Keep investigating until you have enough evidence or you hit the tool budget.
+If you include pre-tool reasoning, keep it short and action-oriented. The final answer must synthesize concrete evidence from the repo.
+When you need to search for something, use the 'rg' tool first.
+If a tool fails, adapt and continue.`;
 
   const messages: any[] = [
     { role: "system", content: systemPrompt },
@@ -578,17 +688,34 @@ Be thorough and precise. Always explain your reasoning before taking actions.`;
   ];
 
   const tools = toolService.getToolDefinitions();
-  const maxIterations = 8;
   let iterations = 0;
+  let toolRounds = 0;
+  let totalToolCalls = 0;
 
-  while (iterations < maxIterations) {
+  while (iterations < runtime.maxIterations) {
     iterations++;
+
+    events.push({
+      id: `step-agent-loop-${iterations}`,
+      label: `Agent pass ${iterations}`,
+      detail:
+        iterations === 1
+          ? `Starting ${options.mode} mode with ${options.reasoning} reasoning.`
+          : `Continuing agent loop after ${toolRounds} tool round(s).`,
+      status: "active",
+    });
 
     const response = await requestRainyChatCompletion({
       apiKey,
       messages,
       model,
       tools,
+      toolChoice:
+        runtime.requireToolingFirst &&
+        toolRounds < runtime.minToolRounds &&
+        totalToolCalls < runtime.maxToolCalls
+          ? "required"
+          : undefined,
     });
 
     const responseMessage = response.choices[0]?.message;
@@ -598,45 +725,151 @@ Be thorough and precise. Always explain your reasoning before taking actions.`;
 
     messages.push(responseMessage);
 
+    const loopEvent = events.find((event) => event.id === `step-agent-loop-${iterations}`);
+    const checkpoint = summarizeCheckpoint(responseMessage.content);
+    if (loopEvent) {
+      loopEvent.status = "done";
+      loopEvent.detail = checkpoint
+        ? `Checkpoint: ${checkpoint}`
+        : `Pass ${iterations} completed.`;
+    }
+
     if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
+      if (
+        toolRounds < runtime.minToolRounds &&
+        iterations < runtime.maxIterations &&
+        totalToolCalls < runtime.maxToolCalls
+      ) {
+        events.push({
+          id: `step-agent-nudge-${iterations}`,
+          label: "Continue investigation",
+          detail: "Model tried to conclude early. Requesting another tool-backed pass.",
+          status: "done",
+        });
+
+        messages.push({
+          role: "user",
+          content:
+            "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
+        });
+        continue;
+      }
+
       events.push({
         id: `step-agent-done-${iterations}`,
         label: "Response complete",
-        detail: `Agent finished after ${iterations} iteration(s).`,
+        detail: `Agent finished after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`,
         status: "done",
       });
       return { content: responseMessage.content || "" };
     }
 
-    // Handle tool calls
-    for (const toolCall of responseMessage.tool_calls) {
-      if (toolCall.type !== "function") continue;
-      const toolName = toolCall.function.name;
-      const toolArgs = JSON.parse(toolCall.function.arguments);
+    toolRounds++;
+    const remainingBudget = runtime.maxToolCalls - totalToolCalls;
+    const toolCalls = responseMessage.tool_calls
+      .filter((toolCall) => toolCall.type === "function")
+      .slice(0, Math.max(remainingBudget, 0));
 
-      const eventId = `tool-${toolName}-${Date.now()}`;
-      events.push({
-        id: eventId,
-        label: `Executing ${toolName}`,
-        detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
-        status: "active",
+    if (toolCalls.length === 0) {
+      messages.push({
+        role: "user",
+        content: "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
       });
+      continue;
+    }
 
-      const result = await toolService.callTool(toolName, toolArgs, {
-        workspacePath: snapshot.workspace.path,
-      });
+    events.push({
+      id: `step-tool-batch-${iterations}`,
+      label: `Tool batch ${toolRounds}`,
+      detail: `Executing ${toolCalls.length} tool call(s) in parallel.`,
+      status: "done",
+    });
 
-      events.forEach((e) => {
-        if (e.id === eventId) {
-          e.status = "done";
-          e.detail = `Tool ${toolName} finished successfully.`;
+    const toolResults = await Promise.all(
+      toolCalls.map(async (toolCall, toolIndex) => {
+        const toolName = toolCall.function.name;
+        const eventId = `tool-${iterations}-${toolIndex}-${toolName}`;
+        const rawArguments = toolCall.function.arguments;
+        let toolArgs: Record<string, unknown>;
+
+        try {
+          toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Invalid tool arguments.";
+          events.push({
+            id: eventId,
+            label: `Failed ${toolName}`,
+            detail: reason,
+            status: "error",
+          });
+
+          return {
+            toolCallId: toolCall.id,
+            content: `Tool argument parsing failed for ${toolName}: ${reason}`,
+          };
         }
+
+        events.push({
+          id: eventId,
+          label: `Executing ${toolName}`,
+          detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
+          status: "active",
+        });
+
+        try {
+          const result = await toolService.callTool(toolName, toolArgs, {
+            workspacePath: snapshot.workspace.path,
+          });
+
+          const currentEvent = events.find((event) => event.id === eventId);
+          if (currentEvent) {
+            currentEvent.status = "done";
+            currentEvent.detail = `Tool ${toolName} completed successfully.`;
+          }
+
+          return {
+            toolCallId: toolCall.id,
+            content: result,
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : `Tool ${toolName} failed.`;
+          const currentEvent = events.find((event) => event.id === eventId);
+          if (currentEvent) {
+            currentEvent.status = "error";
+            currentEvent.detail = message;
+          }
+
+          return {
+            toolCallId: toolCall.id,
+            content: `Tool ${toolName} failed: ${message}`,
+          };
+        }
+      }),
+    );
+
+    totalToolCalls += toolResults.length;
+
+    for (const result of toolResults) {
+      messages.push({
+        role: "tool",
+        tool_call_id: result.toolCallId,
+        content: result.content,
+      });
+    }
+
+    if (totalToolCalls >= runtime.maxToolCalls) {
+      events.push({
+        id: `step-budget-${iterations}`,
+        label: "Tool budget reached",
+        detail: `Collected ${totalToolCalls} tool call(s). Asking the model to conclude from the evidence.`,
+        status: "done",
       });
 
       messages.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: result,
+        role: "user",
+        content:
+          "You have enough evidence. Stop calling tools and provide the final answer grounded in the collected outputs.",
       });
     }
   }

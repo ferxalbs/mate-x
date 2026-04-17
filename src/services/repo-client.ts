@@ -1,4 +1,4 @@
-import type { Conversation } from '../contracts/chat';
+import type { AssistantRunOptions, Conversation } from '../contracts/chat';
 import type { RepoInspectorApi } from '../contracts/ipc';
 
 function getMateApi(): RepoInspectorApi {
@@ -49,8 +49,12 @@ export function searchRepoFiles(query: string, limit?: number) {
   return getMateApi().searchInFiles(query, limit);
 }
 
-export function runAssistant(prompt: string, history: string[]) {
-  return getMateApi().runAssistant(prompt, history);
+export function runAssistant(
+  prompt: string,
+  history: string[],
+  options?: AssistantRunOptions,
+) {
+  return getMateApi().runAssistant(prompt, history, options);
 }
 
 export function openWorkspacePath(target: 'folder' | 'vscode' | 'terminal') {

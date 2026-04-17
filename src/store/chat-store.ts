@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 
-import type { ChatMessage, Conversation, RunStatus } from '../contracts/chat';
+import type {
+  AssistantRunOptions,
+  ChatMessage,
+  Conversation,
+  RunStatus,
+} from '../contracts/chat';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
 import { createId } from '../lib/id';
 import {
@@ -29,7 +34,7 @@ interface ChatState {
   removeWorkspace: (workspaceId: string) => Promise<void>;
   createThread: () => void;
   selectThread: (threadId: string) => void;
-  submitPrompt: (prompt: string) => Promise<void>;
+  submitPrompt: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   undoLastTurn: () => Promise<string | null>;
 }
 
@@ -193,7 +198,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return nextState;
     });
   },
-  async submitPrompt(prompt: string) {
+  async submitPrompt(prompt: string, options: AssistantRunOptions) {
     const trimmedPrompt = prompt.trim();
     const workspaceId = get().activeWorkspaceId;
 
@@ -245,7 +250,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      const execution = await runAssistant(trimmedPrompt, historyBeforePrompt);
+      const execution = await runAssistant(trimmedPrompt, historyBeforePrompt, options);
 
       set((state) => {
         const nextThreadsByWorkspace = {

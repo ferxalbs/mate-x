@@ -1,4 +1,4 @@
-import { CheckIcon, CopyIcon, LoaderCircle } from 'lucide-react';
+import { CheckIcon, CopyIcon, LoaderCircle, TerminalSquare } from 'lucide-react';
 import { useDeferredValue, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import type { ChatMessage } from '../../../contracts/chat';
@@ -201,6 +201,31 @@ function MessageEntry({
               <span>{artifact.value}</span>
             </span>
           ))}
+        </div>
+      ) : null}
+
+      {message.events?.length ? (
+        <div className="mt-4 rounded-[20px] border border-border/70 bg-[var(--surface)]/70 p-3.5">
+          <div className="flex items-center gap-2 text-[12px] font-medium text-foreground/86">
+            <TerminalSquare className="size-3.5" />
+            Agent trace
+          </div>
+          <div className="mt-3 flex flex-col gap-2.5">
+            {message.events.map((event) => (
+              <div
+                key={event.id}
+                className="rounded-[16px] border border-border/70 bg-background/40 px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] font-medium text-foreground/88">{event.label}</span>
+                  <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                    {event.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{event.detail}</p>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </article>
