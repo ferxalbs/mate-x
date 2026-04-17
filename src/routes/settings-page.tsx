@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
+import type { RainyApiMode, RainyModelCatalogEntry } from '../contracts/rainy';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { cn } from '../lib/utils';
 import {
@@ -32,6 +33,7 @@ import {
   getApiKey,
   getApiMode,
   getModel,
+  listModels,
   setApiKey,
   setApiMode,
   setModel,
@@ -50,13 +52,15 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
-  const [currentApiMode, setCurrentApiMode] = useState<'chat_completions' | 'responses' | null>(null);
+  const [currentApiMode, setCurrentApiMode] = useState<RainyApiMode | null>(null);
+  const [modelCatalog, setModelCatalog] = useState<RainyModelCatalogEntry[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [modelInputValue, setModelInputValue] = useState('');
-  const [apiModeInputValue, setApiModeInputValue] = useState<'chat_completions' | 'responses'>('chat_completions');
+  const [apiModeInputValue, setApiModeInputValue] = useState<RainyApiMode>('chat_completions');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshingModels, setIsRefreshingModels] = useState(false);
   const [diffLineWrapping, setDiffLineWrapping] = useState(false);
   const [assistantOutput, setAssistantOutput] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
@@ -69,11 +73,14 @@ export function SettingsPage() {
       setIsLoading(true);
       try {
         const [apiKey, model, apiMode] = await Promise.all([getApiKey(), getModel(), getApiMode()]);
+        const catalog = apiKey ? await listModels() : [];
         if (cancelled) return;
 
         setCurrentKey(apiKey);
         setCurrentModel(model);
         setCurrentApiMode(apiMode);
+        setModelCatalog(catalog);
+        setModelInputValue(resolveModelSelectionValue(model, catalog));
         setApiModeInputValue(apiMode ?? 'chat_completions');
       } finally {
         if (!cancelled) {
@@ -92,9 +99,12 @@ export function SettingsPage() {
   const handleSave = useCallback(async () => {
     const trimmedKey = inputValue.trim();
     const trimmedModel = modelInputValue.trim();
-    const shouldSaveApiMode = currentApiMode !== apiModeInputValue;
+    const selectedModel = modelCatalog.find((entry) => entry.id === trimmedModel) ?? null;
+    const resolvedApiMode = resolveSelectedApiMode(selectedModel, apiModeInputValue);
+    const shouldSaveModel = trimmedModel.length > 0 && trimmedModel !== (currentModel ?? '');
+    const shouldSaveApiMode = currentApiMode !== resolvedApiMode;
 
-    if (!trimmedKey && !trimmedModel && !shouldSaveApiMode) {
+    if (!trimmedKey && !shouldSaveModel && !shouldSaveApiMode) {
       return;
     }
 
@@ -108,15 +118,23 @@ export function SettingsPage() {
         setInputValue('');
       }
 
-      if (trimmedModel) {
+      if (shouldSaveModel) {
         await setModel(trimmedModel);
         setCurrentModel(trimmedModel);
-        setModelInputValue('');
       }
 
       if (shouldSaveApiMode) {
-        await setApiMode(apiModeInputValue);
-        setCurrentApiMode(apiModeInputValue);
+        await setApiMode(resolvedApiMode);
+        setCurrentApiMode(resolvedApiMode);
+        setApiModeInputValue(resolvedApiMode);
+      }
+
+      if (trimmedKey) {
+        const catalog = await listModels(true);
+        setModelCatalog(catalog);
+        setModelInputValue((currentValue) =>
+          resolveModelSelectionValue(currentValue || trimmedModel || currentModel, catalog),
+        );
       }
 
       setSaveState('saved');
@@ -125,7 +143,7 @@ export function SettingsPage() {
       setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
       setSaveState('error');
     }
-  }, [apiModeInputValue, currentApiMode, inputValue, modelInputValue]);
+  }, [apiModeInputValue, currentApiMode, currentModel, inputValue, modelCatalog, modelInputValue]);
 
   const handleRestoreDefaults = useCallback(async () => {
     setSaveState('saving');
@@ -158,6 +176,7 @@ export function SettingsPage() {
       setCurrentKey(null);
       setCurrentModel(null);
       setCurrentApiMode(null);
+      setModelCatalog([]);
       setInputValue('');
       setModelInputValue('');
       setApiModeInputValue('chat_completions');
@@ -177,14 +196,21 @@ export function SettingsPage() {
     [handleSave],
   );
 
+  const selectedCatalogModel = useMemo(
+    () => modelCatalog.find((entry) => entry.id === modelInputValue) ?? null,
+    [modelCatalog, modelInputValue],
+  );
+  const hasModelChange =
+    modelInputValue.trim().length > 0 && modelInputValue.trim() !== (currentModel ?? '');
   const pendingChanges = useMemo(
     () =>
       inputValue.trim().length > 0 ||
-      modelInputValue.trim().length > 0 ||
-      currentApiMode !== apiModeInputValue,
-    [apiModeInputValue, currentApiMode, inputValue, modelInputValue],
+      hasModelChange ||
+      currentApiMode !== resolveSelectedApiMode(selectedCatalogModel, apiModeInputValue),
+    [apiModeInputValue, currentApiMode, hasModelChange, inputValue, selectedCatalogModel],
   );
   const isBusy = isLoading || saveState === 'saving';
+  const isCatalogAvailable = modelCatalog.length > 0;
   const saveLabel = saveState === 'saved' ? 'Saved' : 'Save changes';
   const changedSettingLabels = [
     ...(theme !== 'system' ? ['Theme'] : []),
@@ -193,8 +219,10 @@ export function SettingsPage() {
     ...(archiveConfirmation ? ['Archive confirmation'] : []),
     ...(!deleteConfirmation ? ['Delete confirmation'] : []),
     ...(inputValue.trim().length > 0 ? ['Rainy API key'] : []),
-    ...(modelInputValue.trim().length > 0 ? ['Text generation model'] : []),
-    ...(currentApiMode !== apiModeInputValue ? ['Request mode'] : []),
+    ...(hasModelChange ? ['Text generation model'] : []),
+    ...(currentApiMode !== resolveSelectedApiMode(selectedCatalogModel, apiModeInputValue)
+      ? ['Request mode']
+      : []),
   ];
   const section: SettingsSectionId =
     pathname === '/settings/connections'
@@ -202,6 +230,23 @@ export function SettingsPage() {
       : pathname === '/settings/archive'
         ? 'archive'
         : 'general';
+
+  const handleRefreshModels = useCallback(async () => {
+    setIsRefreshingModels(true);
+    setErrorMsg('');
+
+    try {
+      const catalog = await listModels(true);
+      setModelCatalog(catalog);
+      setModelInputValue((currentValue) =>
+        resolveModelSelectionValue(currentValue || currentModel, catalog),
+      );
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Could not refresh models.');
+    } finally {
+      setIsRefreshingModels(false);
+    }
+  }, [currentModel]);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -289,15 +334,34 @@ export function SettingsPage() {
                   }
                   control={
                     <div className="flex items-center gap-2">
-                      <Input
-                        nativeInput
-                        value={modelInputValue}
-                        onChange={(event) => setModelInputValue(event.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder={currentModel ?? 'gpt-5.4-mini'}
-                        className="w-[170px]"
-                        disabled={isBusy}
-                      />
+                      {isCatalogAvailable ? (
+                        <Select
+                          value={modelInputValue}
+                          onValueChange={(value) => setModelInputValue(value ?? '')}
+                          disabled={isBusy}
+                        >
+                          <SelectTrigger className="w-[220px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {modelCatalog.map((entry) => (
+                              <SelectItem key={entry.id} value={entry.id}>
+                                {entry.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          nativeInput
+                          value={modelInputValue}
+                          onChange={(event) => setModelInputValue(event.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder={currentModel ?? 'gpt-5.4-mini'}
+                          className="w-[220px]"
+                          disabled={isBusy}
+                        />
+                      )}
                       <Select defaultValue="high">
                         <SelectTrigger className="w-[92px]">
                           <SelectValue />
@@ -352,13 +416,11 @@ export function SettingsPage() {
                 />
                 <SettingsRow
                   title="Request mode"
-                  description="Use chat completions by default unless a model requires Responses."
+                  description="When the selected Rainy model advertises a preferred endpoint, this value is adjusted automatically."
                   control={
                     <Select
-                      value={apiModeInputValue}
-                      onValueChange={(value) =>
-                        setApiModeInputValue(value as 'chat_completions' | 'responses')
-                      }
+                      value={resolveSelectedApiMode(selectedCatalogModel, apiModeInputValue)}
+                      onValueChange={(value) => setApiModeInputValue(value as RainyApiMode)}
                       disabled={isBusy}
                     >
                       <SelectTrigger className="w-[170px]">
@@ -375,9 +437,37 @@ export function SettingsPage() {
                   title="Connection status"
                   description="Main-process credentials are isolated from the renderer."
                   control={
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
+                        <ServerIcon className="size-3.5" />
+                        {currentKey ? 'IPC secured' : 'Waiting for key'}
+                      </div>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] shadow-none"
+                        onClick={() => void handleRefreshModels()}
+                        disabled={isBusy || isRefreshingModels || !currentKey}
+                      >
+                        {isRefreshingModels ? (
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCcwIcon className="size-3.5" />
+                        )}
+                        Refresh models
+                      </Button>
+                    </div>
+                  }
+                />
+                <SettingsRow
+                  title="Catalog status"
+                  description="Loaded from Rainy API v3 `/models` using the current key."
+                  control={
                     <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
                       <ServerIcon className="size-3.5" />
-                      {currentKey ? 'IPC secured' : 'Waiting for key'}
+                      {currentKey
+                        ? `${modelCatalog.length} models available`
+                        : 'Add a key to load models'}
                     </div>
                   }
                 />
@@ -455,4 +545,34 @@ export function SettingsPage() {
       </div>
     </section>
   );
+}
+
+function resolveModelSelectionValue(
+  model: string | null | undefined,
+  catalog: RainyModelCatalogEntry[],
+) {
+  if (model && catalog.some((entry) => entry.id === model)) {
+    return model;
+  }
+
+  return model ?? '';
+}
+
+function resolveSelectedApiMode(
+  model: RainyModelCatalogEntry | null,
+  fallbackMode: RainyApiMode,
+) {
+  if (!model) {
+    return fallbackMode;
+  }
+
+  if (model.preferredApiMode) {
+    return model.preferredApiMode;
+  }
+
+  if (model.supportedApiModes.includes(fallbackMode)) {
+    return fallbackMode;
+  }
+
+  return model.supportedApiModes[0] ?? fallbackMode;
 }

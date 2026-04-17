@@ -1,5 +1,5 @@
-import { ArrowUpIcon, LoaderCircle } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { ArrowUpIcon, LoaderCircle, RefreshCcwIcon } from 'lucide-react';
+import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
 import {
@@ -9,8 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select';
+import type { RainyApiMode, RainyModelCatalogEntry } from '../../../contracts/rainy';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
+import { getApiMode, getModel, listModels, setApiMode, setModel } from '../../../services/settings-client';
 
 interface ComposerPanelProps {
   isRunning: boolean;
@@ -26,21 +28,152 @@ export function ComposerPanel({
   onSubmit,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
-  const [modelValue, setModelValue] = useState('gpt-5.2');
+  const [modelValue, setModelValue] = useState('');
+  const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
+  const [catalogError, setCatalogError] = useState('');
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+  const [isModelSaving, setIsModelSaving] = useState(false);
+  const [currentApiMode, setCurrentApiMode] = useState<RainyApiMode>('chat_completions');
   const [reasoningValue, setReasoningValue] = useState('high');
   const [modeValue, setModeValue] = useState('build');
   const [accessValue, setAccessValue] = useState('full');
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadModelState(forceRefresh = false) {
+      setIsCatalogLoading(true);
+      setCatalogError('');
+
+      try {
+        const [storedModel, storedApiMode, nextCatalog] = await Promise.all([
+          getModel(),
+          getApiMode(),
+          listModels(forceRefresh),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        startTransition(() => {
+          setCatalog(nextCatalog);
+          setCurrentApiMode(storedApiMode ?? 'chat_completions');
+          setModelValue(resolveModelValue(storedModel, nextCatalog));
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setCatalog([]);
+        setCatalogError(
+          error instanceof Error ? error.message : 'Could not load Rainy models.',
+        );
+      } finally {
+        if (!cancelled) {
+          setIsCatalogLoading(false);
+        }
+      }
+    }
+
+    void loadModelState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedModel = useMemo(
+    () => catalog.find((entry) => entry.id === modelValue) ?? null,
+    [catalog, modelValue],
+  );
+  const modelLabel = selectedModel?.label ?? (modelValue || 'Select model');
+
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
 
-    if (!nextPrompt || isRunning) {
+    if (!nextPrompt || isRunning || isModelSaving) {
       return;
+    }
+
+    if (modelValue) {
+      const nextApiMode = resolveNextApiMode(selectedModel, currentApiMode);
+
+      setIsModelSaving(true);
+      setCatalogError('');
+
+      try {
+        await setModel(modelValue);
+
+        if (nextApiMode !== currentApiMode) {
+          await setApiMode(nextApiMode);
+          setCurrentApiMode(nextApiMode);
+        }
+      } catch (error) {
+        setCatalogError(
+          error instanceof Error ? error.message : 'Could not activate Rainy model.',
+        );
+        setIsModelSaving(false);
+        return;
+      }
+
+      setIsModelSaving(false);
     }
 
     setPrompt('');
     await onSubmit(nextPrompt);
   }
+
+  async function handleRefreshModels() {
+    setIsCatalogLoading(true);
+    setCatalogError('');
+
+    try {
+      const nextCatalog = await listModels(true);
+      startTransition(() => {
+        setCatalog(nextCatalog);
+        setModelValue((currentValue) => resolveModelValue(currentValue, nextCatalog));
+      });
+    } catch (error) {
+      setCatalogError(
+        error instanceof Error ? error.message : 'Could not refresh Rainy models.',
+      );
+    } finally {
+      setIsCatalogLoading(false);
+    }
+  }
+
+  async function handleModelChange(nextModel: string) {
+    if (!nextModel || nextModel === modelValue) {
+      return;
+    }
+
+    const selectedEntry = catalog.find((entry) => entry.id === nextModel) ?? null;
+    const nextApiMode = resolveNextApiMode(selectedEntry, currentApiMode);
+
+    setCatalogError('');
+    setIsModelSaving(true);
+
+    try {
+      await setModel(nextModel);
+
+      if (nextApiMode && nextApiMode !== currentApiMode) {
+        await setApiMode(nextApiMode);
+        setCurrentApiMode(nextApiMode);
+      }
+
+      setModelValue(nextModel);
+    } catch (error) {
+      setCatalogError(
+        error instanceof Error ? error.message : 'Could not update Rainy model.',
+      );
+    } finally {
+      setIsModelSaving(false);
+    }
+  }
+
+  const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
 
   return (
     <div className="px-6 pb-5 pt-2">
@@ -63,10 +196,17 @@ export function ComposerPanel({
 
           <div className="flex items-center justify-between gap-3 border-t border-[var(--panel-border)] px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
-              <InlineSelect value={modelValue} onValueChange={setModelValue}>
-                <SelectItem value="gpt-5.2">gpt-5.2</SelectItem>
-                <SelectItem value="gpt-5.3-codex">GPT-5.3 Codex</SelectItem>
-                <SelectItem value="gpt-5.4-mini">GPT-5.4 Mini</SelectItem>
+              <InlineSelect
+                value={modelValue}
+                onValueChange={handleModelChange}
+                disabled={isModelDisabled}
+                label={isCatalogLoading ? 'Loading models' : modelLabel}
+              >
+                {catalog.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
               </InlineSelect>
               <InlineSelect value={reasoningValue} onValueChange={setReasoningValue}>
                 <SelectItem value="low">Low</SelectItem>
@@ -90,7 +230,7 @@ export function ComposerPanel({
                   'size-9 rounded-full border-0 bg-[#2f5cff] p-0 text-white shadow-none hover:bg-[#3b66ff]',
                   isRunning ? 'opacity-90' : '',
                 )}
-                disabled={isRunning}
+                disabled={isRunning || isModelSaving}
                 onClick={handleSubmit}
                 size="icon-sm"
                 variant="outline"
@@ -106,7 +246,19 @@ export function ComposerPanel({
         </div>
 
         <div className="mt-2 flex items-center justify-between px-1 text-xs text-muted-foreground">
-          <span>Current checkout</span>
+          <span className="flex items-center gap-2">
+            {catalogError ? catalogError : `Model: ${modelLabel}`}
+            <Button
+              aria-label="Refresh Rainy models"
+              className="size-6 rounded-md"
+              disabled={isCatalogLoading || isModelSaving}
+              onClick={() => void handleRefreshModels()}
+              size="icon-xs"
+              variant="ghost"
+            >
+              <RefreshCcwIcon className={cn('size-3.5', isCatalogLoading ? 'animate-spin' : '')} />
+            </Button>
+          </span>
           <span>{workspace?.branch ?? 'main'}</span>
         </div>
       </div>
@@ -117,14 +269,19 @@ export function ComposerPanel({
 function InlineSelect({
   value,
   onValueChange,
+  disabled = false,
+  label,
   children,
 }: {
   value: string;
   onValueChange: (value: string) => void;
+  disabled?: boolean;
+  label?: string;
   children: ReactNode;
 }) {
   return (
     <Select
+      disabled={disabled}
       value={value}
       onValueChange={(nextValue) => {
         if (nextValue) {
@@ -137,9 +294,39 @@ function InlineSelect({
         variant="ghost"
         className="h-6 min-w-fit shrink-0 rounded-md border-0 px-2 text-[12px] text-muted-foreground shadow-none hover:bg-accent"
       >
-        <SelectValue />
+        <SelectValue>{label}</SelectValue>
       </SelectTrigger>
       <SelectPopup>{children}</SelectPopup>
     </Select>
   );
+}
+
+function resolveModelValue(
+  storedModel: string | null,
+  catalog: RainyModelCatalogEntry[],
+) {
+  if (storedModel && catalog.some((entry) => entry.id === storedModel)) {
+    return storedModel;
+  }
+
+  return catalog[0]?.id ?? storedModel ?? '';
+}
+
+function resolveNextApiMode(
+  model: RainyModelCatalogEntry | null,
+  currentApiMode: RainyApiMode,
+) {
+  if (!model) {
+    return currentApiMode;
+  }
+
+  if (model.preferredApiMode) {
+    return model.preferredApiMode;
+  }
+
+  if (model.supportedApiModes.includes(currentApiMode)) {
+    return currentApiMode;
+  }
+
+  return model.supportedApiModes[0] ?? currentApiMode;
 }

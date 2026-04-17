@@ -1,3 +1,4 @@
+import type { RainyModelCatalogEntry } from '../contracts/rainy';
 import type { SettingsApi } from '../contracts/ipc';
 
 function getSettingsApi(): SettingsApi {
@@ -17,6 +18,10 @@ export function setApiKey(apiKey: string) {
 
 export function clearApiKey() {
   return getSettingsApi().clearApiKey();
+}
+
+export function listModels(forceRefresh?: boolean): Promise<RainyModelCatalogEntry[]> {
+  return getSettingsApi().listModels(forceRefresh);
 }
 
 export function getModel() {

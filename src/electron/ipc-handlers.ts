@@ -13,6 +13,7 @@ import {
   searchInFiles,
   setActiveWorkspace,
 } from './repo-service';
+import { listRainyModels, validateRainyModelSelection } from './rainy-service';
 import { tursoService } from './turso-service';
 
 async function resolveActiveWorkspacePath() {
@@ -116,10 +117,20 @@ export function registerIpcHandlers() {
     tursoService.setApiKey(apiKey),
   );
   ipcMain.handle('settings:clear-api-key', async () => tursoService.clearApiKey());
+  ipcMain.handle('settings:list-models', async (_event, forceRefresh?: boolean) => {
+    const apiKey = await tursoService.getApiKey();
+    if (!apiKey) {
+      return [];
+    }
+
+    return listRainyModels({ apiKey, forceRefresh });
+  });
   ipcMain.handle('settings:get-model', async () => tursoService.getModel());
-  ipcMain.handle('settings:set-model', async (_event, model: string) =>
-    tursoService.setModel(model),
-  );
+  ipcMain.handle('settings:set-model', async (_event, model: string) => {
+    const apiKey = await tursoService.getApiKey();
+    await validateRainyModelSelection({ apiKey, model });
+    await tursoService.setModel(model);
+  });
   ipcMain.handle('settings:clear-model', async () => tursoService.clearModel());
   ipcMain.handle('settings:get-api-mode', async () => tursoService.getApiMode());
   ipcMain.handle(

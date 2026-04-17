@@ -1,5 +1,6 @@
 import type { AssistantExecution, Conversation } from './chat';
 import type { GitCommit, GitDiff, GitStatus } from './git';
+import type { RainyModelCatalogEntry } from './rainy';
 import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from './workspace';
 
 export interface RepoInspectorApi {
@@ -35,6 +36,7 @@ export interface SettingsApi {
   getApiKey: () => Promise<string | null>;
   setApiKey: (apiKey: string) => Promise<void>;
   clearApiKey: () => Promise<void>;
+  listModels: (forceRefresh?: boolean) => Promise<RainyModelCatalogEntry[]>;
   getModel: () => Promise<string | null>;
   setModel: (model: string) => Promise<void>;
   clearModel: () => Promise<void>;

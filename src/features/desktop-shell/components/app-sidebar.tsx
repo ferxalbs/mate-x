@@ -145,7 +145,6 @@ export function AppSidebar({
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
         <div className="flex min-w-0 items-center gap-2">
           <div className="ml-1 flex min-w-0 items-center gap-1.5">
-            <T3Wordmark />
             <span className="truncate text-sm font-medium tracking-tight text-foreground">
               Mate X
             </span>
