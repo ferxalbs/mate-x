@@ -92,7 +92,7 @@ typings/
 out/
 
 # T3CODE
-t3code
+#t3code
 
 # DIST
 dist

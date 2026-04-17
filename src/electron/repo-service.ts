@@ -55,11 +55,20 @@ interface AssistantProgressReporter {
   emit: (progress: AssistantRunProgress) => void;
 }
 
+interface AgentToolCall {
+  id: string;
+  name: string;
+  arguments?: string;
+}
+
 const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   reasoning: "high",
   mode: "build",
   access: "full",
 };
+const TOOL_BATCH_MAX_CONCURRENCY = 800;
+const TOOL_EXECUTION_TIMEOUT_MS = 20_000;
+const MAX_TOOL_OUTPUT_CHARS = 80_000;
 
 export async function bootstrapWorkspaceState(): Promise<WorkspaceSnapshot> {
   await tursoService.ensureSeedWorkspace(process.cwd());
@@ -562,7 +571,7 @@ function buildAgentRuntimeConfig(
 }
 
 function summarizeCheckpoint(content: unknown) {
-  const collapsed = typeof content === "string" ? content.replace(/\s+/g, " ").trim() : "";
+  const collapsed = normalizeAssistantText(content).replace(/\s+/g, " ").trim();
   if (!collapsed) {
     return null;
   }
@@ -573,8 +582,204 @@ function summarizeCheckpoint(content: unknown) {
 }
 
 function summarizeToolOutput(content: unknown) {
-  const summary = summarizeCheckpoint(content);
-  return summary ?? "Tool returned no textual output.";
+  const normalized = normalizeAssistantText(content).replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "Tool returned no textual output.";
+  }
+
+  return normalized.length <= 180
+    ? normalized
+    : `${normalized.slice(0, 177).trimEnd()}...`;
+}
+
+function normalizeAssistantText(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+
+        if (
+          typeof part === "object" &&
+          part !== null &&
+          "text" in part &&
+          typeof (part as { text?: unknown }).text === "string"
+        ) {
+          return (part as { text: string }).text;
+        }
+
+        return "";
+      })
+      .join("\n")
+      .trim();
+  }
+
+  return "";
+}
+
+function buildNoContentFinalResponse(params: {
+  iterations: number;
+  toolRounds: number;
+  totalToolCalls: number;
+  events: ToolEvent[];
+}) {
+  const recentEvents = params.events.slice(-3).map((event) =>
+    `- ${event.label}: ${event.detail}`,
+  );
+
+  return [
+    "The run completed, but the model returned no final synthesis.",
+    "",
+    `Summary: ${params.iterations} pass(es), ${params.toolRounds} tool round(s), ${params.totalToolCalls} tool call(s).`,
+    "",
+    "Last steps:",
+    ...(recentEvents.length > 0 ? recentEvents : ["- No events captured."]),
+  ].join("\n");
+}
+
+async function attemptFinalChatSynthesis({
+  apiKey,
+  model,
+  messages,
+  iterations,
+  toolRounds,
+  totalToolCalls,
+  events,
+  emitProgress,
+}: {
+  apiKey: string;
+  model: string;
+  messages: any[];
+  iterations: number;
+  toolRounds: number;
+  totalToolCalls: number;
+  events: ToolEvent[];
+  emitProgress: () => void;
+}) {
+  const eventId = "step-agent-final-synthesis";
+  events.push({
+    id: eventId,
+    label: "Final synthesis",
+    detail: "Tool loop ended without a clear final answer. Requesting one final synthesis.",
+    status: "active",
+  });
+  emitProgress();
+
+  messages.push({
+    role: "user",
+    content:
+      "Provide the final answer now using the collected tool evidence. Do not call tools. Return only the final synthesis.",
+  });
+
+  try {
+    const response = await requestRainyChatCompletion({
+      apiKey,
+      messages,
+      model,
+      toolChoice: "none",
+    });
+    const finalMessage = response.choices[0]?.message;
+    if (finalMessage) {
+      messages.push(finalMessage);
+    }
+
+    const finalText = normalizeAssistantText(finalMessage?.content).trim();
+    const event = events.find((item) => item.id === eventId);
+    if (event) {
+      event.status = "done";
+      event.detail = finalText
+        ? "Final synthesis generated."
+        : `No text returned. Ending after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`;
+    }
+    emitProgress();
+
+    return finalText;
+  } catch (error) {
+    const event = events.find((item) => item.id === eventId);
+    if (event) {
+      event.status = "error";
+      event.detail =
+        error instanceof Error ? error.message : "Failed to generate final synthesis.";
+    }
+    emitProgress();
+    return "";
+  }
+}
+
+async function attemptFinalResponsesSynthesis({
+  apiKey,
+  model,
+  previousResponseId,
+  iterations,
+  toolRounds,
+  totalToolCalls,
+  events,
+  emitProgress,
+}: {
+  apiKey: string;
+  model: string;
+  previousResponseId?: string;
+  iterations: number;
+  toolRounds: number;
+  totalToolCalls: number;
+  events: ToolEvent[];
+  emitProgress: () => void;
+}) {
+  const eventId = "step-agent-final-synthesis";
+  events.push({
+    id: eventId,
+    label: "Final synthesis",
+    detail: "Tool loop ended without a clear final answer. Requesting one final synthesis.",
+    status: "active",
+  });
+  emitProgress();
+
+  try {
+    const response = await requestRainyResponsesCompletion({
+      apiKey,
+      model,
+      previousResponseId,
+      toolChoice: "none",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "Provide the final answer now using the collected tool evidence. Do not call tools. Return only the final synthesis.",
+            },
+          ],
+        },
+      ],
+    });
+    const finalText = normalizeAssistantText(response.output_text).trim();
+
+    const event = events.find((item) => item.id === eventId);
+    if (event) {
+      event.status = "done";
+      event.detail = finalText
+        ? "Final synthesis generated."
+        : `No text returned. Ending after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`;
+    }
+    emitProgress();
+
+    return finalText;
+  } catch (error) {
+    const event = events.find((item) => item.id === eventId);
+    if (event) {
+      event.status = "error";
+      event.detail =
+        error instanceof Error ? error.message : "Failed to generate final synthesis.";
+    }
+    emitProgress();
+    return "";
+  }
 }
 
 function buildHistoryMessages(
@@ -636,7 +841,12 @@ function formatProgressEvent(event: ToolEvent) {
       : event.status === "error"
         ? "Issue"
         : "Done";
-  return `${prefix} ${event.label} · ${event.detail}`;
+  const shortDetail =
+    event.detail.length <= 180
+      ? event.detail
+      : `${event.detail.slice(0, 177).trimEnd()}...`;
+
+  return `• ${prefix} ${event.label}: ${shortDetail}`;
 }
 
 function renderInlineProgress(
@@ -653,7 +863,7 @@ function renderInlineProgress(
     return intro;
   }
 
-  return `${intro}\n\n\`\`\`text\n${visibleEvents.map(formatProgressEvent).join("\n")}\n\`\`\``;
+  return `${intro}\n\n${visibleEvents.map(formatProgressEvent).join("\n")}`;
 }
 
 function cloneArtifacts(artifacts: MessageArtifact[]) {
@@ -752,6 +962,143 @@ function buildFallbackResponse(
     "Next move: inspect the matched files and update the active workspace flow before making changes.",
     errorLine,
   ].join("\n");
+}
+
+function truncateToolOutput(content: string) {
+  if (content.length <= MAX_TOOL_OUTPUT_CHARS) {
+    return content;
+  }
+
+  return `${content.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n... (truncated ${content.length - MAX_TOOL_OUTPUT_CHARS} characters)`;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+
+    void promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T, index: number) => Promise<R>,
+) {
+  const safeConcurrency = Math.max(1, Math.min(concurrency, values.length || 1));
+  const results = new Array<R>(values.length);
+  let currentIndex = 0;
+
+  async function runWorker() {
+    while (true) {
+      const index = currentIndex;
+      currentIndex += 1;
+
+      if (index >= values.length) {
+        return;
+      }
+
+      results[index] = await mapper(values[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: safeConcurrency }, () => runWorker()),
+  );
+
+  return results;
+}
+
+async function executeAgentToolCall({
+  toolCall,
+  toolIndex,
+  iteration,
+  snapshot,
+  events,
+  emitProgress,
+}: {
+  toolCall: AgentToolCall;
+  toolIndex: number;
+  iteration: number;
+  snapshot: RepoSnapshot;
+  events: ToolEvent[];
+  emitProgress: () => void;
+}) {
+  const toolName = toolCall.name;
+  const eventId = `tool-${iteration}-${toolIndex}-${toolName}`;
+  const rawArguments = toolCall.arguments;
+  let toolArgs: Record<string, unknown>;
+
+  try {
+    toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Invalid tool arguments.";
+    events.push({
+      id: eventId,
+      label: `Failed ${toolName}`,
+      detail: reason,
+      status: "error",
+    });
+    emitProgress();
+
+    return {
+      toolCallId: toolCall.id,
+      content: `Tool argument parsing failed for ${toolName}: ${reason}`,
+    };
+  }
+
+  events.push({
+    id: eventId,
+    label: `Executing ${toolName}`,
+    detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
+    status: "active",
+  });
+  emitProgress();
+
+  try {
+    const result = await withTimeout(
+      toolService.callTool(toolName, toolArgs, {
+        workspacePath: snapshot.workspace.path,
+      }),
+      TOOL_EXECUTION_TIMEOUT_MS,
+      `Tool ${toolName} timed out after ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
+    );
+
+    const normalizedResult = truncateToolOutput(String(result ?? ""));
+    const toolEvent = events.find((event) => event.id === eventId);
+    if (toolEvent) {
+      toolEvent.status = "done";
+      toolEvent.detail = summarizeToolOutput(normalizedResult);
+    }
+    emitProgress();
+
+    return {
+      toolCallId: toolCall.id,
+      content: normalizedResult,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : `Tool ${toolName} failed.`;
+    const toolEvent = events.find((event) => event.id === eventId);
+    if (toolEvent) {
+      toolEvent.status = "error";
+      toolEvent.detail = message;
+    }
+    emitProgress();
+
+    return {
+      toolCallId: toolCall.id,
+      content: `Tool ${toolName} failed: ${message}`,
+    };
+  }
 }
 
 async function requestRainyAgenticResponse({
@@ -867,6 +1214,7 @@ async function requestRainyChatAgenticResponse({
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
+  let lastNonEmptyAssistantText = "";
 
   while (iterations < runtime.maxIterations) {
     iterations++;
@@ -909,8 +1257,13 @@ async function requestRainyChatAgenticResponse({
         arguments: toolCall.function.arguments,
       }));
 
+    const responseText = normalizeAssistantText(responseMessage.content);
+    if (responseText.trim()) {
+      lastNonEmptyAssistantText = responseText;
+    }
+
     const loopEvent = events.find((event) => event.id === `step-agent-loop-${iterations}`);
-    const checkpoint = summarizeCheckpoint(responseMessage.content);
+    const checkpoint = summarizeCheckpoint(responseText);
     if (loopEvent) {
       loopEvent.status = "done";
       loopEvent.detail = checkpoint
@@ -948,7 +1301,32 @@ async function requestRainyChatAgenticResponse({
         status: "done",
       });
       emitProgress();
-      return { content: responseMessage.content || "" };
+
+      const forcedFinalText = responseText.trim()
+        ? ""
+        : await attemptFinalChatSynthesis({
+            apiKey,
+            model,
+            messages,
+            iterations,
+            toolRounds,
+            totalToolCalls,
+            events,
+            emitProgress,
+          });
+
+      return {
+        content:
+          responseText.trim() ||
+          forcedFinalText ||
+          lastNonEmptyAssistantText ||
+          buildNoContentFinalResponse({
+            iterations,
+            toolRounds,
+            totalToolCalls,
+            events,
+          }),
+      };
     }
 
     toolRounds++;
@@ -966,75 +1344,23 @@ async function requestRainyChatAgenticResponse({
     events.push({
       id: `step-tool-batch-${iterations}`,
       label: `Tool batch ${toolRounds}`,
-      detail: `Executing ${executableToolCalls.length} tool call(s) in parallel.`,
+      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent, with a ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s timeout each.`,
       status: "done",
     });
     emitProgress();
 
-    const toolResults = await Promise.all(
-      executableToolCalls.map(async (toolCall, toolIndex) => {
-        const toolName = toolCall.name;
-        const eventId = `tool-${iterations}-${toolIndex}-${toolName}`;
-        const rawArguments = toolCall.arguments;
-        let toolArgs: Record<string, unknown>;
-
-        try {
-          toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : "Invalid tool arguments.";
-          events.push({
-            id: eventId,
-            label: `Failed ${toolName}`,
-            detail: reason,
-            status: "error",
-          });
-          emitProgress();
-
-          return {
-            toolCallId: toolCall.id,
-            content: `Tool argument parsing failed for ${toolName}: ${reason}`,
-          };
-        }
-
-        events.push({
-          id: eventId,
-          label: `Executing ${toolName}`,
-          detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
-          status: "active",
-        });
-        emitProgress();
-
-        try {
-          const result = await toolService.callTool(toolName, toolArgs, {
-            workspacePath: snapshot.workspace.path,
-          });
-          const toolEvent = events.find((event) => event.id === eventId);
-          if (toolEvent) {
-            toolEvent.status = "done";
-            toolEvent.detail = summarizeToolOutput(result);
-          }
-          emitProgress();
-
-          return {
-            toolCallId: toolCall.id,
-            content: result,
-          };
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : `Tool ${toolName} failed.`;
-          const toolEvent = events.find((event) => event.id === eventId);
-          if (toolEvent) {
-            toolEvent.status = "error";
-            toolEvent.detail = message;
-          }
-          emitProgress();
-
-          return {
-            toolCallId: toolCall.id,
-            content: `Tool ${toolName} failed: ${message}`,
-          };
-        }
-      }),
+    const toolResults = await mapWithConcurrency(
+      executableToolCalls,
+      TOOL_BATCH_MAX_CONCURRENCY,
+      (toolCall, toolIndex) =>
+        executeAgentToolCall({
+          toolCall,
+          toolIndex,
+          iteration: iterations,
+          snapshot,
+          events,
+          emitProgress,
+        }),
     );
 
     totalToolCalls += toolResults.length;
@@ -1064,10 +1390,27 @@ async function requestRainyChatAgenticResponse({
     }
   }
 
+  const forcedFinalText = await attemptFinalChatSynthesis({
+    apiKey,
+    model,
+    messages,
+    iterations,
+    toolRounds,
+    totalToolCalls,
+    events,
+    emitProgress,
+  });
+
   return {
     content:
-      messages[messages.length - 1]?.content ||
-      "Maximum agent iterations reached without a final response.",
+      forcedFinalText ||
+      lastNonEmptyAssistantText ||
+      buildNoContentFinalResponse({
+        iterations,
+        toolRounds,
+        totalToolCalls,
+        events,
+      }),
   };
 }
 
@@ -1191,9 +1534,23 @@ async function requestRainyResponsesAgenticResponse({
       });
       emitProgress();
 
+      const forcedFinalText = response.output_text?.trim()
+        ? ""
+        : await attemptFinalResponsesSynthesis({
+            apiKey,
+            model,
+            previousResponseId,
+            iterations,
+            toolRounds,
+            totalToolCalls,
+            events,
+            emitProgress,
+          });
+
       return {
         content:
           response.output_text ||
+          forcedFinalText ||
           lastContent ||
           "The model completed the tool loop without returning text.",
       };
@@ -1222,59 +1579,23 @@ async function requestRainyResponsesAgenticResponse({
     events.push({
       id: `step-tool-batch-${iterations}`,
       label: `Tool batch ${toolRounds}`,
-      detail: `Executing ${executableToolCalls.length} tool call(s) in parallel.`,
+      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent, with a ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s timeout each.`,
       status: "done",
     });
     emitProgress();
 
-    const toolResults = await Promise.all(
-      executableToolCalls.map(async (toolCall, toolIndex) => {
-        const toolName = toolCall.name;
-        const eventId = `tool-${iterations}-${toolIndex}-${toolName}`;
-        const rawArguments = toolCall.arguments;
-        let toolArgs: Record<string, unknown>;
-
-        try {
-          toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : "Invalid tool arguments.";
-          events.push({
-            id: eventId,
-            label: `Failed ${toolName}`,
-            detail: reason,
-            status: "error",
-          });
-          emitProgress();
-
-          return {
-            toolCallId: toolCall.id,
-            content: `Tool argument parsing failed for ${toolName}: ${reason}`,
-          };
-        }
-
-        events.push({
-          id: eventId,
-          label: `Executing ${toolName}`,
-          detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
-          status: "active",
-        });
-        emitProgress();
-
-        const result = await toolService.callTool(toolName, toolArgs, {
-          workspacePath: snapshot.workspace.path,
-        });
-        const toolEvent = events.find((event) => event.id === eventId);
-        if (toolEvent) {
-          toolEvent.status = "done";
-          toolEvent.detail = summarizeToolOutput(result);
-        }
-        emitProgress();
-
-        return {
-          toolCallId: toolCall.id,
-          content: result,
-        };
-      }),
+    const toolResults = await mapWithConcurrency(
+      executableToolCalls,
+      TOOL_BATCH_MAX_CONCURRENCY,
+      (toolCall, toolIndex) =>
+        executeAgentToolCall({
+          toolCall,
+          toolIndex,
+          iteration: iterations,
+          snapshot,
+          events,
+          emitProgress,
+        }),
     );
 
     totalToolCalls += toolResults.length;
@@ -1306,8 +1627,22 @@ async function requestRainyResponsesAgenticResponse({
     }
   }
 
+  const forcedFinalText = await attemptFinalResponsesSynthesis({
+    apiKey,
+    model,
+    previousResponseId,
+    iterations,
+    toolRounds,
+    totalToolCalls,
+    events,
+    emitProgress,
+  });
+
   return {
-    content: lastContent || "Maximum agent iterations reached without a final response.",
+    content:
+      forcedFinalText ||
+      lastContent ||
+      "Maximum agent iterations reached without a final response.",
   };
 }
 
