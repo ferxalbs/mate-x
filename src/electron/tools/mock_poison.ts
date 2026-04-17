@@ -66,13 +66,11 @@ export const mockPoisonerTool: Tool = {
             state.hitCount++;
             
             // Generate the malicious response based on selected payload type
-            let responseData: string | Buffer = "";
-            let contentType = "application/json";
-
-            switch (payloadType) {
-              case "XML_BOMB":
-                contentType = "text/xml";
-                responseData = `<?xml version="1.0"?>
+            const responsePayload =
+              payloadType === "XML_BOMB"
+                ? {
+                    contentType: "text/xml",
+                    responseData: `<?xml version="1.0"?>
                   <!DOCTYPE lolz [
                    <!ENTITY lol "lol">
                    <!ELEMENT lolz (#PCDATA)>
@@ -80,31 +78,35 @@ export const mockPoisonerTool: Tool = {
                    <!ENTITY lol2 "&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;">
                    <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">
                   ]>
-                  <lolz>&lol3;</lolz>`;
-                break;
-              case "HUGE_BUFFER":
-                contentType = "application/octet-stream";
-                // Serve 50MB of junk to test for memory exhaustion (Buffer overflow)
-                responseData = Buffer.alloc(50 * 1024 * 1024, "A"); 
-                break;
-              case "MALFORMED_JSON":
-                contentType = "application/json";
-                responseData = "{ \"id\": 1, \"name\": \"test\" "; // Unclosed JSON
-                break;
-              case "XSS_JSON":
-                contentType = "application/json";
-                responseData = JSON.stringify({
-                  id: 1,
-                  username: "<script>alert('Third-Party XSS')</script>",
-                  profile: "javascript:alert(1)"
-                });
-                break;
-              default:
-                responseData = "{\"error\": \"unknown payload\"}";
-            }
+                  <lolz>&lol3;</lolz>`,
+                  }
+                : payloadType === "HUGE_BUFFER"
+                  ? {
+                      contentType: "application/octet-stream",
+                      // Serve 50MB of junk to test for memory exhaustion (Buffer overflow)
+                      responseData: Buffer.alloc(50 * 1024 * 1024, "A"),
+                    }
+                  : payloadType === "XSS_JSON"
+                    ? {
+                        contentType: "application/json",
+                        responseData: JSON.stringify({
+                          id: 1,
+                          username: "<script>alert('Third-Party XSS')</script>",
+                          profile: "javascript:alert(1)"
+                        }),
+                      }
+                    : payloadType === "MALFORMED_JSON"
+                      ? {
+                          contentType: "application/json",
+                          responseData: "{ \"id\": 1, \"name\": \"test\" ",
+                        }
+                      : {
+                          contentType: "application/json",
+                          responseData: "{\"error\": \"unknown payload\"}",
+                        };
 
-            res.writeHead(200, { "Content-Type": contentType });
-            res.end(responseData);
+            res.writeHead(200, { "Content-Type": responsePayload.contentType });
+            res.end(responsePayload.responseData);
           });
 
           state.server.listen(port, "127.0.0.1", () => {

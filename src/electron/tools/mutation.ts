@@ -36,7 +36,7 @@ export const mutationTesterTool: Tool = {
     const { path, searchString, mutationString, verificationCommand } = args;
     const targetFile = join(workspacePath, path);
 
-    let originalContent = "";
+    let originalContent: string;
     try {
       originalContent = await readFile(targetFile, "utf8");
 

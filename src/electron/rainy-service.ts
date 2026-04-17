@@ -57,6 +57,61 @@ function buildResponsesInput(userContext: string) {
   ];
 }
 
+function buildChatCompletionRequest(params: {
+  model: string;
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
+  toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+}) {
+  const request: {
+    model: string;
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
+    tool_choice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+  } = {
+    model: params.model,
+    messages: params.messages,
+  };
+
+  if (params.tools && params.tools.length > 0) {
+    request.tools = params.tools;
+  }
+
+  if (params.toolChoice) {
+    request.tool_choice = params.toolChoice;
+  }
+
+  return request;
+}
+
+function extractRainyErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "error" in error &&
+    typeof error.error === "object" &&
+    error.error !== null &&
+    "message" in error.error &&
+    typeof error.error.message === "string"
+  ) {
+    return error.error.message;
+  }
+
+  return "";
+}
+
+function isUnsupportedToolChoiceError(error: unknown) {
+  const message = extractRainyErrorMessage(error);
+  return (
+    message.includes("support the provided 'tool_choice' value") ||
+    message.includes('support the provided "tool_choice" value')
+  );
+}
+
 export async function listRainyModels(params: {
   apiKey?: string | null;
   forceRefresh?: boolean;
@@ -240,7 +295,7 @@ export async function requestRainyTextResponse(params: {
   model: string;
   apiMode: RainyApiMode;
   tools?: any[];
-  toolChoice?: string;
+  toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
 }): Promise<{ content: string; toolCalls?: any[] }> {
   const client = createRainyClient(params.apiKey);
 
@@ -257,15 +312,33 @@ export async function requestRainyTextResponse(params: {
     return { content: extractTextFromResponsesPayload(response) };
   }
 
-  const response = await client.chat.completions.create(
-    {
-      model: params.model,
-      messages: buildChatCompletionsInput(params.userContext),
-      tools: params.tools,
-      tool_choice: params.toolChoice as any,
-    },
-    { timeout: RAINY_REQUEST_TIMEOUT_MS },
-  );
+  const request = buildChatCompletionRequest({
+    model: params.model,
+    messages: buildChatCompletionsInput(params.userContext),
+    tools: params.tools,
+    toolChoice: params.toolChoice,
+  });
+
+  let response: OpenAI.Chat.Completions.ChatCompletion;
+
+  try {
+    response = await client.chat.completions.create(request, {
+      timeout: RAINY_REQUEST_TIMEOUT_MS,
+    });
+  } catch (error) {
+    if (params.toolChoice && isUnsupportedToolChoiceError(error)) {
+      response = await client.chat.completions.create(
+        buildChatCompletionRequest({
+          model: params.model,
+          messages: buildChatCompletionsInput(params.userContext),
+          tools: params.tools,
+        }),
+        { timeout: RAINY_REQUEST_TIMEOUT_MS },
+      );
+    } else {
+      throw error;
+    }
+  }
 
   const message = response.choices[0]?.message;
   return {
@@ -279,18 +352,34 @@ export async function requestRainyChatCompletion(params: {
   messages: any[];
   model: string;
   tools?: any[];
-  toolChoice?: string;
+  toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const client = createRainyClient(params.apiKey);
-  return client.chat.completions.create(
-    {
-      model: params.model,
-      messages: params.messages,
-      tools: params.tools,
-      tool_choice: params.toolChoice as any,
-    },
-    { timeout: RAINY_REQUEST_TIMEOUT_MS },
-  );
+  const request = buildChatCompletionRequest({
+    model: params.model,
+    messages: params.messages,
+    tools: params.tools,
+    toolChoice: params.toolChoice,
+  });
+
+  try {
+    return await client.chat.completions.create(request, {
+      timeout: RAINY_REQUEST_TIMEOUT_MS,
+    });
+  } catch (error) {
+    if (params.toolChoice && isUnsupportedToolChoiceError(error)) {
+      return client.chat.completions.create(
+        buildChatCompletionRequest({
+          model: params.model,
+          messages: params.messages,
+          tools: params.tools,
+        }),
+        { timeout: RAINY_REQUEST_TIMEOUT_MS },
+      );
+    }
+
+    throw error;
+  }
 }
 
 function normalizeRainyModelsPayload(

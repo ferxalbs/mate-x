@@ -1,6 +1,28 @@
 import { spawn } from "node:child_process";
 import type { Tool } from "../tool-service";
 
+function parseCommand(command: string) {
+  if (/[|&;<>`$()]/.test(command)) {
+    throw new Error(
+      "Shell operators are not supported. Provide a direct command and arguments only.",
+    );
+  }
+
+  const tokens =
+    command.match(/"[^"]*"|'[^']*'|[^\s]+/g)?.map((token) =>
+      token.replace(/^['"]|['"]$/g, ""),
+    ) ?? [];
+
+  if (tokens.length === 0) {
+    throw new Error("Command is required.");
+  }
+
+  return {
+    cmd: tokens[0],
+    cmdArgs: tokens.slice(1),
+  };
+}
+
 export const sandboxRunnerTool: Tool = {
   name: "sandbox_run",
   description:
@@ -20,17 +42,22 @@ export const sandboxRunnerTool: Tool = {
 
     if (!command) return "Error: Command is required.";
 
-    const parts = command.split(" ");
-    const cmd = parts[0];
-    const cmdArgs = parts.slice(1);
+    let cmd: string;
+    let cmdArgs: string[];
+
+    try {
+      ({ cmd, cmdArgs } = parseCommand(command));
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : "Invalid command."}`;
+    }
 
     return new Promise((resolve) => {
       let output = "";
       let crashed = false;
+      let finished = false;
 
       const child = spawn(cmd, cmdArgs, {
         cwd: workspacePath,
-        shell: true,
         env: { ...process.env, PORT: "4000", NODE_ENV: "test" }, // Isolate ports
       });
 
@@ -48,18 +75,33 @@ export const sandboxRunnerTool: Tool = {
         }
       });
 
+      const finish = (report: string) => {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+        clearTimeout(timer);
+        resolve(report);
+      };
+
+      child.on("error", (error) => {
+        finish(
+          `Sandbox Report: Failed to start process.\nStatus: CRASH DETECTED\nOutput:\n${error.message}`,
+        );
+      });
+
       // Strict 30-second kill switch
       const timer = setTimeout(() => {
         child.kill("SIGKILL");
-        resolve(
-          `Sandbox Report: Execution completed.\\nStatus: ${crashed ? "CRASH DETECTED" : "STABLE"}\\nOutput:\\n${output.slice(0, 1000)}...\\n\\nThe sandbox cleanly terminated the process after 30 seconds.`
+        finish(
+          `Sandbox Report: Execution completed.\\nStatus: ${crashed ? "CRASH DETECTED" : "STABLE"}\\nOutput:\\n${output.slice(0, 1000)}...\\n\\nThe sandbox cleanly terminated the process after 30 seconds.`,
         );
       }, 30000);
 
       child.on("close", (code) => {
-        clearTimeout(timer);
-        resolve(
-          `Sandbox Report: Process exited prematurely with code ${code}.\\nStatus: ${code === 0 ? "STABLE (Finished)" : "CRASH DETECTED"}\\nOutput:\\n${output.slice(0, 1000)}...`
+        finish(
+          `Sandbox Report: Process exited prematurely with code ${code}.\\nStatus: ${code === 0 ? "STABLE (Finished)" : "CRASH DETECTED"}\\nOutput:\\n${output.slice(0, 1000)}...`,
         );
       });
     });

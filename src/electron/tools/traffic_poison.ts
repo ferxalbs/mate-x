@@ -33,7 +33,7 @@ export const trafficPoisonerTool: Tool = {
     if (basePayload) {
       try {
         parsedPayload = JSON.parse(basePayload);
-      } catch (e) {
+      } catch {
         return "Traffic Poisoner Error: basePayload must be valid JSON.";
       }
     }

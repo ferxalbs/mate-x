@@ -13,6 +13,7 @@ import type {
   MessageArtifact,
   ToolEvent,
 } from "../contracts/chat";
+import type { RainyApiMode } from "../contracts/rainy";
 import type {
   SearchMatch,
   WorkspaceEntry,
@@ -220,6 +221,7 @@ export async function runAssistant(
         apiKey,
         history,
         model: configuredModel,
+        apiMode: runtimeConfig?.apiMode ?? "chat_completions",
         prompt,
         snapshot,
         events,
@@ -631,6 +633,7 @@ async function requestRainyAgenticResponse({
   apiKey,
   history,
   model,
+  apiMode,
   prompt,
   snapshot,
   events,
@@ -639,6 +642,7 @@ async function requestRainyAgenticResponse({
   apiKey: string;
   history: string[];
   model: string;
+  apiMode: RainyApiMode;
   prompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
@@ -688,6 +692,7 @@ If a tool fails, adapt and continue.`;
   ];
 
   const tools = toolService.getToolDefinitions();
+  const forceToolChoice = apiMode === "chat_completions";
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
@@ -711,6 +716,7 @@ If a tool fails, adapt and continue.`;
       model,
       tools,
       toolChoice:
+        forceToolChoice &&
         runtime.requireToolingFirst &&
         toolRounds < runtime.minToolRounds &&
         totalToolCalls < runtime.maxToolCalls
@@ -909,15 +915,15 @@ async function resolveDefaultRainyRuntimeConfig(
         return "responses";
       }
 
-      if (entry.preferredApiMode) {
-        return entry.preferredApiMode;
+      if (entry.supportedApiModes.includes("chat_completions")) {
+        return "chat_completions";
       }
 
       if (entry.supportedApiModes.includes("responses")) {
         return "responses";
       }
 
-      return "chat_completions";
+      return entry.preferredApiMode ?? "chat_completions";
     };
 
     if (

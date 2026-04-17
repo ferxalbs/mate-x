@@ -26,8 +26,12 @@ export const securityReportTool: Tool = {
     // and summarize the overall risk level.
     
     try {
-      const { stdout: fileCountStr } = await execFileAsync('rg', ['--files', scope, '|', 'wc', '-l'], { cwd: workspacePath, shell: true });
-      const fileCount = parseInt(fileCountStr.trim(), 10);
+      const { stdout: fileListStdout } = await execFileAsync(
+        'rg',
+        ['--files', scope],
+        { cwd: workspacePath },
+      );
+      const fileCount = fileListStdout.split('\n').filter(Boolean).length;
 
       // 1. Check for basic security hygiene
       const { stdout: secretsStdout } = await execFileAsync('rg', ['-l', 'AKIA|sk_live_|xox[baprs]', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
