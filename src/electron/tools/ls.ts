@@ -27,7 +27,7 @@ export const lsTool: Tool = {
     try {
       if (recursive) {
         const results: string[] = [];
-        await this.walk(targetDir, workspacePath, results);
+        await walk(targetDir, workspacePath, results);
         return results.join('\n');
       }
 
@@ -39,18 +39,18 @@ export const lsTool: Tool = {
       return `Error listing directory: ${(error as Error).message}`;
     }
   },
-
-  async walk(dir: string, root: string, results: string[]) {
-    const list = await readdir(dir, { withFileTypes: true });
-    for (const entry of list) {
-      const res = join(dir, entry.name);
-      const rel = relative(root, res);
-      if (entry.isDirectory()) {
-        results.push(`[DIR] ${rel}`);
-        await this.walk(res, root, results);
-      } else {
-        results.push(`      ${rel}`);
-      }
-    }
-  },
 };
+
+async function walk(dir: string, root: string, results: string[]) {
+  const list = await readdir(dir, { withFileTypes: true });
+  for (const entry of list) {
+    const res = join(dir, entry.name);
+    const rel = relative(root, res);
+    if (entry.isDirectory()) {
+      results.push(`[DIR] ${rel}`);
+      await walk(res, root, results);
+    } else {
+      results.push(`      ${rel}`);
+    }
+  }
+}

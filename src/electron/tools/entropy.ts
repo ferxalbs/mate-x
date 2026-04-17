@@ -42,7 +42,7 @@ export const entropyScannerTool: Tool = {
         
         if (potentialSecrets) {
           for (const secret of potentialSecrets) {
-            const entropy = this.calculateEntropy(secret);
+            const entropy = calculateEntropy(secret);
             if (entropy > threshold) {
               discoveries.push(`${file}: High-entropy string found: ${secret.slice(0, 8)}... (Entropy: ${entropy.toFixed(2)})`);
             }
@@ -57,21 +57,21 @@ export const entropyScannerTool: Tool = {
       return `Error performing entropy scan: ${(error as Error).message}`;
     }
   },
-
-  calculateEntropy(str: string): number {
-    const len = str.length;
-    if (len === 0) return 0;
-    
-    const freqs: Record<string, number> = {};
-    for (const char of str) {
-      freqs[char] = (freqs[char] || 0) + 1;
-    }
-
-    let entropy = 0;
-    for (const char in freqs) {
-      const p = freqs[char] / len;
-      entropy -= p * Math.log2(p);
-    }
-    return entropy;
-  },
 };
+
+function calculateEntropy(str: string): number {
+  const len = str.length;
+  if (len === 0) return 0;
+  
+  const freqs: Record<string, number> = {};
+  for (const char of str) {
+    freqs[char] = (freqs[char] || 0) + 1;
+  }
+
+  let entropy = 0;
+  for (const char in freqs) {
+    const p = freqs[char] / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}

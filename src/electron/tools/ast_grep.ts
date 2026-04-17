@@ -61,7 +61,7 @@ export const astGrepTool: Tool = {
           
           // Walk up to find the start of the block (e.g. function or class keyword)
           while (startLine > 0 && 
-                 !/function |class |=>|\\bconst \\w+\\s*=\\s*\\(|\\blet \\w+\\s*=\\s*\\(/.test(fileLines[startLine]) &&
+                 !/function |class |=>|\bconst \w+\s*=\s*\(|\blet \w+\s*=\s*\(/.test(fileLines[startLine]) &&
                  lineNum - startLine < 15) { // don't go back more than 15 lines blindly
             startLine--;
           }

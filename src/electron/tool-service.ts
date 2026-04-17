@@ -18,6 +18,9 @@ import { securityReportTool } from './tools/report';
 import { astGrepTool } from './tools/ast_grep';
 import { gitForensicsTool } from './tools/git_forensics';
 import { threatModelTool } from './tools/threat_model';
+import { autoPatchTool } from './tools/auto_patch';
+import { dynamicFuzzerTool } from './tools/fuzzer';
+import { cveAuditTool } from './tools/cve_audit';
 
 export interface Tool {
   name: string;
@@ -54,6 +57,9 @@ export class ToolService {
     this.registerTool(astGrepTool);
     this.registerTool(gitForensicsTool);
     this.registerTool(threatModelTool);
+    this.registerTool(autoPatchTool);
+    this.registerTool(dynamicFuzzerTool);
+    this.registerTool(cveAuditTool);
     // Future tools can be registered here or dynamically loaded
   }
 

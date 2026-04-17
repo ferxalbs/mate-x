@@ -610,6 +610,7 @@ Be thorough and precise. Always explain your reasoning before taking actions.`;
 
     // Handle tool calls
     for (const toolCall of responseMessage.tool_calls) {
+      if (toolCall.type !== "function") continue;
       const toolName = toolCall.function.name;
       const toolArgs = JSON.parse(toolCall.function.arguments);
 
