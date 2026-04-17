@@ -1,6 +1,6 @@
 # CHANGELOG
 
-# Unreleased - 2026.04.17 (4) [Chat Flow and Context Extraction Repair]
+## Unreleased - 2026.04.17 (4) [Chat Flow and Context Extraction Repair]
 
 - Reworked the assistant conversation surface to remove the dedicated `Agent trace` / execution-trace blocks from chat and present in-flight progress as normal inline assistant updates, matching the T3CODE-style flow more closely.
 - Removed the visible artifact pill strip from assistant messages so the main conversation stays focused on the reply itself instead of internal telemetry.
