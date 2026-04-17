@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.17 (3) [Ultimate Enterprise Security Arsenal Expansion]
+
+- Expanded the MaTE X intelligence suite from basic static analysis to an enterprise-grade agent with 24 specialized security tools for localized auditing.
+- Implemented **Deep Code Auditing Tools (`read`, `ls`, `git_diag`)** allowing the agent to perform vulnerability archaeology via commit history and precise line-range reads of the local filesystem.
+- Added a **"Perfect" Security Toolset (`secret_scan`, `file_metadata`, `tree`)** capable of confidently finding hardcoded secrets, analyzing file permissions, and creating structural project map visualizations.
+- Introduced **Advanced Intelligence Forensics (`security_audit`, `dependency_check`)** to run categorized, pattern-based audits for logic flaws (e.g., `innerHTML`, `exec()`) and identify supply-chain risks in package manifests.
+- Deployed **Infrastructure & Compliance Scanners (`network_map`, `sql_audit`, `env_audit`, `container_audit`)** that actively map the application's external boundaries, database sinks, and container definitions (Docker/Kube) for deployment compliance.
+- Powered up the agent with the **Extreme Intelligence Suite (`flow_trace`, `entropy_scan`, `auth_audit`, `security_report`)** for iterating through variables across multiple files, detecting encrypted/hashed tokens mathematically via Shannon entropy, and outputting top-tier prioritized POSTURE reports.
+- Achieved **Grade A Active Remediation (`auto_patch`, `fuzzer`, `cve_audit`)**, equipping the agent with the autonomy to actively fuzzy-test endpoints using live DAST payloads, pull exact offline CVE numbers via package managers, and safely generate plus inject code modifications (patches) back into the repository with `.bak` rollback safety.
+- Mastered the state with the **Enterprise Attack Simulation Suite (`sandbox_run`, `traffic_poison`, `mock_poison`)**, allowing the tool to spin up the local application inside an isolated background sandbox, simulate highly advanced context-aware logic breaks (Mass Assignment, Logic Bombs), and launch "poisoned" external HTTP servers to test application deserialization resilience.
+- Integrated the **Mutation Testing Engine (`mutation`)** to safely and temporarily inject invisible glitches into the source code to statistically unearth missing test coverage.
+- All tools dynamically registered under the unified `ToolService`, instantly available to the OpenAI-compatible Rainy payload schemas over standard IPC links, and thoroughly checked free of any TypeScript compiler or ESLint warnings.
+
 ## Unreleased - 2026.04.16 (2) [Rainy API v3 Integration and Settings Panel]
 
 - Migrated the AI provider from OpenAI to Rainy API v3 across the full pipeline: `repo-service.ts` now builds the client with a constant `baseURL` and reads the API key at request time from the local database, eliminating all runtime environment variable dependencies.

@@ -22,6 +22,9 @@ import { autoPatchTool } from './tools/auto_patch';
 import { dynamicFuzzerTool } from './tools/fuzzer';
 import { cveAuditTool } from './tools/cve_audit';
 import { mutationTesterTool } from './tools/mutation';
+import { sandboxRunnerTool } from './tools/sandbox_run';
+import { trafficPoisonerTool } from './tools/traffic_poison';
+import { mockPoisonerTool } from './tools/mock_poison';
 
 export interface Tool {
   name: string;
@@ -62,6 +65,9 @@ export class ToolService {
     this.registerTool(dynamicFuzzerTool);
     this.registerTool(cveAuditTool);
     this.registerTool(mutationTesterTool);
+    this.registerTool(sandboxRunnerTool);
+    this.registerTool(trafficPoisonerTool);
+    this.registerTool(mockPoisonerTool);
     // Future tools can be registered here or dynamically loaded
   }
 
