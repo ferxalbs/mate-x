@@ -5,6 +5,8 @@ import { gitTool } from './tools/git';
 import { secretScanTool } from './tools/secrets';
 import { fileMetadataTool } from './tools/metadata';
 import { projectTreeTool } from './tools/tree';
+import { securityAuditTool } from './tools/audit';
+import { dependencyAnalyzerTool } from './tools/deps';
 
 export interface Tool {
   name: string;
@@ -28,6 +30,8 @@ export class ToolService {
     this.registerTool(secretScanTool);
     this.registerTool(fileMetadataTool);
     this.registerTool(projectTreeTool);
+    this.registerTool(securityAuditTool);
+    this.registerTool(dependencyAnalyzerTool);
     // Future tools can be registered here or dynamically loaded
   }
 
