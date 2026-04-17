@@ -78,10 +78,19 @@ export async function listRainyModels(params: {
     requestRainyModelList(RAINY_CATALOG_ENDPOINTS, trimmedApiKey),
     requestRainyModelList(RAINY_MODELS_ENDPOINTS, trimmedApiKey),
   ]);
+
+  // `/models` has historically been the most complete source. Catalog may enrich it,
+  // but it must not suppress providers if the backend returns only a partial allowlist.
   const models = mergeRainyModels(publicModels.models, catalogModels.models);
 
-  if (models.length === 0 && publicModels.error && catalogModels.error) {
-    throw catalogModels.error;
+  if (models.length === 0) {
+    if (catalogModels.error) {
+      throw catalogModels.error;
+    }
+
+    if (publicModels.error) {
+      throw publicModels.error;
+    }
   }
 
   cachedCatalog = {
@@ -107,7 +116,7 @@ export async function validateRainyModelSelection(params: {
     return;
   }
 
-  const catalog = await listRainyModels({ apiKey: params.apiKey });
+  const catalog = await listRainyModels({ apiKey: params.apiKey, forceRefresh: true });
   if (catalog.length === 0) {
     return;
   }

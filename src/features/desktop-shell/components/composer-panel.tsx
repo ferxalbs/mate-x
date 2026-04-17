@@ -74,7 +74,7 @@ export function ComposerPanel({
       }
     }
 
-    void loadModelState();
+    void loadModelState(true);
 
     return () => {
       cancelled = true;
@@ -136,12 +136,12 @@ export function ComposerPanel({
   }
 
   return (
-    <div className="px-6 pb-5 pt-2">
-      <div className="mx-auto w-full max-w-[980px]">
-        <div className="rounded-[22px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-none">
-          <div className="px-4 pt-4">
+    <div className="px-8 pb-8 pt-2">
+      <div className="mx-auto w-full max-w-[840px]">
+        <div className="rounded-2xl border border-[var(--panel-border)] bg-[var(--panel)]/80 shadow-xl shadow-black/10 backdrop-blur-md">
+          <div className="px-4 py-3">
             <textarea
-              className="min-h-[118px] w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
+              className="min-h-[82px] w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -154,7 +154,7 @@ export function ComposerPanel({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--panel-border)] px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-1">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
               <InlineSelect
                 value={modelValue}
@@ -183,11 +183,12 @@ export function ComposerPanel({
               </InlineSelect>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
+              <span>{workspace?.branch ?? 'main'}</span>
               <Button
                 aria-label={isRunning ? 'Thinking' : 'Send'}
                 className={cn(
-                  'size-9 rounded-full border-0 bg-[#2f5cff] p-0 text-white shadow-none hover:bg-[#3b66ff]',
+                  'size-8 rounded-full border-0 bg-[#2f5cff] p-0 text-white shadow-none hover:bg-[#3b66ff]',
                   isRunning ? 'opacity-90' : '',
                 )}
                 disabled={isRunning || isModelSaving}
@@ -203,11 +204,6 @@ export function ComposerPanel({
               </Button>
             </div>
           </div>
-        </div>
-
-        <div className="mt-2 flex items-center justify-between px-1 text-xs text-muted-foreground">
-          <span>{catalogError ? catalogError : `Model: ${modelLabel}`}</span>
-          <span>{workspace?.branch ?? 'main'}</span>
         </div>
       </div>
     </div>
