@@ -37,6 +37,17 @@ If you touch changelog content, follow `RULES.md` exactly. Every new entry heade
 
 Regardless of the source of changes, all identified issues in touched files must be resolved to ensure the codebase remains clean. If a task involves files that were previously modified or contain existing issues, you are responsible for addressing those issues as part of your work. Maintain a "leave it better than you found it" philosophy: no broken windows, no half-finished work, and no accumulated technical debt in the files you modify.
 
+## UI & Shell Design Rules
+
+For desktop shell work, preserve a single continuous app chrome. Follow the T3 Code pattern already validated in this repo work:
+
+- Settings must live inside the same app shell, not as a separate mini-app, detached page chrome, modal, or replacement sidebar system.
+- Reuse the existing `DesktopShell`, main sidebar, and topbar/titlebar structure. When entering settings, swap the sidebar content and main panel content, but keep the shell itself intact.
+- The sidebar header branding should stay consistent with the main app. Use `MaTE X` with the existing `ALPHA` pill styling; do not introduce alternate branding such as `T3`.
+- Prefer route-driven subsection changes like `/settings/<section>` while keeping the same shell mounted.
+- Match T3 Code density and spacing: compact sidebar nav, 52px titlebar/header rhythm, restrained settings sections, and no marketing-style hero blocks inside product settings.
+- Do not create a visually separate “settings experience” unless explicitly requested. The correct default is same shell, different content.
+
 ## Security & Configuration Tips
 
 Do not hardcode Rainy credentials or commit `.env` data. This app is only the container: the user brings their own Rainy API v3 key from the Rainy platform or dashboard, enters it through Settings, and the key is then resolved in the Electron main process. Because this app is a security reviewer, optimize for security first, then responsiveness and low overhead on supported desktop targets. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, avoid platform-specific regressions on macOS x86/ARM and Windows 10+, and update `src/contracts/` whenever payloads change.
