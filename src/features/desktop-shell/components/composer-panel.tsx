@@ -1,4 +1,4 @@
-import { ArrowUpIcon, LoaderCircle, RotateCcwIcon } from 'lucide-react';
+import { ArrowUpIcon, ChevronDownIcon, LoaderCircle, RotateCcwIcon } from 'lucide-react';
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
@@ -17,19 +17,23 @@ import { getModel, listModels, setModel } from '../../../services/settings-clien
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
   isRunning: boolean;
+  onScrollToBottom: () => void;
   workspace: WorkspaceSummary | null;
   resolvedTheme: 'light' | 'dark';
   onSubmit: (prompt: string) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
+  showScrollButton: boolean;
 }
 
 export function ComposerPanel({
   canUndoLastTurn,
   isRunning,
+  onScrollToBottom,
   workspace,
   resolvedTheme: _resolvedTheme,
   onSubmit,
   onUndoLastTurn,
+  showScrollButton,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [modelValue, setModelValue] = useState('');
@@ -148,7 +152,20 @@ export function ComposerPanel({
 
   return (
     <div className="px-8 pb-6 pt-2">
-      <div className="mx-auto w-full max-w-[820px]">
+      <div className="relative mx-auto w-full max-w-[820px]">
+        {showScrollButton ? (
+          <div className="pointer-events-none absolute inset-x-0 -top-11 z-10 flex justify-center">
+            <Button
+              className="pointer-events-auto h-8 rounded-full border-border/60 bg-background/88 px-3 text-[11px] text-muted-foreground shadow-[0_10px_30px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md hover:bg-accent"
+              onClick={onScrollToBottom}
+              size="xs"
+              variant="outline"
+            >
+              <ChevronDownIcon className="size-3.5" />
+              Scroll to bottom
+            </Button>
+          </div>
+        ) : null}
         <div className="rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)]/92 shadow-[0_22px_80px_-42px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           <div className="px-5 py-4">
             <textarea

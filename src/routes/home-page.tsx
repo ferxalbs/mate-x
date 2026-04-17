@@ -1,3 +1,5 @@
+import { useRef, useState } from 'react';
+
 import { useTheme } from '../hooks/use-theme';
 import { useChatStore } from '../store/chat-store';
 import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
@@ -5,6 +7,8 @@ import { ComposerPanel } from '../features/desktop-shell/components/composer-pan
 import { MessageStream } from '../features/desktop-shell/components/message-stream';
 
 export function HomePage() {
+  const messageScrollerRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const workspace = useChatStore((state) => state.workspace);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
@@ -41,15 +45,24 @@ export function HomePage() {
         isRunning={runStatus === 'running'}
         messages={selectedThread?.messages ?? []}
         onUndoLastTurn={undoLastTurn}
+        onVisibilityChange={setShowScrollButton}
+        scrollerRef={messageScrollerRef}
         workspace={workspace}
       />
       <ComposerPanel
         canUndoLastTurn={canUndoLastTurn}
         isRunning={runStatus === 'running'}
+        onScrollToBottom={() =>
+          messageScrollerRef.current?.scrollTo({
+            top: messageScrollerRef.current.scrollHeight,
+            behavior: 'smooth',
+          })
+        }
         onSubmit={submitPrompt}
         onUndoLastTurn={undoLastTurn}
         workspace={workspace}
         resolvedTheme={resolvedTheme}
+        showScrollButton={showScrollButton}
       />
     </section>
   );

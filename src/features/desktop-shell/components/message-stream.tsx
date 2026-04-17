@@ -1,12 +1,6 @@
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  CopyIcon,
-  LoaderCircle,
-} from 'lucide-react';
-import { useDeferredValue, useEffect, useState, type ReactNode, useRef } from 'react';
+import { CheckIcon, CopyIcon, LoaderCircle } from 'lucide-react';
+import { useDeferredValue, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { Button } from '../../../components/ui/button';
 import type { ChatMessage } from '../../../contracts/chat';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import { formatTimestamp } from '../../../lib/time';
@@ -20,6 +14,8 @@ interface MessageStreamProps {
   workspace: WorkspaceSummary | null;
   hasActiveThread: boolean;
   onUndoLastTurn: () => Promise<string | null>;
+  onVisibilityChange: (visible: boolean) => void;
+  scrollerRef: RefObject<HTMLDivElement | null>;
 }
 
 export function MessageStream({
@@ -29,10 +25,10 @@ export function MessageStream({
   workspace,
   hasActiveThread,
   onUndoLastTurn,
+  onVisibilityChange,
+  scrollerRef,
 }: MessageStreamProps) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const shouldStickToBottomRef = useRef(true);
-  const [showScrollButton, setShowScrollButton] = useState(false);
 
   useEffect(() => {
     const element = scrollerRef.current;
@@ -47,9 +43,7 @@ export function MessageStream({
       const nextStickToBottom = distanceFromBottom < 32;
 
       shouldStickToBottomRef.current = nextStickToBottom;
-      setShowScrollButton((current) =>
-        current === nextShowScrollButton ? current : nextShowScrollButton,
-      );
+      onVisibilityChange(nextShowScrollButton);
     };
 
     updateScrollState();
@@ -57,8 +51,9 @@ export function MessageStream({
 
     return () => {
       element.removeEventListener('scroll', updateScrollState);
+      onVisibilityChange(false);
     };
-  }, []);
+  }, [onVisibilityChange, scrollerRef]);
 
   useEffect(() => {
     const element = scrollerRef.current;
@@ -75,7 +70,7 @@ export function MessageStream({
 
   return (
     <div ref={scrollerRef} className="flex min-h-0 flex-1 overflow-y-auto px-9 pb-8 pt-7">
-      <div className="relative mx-auto flex w-full max-w-[980px] flex-1 flex-col">
+      <div className="mx-auto flex w-full max-w-[980px] flex-1 flex-col">
         <div className="flex flex-1 flex-col gap-7">
           {messages.length === 0 ? (
             <EmptyState hasActiveThread={hasActiveThread} workspace={workspace} />
@@ -93,22 +88,6 @@ export function MessageStream({
 
           {isRunning ? <ThinkingRow /> : null}
         </div>
-        {showScrollButton ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-            <Button
-              className="pointer-events-auto h-8 rounded-full border-border/60 bg-background/85 px-3 text-[11px] text-muted-foreground shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)] backdrop-blur-md hover:bg-accent"
-              onClick={() => {
-                shouldStickToBottomRef.current = true;
-                scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
-              }}
-              size="xs"
-              variant="outline"
-            >
-              <ChevronDownIcon className="size-3.5" />
-              Scroll to bottom
-            </Button>
-          </div>
-        ) : null}
       </div>
     </div>
   );
