@@ -47,7 +47,7 @@ export const containerAuditTool: Tool = {
       return findings.length > 0 
         ? `Container Security findings:\n${findings.join('\n')}`
         : 'No immediate container security misconfigurations identified.';
-    } catch (error) {
+    } catch (_error) {
       // If rg fails because no files match the glob, that's fine
       return 'No container configuration files (Dockerfile, docker-compose, kube) found.';
     }

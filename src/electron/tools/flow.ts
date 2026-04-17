@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
@@ -81,7 +79,7 @@ export const flowTraceTool: Tool = {
       return flowPath.length > 0
         ? `Traced Data Flow for "${source}":\n${flowPath.join("\n")}`
         : `No significant data flow paths found for "${source}".`;
-    } catch (error) {
+    } catch (_error) {
       return `Error tracing data flow for "${source}": No occurrences found.`;
     }
   },

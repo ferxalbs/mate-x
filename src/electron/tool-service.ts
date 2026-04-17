@@ -15,6 +15,9 @@ import { flowTraceTool } from './tools/flow';
 import { entropyScannerTool } from './tools/entropy';
 import { accessControlAuditTool } from './tools/auth';
 import { securityReportTool } from './tools/report';
+import { astGrepTool } from './tools/ast_grep';
+import { gitForensicsTool } from './tools/git_forensics';
+import { threatModelTool } from './tools/threat_model';
 
 export interface Tool {
   name: string;
@@ -48,6 +51,9 @@ export class ToolService {
     this.registerTool(entropyScannerTool);
     this.registerTool(accessControlAuditTool);
     this.registerTool(securityReportTool);
+    this.registerTool(astGrepTool);
+    this.registerTool(gitForensicsTool);
+    this.registerTool(threatModelTool);
     // Future tools can be registered here or dynamically loaded
   }
 
