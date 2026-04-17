@@ -9,17 +9,22 @@ import {
 import type { RainyApiMode, RainyModelCatalogEntry } from '../contracts/rainy';
 
 const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, '');
-const RAINY_MODELS_ENDPOINTS = [
-  `${RAINY_BASE_URL}/api/v1/models/catalog`,
-  `${RAINY_BASE_URL}/api/v1/models`,
+const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith('/api/v1')
+  ? RAINY_BASE_URL
+  : `${RAINY_BASE_URL}/api/v1`;
+const RAINY_CATALOG_ENDPOINTS = [
+  `${RAINY_API_ROOT_URL}/models/catalog`,
   `${RAINY_BASE_URL}/models/catalog`,
+];
+const RAINY_MODELS_ENDPOINTS = [
+  `${RAINY_API_ROOT_URL}/models`,
   `${RAINY_BASE_URL}/models`,
 ];
 const MODEL_CACHE_TTL_MS = 60_000;
 
 let cachedCatalog:
   | {
-      apiKey: string;
+      cacheKey: string;
       expiresAt: number;
       models: RainyModelCatalogEntry[];
     }
@@ -28,7 +33,7 @@ let cachedCatalog:
 function createRainyClient(apiKey: string): OpenAI {
   return new OpenAI({
     apiKey,
-    baseURL: RAINY_API_BASE_URL,
+    baseURL: RAINY_API_ROOT_URL,
   });
 }
 
@@ -53,75 +58,39 @@ function buildResponsesInput(userContext: string) {
 }
 
 export async function listRainyModels(params: {
-  apiKey: string;
+  apiKey?: string | null;
   forceRefresh?: boolean;
 }): Promise<RainyModelCatalogEntry[]> {
-  const trimmedApiKey = params.apiKey.trim();
+  const trimmedApiKey = params.apiKey?.trim() || null;
+  const cacheKey = trimmedApiKey ?? '__public__';
   const now = Date.now();
 
   if (
     !params.forceRefresh &&
     cachedCatalog &&
-    cachedCatalog.apiKey === trimmedApiKey &&
+    cachedCatalog.cacheKey === cacheKey &&
     cachedCatalog.expiresAt > now
   ) {
     return cachedCatalog.models;
   }
 
-  let lastError: Error | null = null;
+  const [catalogModels, publicModels] = await Promise.all([
+    requestRainyModelList(RAINY_CATALOG_ENDPOINTS, trimmedApiKey),
+    requestRainyModelList(RAINY_MODELS_ENDPOINTS, trimmedApiKey),
+  ]);
+  const models = mergeRainyModels(publicModels.models, catalogModels.models);
 
-  for (const endpoint of RAINY_MODELS_ENDPOINTS) {
-    try {
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${trimmedApiKey}`,
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(RAINY_REQUEST_TIMEOUT_MS),
-      });
-
-      if (!response.ok) {
-        lastError = new Error(
-          `Rainy models request failed with status ${response.status} at ${new URL(endpoint).pathname}.`,
-        );
-
-        if (response.status === 404) {
-          continue;
-        }
-
-        throw lastError;
-      }
-
-      const payload = (await response.json()) as unknown;
-      const models = normalizeRainyModelsPayload(payload);
-
-      cachedCatalog = {
-        apiKey: trimmedApiKey,
-        expiresAt: now + MODEL_CACHE_TTL_MS,
-        models,
-      };
-
-      return models;
-    } catch (error) {
-      lastError =
-        error instanceof Error ? error : new Error('Rainy models request failed.');
-
-      if (
-        error instanceof Error &&
-        /status 404/.test(error.message)
-      ) {
-        continue;
-      }
-
-      throw lastError;
-    }
+  if (models.length === 0 && publicModels.error && catalogModels.error) {
+    throw catalogModels.error;
   }
 
-  throw (
-    lastError ??
-    new Error('Rainy models request failed for all known catalog endpoints.')
-  );
+  cachedCatalog = {
+    cacheKey,
+    expiresAt: now + MODEL_CACHE_TTL_MS,
+    models,
+  };
+
+  return models;
 }
 
 export async function validateRainyModelSelection(params: {
@@ -146,6 +115,106 @@ export async function validateRainyModelSelection(params: {
   if (!catalog.some((entry) => entry.id === trimmedModel)) {
     throw new Error(`Rainy model "${trimmedModel}" is not available for the current API key.`);
   }
+}
+
+function buildModelsRequestHeaders(apiKey: string | null) {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  return headers;
+}
+
+async function requestRainyModelList(
+  endpoints: string[],
+  apiKey: string | null,
+): Promise<{ models: RainyModelCatalogEntry[]; error: Error | null }> {
+  let lastError: Error | null = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: buildModelsRequestHeaders(apiKey),
+        signal: AbortSignal.timeout(RAINY_REQUEST_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        lastError = new Error(
+          `Rainy models request failed with status ${response.status} at ${new URL(endpoint).pathname}.`,
+        );
+
+        if (response.status === 404) {
+          continue;
+        }
+
+        throw lastError;
+      }
+
+      const payload = (await response.json()) as unknown;
+      return {
+        models: normalizeRainyModelsPayload(payload),
+        error: null,
+      };
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error : new Error('Rainy models request failed.');
+
+      if (error instanceof Error && /status 404/.test(error.message)) {
+        continue;
+      }
+
+      return {
+        models: [],
+        error: lastError,
+      };
+    }
+  }
+
+  return {
+    models: [],
+    error:
+      lastError ?? new Error('Rainy models request failed for all known catalog endpoints.'),
+  };
+}
+
+function mergeRainyModels(
+  primaryModels: RainyModelCatalogEntry[],
+  secondaryModels: RainyModelCatalogEntry[],
+) {
+  const mergedModels = new Map<string, RainyModelCatalogEntry>();
+
+  for (const model of primaryModels) {
+    mergedModels.set(model.id, model);
+  }
+
+  for (const model of secondaryModels) {
+    const existing = mergedModels.get(model.id);
+
+    if (!existing) {
+      mergedModels.set(model.id, model);
+      continue;
+    }
+
+    mergedModels.set(model.id, {
+      ...existing,
+      label: existing.label === existing.id ? model.label : existing.label,
+      description: existing.description ?? model.description,
+      ownedBy: existing.ownedBy ?? model.ownedBy,
+      supportedApiModes: Array.from(
+        new Set([...existing.supportedApiModes, ...model.supportedApiModes]),
+      ),
+      preferredApiMode: existing.preferredApiMode ?? model.preferredApiMode,
+    });
+  }
+
+  return Array.from(mergedModels.values()).sort((left, right) =>
+    left.label.localeCompare(right.label),
+  );
 }
 
 export async function requestRainyTextResponse(params: {

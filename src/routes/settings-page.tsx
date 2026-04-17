@@ -69,7 +69,6 @@ export function SettingsPage() {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshingModels, setIsRefreshingModels] = useState(false);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [diffLineWrapping, setDiffLineWrapping] = useState(false);
   const [assistantOutput, setAssistantOutput] = useState(false);
@@ -82,8 +81,12 @@ export function SettingsPage() {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        const [apiKey, model, apiMode] = await Promise.all([getApiKey(), getModel(), getApiMode()]);
-        const catalog = apiKey ? await listModels() : [];
+        const [apiKey, model, apiMode, catalog] = await Promise.all([
+          getApiKey(),
+          getModel(),
+          getApiMode(),
+          listModels().catch(() => []),
+        ]);
         if (cancelled) return;
 
         setCurrentKey(apiKey);
@@ -145,13 +148,11 @@ export function SettingsPage() {
         setApiModeInputValue(resolvedApiMode);
       }
 
-      if (trimmedKey) {
-        const catalog = await listModels(true);
-        setModelCatalog(catalog);
-        setModelInputValue((currentValue) =>
-          resolveModelSelectionValue(currentValue || trimmedModel || currentModel, catalog),
-        );
-      }
+      const catalog = await listModels(true).catch(() => []);
+      setModelCatalog(catalog);
+      setModelInputValue((currentValue) =>
+        resolveModelSelectionValue(currentValue || trimmedModel || currentModel, catalog),
+      );
 
       setSaveState('saved');
       window.setTimeout(() => setSaveState('idle'), 2200);
@@ -189,12 +190,13 @@ export function SettingsPage() {
 
     try {
       await Promise.all([clearApiKey(), clearApiMode(), clearModel()]);
+      const catalog = await listModels(true).catch(() => []);
       setCurrentKey(null);
       setCurrentModel(null);
       setCurrentApiMode(null);
-      setModelCatalog([]);
+      setModelCatalog(catalog);
       setInputValue('');
-      setModelInputValue('');
+      setModelInputValue(resolveModelSelectionValue('', catalog));
       setApiModeInputValue('chat_completions');
       setSaveState('idle');
     } catch (error) {
@@ -246,23 +248,6 @@ export function SettingsPage() {
       : pathname === '/settings/archive'
         ? 'archive'
         : 'general';
-
-  const handleRefreshModels = useCallback(async () => {
-    setIsRefreshingModels(true);
-    setErrorMsg('');
-
-    try {
-      const catalog = await listModels(true);
-      setModelCatalog(catalog);
-      setModelInputValue((currentValue) =>
-        resolveModelSelectionValue(currentValue || currentModel, catalog),
-      );
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Could not refresh models.');
-    } finally {
-      setIsRefreshingModels(false);
-    }
-  }, [currentModel]);
 
   return (
     <>
@@ -454,37 +439,21 @@ export function SettingsPage() {
                   title="Connection status"
                   description="Main-process credentials are isolated from the renderer."
                   control={
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
-                        <ServerIcon className="size-3.5" />
-                        {currentKey ? 'IPC secured' : 'Waiting for key'}
-                      </div>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] shadow-none"
-                        onClick={() => void handleRefreshModels()}
-                        disabled={isBusy || isRefreshingModels || !currentKey}
-                      >
-                        {isRefreshingModels ? (
-                          <Loader2Icon className="size-3.5 animate-spin" />
-                        ) : (
-                          <RefreshCcwIcon className="size-3.5" />
-                        )}
-                        Refresh models
-                      </Button>
+                    <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
+                      <ServerIcon className="size-3.5" />
+                      {currentKey ? 'IPC secured' : 'Waiting for key'}
                     </div>
                   }
                 />
                 <SettingsRow
                   title="Catalog status"
-                  description="Loaded from Rainy API v3 `/models` using the current key."
+                  description="Loaded automatically from Rainy API v3 `/api/v1/models`."
                   control={
                     <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
                       <ServerIcon className="size-3.5" />
-                      {currentKey
+                      {modelCatalog.length > 0
                         ? `${modelCatalog.length} models available`
-                        : 'Add a key to load models'}
+                        : 'Catalog unavailable'}
                     </div>
                   }
                 />

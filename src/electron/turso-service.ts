@@ -238,10 +238,11 @@ export class TursoService {
 
   async setApiKey(apiKey: string) {
     await this.initialize();
+    const normalizedApiKey = apiKey.trim();
     await this.getClient().execute({
       sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      args: ['rainy_api_key', apiKey],
+      args: ['rainy_api_key', normalizedApiKey],
     });
   }
 
@@ -265,10 +266,11 @@ export class TursoService {
 
   async setModel(model: string) {
     await this.initialize();
+    const normalizedModel = model.trim();
     await this.getClient().execute({
       sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      args: ['rainy_model', model],
+      args: ['rainy_model', normalizedModel],
     });
   }
 

@@ -16,6 +16,16 @@ import {
 import { listRainyModels, validateRainyModelSelection } from './rainy-service';
 import { tursoService } from './turso-service';
 
+function normalizeRainyApiKey(apiKey: string) {
+  const trimmedApiKey = apiKey.trim();
+
+  if (!trimmedApiKey.startsWith('ra-')) {
+    throw new Error('Rainy API key must start with "ra-".');
+  }
+
+  return trimmedApiKey;
+}
+
 async function resolveActiveWorkspacePath() {
   await tursoService.ensureSeedWorkspace(process.cwd());
   const workspaces = await tursoService.getWorkspaces();
@@ -114,17 +124,12 @@ export function registerIpcHandlers() {
   // ── Settings ─────────────────────────────────────────────────────────────
   ipcMain.handle('settings:get-api-key', async () => tursoService.getApiKey());
   ipcMain.handle('settings:set-api-key', async (_event, apiKey: string) =>
-    tursoService.setApiKey(apiKey),
+    tursoService.setApiKey(normalizeRainyApiKey(apiKey)),
   );
   ipcMain.handle('settings:clear-api-key', async () => tursoService.clearApiKey());
-  ipcMain.handle('settings:list-models', async (_event, forceRefresh?: boolean) => {
-    const apiKey = await tursoService.getApiKey();
-    if (!apiKey) {
-      return [];
-    }
-
-    return listRainyModels({ apiKey, forceRefresh });
-  });
+  ipcMain.handle('settings:list-models', async (_event, forceRefresh?: boolean) =>
+    listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh }),
+  );
   ipcMain.handle('settings:get-model', async () => tursoService.getModel());
   ipcMain.handle('settings:set-model', async (_event, model: string) => {
     const apiKey = await tursoService.getApiKey();
