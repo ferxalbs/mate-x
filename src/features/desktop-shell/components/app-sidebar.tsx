@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import {
+  ArrowLeftIcon,
   ChevronDown,
   FolderGit2Icon,
   GitBranchIcon,
   PlusIcon,
   SettingsIcon,
+  WaypointsIcon,
   Trash2Icon,
 } from 'lucide-react';
 
@@ -27,7 +29,7 @@ import type { WorkspaceEntry, WorkspaceSummary } from '../../../contracts/worksp
 import type { Theme } from '../../../hooks/use-theme';
 import { cn } from '../../../lib/utils';
 import { formatRelativeTimestamp } from '../model';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -125,6 +127,14 @@ export function AppSidebar({
   onSelectThread,
   onThemeChange,
 }: AppSidebarProps) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isSettingsRoute = pathname === '/settings' || pathname.startsWith('/settings/');
+  const settingsSection = pathname === '/settings'
+    ? 'general'
+    : pathname.startsWith('/settings/')
+      ? pathname.split('/')[2] ?? 'general'
+      : null;
+
   return (
     <Sidebar
       side="left"
@@ -146,150 +156,232 @@ export function AppSidebar({
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="no-drag gap-0">
-        <SidebarGroup className="px-2 py-2">
-          <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-              Projects
-            </span>
-            <button
-              onClick={onImportWorkspace}
-              className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-              title="Import folder"
-            >
-              <PlusIcon className="size-3.5" />
-            </button>
-          </div>
+      {isSettingsRoute ? (
+        <>
+          <SidebarContent className="no-drag overflow-x-hidden">
+            <SidebarGroup className="px-2 py-3">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    size="sm"
+                    isActive={settingsSection === 'general'}
+                    className={
+                      settingsSection === 'general'
+                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
+                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                    }
+                    render={
+                      <Link to="/settings/$section" params={{ section: 'general' }} />
+                    }
+                  >
+                    <SettingsIcon className="size-4 shrink-0" />
+                    <span>General</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    size="sm"
+                    isActive={settingsSection === 'connections'}
+                    className={
+                      settingsSection === 'connections'
+                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
+                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                    }
+                    render={
+                      <Link to="/settings/$section" params={{ section: 'connections' }} />
+                    }
+                  >
+                    <WaypointsIcon className="size-4 shrink-0" />
+                    <span>Connections</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    size="sm"
+                    isActive={settingsSection === 'archive'}
+                    className={
+                      settingsSection === 'archive'
+                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
+                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                    }
+                    render={
+                      <Link to="/settings/$section" params={{ section: 'archive' }} />
+                    }
+                  >
+                    <Trash2Icon className="size-4 shrink-0" />
+                    <span>Archive</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
+          </SidebarContent>
 
-          <SidebarMenu>
-            {workspaces.map((project) => {
-              const isWorkspaceActive = project.id === activeWorkspaceId;
+          <SidebarSeparator />
+          <SidebarFooter className="no-drag p-2">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  size="sm"
+                  className="gap-2 px-2 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  render={
+                    <Link to="/" />
+                  }
+                >
+                  <ArrowLeftIcon className="size-4" />
+                  <span>Back</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </>
+      ) : (
+        <>
+          <SidebarContent className="no-drag gap-0">
+            <SidebarGroup className="px-2 py-2">
+              <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                  Projects
+                </span>
+                <button
+                  onClick={onImportWorkspace}
+                  className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+                  title="Import folder"
+                >
+                  <PlusIcon className="size-3.5" />
+                </button>
+              </div>
 
-              return (
-                <SidebarMenuItem key={project.id} className="rounded-md">
-                  <div className="group/project flex items-center gap-1">
-                    <SidebarMenuButton
-                      size="sm"
-                      className="gap-2 px-2 text-[13px] font-medium"
-                      isActive={isWorkspaceActive}
-                      onClick={() => void onActivateWorkspace(project.id)}
-                    >
-                      <FolderGit2Icon className="size-3.5 shrink-0 text-muted-foreground/60" />
-                      <span className="truncate">{project.name}</span>
-                    </SidebarMenuButton>
-                    {workspaces.length > 1 ? (
-                      <button
-                        onClick={() => void onRemoveWorkspace(project.id)}
-                        className="hidden rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
-                        title={`Remove ${project.name}`}
-                      >
-                        <Trash2Icon className="size-3" />
-                      </button>
-                    ) : null}
-                  </div>
+              <SidebarMenu>
+                {workspaces.map((project) => {
+                  const isWorkspaceActive = project.id === activeWorkspaceId;
 
-                  {isWorkspaceActive ? (
-                    <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
-                      <div className="flex items-start justify-between gap-2 px-2 pb-1 text-[10px] text-muted-foreground/40">
-                        <div className="min-w-0">
-                          <div className="truncate">{workspace?.path}</div>
-                          <div className="truncate">
-                            {workspace?.branch === 'not-a-repo'
-                              ? 'No git repository'
-                              : `Branch ${workspace?.branch ?? 'unknown'}`}
-                          </div>
-                        </div>
-                        <button
-                          onClick={onCreateThread}
-                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
-                          title="New thread"
+                  return (
+                    <SidebarMenuItem key={project.id} className="rounded-md">
+                      <div className="group/project flex items-center gap-1">
+                        <SidebarMenuButton
+                          size="sm"
+                          className="gap-2 px-2 text-[13px] font-medium"
+                          isActive={isWorkspaceActive}
+                          onClick={() => void onActivateWorkspace(project.id)}
                         >
-                          <PlusIcon className="size-3" />
-                        </button>
+                          <FolderGit2Icon className="size-3.5 shrink-0 text-muted-foreground/60" />
+                          <span className="truncate">{project.name}</span>
+                        </SidebarMenuButton>
+                        {workspaces.length > 1 ? (
+                          <button
+                            onClick={() => void onRemoveWorkspace(project.id)}
+                            className="hidden rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
+                            title={`Remove ${project.name}`}
+                          >
+                            <Trash2Icon className="size-3" />
+                          </button>
+                        ) : null}
                       </div>
 
-                      {threads.map((thread) => {
-                        const isActive = thread.id === activeThreadId;
-                        const status = getThreadStatusLabel(thread, isActive, runStatus);
+                      {isWorkspaceActive ? (
+                        <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
+                          <div className="flex items-start justify-between gap-2 px-2 pb-1 text-[10px] text-muted-foreground/40">
+                            <div className="min-w-0">
+                              <div className="truncate">{workspace?.path}</div>
+                              <div className="truncate">
+                                {workspace?.branch === 'not-a-repo'
+                                  ? 'No git repository'
+                                  : `Branch ${workspace?.branch ?? 'unknown'}`}
+                              </div>
+                            </div>
+                            <button
+                              onClick={onCreateThread}
+                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+                              title="New thread"
+                            >
+                              <PlusIcon className="size-3" />
+                            </button>
+                          </div>
 
-                        return (
-                          <button
-                            key={thread.id}
-                            onClick={() => onSelectThread(thread.id)}
-                            className={cn(
-                              'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs outline-none transition-colors',
-                              isActive
-                                ? 'bg-accent text-accent-foreground font-medium'
-                                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                            )}
-                          >
-                            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                              <span
+                          {threads.map((thread) => {
+                            const isActive = thread.id === activeThreadId;
+                            const status = getThreadStatusLabel(thread, isActive, runStatus);
+
+                            return (
+                              <button
+                                key={thread.id}
+                                onClick={() => onSelectThread(thread.id)}
                                 className={cn(
-                                  'size-1.5 rounded-full',
-                                  status.dotClass,
-                                  status.pulse ? 'animate-pulse' : '',
+                                  'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs outline-none transition-colors',
+                                  isActive
+                                    ? 'bg-accent text-accent-foreground font-medium'
+                                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                                 )}
-                              />
-                              <span className="flex-1 truncate">
-                                {thread.title || 'New thread'}
-                              </span>
-                            </div>
+                              >
+                                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                  <span
+                                    className={cn(
+                                      'size-1.5 rounded-full',
+                                      status.dotClass,
+                                      status.pulse ? 'animate-pulse' : '',
+                                    )}
+                                  />
+                                  <span className="flex-1 truncate">
+                                    {thread.title || 'New thread'}
+                                  </span>
+                                </div>
 
-                            <div className="flex shrink-0 items-center justify-end">
-                              <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
-                                {formatRelativeTimestamp(thread.lastUpdatedAt)}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </SidebarMenuItem>
-              );
-            })}
+                                <div className="flex shrink-0 items-center justify-end">
+                                  <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
+                                    {formatRelativeTimestamp(thread.lastUpdatedAt)}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </SidebarMenuItem>
+                  );
+                })}
 
-            {workspaces.length === 0 ? (
-              <div className="px-2 py-3 text-xs text-muted-foreground/50">
-                Import a folder to start working.
-              </div>
-            ) : null}
-          </SidebarMenu>
-        </SidebarGroup>
-        <SidebarSeparator />
+                {workspaces.length === 0 ? (
+                  <div className="px-2 py-3 text-xs text-muted-foreground/50">
+                    Import a folder to start working.
+                  </div>
+                ) : null}
+              </SidebarMenu>
+            </SidebarGroup>
+            <SidebarSeparator />
 
-        {/* ── Git section ── */}
-        <GitSidebarSection />
-      </SidebarContent>
+            <GitSidebarSection />
+          </SidebarContent>
 
-      <SidebarSeparator className="mt-0" />
-      <SidebarFooter className="no-drag p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
-              <Link
-                to="/settings"
-                className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
-                aria-label="Open settings"
-              >
-                <SettingsIcon className="size-3.5" />
-                <span className="text-xs">Settings</span>
-              </Link>
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]',
-                  theme === 'dark'
-                    ? 'bg-accent text-foreground'
-                    : 'bg-muted/70 text-muted-foreground',
-                )}
-              >
-                {theme}
-              </span>
-            </div>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+          <SidebarSeparator className="mt-0" />
+          <SidebarFooter className="no-drag p-2">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+                  <Link
+                    to="/settings/$section"
+                    params={{ section: 'general' }}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
+                    aria-label="Open settings"
+                  >
+                    <SettingsIcon className="size-3.5" />
+                    <span className="text-xs">Settings</span>
+                  </Link>
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]',
+                      theme === 'dark'
+                        ? 'bg-accent text-foreground'
+                        : 'bg-muted/70 text-muted-foreground',
+                    )}
+                  >
+                    {theme}
+                  </span>
+                </div>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </>
+      )}
     </Sidebar>
   );
 }

@@ -25,7 +25,13 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, settingsRoute]);
+const settingsSectionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings/$section',
+  component: SettingsPage,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, settingsRoute, settingsSectionRoute]);
 
 export const router = createRouter({
   routeTree,

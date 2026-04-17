@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet, useRouterState } from '@tanstack/react-router';
+import { Outlet } from '@tanstack/react-router';
 
 import { SidebarProvider } from '../../components/ui/sidebar';
 import { useTheme } from '../../hooks/use-theme';
@@ -7,7 +7,6 @@ import { useChatStore } from '../../store/chat-store';
 import { AppSidebar } from './components/app-sidebar';
 
 export function DesktopShell() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const workspaces = useChatStore((state) => state.workspaces);
   const workspace = useChatStore((state) => state.workspace);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -23,19 +22,10 @@ export function DesktopShell() {
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
   const { theme, setTheme } = useTheme();
-  const isSettingsRoute = pathname === '/settings';
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
-
-  if (isSettingsRoute) {
-    return (
-      <main className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-        <Outlet />
-      </main>
-    );
-  }
 
   return (
     <SidebarProvider defaultOpen>
