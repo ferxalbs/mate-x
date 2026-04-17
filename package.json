@@ -55,7 +55,7 @@
     "@tanstack/react-router": "^1.168.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "effect": "^3.21.0",
+    "effect": "^3.21.1",
     "electron-squirrel-startup": "^1.0.1",
     "lucide-react": "^1.8.0",
     "openai": "^6.34.0",

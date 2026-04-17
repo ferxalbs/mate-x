@@ -1,7 +1,7 @@
-export type MessageRole = 'user' | 'assistant';
-export type RunStatus = 'idle' | 'running' | 'completed' | 'failed';
-export type ToolEventStatus = 'done' | 'active' | 'error';
-export type MessageArtifactTone = 'default' | 'success' | 'warning';
+export type MessageRole = "user" | "assistant";
+export type RunStatus = "idle" | "running" | "completed" | "failed";
+export type ToolEventStatus = "done" | "active" | "error";
+export type MessageArtifactTone = "default" | "success" | "warning";
 
 export interface ToolEvent {
   id: string;

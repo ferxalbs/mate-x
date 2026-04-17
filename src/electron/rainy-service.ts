@@ -1,15 +1,15 @@
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
-import { MATE_AGENT_SYSTEM_PROMPT } from '../config/mate-agent';
+import { MATE_AGENT_SYSTEM_PROMPT } from "../config/mate-agent";
 import {
   RAINY_API_BASE_URL,
   RAINY_REQUEST_TIMEOUT_MS,
   normalizeRainyApiMode,
-} from '../config/rainy';
-import type { RainyApiMode, RainyModelCatalogEntry } from '../contracts/rainy';
+} from "../config/rainy";
+import type { RainyApiMode, RainyModelCatalogEntry } from "../contracts/rainy";
 
-const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, '');
-const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith('/api/v1')
+const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, "");
+const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith("/api/v1")
   ? RAINY_BASE_URL
   : `${RAINY_BASE_URL}/api/v1`;
 const RAINY_CATALOG_ENDPOINTS = [
@@ -22,13 +22,11 @@ const RAINY_MODELS_ENDPOINTS = [
 ];
 const MODEL_CACHE_TTL_MS = 60_000;
 
-let cachedCatalog:
-  | {
-      cacheKey: string;
-      expiresAt: number;
-      models: RainyModelCatalogEntry[];
-    }
-  | null = null;
+let cachedCatalog: {
+  cacheKey: string;
+  expiresAt: number;
+  models: RainyModelCatalogEntry[];
+} | null = null;
 
 function createRainyClient(apiKey: string): OpenAI {
   return new OpenAI({
@@ -39,20 +37,22 @@ function createRainyClient(apiKey: string): OpenAI {
 
 function buildChatCompletionsInput(userContext: string) {
   return [
-    { role: 'system' as const, content: MATE_AGENT_SYSTEM_PROMPT },
-    { role: 'user' as const, content: userContext },
+    { role: "system" as const, content: MATE_AGENT_SYSTEM_PROMPT },
+    { role: "user" as const, content: userContext },
   ];
 }
 
 function buildResponsesInput(userContext: string) {
   return [
     {
-      role: 'system' as const,
-      content: [{ type: 'input_text' as const, text: MATE_AGENT_SYSTEM_PROMPT }],
+      role: "system" as const,
+      content: [
+        { type: "input_text" as const, text: MATE_AGENT_SYSTEM_PROMPT },
+      ],
     },
     {
-      role: 'user' as const,
-      content: [{ type: 'input_text' as const, text: userContext }],
+      role: "user" as const,
+      content: [{ type: "input_text" as const, text: userContext }],
     },
   ];
 }
@@ -62,7 +62,7 @@ export async function listRainyModels(params: {
   forceRefresh?: boolean;
 }): Promise<RainyModelCatalogEntry[]> {
   const trimmedApiKey = params.apiKey?.trim() || null;
-  const cacheKey = trimmedApiKey ?? '__public__';
+  const cacheKey = trimmedApiKey ?? "__public__";
   const now = Date.now();
 
   if (
@@ -109,26 +109,31 @@ export async function validateRainyModelSelection(params: {
   const trimmedModel = params.model.trim();
 
   if (!trimmedModel) {
-    throw new Error('Rainy model is required.');
+    throw new Error("Rainy model is required.");
   }
 
   if (!params.apiKey) {
     return;
   }
 
-  const catalog = await listRainyModels({ apiKey: params.apiKey, forceRefresh: true });
+  const catalog = await listRainyModels({
+    apiKey: params.apiKey,
+    forceRefresh: true,
+  });
   if (catalog.length === 0) {
     return;
   }
 
   if (!catalog.some((entry) => entry.id === trimmedModel)) {
-    throw new Error(`Rainy model "${trimmedModel}" is not available for the current API key.`);
+    throw new Error(
+      `Rainy model "${trimmedModel}" is not available for the current API key.`,
+    );
   }
 }
 
 function buildModelsRequestHeaders(apiKey: string | null) {
   const headers: Record<string, string> = {
-    Accept: 'application/json',
+    Accept: "application/json",
   };
 
   if (apiKey) {
@@ -147,7 +152,7 @@ async function requestRainyModelList(
   for (const endpoint of endpoints) {
     try {
       const response = await fetch(endpoint, {
-        method: 'GET',
+        method: "GET",
         headers: buildModelsRequestHeaders(apiKey),
         signal: AbortSignal.timeout(RAINY_REQUEST_TIMEOUT_MS),
       });
@@ -171,7 +176,9 @@ async function requestRainyModelList(
       };
     } catch (error) {
       lastError =
-        error instanceof Error ? error : new Error('Rainy models request failed.');
+        error instanceof Error
+          ? error
+          : new Error("Rainy models request failed.");
 
       if (error instanceof Error && /status 404/.test(error.message)) {
         continue;
@@ -187,7 +194,8 @@ async function requestRainyModelList(
   return {
     models: [],
     error:
-      lastError ?? new Error('Rainy models request failed for all known catalog endpoints.'),
+      lastError ??
+      new Error("Rainy models request failed for all known catalog endpoints."),
   };
 }
 
@@ -234,7 +242,7 @@ export async function requestRainyTextResponse(params: {
 }): Promise<string> {
   const client = createRainyClient(params.apiKey);
 
-  if (params.apiMode === 'responses') {
+  if (params.apiMode === "responses") {
     const response = await client.responses.create(
       {
         model: params.model,
@@ -257,7 +265,9 @@ export async function requestRainyTextResponse(params: {
   return extractTextFromChatPayload(response);
 }
 
-function normalizeRainyModelsPayload(payload: unknown): RainyModelCatalogEntry[] {
+function normalizeRainyModelsPayload(
+  payload: unknown,
+): RainyModelCatalogEntry[] {
   const items = extractModelItems(payload);
   const models = items
     .map((item) => normalizeRainyModelItem(item))
@@ -335,17 +345,19 @@ function normalizeRainyModelItem(item: unknown): RainyModelCatalogEntry | null {
   };
 }
 
-function extractSupportedApiModes(item: Record<string, unknown>): RainyApiMode[] {
+function extractSupportedApiModes(
+  item: Record<string, unknown>,
+): RainyApiMode[] {
   const detectedModes = new Set<RainyApiMode>();
 
   visitModelMetadata(item, (key, value) => {
     const normalizedKey = key.toLowerCase();
     if (
-      normalizedKey.includes('response') ||
-      normalizedKey.includes('chat') ||
-      normalizedKey.includes('endpoint') ||
-      normalizedKey.includes('schema') ||
-      normalizedKey.includes('mode')
+      normalizedKey.includes("response") ||
+      normalizedKey.includes("chat") ||
+      normalizedKey.includes("endpoint") ||
+      normalizedKey.includes("schema") ||
+      normalizedKey.includes("mode")
     ) {
       const resolvedModes = collectModesFromUnknown(value);
       for (const mode of resolvedModes) {
@@ -355,8 +367,8 @@ function extractSupportedApiModes(item: Record<string, unknown>): RainyApiMode[]
   });
 
   if (detectedModes.size === 0) {
-    detectedModes.add('chat_completions');
-    detectedModes.add('responses');
+    detectedModes.add("chat_completions");
+    detectedModes.add("responses");
   }
 
   return Array.from(detectedModes);
@@ -367,7 +379,11 @@ function extractPreferredApiMode(
   supportedApiModes: RainyApiMode[],
 ): RainyApiMode | null {
   const explicitMode = normalizeRainyApiMode(
-    firstString(item.preferred_api_mode, item.default_api_mode, item.recommended_api_mode),
+    firstString(
+      item.preferred_api_mode,
+      item.default_api_mode,
+      item.recommended_api_mode,
+    ),
   );
 
   if (explicitMode && supportedApiModes.includes(explicitMode)) {
@@ -405,7 +421,7 @@ function visitModelMetadata(
 }
 
 function collectModesFromUnknown(value: unknown): RainyApiMode[] {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const normalizedMode = normalizeRainyApiMode(value);
     if (normalizedMode) {
       return [normalizedMode];
@@ -413,16 +429,19 @@ function collectModesFromUnknown(value: unknown): RainyApiMode[] {
 
     const normalizedValue = value.toLowerCase();
     const modes: RainyApiMode[] = [];
-    if (normalizedValue.includes('chat/completions') || normalizedValue.includes('chat_completions')) {
-      modes.push('chat_completions');
+    if (
+      normalizedValue.includes("chat/completions") ||
+      normalizedValue.includes("chat_completions")
+    ) {
+      modes.push("chat_completions");
     }
-    if (normalizedValue.includes('responses')) {
-      modes.push('responses');
+    if (normalizedValue.includes("responses")) {
+      modes.push("responses");
     }
     return modes;
   }
 
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return [];
   }
 
@@ -449,7 +468,7 @@ function collectModesFromUnknown(value: unknown): RainyApiMode[] {
 
 function firstString(...values: unknown[]): string | null {
   for (const value of values) {
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const trimmed = value.trim();
       if (trimmed) {
         return trimmed;
@@ -461,12 +480,12 @@ function firstString(...values: unknown[]): string | null {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }
 
 function extractTextFromChatPayload(response: unknown): string {
   if (!isRecord(response) || !Array.isArray(response.choices)) {
-    return '';
+    return "";
   }
 
   for (const choice of response.choices) {
@@ -481,12 +500,12 @@ function extractTextFromChatPayload(response: unknown): string {
     }
   }
 
-  return '';
+  return "";
 }
 
 function extractTextFromResponsesPayload(response: unknown): string {
   if (!isRecord(response)) {
-    return '';
+    return "";
   }
 
   const directOutputText = firstString(response.output_text);
@@ -495,7 +514,7 @@ function extractTextFromResponsesPayload(response: unknown): string {
   }
 
   if (!Array.isArray(response.output)) {
-    return '';
+    return "";
   }
 
   const chunks: string[] = [];
@@ -509,7 +528,7 @@ function extractTextFromResponsesPayload(response: unknown): string {
         continue;
       }
 
-      if (contentItem.type === 'output_text' || contentItem.type === 'text') {
+      if (contentItem.type === "output_text" || contentItem.type === "text") {
         const text = firstString(contentItem.text);
         if (text) {
           chunks.push(text);
@@ -518,16 +537,16 @@ function extractTextFromResponsesPayload(response: unknown): string {
     }
   }
 
-  return chunks.join('\n').trim();
+  return chunks.join("\n").trim();
 }
 
 function extractTextFromMessageContent(content: unknown): string {
-  if (typeof content === 'string') {
+  if (typeof content === "string") {
     return content.trim();
   }
 
   if (!Array.isArray(content)) {
-    return '';
+    return "";
   }
 
   const chunks: string[] = [];
@@ -536,7 +555,7 @@ function extractTextFromMessageContent(content: unknown): string {
       continue;
     }
 
-    if (item.type === 'text') {
+    if (item.type === "text") {
       const text = firstString(item.text);
       if (text) {
         chunks.push(text);
@@ -552,5 +571,5 @@ function extractTextFromMessageContent(content: unknown): string {
     }
   }
 
-  return chunks.join('\n').trim();
+  return chunks.join("\n").trim();
 }
