@@ -1,19 +1,16 @@
 import {
-  Outlet,
   RouterProvider,
   createRootRoute,
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
 
+import { DesktopShell } from './features/desktop-shell/desktop-shell';
 import { HomePage } from './routes/home-page';
-
-function RootLayout() {
-  return <Outlet />;
-}
+import { SettingsPage } from './routes/settings-page';
 
 const rootRoute = createRootRoute({
-  component: RootLayout,
+  component: DesktopShell,
 });
 
 const indexRoute = createRoute({
@@ -22,7 +19,13 @@ const indexRoute = createRoute({
   component: HomePage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: SettingsPage,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, settingsRoute]);
 
 export const router = createRouter({
   routeTree,

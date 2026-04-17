@@ -33,6 +33,10 @@ Recent history follows Conventional Commit prefixes such as `feat(settings): ...
 
 If you touch changelog content, follow `RULES.md` exactly. Every new entry header must use `# Unreleased - YYYY.MM.DD (N) [Entry Name]`, where the date is zero-padded, `(N)` is the daily sequence number, and `[Entry Name]` is required.
 
+## Code Cleanliness & Repository Hygiene
+
+Regardless of the source of changes, all identified issues in touched files must be resolved to ensure the codebase remains clean. If a task involves files that were previously modified or contain existing issues, you are responsible for addressing those issues as part of your work. Maintain a "leave it better than you found it" philosophy: no broken windows, no half-finished work, and no accumulated technical debt in the files you modify.
+
 ## Security & Configuration Tips
 
 Do not hardcode Rainy credentials or commit `.env` data. This app is only the container: the user brings their own Rainy API v3 key from the Rainy platform or dashboard, enters it through Settings, and the key is then resolved in the Electron main process. Because this app is a security reviewer, optimize for security first, then responsiveness and low overhead on supported desktop targets. Keep security-sensitive logic in `src/electron/`, validate IPC inputs, avoid platform-specific regressions on macOS x86/ARM and Windows 10+, and update `src/contracts/` whenever payloads change.

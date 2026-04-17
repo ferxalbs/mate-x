@@ -109,10 +109,6 @@ export function ComposerPanel({
           <span>Current checkout</span>
           <span>{workspace?.branch ?? 'main'}</span>
         </div>
-
-        <div className="mt-1 px-1 text-[11px] text-muted-foreground/80">
-          {resolvedTheme === 'dark' ? 'Night mode active' : 'Day mode active'}
-        </div>
       </div>
     </div>
   );

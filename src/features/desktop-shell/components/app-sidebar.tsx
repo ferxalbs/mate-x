@@ -3,16 +3,12 @@ import {
   ChevronDown,
   FolderGit2Icon,
   GitBranchIcon,
-  MoonStar,
   PlusIcon,
   SettingsIcon,
-  SunMedium,
   Trash2Icon,
 } from 'lucide-react';
 
 import { GitPanel } from './git-panel';
-import { SettingsDialog } from './settings-dialog';
-import { WorkspaceDialog } from './workspace-dialog';
 import { useGitStore } from '../../../store/git-store';
 
 import {
@@ -27,10 +23,11 @@ import {
   SidebarSeparator,
 } from '../../../components/ui/sidebar';
 import type { Conversation, RunStatus } from '../../../contracts/chat';
-import type { SearchMatch, WorkspaceEntry, WorkspaceSummary } from '../../../contracts/workspace';
+import type { WorkspaceEntry, WorkspaceSummary } from '../../../contracts/workspace';
 import type { Theme } from '../../../hooks/use-theme';
 import { cn } from '../../../lib/utils';
 import { formatRelativeTimestamp } from '../model';
+import { Link } from '@tanstack/react-router';
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -38,8 +35,6 @@ interface AppSidebarProps {
   activeWorkspaceId: string | null;
   activeThreadId: string;
   threads: Conversation[];
-  repoFiles: string[];
-  repoSignals: SearchMatch[];
   theme: Theme;
   runStatus: RunStatus;
   onImportWorkspace: () => void;
@@ -121,8 +116,6 @@ export function AppSidebar({
   activeWorkspaceId,
   activeThreadId,
   threads,
-  repoFiles,
-  repoSignals,
   theme,
   runStatus,
   onImportWorkspace,
@@ -274,48 +267,26 @@ export function AppSidebar({
       <SidebarFooter className="no-drag p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SettingsDialog
-              trigger={
-                <button
-                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60"
-                  aria-label="Open settings"
-                >
-                  <div className="flex items-center gap-2 text-muted-foreground/70">
-                    <SettingsIcon className="size-3.5" />
-                    <span className="text-xs">Settings</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onThemeChange('light'); }}
-                      className={cn(
-                        'rounded-md p-1.5 transition-colors hover:bg-accent hover:text-foreground',
-                        theme === 'light' ? 'bg-accent text-foreground' : 'text-muted-foreground/60',
-                      )}
-                      aria-label="Light theme"
-                    >
-                      <SunMedium className="size-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onThemeChange('dark'); }}
-                      className={cn(
-                        'rounded-md p-1.5 transition-colors hover:bg-accent hover:text-foreground',
-                        theme === 'dark' ? 'bg-accent text-foreground' : 'text-muted-foreground/60',
-                      )}
-                      aria-label="Dark theme"
-                    >
-                      <MoonStar className="size-3.5" />
-                    </button>
-                  </div>
-                </button>
-              }
-            />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <WorkspaceDialog
-              workspace={workspace}
-              repoFiles={repoFiles}
-              repoSignals={repoSignals}
-            />
+            <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+              <Link
+                to="/settings"
+                className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
+                aria-label="Open settings"
+              >
+                <SettingsIcon className="size-3.5" />
+                <span className="text-xs">Settings</span>
+              </Link>
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]',
+                  theme === 'dark'
+                    ? 'bg-accent text-foreground'
+                    : 'bg-muted/70 text-muted-foreground',
+                )}
+              >
+                {theme}
+              </span>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
