@@ -27,7 +27,8 @@ export const entropyScannerTool: Tool = {
     const { path = '.', threshold = 4.5 } = args;
     
     try {
-      const { stdout } = await execFileAsync('rg', ['--files', path], { cwd: workspacePath });
+      // -- prevents argument injection from path
+      const { stdout } = await execFileAsync('rg', ['--files', '--', path], { cwd: workspacePath });
       const files = stdout.split('\n').filter(Boolean);
       const discoveries: string[] = [];
 

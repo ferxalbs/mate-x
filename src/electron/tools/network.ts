@@ -26,7 +26,8 @@ export const networkMapTool: Tool = {
     const relativePath = args.path || '.';
     
     try {
-      const { stdout } = await execFileAsync('rg', ['--files', relativePath], { cwd: workspacePath });
+      // -- prevents argument injection from relativePath
+      const { stdout } = await execFileAsync('rg', ['--files', '--', relativePath], { cwd: workspacePath });
       const files = stdout.split('\n').filter(Boolean);
       const results: { urls: Set<string>; ips: Set<string> } = {
         urls: new Set(),

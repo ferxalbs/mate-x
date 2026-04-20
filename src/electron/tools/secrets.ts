@@ -33,7 +33,8 @@ export const secretScanTool: Tool = {
 
     try {
       // Use rg to find potential files first to be efficient
-      const { stdout } = await execFileAsync('rg', ['--files', relativePath], { cwd: workspacePath });
+      // -- prevents argument injection from relativePath
+      const { stdout } = await execFileAsync('rg', ['--files', '--', relativePath], { cwd: workspacePath });
       const files = stdout.split('\n').filter(Boolean);
       const results: string[] = [];
 

@@ -34,7 +34,7 @@ export const astGrepTool: Tool = {
     try {
       const { stdout } = await execFileAsync(
         "rg",
-        ["-n", "--no-heading", query, path],
+        ["-n", "--no-heading", "--", query, path], // -- prevents argument injection from query or path
         { cwd: workspacePath }
       );
 
