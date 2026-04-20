@@ -1,5 +1,15 @@
 # CHANGELOG
 
+# Unreleased - 2026.04.19 (1) [Tool Service Hardening and Native Tool Reliability]
+
+- Added native tools `read_many` and `json_probe` so agent can read many files fast and query JSON values directly.
+- Added shared safe-path helpers in `src/electron/tools/tool-utils.ts` to block traversal and keep tool file access inside workspace root.
+- Hardened `ToolService` registration/execution: duplicate-name guard, cached tool definitions, strict schema normalization, runtime arg validation before tool run.
+- Registered new tools in both chat and responses tool-definition paths so agent can call them natively in both loops.
+- Secured core tools (`read`, `ls`, `metadata`, `auto_patch`, `mutation`, `flow`) with safer path handling, bounded output, safer command execution, and fixed regex term matching.
+- Reduced tool batch concurrency in `repo-service.ts` to improve stability and avoid overload during multi-tool turns.
+- Verified integration and quality: `bun run lint` and `bun run typecheck` pass; new tools present in runtime registry.
+
 ## Unreleased - 2026.04.17 (4) [Chat Flow and Context Extraction Repair]
 
 - Reworked the assistant conversation surface to remove the dedicated `Agent trace` / execution-trace blocks from chat and present in-flight progress as normal inline assistant updates, matching the T3CODE-style flow more closely.
