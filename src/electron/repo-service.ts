@@ -66,7 +66,7 @@ const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   mode: "build",
   access: "full",
 };
-const TOOL_BATCH_MAX_CONCURRENCY = 800;
+const TOOL_BATCH_MAX_CONCURRENCY = 6;
 const TOOL_EXECUTION_TIMEOUT_MS = 20_000;
 const MAX_TOOL_OUTPUT_CHARS = 80_000;
 

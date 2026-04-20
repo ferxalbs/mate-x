@@ -1,6 +1,9 @@
 import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type { Tool } from '../tool-service';
+import { resolveWorkspacePath } from "./tool-utils";
+
+const MAX_RECURSIVE_ENTRIES = 4_000;
 
 export const lsTool: Tool = {
   name: 'ls',
@@ -21,7 +24,7 @@ export const lsTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const relativePath = args.path || '.';
-    const targetDir = join(workspacePath, relativePath);
+    const targetDir = resolveWorkspacePath(workspacePath, relativePath);
     const recursive = args.recursive || false;
 
     try {
@@ -42,6 +45,10 @@ export const lsTool: Tool = {
 };
 
 async function walk(dir: string, root: string, results: string[]) {
+  if (results.length >= MAX_RECURSIVE_ENTRIES) {
+    return;
+  }
+
   const list = await readdir(dir, { withFileTypes: true });
   for (const entry of list) {
     const res = join(dir, entry.name);
@@ -51,6 +58,13 @@ async function walk(dir: string, root: string, results: string[]) {
       await walk(res, root, results);
     } else {
       results.push(`      ${rel}`);
+    }
+
+    if (results.length >= MAX_RECURSIVE_ENTRIES) {
+      results.push(
+        `... truncated after ${MAX_RECURSIVE_ENTRIES} entries to protect performance.`,
+      );
+      return;
     }
   }
 }

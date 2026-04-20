@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { relative } from "node:path";
 import type { Tool } from '../tool-service';
+import { resolveWorkspacePath } from "./tool-utils";
 
 export const fileMetadataTool: Tool = {
   name: 'file_metadata',
@@ -17,13 +18,14 @@ export const fileMetadataTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const { path } = args;
-    const targetFile = join(workspacePath, path);
 
     try {
+      const targetFile = resolveWorkspacePath(workspacePath, path);
       const stats = await stat(targetFile);
       const isUnix = process.platform !== 'win32';
       
       const details = {
+        path: relative(workspacePath, targetFile),
         size: `${stats.size} bytes`,
         sizeKB: `${(stats.size / 1024).toFixed(2)} KB`,
         created: stats.birthtime.toISOString(),

@@ -1,6 +1,7 @@
 import { readFile, writeFile, copyFile } from "node:fs/promises";
-import { join } from "node:path";
+import { relative } from "node:path";
 import type { Tool } from "../tool-service";
+import { resolveWorkspacePath } from "./tool-utils";
 
 export const autoPatchTool: Tool = {
   name: "auto_patch",
@@ -21,12 +22,17 @@ export const autoPatchTool: Tool = {
         type: "string",
         description: "The secure code to inject.",
       },
+      replaceAll: {
+        type: "boolean",
+        description:
+          "Replace every occurrence when true. Defaults to false (single replacement).",
+      },
     },
     required: ["path", "searchString", "replacementString"],
   },
   async execute(args, { workspacePath }) {
-    const { path, searchString, replacementString } = args;
-    const targetFile = join(workspacePath, path);
+    const { path, searchString, replacementString, replaceAll = false } = args;
+    const targetFile = resolveWorkspacePath(workspacePath, path);
     const backupFile = `${targetFile}.bak`;
 
     try {
@@ -39,14 +45,17 @@ export const autoPatchTool: Tool = {
       // Create backup
       await copyFile(targetFile, backupFile);
 
-      // Apply patch globally across the file
-      // If we only want single replacement, we can use content.replace once.
-      // Doing global replacement for safety if pattern repeats.
-      const newContent = content.split(searchString).join(replacementString);
+      const replacementCount = content.split(searchString).length - 1;
+      const newContent = replaceAll
+        ? content.split(searchString).join(replacementString)
+        : content.replace(searchString, replacementString);
 
       await writeFile(targetFile, newContent, "utf8");
 
-      return `Patch applied successfully to ${path}.\\nBackup created at ${path}.bak`;
+      const rel = relative(workspacePath, targetFile);
+      return `Patch applied successfully to ${rel}. Replaced ${
+        replaceAll ? replacementCount : 1
+      } occurrence(s).\nBackup created at ${rel}.bak`;
     } catch (error) {
       return `Error applying patch: ${(error as Error).message}`;
     }

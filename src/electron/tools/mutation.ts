@@ -1,10 +1,32 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { resolveWorkspacePath } from "./tool-utils";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+function parseCommand(command: string) {
+  if (/[|&;<>`$()]/.test(command)) {
+    throw new Error(
+      "Shell operators are not supported. Provide a direct command and arguments only.",
+    );
+  }
+
+  const tokens =
+    command.match(/"[^"]*"|'[^']*'|[^\s]+/g)?.map((token) =>
+      token.replace(/^['"]|['"]$/g, ""),
+    ) ?? [];
+
+  if (tokens.length === 0) {
+    throw new Error("verificationCommand is required.");
+  }
+
+  return {
+    cmd: tokens[0],
+    cmdArgs: tokens.slice(1),
+  };
+}
 
 export const mutationTesterTool: Tool = {
   name: "mutation",
@@ -34,7 +56,16 @@ export const mutationTesterTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const { path, searchString, mutationString, verificationCommand } = args;
-    const targetFile = join(workspacePath, path);
+    let cmd: string;
+    let cmdArgs: string[];
+
+    try {
+      ({ cmd, cmdArgs } = parseCommand(String(verificationCommand)));
+    } catch (error) {
+      return `Mutation failed: ${(error as Error).message}`;
+    }
+
+    const targetFile = resolveWorkspacePath(workspacePath, path);
 
     let originalContent: string;
     try {
@@ -57,11 +88,20 @@ export const mutationTesterTool: Tool = {
 
       // Run verification
       try {
-        const { stdout, stderr } = await execAsync(verificationCommand, { cwd: workspacePath, timeout: 10000 });
+        const { stdout, stderr } = await execFileAsync(cmd, cmdArgs, {
+          cwd: workspacePath,
+          timeout: 10_000,
+          maxBuffer: 1024 * 1024,
+        });
         commandOutput = stdout + "\\n" + stderr;
         commandStatus = "SUCCESS (Command exited 0)";
-      } catch (cmdErr: any) {
-        commandOutput = cmdErr.stdout + "\\n" + cmdErr.stderr + "\\n" + cmdErr.message;
+      } catch (cmdErr) {
+        const normalized = cmdErr as {
+          stdout?: string;
+          stderr?: string;
+          message?: string;
+        };
+        commandOutput = `${normalized.stdout ?? ""}\\n${normalized.stderr ?? ""}\\n${normalized.message ?? ""}`;
         commandStatus = "FAILED (Command returned non-zero)";
       }
 
@@ -71,7 +111,7 @@ export const mutationTesterTool: Tool = {
       let report = `Mutation Injector Report\\n========================\\n`;
       report += `File: ${path}\\n`;
       report += `Mutation: Added glitch [ ${mutationString} ]\\n`;
-      report += `Command: \`${verificationCommand}\` -> Result: ${commandStatus}\\n\\n`;
+      report += `Command: \`${cmd} ${cmdArgs.join(" ")}\` -> Result: ${commandStatus}\\n\\n`;
       
       if (didSystemCatchIt) {
         report += `[GOOD] The system correctly caught the injected error (Test/Command failed)!\\n`;

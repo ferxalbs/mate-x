@@ -28,6 +28,8 @@ import { mutationTesterTool } from "./tools/mutation";
 import { sandboxRunnerTool } from "./tools/sandbox_run";
 import { trafficPoisonerTool } from "./tools/traffic_poison";
 import { mockPoisonerTool } from "./tools/mock_poison";
+import { readManyTool } from "./tools/read_many";
+import { jsonProbeTool } from "./tools/json_probe";
 
 export interface Tool {
   name: string;
@@ -42,6 +44,9 @@ export interface Tool {
 
 export class ToolService {
   private tools: Map<string, Tool> = new Map();
+  private chatToolDefinitionsCache: OpenAI.Chat.Completions.ChatCompletionTool[] =
+    [];
+  private responsesToolDefinitionsCache: ResponsesFunctionTool[] = [];
 
   constructor() {
     this.registerTool(rgTool);
@@ -71,32 +76,56 @@ export class ToolService {
     this.registerTool(sandboxRunnerTool);
     this.registerTool(trafficPoisonerTool);
     this.registerTool(mockPoisonerTool);
+    this.registerTool(readManyTool);
+    this.registerTool(jsonProbeTool);
     // Future tools can be registered here or dynamically loaded
   }
 
   registerTool(tool: Tool) {
+    if (this.tools.has(tool.name)) {
+      throw new Error(`Tool "${tool.name}" is already registered.`);
+    }
+
     this.tools.set(tool.name, tool);
+    this.chatToolDefinitionsCache = [];
+    this.responsesToolDefinitionsCache = [];
   }
 
   getChatToolDefinitions(): OpenAI.Chat.Completions.ChatCompletionTool[] {
-    return Array.from(this.tools.values()).map((tool) => ({
-      type: "function" as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      },
-    }));
+    if (this.chatToolDefinitionsCache.length > 0) {
+      return this.chatToolDefinitionsCache;
+    }
+
+    this.chatToolDefinitionsCache = Array.from(this.tools.values()).map(
+      (tool) => ({
+        type: "function" as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: toStrictObjectSchema(tool.parameters),
+        },
+      }),
+    );
+
+    return this.chatToolDefinitionsCache;
   }
 
   getResponsesToolDefinitions(): ResponsesFunctionTool[] {
-    return Array.from(this.tools.values()).map((tool) => ({
-      type: "function" as const,
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-      strict: true,
-    }));
+    if (this.responsesToolDefinitionsCache.length > 0) {
+      return this.responsesToolDefinitionsCache;
+    }
+
+    this.responsesToolDefinitionsCache = Array.from(this.tools.values()).map(
+      (tool) => ({
+        type: "function" as const,
+        name: tool.name,
+        description: tool.description,
+        parameters: toStrictObjectSchema(tool.parameters),
+        strict: true,
+      }),
+    );
+
+    return this.responsesToolDefinitionsCache;
   }
 
   async callTool(
@@ -107,6 +136,11 @@ export class ToolService {
     const tool = this.tools.get(name);
     if (!tool) {
       throw new Error(`Tool "${name}" not found.`);
+    }
+
+    const validationError = validateToolArguments(tool, args);
+    if (validationError) {
+      return `Invalid arguments for "${name}": ${validationError}`;
     }
 
     try {
@@ -122,3 +156,132 @@ export class ToolService {
 }
 
 export const toolService = new ToolService();
+
+function toStrictObjectSchema(schema: Tool["parameters"]): Tool["parameters"] {
+  const normalized = strictifySchemaNode(schema);
+  return {
+    ...normalized,
+    type: "object",
+    required: Array.isArray(normalized.required) ? normalized.required : [],
+  };
+}
+
+function strictifySchemaNode(node: any): any {
+  if (!node || typeof node !== "object") {
+    return node;
+  }
+
+  if (node.type === "object") {
+    const properties = Object.fromEntries(
+      Object.entries(node.properties ?? {}).map(([key, value]) => [
+        key,
+        strictifySchemaNode(value),
+      ]),
+    );
+
+    return {
+      ...node,
+      properties,
+      additionalProperties: false,
+      required: Array.isArray(node.required) ? node.required : [],
+    };
+  }
+
+  if (node.type === "array" && node.items) {
+    return {
+      ...node,
+      items: strictifySchemaNode(node.items),
+    };
+  }
+
+  return node;
+}
+
+function validateToolArguments(tool: Tool, args: unknown): string | null {
+  if (args === null || typeof args !== "object" || Array.isArray(args)) {
+    return "Arguments must be a JSON object.";
+  }
+
+  const values = args as Record<string, unknown>;
+  const schema = tool.parameters;
+  const properties = schema.properties ?? {};
+  const required = schema.required ?? [];
+
+  for (const key of required) {
+    if (!(key in values)) {
+      return `Missing required argument "${key}".`;
+    }
+  }
+
+  for (const key of Object.keys(values)) {
+    const propertySchema = properties[key] as any;
+    if (!propertySchema) {
+      return `Unexpected argument "${key}".`;
+    }
+
+    const error = validateValueAgainstSchema(values[key], propertySchema, key);
+    if (error) {
+      return error;
+    }
+  }
+
+  return null;
+}
+
+function validateValueAgainstSchema(
+  value: unknown,
+  schema: any,
+  keyPath: string,
+): string | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+    return `"${keyPath}" must be one of: ${schema.enum.join(", ")}.`;
+  }
+
+  switch (schema.type) {
+    case "string":
+      if (typeof value !== "string") {
+        return `"${keyPath}" must be a string.`;
+      }
+      return null;
+    case "number":
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return `"${keyPath}" must be a finite number.`;
+      }
+      return null;
+    case "boolean":
+      if (typeof value !== "boolean") {
+        return `"${keyPath}" must be a boolean.`;
+      }
+      return null;
+    case "array":
+      if (!Array.isArray(value)) {
+        return `"${keyPath}" must be an array.`;
+      }
+
+      if (schema.items) {
+        for (let index = 0; index < value.length; index += 1) {
+          const childError = validateValueAgainstSchema(
+            value[index],
+            schema.items,
+            `${keyPath}[${index}]`,
+          );
+          if (childError) {
+            return childError;
+          }
+        }
+      }
+
+      return null;
+    case "object":
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return `"${keyPath}" must be an object.`;
+      }
+      return null;
+    default:
+      return null;
+  }
+}

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { relative } from "node:path";
 import type { Tool } from '../tool-service';
+import { limitTextOutput, resolveWorkspacePath } from "./tool-utils";
 
 export const readTool: Tool = {
   name: 'read',
@@ -25,30 +26,29 @@ export const readTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const { path, lineStart, lineEnd } = args;
-    const targetFile = join(workspacePath, path);
 
     try {
+      const targetFile = resolveWorkspacePath(workspacePath, path);
       const content = await readFile(targetFile, 'utf8');
       const lines = content.split('\n');
+      const relPath = relative(workspacePath, targetFile);
 
       if (lineStart || lineEnd) {
-        const start = (lineStart || 1) - 1;
-        const end = lineEnd || lines.length;
+        const start = Math.max(1, Number(lineStart || 1)) - 1;
+        const end = Math.min(lines.length, Number(lineEnd || lines.length));
         const range = lines.slice(start, end);
 
         if (range.length === 0) {
           return 'No lines found in the specified range.';
         }
 
-        return `Showing lines ${start + 1} to ${start + range.length} of ${lines.length}:\n${range.join('\n')}`;
+        return limitTextOutput(
+          `File: ${relPath}\nShowing lines ${start + 1} to ${start + range.length} of ${lines.length}:\n${range.join('\n')}`,
+          60_000,
+        );
       }
 
-      // Limit overall content if it's too large
-      if (content.length > 50000) {
-        return content.slice(0, 50000) + '\n... (truncated due to size, use lineStart/lineEnd to read specific parts)';
-      }
-
-      return content;
+      return limitTextOutput(content, 50_000);
     } catch (error) {
       return `Error reading file: ${(error as Error).message}`;
     }
