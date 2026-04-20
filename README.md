@@ -1,5 +1,7 @@
 # MaTE X
 
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/ferxalbs/mate-x?utm_source=oss&utm_medium=github&utm_campaign=ferxalbs%2Fmate-x&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
 > **Desktop security review agent for local repositories.**
 
 MaTE X is an AI-powered desktop shell built for security researchers and developers. It provides grounded, high-performance analysis of local repositories with a strict focus on security, local execution, and native desktop integration.
@@ -34,12 +36,14 @@ MaTE X is an AI-powered desktop shell built for security researchers and develop
 ### Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/ferxalbs/mate-x.git
    cd mate-x
    ```
 
 2. **Install dependencies**:
+
    ```bash
    bun install
    ```
@@ -50,6 +54,7 @@ MaTE X is an AI-powered desktop shell built for security researchers and develop
 ### Development
 
 Launch the application in development mode:
+
 ```bash
 bun run start
 ```
@@ -72,10 +77,10 @@ bun run make
 - **Type Safety**: Ensure strict typing with `bun run typecheck`.
 - **Commits**: Follow conventional commits (e.g., `feat(ui): add new tool panel`).
 - **Structure**:
-    - `src/electron/`: Main process services and IPC handlers.
-    - `src/features/`: UI feature modules and business logic.
-    - `src/contracts/`: Shared interfaces and event definitions.
-    - `src/components/ui/`: Atomic design primitives and reusable components.
+  - `src/electron/`: Main process services and IPC handlers.
+  - `src/features/`: UI feature modules and business logic.
+  - `src/contracts/`: Shared interfaces and event definitions.
+  - `src/components/ui/`: Atomic design primitives and reusable components.
 
 ## 🔒 Security
 
