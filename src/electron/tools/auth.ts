@@ -24,7 +24,8 @@ export const accessControlAuditTool: Tool = {
     
     try {
       // Find files that likely contain routes
-      const { stdout } = await execFileAsync('rg', ['--files', '-g', '*.{ts,js}', path], { cwd: workspacePath });
+      // -- prevents argument injection from path
+      const { stdout } = await execFileAsync('rg', ['--files', '-g', '*.{ts,js}', '--', path], { cwd: workspacePath });
       const files = stdout.split('\n').filter(Boolean);
       const findings: string[] = [];
 

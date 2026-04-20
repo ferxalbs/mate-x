@@ -26,23 +26,24 @@ export const securityReportTool: Tool = {
     // and summarize the overall risk level.
     
     try {
+      // -- prevents argument injection from scope
       const { stdout: fileListStdout } = await execFileAsync(
         'rg',
-        ['--files', scope],
+        ['--files', '--', scope],
         { cwd: workspacePath },
       );
       const fileCount = fileListStdout.split('\n').filter(Boolean).length;
 
       // 1. Check for basic security hygiene
-      const { stdout: secretsStdout } = await execFileAsync('rg', ['-l', 'AKIA|sk_live_|xox[baprs]', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
+      const { stdout: secretsStdout } = await execFileAsync('rg', ['-l', 'AKIA|sk_live_|xox[baprs]', '--', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
       const secretFiles = secretsStdout.split('\n').filter(Boolean);
 
       // 2. Check for dangerous sinks
-      const { stdout: sinksStdout } = await execFileAsync('rg', ['-l', 'eval\\(|dangerouslySetInnerHTML|\\.innerHTML\\s*=', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
+      const { stdout: sinksStdout } = await execFileAsync('rg', ['-l', 'eval\\(|dangerouslySetInnerHTML|\\.innerHTML\\s*=', '--', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
       const sinkFiles = sinksStdout.split('\n').filter(Boolean);
 
       // 3. Check for deployment misconfigs
-      const { stdout: configStdout } = await execFileAsync('rg', ['--files', '-g', '*Dockerfile*', '-g', '*docker-compose*', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
+      const { stdout: configStdout } = await execFileAsync('rg', ['--files', '-g', '*Dockerfile*', '-g', '*docker-compose*', '--', scope], { cwd: workspacePath }).catch(() => ({ stdout: '' }));
       const configFiles = configStdout.split('\n').filter(Boolean);
 
       const riskLevel = secretFiles.length > 0 ? 'CRITICAL' : (sinkFiles.length > 5 ? 'HIGH' : 'MEDIUM');
