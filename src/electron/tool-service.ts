@@ -1,39 +1,39 @@
-import type OpenAI from 'openai';
-import type { FunctionTool as ResponsesFunctionTool } from 'openai/resources/responses/responses';
+import type OpenAI from "openai";
+import type { FunctionTool as ResponsesFunctionTool } from "openai/resources/responses/responses";
 
-import { rgTool } from './tools/rg';
-import { lsTool } from './tools/ls';
-import { readTool } from './tools/read';
-import { gitTool } from './tools/git';
-import { secretScanTool } from './tools/secrets';
-import { fileMetadataTool } from './tools/metadata';
-import { projectTreeTool } from './tools/tree';
-import { securityAuditTool } from './tools/audit';
-import { dependencyAnalyzerTool } from './tools/deps';
-import { networkMapTool } from './tools/network';
-import { sqlAuditTool } from './tools/sql';
-import { envSafetyTool } from './tools/env_safety';
-import { containerAuditTool } from './tools/container';
-import { flowTraceTool } from './tools/flow';
-import { entropyScannerTool } from './tools/entropy';
-import { accessControlAuditTool } from './tools/auth';
-import { securityReportTool } from './tools/report';
-import { astGrepTool } from './tools/ast_grep';
-import { gitForensicsTool } from './tools/git_forensics';
-import { threatModelTool } from './tools/threat_model';
-import { autoPatchTool } from './tools/auto_patch';
-import { dynamicFuzzerTool } from './tools/fuzzer';
-import { cveAuditTool } from './tools/cve_audit';
-import { mutationTesterTool } from './tools/mutation';
-import { sandboxRunnerTool } from './tools/sandbox_run';
-import { trafficPoisonerTool } from './tools/traffic_poison';
-import { mockPoisonerTool } from './tools/mock_poison';
+import { rgTool } from "./tools/rg";
+import { lsTool } from "./tools/ls";
+import { readTool } from "./tools/read";
+import { gitTool } from "./tools/git";
+import { secretScanTool } from "./tools/secrets";
+import { fileMetadataTool } from "./tools/metadata";
+import { projectTreeTool } from "./tools/tree";
+import { securityAuditTool } from "./tools/audit";
+import { dependencyAnalyzerTool } from "./tools/deps";
+import { networkMapTool } from "./tools/network";
+import { sqlAuditTool } from "./tools/sql";
+import { envSafetyTool } from "./tools/env_safety";
+import { containerAuditTool } from "./tools/container";
+import { flowTraceTool } from "./tools/flow";
+import { entropyScannerTool } from "./tools/entropy";
+import { accessControlAuditTool } from "./tools/auth";
+import { securityReportTool } from "./tools/report";
+import { astGrepTool } from "./tools/ast_grep";
+import { gitForensicsTool } from "./tools/git_forensics";
+import { threatModelTool } from "./tools/threat_model";
+import { autoPatchTool } from "./tools/auto_patch";
+import { dynamicFuzzerTool } from "./tools/fuzzer";
+import { cveAuditTool } from "./tools/cve_audit";
+import { mutationTesterTool } from "./tools/mutation";
+import { sandboxRunnerTool } from "./tools/sandbox_run";
+import { trafficPoisonerTool } from "./tools/traffic_poison";
+import { mockPoisonerTool } from "./tools/mock_poison";
 
 export interface Tool {
   name: string;
   description: string;
   parameters: {
-    type: 'object';
+    type: "object";
     properties: Record<string, any>;
     required?: string[];
   };
@@ -80,7 +80,7 @@ export class ToolService {
 
   getChatToolDefinitions(): OpenAI.Chat.Completions.ChatCompletionTool[] {
     return Array.from(this.tools.values()).map((tool) => ({
-      type: 'function' as const,
+      type: "function" as const,
       function: {
         name: tool.name,
         description: tool.description,
@@ -91,7 +91,7 @@ export class ToolService {
 
   getResponsesToolDefinitions(): ResponsesFunctionTool[] {
     return Array.from(this.tools.values()).map((tool) => ({
-      type: 'function' as const,
+      type: "function" as const,
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters,

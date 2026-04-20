@@ -532,9 +532,7 @@ function resolveAssistantRunOptions(
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     mode:
-      options?.mode === "plan"
-        ? options.mode
-        : DEFAULT_ASSISTANT_OPTIONS.mode,
+      options?.mode === "plan" ? options.mode : DEFAULT_ASSISTANT_OPTIONS.mode,
     access:
       options?.access === "approval"
         ? options.access
@@ -582,7 +580,9 @@ function summarizeCheckpoint(content: unknown) {
 }
 
 function summarizeToolOutput(content: unknown) {
-  const normalized = normalizeAssistantText(content).replace(/\s+/g, " ").trim();
+  const normalized = normalizeAssistantText(content)
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) {
     return "Tool returned no textual output.";
   }
@@ -628,9 +628,9 @@ function buildNoContentFinalResponse(params: {
   totalToolCalls: number;
   events: ToolEvent[];
 }) {
-  const recentEvents = params.events.slice(-3).map((event) =>
-    `- ${event.label}: ${event.detail}`,
-  );
+  const recentEvents = params.events
+    .slice(-3)
+    .map((event) => `- ${event.label}: ${event.detail}`);
 
   return [
     "The run completed, but the model returned no final synthesis.",
@@ -665,7 +665,8 @@ async function attemptFinalChatSynthesis({
   events.push({
     id: eventId,
     label: "Final synthesis",
-    detail: "Tool loop ended without a clear final answer. Requesting one final synthesis.",
+    detail:
+      "Tool loop ended without a clear final answer. Requesting one final synthesis.",
     status: "active",
   });
   emitProgress();
@@ -704,7 +705,9 @@ async function attemptFinalChatSynthesis({
     if (event) {
       event.status = "error";
       event.detail =
-        error instanceof Error ? error.message : "Failed to generate final synthesis.";
+        error instanceof Error
+          ? error.message
+          : "Failed to generate final synthesis.";
     }
     emitProgress();
     return "";
@@ -734,7 +737,8 @@ async function attemptFinalResponsesSynthesis({
   events.push({
     id: eventId,
     label: "Final synthesis",
-    detail: "Tool loop ended without a clear final answer. Requesting one final synthesis.",
+    detail:
+      "Tool loop ended without a clear final answer. Requesting one final synthesis.",
     status: "active",
   });
   emitProgress();
@@ -775,7 +779,9 @@ async function attemptFinalResponsesSynthesis({
     if (event) {
       event.status = "error";
       event.detail =
-        error instanceof Error ? error.message : "Failed to generate final synthesis.";
+        error instanceof Error
+          ? error.message
+          : "Failed to generate final synthesis.";
     }
     emitProgress();
     return "";
@@ -800,7 +806,10 @@ function buildHistoryMessages(
   });
 }
 
-function describeProgressPhase(label: string | undefined, mode: AssistantRunOptions["mode"]) {
+function describeProgressPhase(
+  label: string | undefined,
+  mode: AssistantRunOptions["mode"],
+) {
   if (!label) {
     return mode === "plan"
       ? "Planning the investigation and preparing the next tool-backed pass."
@@ -972,9 +981,16 @@ function truncateToolOutput(content: string) {
   return `${content.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n... (truncated ${content.length - MAX_TOOL_OUTPUT_CHARS} characters)`;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+) {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new Error(timeoutMessage)),
+      timeoutMs,
+    );
 
     void promise.then(
       (value) => {
@@ -994,7 +1010,10 @@ async function mapWithConcurrency<T, R>(
   concurrency: number,
   mapper: (value: T, index: number) => Promise<R>,
 ) {
-  const safeConcurrency = Math.max(1, Math.min(concurrency, values.length || 1));
+  const safeConcurrency = Math.max(
+    1,
+    Math.min(concurrency, values.length || 1),
+  );
   const results = new Array<R>(values.length);
   let currentIndex = 0;
 
@@ -1011,9 +1030,7 @@ async function mapWithConcurrency<T, R>(
     }
   }
 
-  await Promise.all(
-    Array.from({ length: safeConcurrency }, () => runWorker()),
-  );
+  await Promise.all(Array.from({ length: safeConcurrency }, () => runWorker()));
 
   return results;
 }
@@ -1041,7 +1058,8 @@ async function executeAgentToolCall({
   try {
     toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "Invalid tool arguments.";
+    const reason =
+      error instanceof Error ? error.message : "Invalid tool arguments.";
     events.push({
       id: eventId,
       label: `Failed ${toolName}`,
@@ -1086,7 +1104,8 @@ async function executeAgentToolCall({
       content: normalizedResult,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : `Tool ${toolName} failed.`;
+    const message =
+      error instanceof Error ? error.message : `Tool ${toolName} failed.`;
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
       toolEvent.status = "error";
@@ -1262,7 +1281,9 @@ async function requestRainyChatAgenticResponse({
       lastNonEmptyAssistantText = responseText;
     }
 
-    const loopEvent = events.find((event) => event.id === `step-agent-loop-${iterations}`);
+    const loopEvent = events.find(
+      (event) => event.id === `step-agent-loop-${iterations}`,
+    );
     const checkpoint = summarizeCheckpoint(responseText);
     if (loopEvent) {
       loopEvent.status = "done";
@@ -1281,7 +1302,8 @@ async function requestRainyChatAgenticResponse({
         events.push({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
-          detail: "Model tried to conclude early. Requesting another tool-backed pass.",
+          detail:
+            "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
         emitProgress();
@@ -1331,12 +1353,16 @@ async function requestRainyChatAgenticResponse({
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
-    const executableToolCalls = toolCalls.slice(0, Math.max(remainingBudget, 0));
+    const executableToolCalls = toolCalls.slice(
+      0,
+      Math.max(remainingBudget, 0),
+    );
 
     if (executableToolCalls.length === 0) {
       messages.push({
         role: "user",
-        content: "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
+        content:
+          "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
       });
       continue;
     }
@@ -1481,7 +1507,9 @@ async function requestRainyResponsesAgenticResponse({
     previousResponseId = response.id;
     lastContent = response.output_text || lastContent;
 
-    const loopEvent = events.find((event) => event.id === `step-agent-loop-${iterations}`);
+    const loopEvent = events.find(
+      (event) => event.id === `step-agent-loop-${iterations}`,
+    );
     const checkpoint = summarizeCheckpoint(response.output_text);
     if (loopEvent) {
       loopEvent.status = "done";
@@ -1491,11 +1519,13 @@ async function requestRainyResponsesAgenticResponse({
       emitProgress();
     }
 
-    const toolCalls = extractResponseFunctionCalls(response).map((toolCall) => ({
-      id: toolCall.call_id,
-      name: toolCall.name,
-      arguments: toolCall.arguments,
-    }));
+    const toolCalls = extractResponseFunctionCalls(response).map(
+      (toolCall) => ({
+        id: toolCall.call_id,
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      }),
+    );
 
     if (toolCalls.length === 0) {
       if (
@@ -1506,7 +1536,8 @@ async function requestRainyResponsesAgenticResponse({
         events.push({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
-          detail: "Model tried to conclude early. Requesting another tool-backed pass.",
+          detail:
+            "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
         emitProgress();
@@ -1558,7 +1589,10 @@ async function requestRainyResponsesAgenticResponse({
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
-    const executableToolCalls = toolCalls.slice(0, Math.max(remainingBudget, 0));
+    const executableToolCalls = toolCalls.slice(
+      0,
+      Math.max(remainingBudget, 0),
+    );
 
     if (executableToolCalls.length === 0) {
       nextInput = [

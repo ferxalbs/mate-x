@@ -440,11 +440,13 @@ export function isOpenAIGpt5OrNewerModel(modelId: string) {
   }
 
   const bareModelId = normalizedModelId.includes("/")
-    ? normalizedModelId.split("/").at(-1) ?? normalizedModelId
+    ? (normalizedModelId.split("/").at(-1) ?? normalizedModelId)
     : normalizedModelId;
   const match = bareModelId.match(/^gpt-(\d+)(?:[.-]|$)/);
 
-  return normalizedModelId.startsWith("openai/") && Number(match?.[1] ?? 0) >= 5;
+  return (
+    normalizedModelId.startsWith("openai/") && Number(match?.[1] ?? 0) >= 5
+  );
 }
 
 export function resolvePreferredRainyApiMode(
