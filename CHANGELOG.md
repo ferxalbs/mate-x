@@ -1,6 +1,6 @@
 # CHANGELOG
 
-# Unreleased - 2026.04.19 (1) [Tool Service Hardening and Native Tool Reliability]
+## Unreleased - 2026.04.19 (1) [Tool Service Hardening and Native Tool Reliability]
 
 - Added native tools `read_many` and `json_probe` so agent can read many files fast and query JSON values directly.
 - Added shared safe-path helpers in `src/electron/tools/tool-utils.ts` to block traversal and keep tool file access inside workspace root.
