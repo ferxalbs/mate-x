@@ -30,6 +30,8 @@ import { trafficPoisonerTool } from "./tools/traffic_poison";
 import { mockPoisonerTool } from "./tools/mock_poison";
 import { readManyTool } from "./tools/read_many";
 import { jsonProbeTool } from "./tools/json_probe";
+import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
+import { runTestsTool } from "./tools/run_tests";
 
 export interface Tool {
   name: string;
@@ -78,6 +80,8 @@ export class ToolService {
     this.registerTool(mockPoisonerTool);
     this.registerTool(readManyTool);
     this.registerTool(jsonProbeTool);
+    this.registerTool(detectWorkspaceCapabilitiesTool);
+    this.registerTool(runTestsTool);
     // Future tools can be registered here or dynamically loaded
   }
 

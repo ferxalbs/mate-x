@@ -13,6 +13,7 @@ import {
 } from "./rainy-service";
 import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
+import { createTokenEstimator } from "./token-estimator";
 import type {
   AssistantExecution,
   AssistantRunProgress,
@@ -1224,16 +1225,19 @@ async function requestRainyChatAgenticResponse({
   emitProgress: () => void;
 }) {
   const historyMessages = buildHistoryMessages(history);
-  const messages: any[] = [
+  let messages: any[] = [
     { role: "system", content: systemPrompt },
     ...historyMessages,
     { role: "user", content: prompt },
   ];
   const chatTools = toolService.getChatToolDefinitions();
+  const tokenEstimator = createTokenEstimator(model);
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
   let lastNonEmptyAssistantText = "";
+
+  const { applyContextCompressionChat } = await import("./context-compression");
 
   while (iterations < runtime.maxIterations) {
     iterations++;
@@ -1248,6 +1252,15 @@ async function requestRainyChatAgenticResponse({
       status: "active",
     });
     emitProgress();
+
+    messages = await applyContextCompressionChat(
+      messages,
+      tokenEstimator,
+      apiKey,
+      model,
+      events,
+      emitProgress
+    );
 
     const response = await requestRainyChatCompletion({
       apiKey,

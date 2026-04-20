@@ -31,6 +31,31 @@ export interface SearchMatch {
   text: string;
 }
 
+export interface WorkspaceProfile {
+  workspaceId: string;
+  packageManager?: string;
+  testFramework?: string;
+  testCommand?: string;
+  lintCommand?: string;
+  buildCommand?: string;
+  typecheckCommand?: string;
+  shell?: string;
+  flags?: string;
+  updatedAt: string;
+}
+
+export interface ValidationRun {
+  id: string;
+  workspaceId: string;
+  command: string;
+  scope?: string;
+  exitCode?: number;
+  status?: string;
+  outputSummary?: string;
+  failingTests?: string[];
+  ranAt: string;
+}
+
 export interface WorkspaceSnapshot {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];

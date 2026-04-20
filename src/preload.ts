@@ -31,6 +31,21 @@ const repoApi: RepoInspectorApi = {
       ipcRenderer.removeListener(ASSISTANT_PROGRESS_CHANNEL, handleProgress);
     };
   },
+  onTestStreamChunk: (listener) => {
+    const channel = "test-stream-chunk";
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      chunk: Parameters<typeof listener>[0],
+    ) => {
+      listener(chunk);
+    };
+
+    ipcRenderer.on(channel, handler);
+
+    return () => {
+      ipcRenderer.removeListener(channel, handler);
+    };
+  },
   openWorkspacePath: (target) => ipcRenderer.invoke('repo:open-workspace-path', target),
 };
 

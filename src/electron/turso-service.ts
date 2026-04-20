@@ -4,7 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Conversation } from '../contracts/chat';
-import type { WorkspaceEntry } from '../contracts/workspace';
+import type { WorkspaceEntry, WorkspaceProfile, ValidationRun } from '../contracts/workspace';
 import { createId } from '../lib/id';
 
 interface WorkspaceSessionRecord {
@@ -64,6 +64,31 @@ export class TursoService {
         `CREATE TABLE IF NOT EXISTS app_state (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
+        )`,
+        `CREATE TABLE IF NOT EXISTS workspace_profiles (
+          workspace_id TEXT PRIMARY KEY,
+          package_manager TEXT,
+          test_framework TEXT,
+          test_command TEXT,
+          lint_command TEXT,
+          build_command TEXT,
+          typecheck_command TEXT,
+          shell TEXT,
+          flags TEXT,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS validation_runs (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          command TEXT NOT NULL,
+          scope TEXT,
+          exit_code INTEGER,
+          status TEXT,
+          output_summary TEXT,
+          failing_tests TEXT,
+          ran_at TEXT NOT NULL,
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
       ],
       'write',
@@ -266,6 +291,122 @@ export class TursoService {
     });
   }
 
+  // ── Workspace Profiles & Validation Runs ─────────────────────────────────
+
+  async getWorkspaceProfile(workspaceId: string): Promise<WorkspaceProfile | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT workspace_id, package_manager, test_framework, test_command, lint_command, build_command, typecheck_command, shell, flags, updated_at
+            FROM workspace_profiles
+            WHERE workspace_id = ? LIMIT 1`,
+      args: [workspaceId],
+    });
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      workspaceId: String(row.workspace_id),
+      packageManager: row.package_manager ? String(row.package_manager) : undefined,
+      testFramework: row.test_framework ? String(row.test_framework) : undefined,
+      testCommand: row.test_command ? String(row.test_command) : undefined,
+      lintCommand: row.lint_command ? String(row.lint_command) : undefined,
+      buildCommand: row.build_command ? String(row.build_command) : undefined,
+      typecheckCommand: row.typecheck_command ? String(row.typecheck_command) : undefined,
+      shell: row.shell ? String(row.shell) : undefined,
+      flags: row.flags ? String(row.flags) : undefined,
+      updatedAt: String(row.updated_at),
+    };
+  }
+
+  async upsertWorkspaceProfile(profile: Partial<WorkspaceProfile> & { workspaceId: string }) {
+    await this.initialize();
+
+    const now = new Date().toISOString();
+
+    await this.getClient().execute({
+      sql: `INSERT INTO workspace_profiles (workspace_id, package_manager, test_framework, test_command, lint_command, build_command, typecheck_command, shell, flags, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(workspace_id) DO UPDATE SET
+              package_manager = COALESCE(excluded.package_manager, package_manager),
+              test_framework = COALESCE(excluded.test_framework, test_framework),
+              test_command = COALESCE(excluded.test_command, test_command),
+              lint_command = COALESCE(excluded.lint_command, lint_command),
+              build_command = COALESCE(excluded.build_command, build_command),
+              typecheck_command = COALESCE(excluded.typecheck_command, typecheck_command),
+              shell = COALESCE(excluded.shell, shell),
+              flags = COALESCE(excluded.flags, flags),
+              updated_at = excluded.updated_at`,
+      args: [
+        profile.workspaceId,
+        profile.packageManager ?? null,
+        profile.testFramework ?? null,
+        profile.testCommand ?? null,
+        profile.lintCommand ?? null,
+        profile.buildCommand ?? null,
+        profile.typecheckCommand ?? null,
+        profile.shell ?? null,
+        profile.flags ?? null,
+        now,
+      ],
+    });
+  }
+
+  async addValidationRun(run: Omit<ValidationRun, 'id' | 'ranAt'>): Promise<ValidationRun> {
+    await this.initialize();
+
+    const now = new Date().toISOString();
+    const id = createId('val');
+    const failingTestsStr = run.failingTests ? JSON.stringify(run.failingTests) : null;
+
+    await this.getClient().execute({
+      sql: `INSERT INTO validation_runs (id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, ran_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        run.workspaceId,
+        run.command,
+        run.scope ?? null,
+        run.exitCode ?? null,
+        run.status ?? null,
+        run.outputSummary ?? null,
+        failingTestsStr,
+        now
+      ],
+    });
+
+    return {
+      ...run,
+      id,
+      ranAt: now,
+    };
+  }
+
+  async getRecentValidationRuns(workspaceId: string, limit = 10): Promise<ValidationRun[]> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, ran_at
+            FROM validation_runs
+            WHERE workspace_id = ?
+            ORDER BY datetime(ran_at) DESC LIMIT ?`,
+      args: [workspaceId, limit],
+    });
+
+    return result.rows.map(row => ({
+      id: String(row.id),
+      workspaceId: String(row.workspace_id),
+      command: String(row.command),
+      scope: row.scope ? String(row.scope) : undefined,
+      exitCode: row.exit_code !== null ? Number(row.exit_code) : undefined,
+      status: row.status ? String(row.status) : undefined,
+      outputSummary: row.output_summary ? String(row.output_summary) : undefined,
+      failingTests: row.failing_tests ? safeParseFailingTests(String(row.failing_tests)) : undefined,
+      ranAt: String(row.ran_at),
+    }));
+  }
+
   // ── Session ──────────────────────────────────────────────────────────────
 
   private async ensureWorkspaceSession(workspaceId: string) {
@@ -289,6 +430,15 @@ export class TursoService {
 function safeParseThreads(raw: string): Conversation[] {
   try {
     const parsed = JSON.parse(raw) as Conversation[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeParseFailingTests(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw) as string[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
