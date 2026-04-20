@@ -31,6 +31,9 @@ export interface RepoInspectorApi {
   onAssistantProgress: (
     listener: (progress: AssistantRunProgress) => void,
   ) => () => void;
+  onTestStreamChunk: (
+    listener: (chunk: { workspaceId: string; timestamp: number; chunk: string }) => void,
+  ) => () => void;
   openWorkspacePath: (target: 'folder' | 'vscode' | 'terminal') => Promise<void>;
 }
 
