@@ -55,7 +55,9 @@ export const rgTool: Tool = {
     if (include) commandArgs.push('--glob', include);
     if (exclude) commandArgs.push('--glob', `!${exclude}`);
 
-    commandArgs.push(query, '.');
+    // -- explicitly tells ripgrep that following arguments are patterns or paths, not flags.
+    // This prevents an attacker from supplying flags like '--max-filesize' via the query.
+    commandArgs.push('--', query, '.');
 
     try {
       const { stdout } = await execFileAsync('rg', commandArgs, {

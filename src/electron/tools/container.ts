@@ -31,7 +31,8 @@ export const containerAuditTool: Tool = {
     const relativePath = args.path || '.';
     
     try {
-      const { stdout } = await execFileAsync('rg', ['--files', '-g', '*Dockerfile*', '-g', '*docker-compose*', '-g', '*kube*', relativePath], { cwd: workspacePath });
+      // -- prevents argument injection from relativePath
+      const { stdout } = await execFileAsync('rg', ['--files', '-g', '*Dockerfile*', '-g', '*docker-compose*', '-g', '*kube*', '--', relativePath], { cwd: workspacePath });
       const files = stdout.split('\n').filter(Boolean);
       const findings: string[] = [];
 

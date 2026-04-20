@@ -43,9 +43,10 @@ export const flowTraceTool: Tool = {
           visitedTerms.add(term);
 
           // Search for assignments: var x = term; or x = term;
+          // -- prevents argument injection from term
           const { stdout } = await execFileAsync(
             "rg",
-            ["-n", "--no-heading", "--fixed-strings", `${term}`, "."],
+            ["-n", "--no-heading", "--fixed-strings", "--", term, "."],
             { cwd: workspacePath },
           );
           const lines = stdout.split("\n").filter(Boolean);
