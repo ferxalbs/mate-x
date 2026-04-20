@@ -40,16 +40,24 @@ export const runTestsTool: Tool = {
 
     // Minimal heuristic appending of scope paths/flags
     if (args.scope === "specific-path" && args.specificPath) {
-      command += ` ${args.specificPath}`;
+      if (/[\n|&;<>`$()]/.test(args.specificPath)) {
+        return JSON.stringify({ error: "Invalid characters in specificPath. Shell operators are not allowed." });
+      }
+      command += ` "${args.specificPath.replace(/"/g, '\\"')}"`;
     } else if (args.scope === "rerun-failed") {
       // Get the last validation run's failing tests if available
       const runs = await tursoService.getRecentValidationRuns(activeWorkspaceId, 1);
       const failingTests = runs[0]?.failingTests;
       if (failingTests && failingTests.length > 0) {
-        if (profile.testFramework === "vitest" || profile.testFramework === "jest") {
-            command += ` -t "${failingTests.join('|')}"`;
-        } else if (profile.testFramework === "pytest") {
-            command += ` ${failingTests.join(' ')}`;
+        // Sanitize failing tests for shell injection (avoid command substitutions)
+        const sanitizedTests = failingTests.filter(test => !/[`$]/.test(test));
+        if (sanitizedTests.length > 0) {
+          if (profile.testFramework === "vitest" || profile.testFramework === "jest") {
+              // Quote and escape appropriately for safety
+              command += ` -t "${sanitizedTests.join('|').replace(/"/g, '\\"')}"`;
+          } else if (profile.testFramework === "pytest") {
+              command += ` ${sanitizedTests.map(test => `"${test.replace(/"/g, '\\"')}"`).join(' ')}`;
+          }
         }
       }
       // If we don't know how to pass failing tests specifically, just run the command.
