@@ -35,19 +35,25 @@ export const secretScanTool: Tool = {
       // Use rg to find potential files first to be efficient
       const { stdout } = await execFileAsync('rg', ['--files', relativePath], { cwd: workspacePath });
       const files = stdout.split('\n').filter(Boolean);
-      const results: string[] = [];
-
-      for (const file of files) {
-        if (file.includes('node_modules') || file.includes('.git')) continue;
+      const promises = files.map(async (file) => {
+        if (file.includes('node_modules') || file.includes('.git')) return [];
         
-        const content = await readFile(join(workspacePath, file), 'utf8');
-        for (const pattern of SECRET_PATTERNS) {
-          const matches = content.match(pattern.regex);
-          if (matches) {
-            results.push(`[${pattern.name}] found in ${file} (${matches.length} occurrence(s))`);
+        try {
+          const content = await readFile(join(workspacePath, file), 'utf8');
+          const fileResults: string[] = [];
+          for (const pattern of SECRET_PATTERNS) {
+            const matches = content.match(pattern.regex);
+            if (matches) {
+              fileResults.push(`[${pattern.name}] found in ${file} (${matches.length} occurrence(s))`);
+            }
           }
+          return fileResults;
+        } catch {
+          return [];
         }
-      }
+      });
+
+      const results = (await Promise.all(promises)).flat();
 
       return results.length > 0 
         ? `Scan complete. Found potential secrets:\n${results.join('\n')}`
