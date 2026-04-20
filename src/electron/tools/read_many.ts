@@ -45,35 +45,36 @@ export const readManyTool: Tool = {
     const lineStartRaw = args.lineStart;
     const lineEndRaw = args.lineEnd;
 
-    const sections: string[] = [];
-    for (const path of selectedPaths) {
-      try {
-        const { resolvedPath, content } = await readUtf8FileSafe(workspacePath, path);
-        const relPath = relative(workspacePath, resolvedPath);
-        const lines = content.split("\n");
+    // Use Promise.all to execute concurrent reads for better performance
+    const sections = await Promise.all(
+      selectedPaths.map(async (path) => {
+        try {
+          const { resolvedPath, content } = await readUtf8FileSafe(workspacePath, path);
+          const relPath = relative(workspacePath, resolvedPath);
+          const lines = content.split("\n");
 
-        let excerpt = content;
-        if (typeof lineStartRaw === "number" || typeof lineEndRaw === "number") {
-          const start = Math.max(1, Math.floor(Number(lineStartRaw ?? 1)));
-          const end = Math.min(
-            lines.length,
-            Math.floor(Number(lineEndRaw ?? lines.length)),
-          );
-          if (end < start) {
-            sections.push(`### ${relPath}\nError: invalid line range (${start}-${end}).`);
-            continue;
+          let excerpt = content;
+          if (typeof lineStartRaw === "number" || typeof lineEndRaw === "number") {
+            const start = Math.max(1, Math.floor(Number(lineStartRaw ?? 1)));
+            const end = Math.min(
+              lines.length,
+              Math.floor(Number(lineEndRaw ?? lines.length)),
+            );
+            if (end < start) {
+              return `### ${relPath}\nError: invalid line range (${start}-${end}).`;
+            }
+
+            excerpt = lines.slice(start - 1, end).join("\n");
+            excerpt = `Showing lines ${start}-${end} of ${lines.length}\n${excerpt}`;
           }
 
-          excerpt = lines.slice(start - 1, end).join("\n");
-          excerpt = `Showing lines ${start}-${end} of ${lines.length}\n${excerpt}`;
+          return `### ${relPath}\n${limitTextOutput(excerpt, maxCharsPerFile)}`;
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Unknown error.";
+          return `### ${path}\nError: ${reason}`;
         }
-
-        sections.push(`### ${relPath}\n${limitTextOutput(excerpt, maxCharsPerFile)}`);
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "Unknown error.";
-        sections.push(`### ${path}\nError: ${reason}`);
-      }
-    }
+      }),
+    );
 
     if (paths.length > selectedPaths.length) {
       sections.push(
@@ -84,4 +85,3 @@ export const readManyTool: Tool = {
     return sections.join("\n\n");
   },
 };
-
