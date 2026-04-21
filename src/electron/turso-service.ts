@@ -4,8 +4,17 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Conversation } from '../contracts/chat';
-import type { WorkspaceEntry, WorkspaceProfile, ValidationRun } from '../contracts/workspace';
+import type {
+  WorkspaceEntry,
+  WorkspaceProfile,
+  WorkspaceTrustContract,
+  ValidationRun,
+} from '../contracts/workspace';
 import { createId } from '../lib/id';
+import {
+  createDefaultWorkspaceTrustContract,
+  normalizeWorkspaceTrustContract,
+} from './workspace-trust';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -88,6 +97,12 @@ export class TursoService {
           output_summary TEXT,
           failing_tests TEXT,
           ran_at TEXT NOT NULL,
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS workspace_trust_contracts (
+          workspace_id TEXT PRIMARY KEY,
+          contract_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
       ],
@@ -177,6 +192,7 @@ export class TursoService {
     }
 
     await this.ensureWorkspaceSession(workspaceId);
+    await this.ensureWorkspaceTrustContract(workspaceId);
 
     if (setActive) {
       await this.setActiveWorkspaceId(workspaceId);
@@ -407,6 +423,50 @@ export class TursoService {
     }));
   }
 
+  // ── Workspace Trust Contracts ────────────────────────────────────────────
+
+  async getWorkspaceTrustContract(workspaceId: string): Promise<WorkspaceTrustContract> {
+    await this.initialize();
+    await this.ensureWorkspaceTrustContract(workspaceId);
+    const result = await this.getClient().execute({
+      sql: `SELECT contract_json
+            FROM workspace_trust_contracts
+            WHERE workspace_id = ?
+            LIMIT 1`,
+      args: [workspaceId],
+    });
+
+    const raw = result.rows[0]?.contract_json;
+    return safeParseTrustContract(String(raw ?? ''), workspaceId);
+  }
+
+  async setWorkspaceTrustContract(
+    workspaceId: string,
+    contract: WorkspaceTrustContract,
+  ): Promise<WorkspaceTrustContract> {
+    await this.initialize();
+    const normalizedContract = normalizeWorkspaceTrustContract({
+      ...contract,
+      workspaceId,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await this.getClient().execute({
+      sql: `INSERT INTO workspace_trust_contracts (workspace_id, contract_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(workspace_id) DO UPDATE SET
+              contract_json = excluded.contract_json,
+              updated_at = excluded.updated_at`,
+      args: [
+        workspaceId,
+        JSON.stringify(normalizedContract),
+        normalizedContract.updatedAt,
+      ],
+    });
+
+    return normalizedContract;
+  }
+
   // ── Session ──────────────────────────────────────────────────────────────
 
   private async ensureWorkspaceSession(workspaceId: string) {
@@ -423,6 +483,29 @@ export class TursoService {
       sql: `INSERT INTO workspace_sessions (workspace_id, active_thread_id, threads_json, updated_at)
             VALUES (?, ?, ?, ?)`,
       args: [workspaceId, null, DEFAULT_THREADS_JSON, new Date().toISOString()],
+    });
+  }
+
+  private async ensureWorkspaceTrustContract(workspaceId: string) {
+    const existing = await this.getClient().execute({
+      sql: `SELECT workspace_id FROM workspace_trust_contracts WHERE workspace_id = ? LIMIT 1`,
+      args: [workspaceId],
+    });
+
+    if (existing.rows[0]?.workspace_id) {
+      return;
+    }
+
+    const workspace = (await this.getWorkspaces()).find((entry) => entry.id === workspaceId);
+    const contract = createDefaultWorkspaceTrustContract(
+      workspaceId,
+      workspace?.name ?? 'Workspace',
+    );
+
+    await this.getClient().execute({
+      sql: `INSERT INTO workspace_trust_contracts (workspace_id, contract_json, updated_at)
+            VALUES (?, ?, ?)`,
+      args: [workspaceId, JSON.stringify(contract), contract.updatedAt],
     });
   }
 }
@@ -443,6 +526,19 @@ function safeParseFailingTests(raw: string): string[] {
   } catch {
     return [];
   }
+}
+
+function safeParseTrustContract(raw: string, workspaceId: string): WorkspaceTrustContract {
+  try {
+    const parsed = JSON.parse(raw) as WorkspaceTrustContract;
+    if (parsed && parsed.workspaceId === workspaceId) {
+      return normalizeWorkspaceTrustContract(parsed);
+    }
+  } catch {
+    // Fall through to a conservative default contract.
+  }
+
+  return createDefaultWorkspaceTrustContract(workspaceId, 'Workspace');
 }
 
 export const tursoService = new TursoService();

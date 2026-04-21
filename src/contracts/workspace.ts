@@ -56,10 +56,29 @@ export interface ValidationRun {
   ranAt: string;
 }
 
+export type WorkspaceTrustAutonomy = 'plan-only' | 'approval-required' | 'trusted-patch';
+
+export interface WorkspaceTrustContract {
+  id: string;
+  workspaceId: string;
+  name: string;
+  version: number;
+  autonomy: WorkspaceTrustAutonomy;
+  allowedPaths: string[];
+  forbiddenPaths: string[];
+  allowedCommands: string[];
+  allowedDomains: string[];
+  allowedSecrets: string[];
+  allowedActions: string[];
+  blockedActions: string[];
+  updatedAt: string;
+}
+
 export interface WorkspaceSnapshot {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   workspace: WorkspaceSummary;
+  trustContract: WorkspaceTrustContract;
   files: string[];
   signals: SearchMatch[];
   threads: Conversation[];

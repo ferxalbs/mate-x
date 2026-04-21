@@ -7,12 +7,14 @@ import {
   bootstrapWorkspaceState,
   getWorkspaceEntries,
   getWorkspaceSummary,
+  getWorkspaceTrustContract,
   listFiles,
   removeWorkspace,
   runAssistant,
   saveWorkspaceSession,
   searchInFiles,
   setActiveWorkspace,
+  updateWorkspaceTrustContract,
 } from './repo-service';
 import { listRainyModels, validateRainyModelSelection } from './rainy-service';
 import { tursoService } from './turso-service';
@@ -51,6 +53,14 @@ export function registerIpcHandlers() {
   ipcMain.handle('repo:bootstrap', async () => bootstrapWorkspaceState());
   ipcMain.handle('repo:get-workspaces', async () => getWorkspaceEntries());
   ipcMain.handle('repo:get-workspace-summary', async () => getWorkspaceSummary());
+  ipcMain.handle(
+    'repo:get-workspace-trust-contract',
+    async (_event, workspaceId?: string) => getWorkspaceTrustContract(workspaceId),
+  );
+  ipcMain.handle(
+    'repo:update-workspace-trust-contract',
+    async (_event, contract) => updateWorkspaceTrustContract(contract),
+  );
   ipcMain.handle('repo:set-active-workspace', async (_event, workspaceId: string) =>
     setActiveWorkspace(workspaceId),
   );

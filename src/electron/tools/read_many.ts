@@ -33,7 +33,15 @@ export const readManyTool: Tool = {
     },
     required: ["paths"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(
+    args: {
+      paths?: unknown[];
+      lineStart?: number;
+      lineEnd?: number;
+      maxCharsPerFile?: number;
+    },
+    { workspacePath },
+  ) {
     const paths = Array.isArray(args.paths) ? args.paths : [];
     if (paths.length === 0) {
       return "Error: paths must include at least one file.";

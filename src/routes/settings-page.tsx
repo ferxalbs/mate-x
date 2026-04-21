@@ -9,6 +9,7 @@ import {
   RefreshCcwIcon,
   ServerIcon,
   Settings2Icon,
+  ShieldCheckIcon,
   WaypointsIcon,
 } from 'lucide-react';
 
@@ -32,12 +33,21 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
+import type {
+  WorkspaceTrustAutonomy,
+  WorkspaceTrustContract,
+} from '../contracts/workspace';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { cn } from '../lib/utils';
+import {
+  getWorkspaceTrustContract,
+  updateWorkspaceTrustContract,
+} from '../services/repo-client';
 import { getApiKey, setApiKey } from '../services/settings-client';
+import { useChatStore } from '../store/chat-store';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type SettingsSectionId = 'general' | 'connections' | 'archive';
+type SettingsSectionId = 'general' | 'connections' | 'trust' | 'archive';
 
 function maskKey(key: string) {
   if (key.length <= 8) return '••••••••';
@@ -47,6 +57,8 @@ function maskKey(key: string) {
 export function SettingsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { theme, setTheme } = useTheme();
+  const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
+  const activeWorkspace = useChatStore((state) => state.workspace);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -58,6 +70,17 @@ export function SettingsPage() {
   const [assistantOutput, setAssistantOutput] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState(true);
+  const [trustContract, setTrustContract] = useState<WorkspaceTrustContract | null>(null);
+  const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
+
+  const section: SettingsSectionId =
+    pathname === '/settings/connections'
+      ? 'connections'
+      : pathname === '/settings/trust'
+        ? 'trust'
+        : pathname === '/settings/archive'
+          ? 'archive'
+          : 'general';
 
   useEffect(() => {
     let cancelled = false;
@@ -65,9 +88,16 @@ export function SettingsPage() {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        const apiKey = await getApiKey();
+        const [apiKey, contract] = await Promise.all([
+          getApiKey(),
+          activeWorkspaceId
+            ? getWorkspaceTrustContract(activeWorkspaceId)
+            : Promise.resolve(null),
+        ]);
         if (cancelled) return;
         setCurrentKey(apiKey);
+        setTrustContract(contract);
+        setTrustDraft(contract);
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -80,13 +110,39 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeWorkspaceId]);
 
   const hasKeyDraft = inputValue.trim().length > 0 && inputValue.trim() !== (currentKey ?? '');
+  const hasTrustDraft = Boolean(
+    trustContract &&
+      trustDraft &&
+      serializeTrustContract(trustDraft) !== serializeTrustContract(trustContract),
+  );
   const isBusy = isLoading || saveState === 'saving';
   const saveLabel = saveState === 'saved' ? 'Saved' : 'Save changes';
 
   const handleSave = useCallback(async () => {
+    if (section === 'trust') {
+      if (!trustDraft || !hasTrustDraft) {
+        return;
+      }
+
+      setSaveState('saving');
+      setErrorMsg('');
+
+      try {
+        const nextContract = await updateWorkspaceTrustContract(trustDraft);
+        setTrustContract(nextContract);
+        setTrustDraft(nextContract);
+        useChatStore.setState({ trustContract: nextContract });
+        setSaveState('saved');
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Could not save trust contract.');
+        setSaveState('error');
+      }
+      return;
+    }
+
     const trimmedKey = inputValue.trim();
     if (!trimmedKey || trimmedKey === currentKey) {
       return;
@@ -111,7 +167,7 @@ export function SettingsPage() {
       setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
       setSaveState('error');
     }
-  }, [currentKey, inputValue]);
+  }, [currentKey, hasTrustDraft, inputValue, section, trustDraft]);
 
   const handleRestoreDefaults = useCallback(() => {
     setTheme('system');
@@ -137,16 +193,17 @@ export function SettingsPage() {
       ...(assistantOutput ? ['Assistant output'] : []),
       ...(archiveConfirmation ? ['Archive confirmation'] : []),
       ...(!deleteConfirmation ? ['Delete confirmation'] : []),
+      ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
-    [archiveConfirmation, assistantOutput, deleteConfirmation, diffLineWrapping, theme],
+    [
+      archiveConfirmation,
+      assistantOutput,
+      deleteConfirmation,
+      diffLineWrapping,
+      hasTrustDraft,
+      theme,
+    ],
   );
-
-  const section: SettingsSectionId =
-    pathname === '/settings/connections'
-      ? 'connections'
-      : pathname === '/settings/archive'
-        ? 'archive'
-        : 'general';
 
   return (
     <>
@@ -305,6 +362,107 @@ export function SettingsPage() {
               </SettingsSection>
             ) : null}
 
+            {section === 'trust' ? (
+              <SettingsSection title="Workspace Trust Contract" icon={<ShieldCheckIcon className="size-3.5" />}>
+                {trustDraft ? (
+                  <>
+                    <SettingsRow
+                      title="Operational profile"
+                      description={`Versioned contract for ${activeWorkspace?.name ?? 'the active workspace'}. This profile is sent into each run and enforced before tool execution.`}
+                      status={`Updated ${formatDateTime(trustDraft.updatedAt)}`}
+                      control={
+                        <Select
+                          value={trustDraft.autonomy}
+                          onValueChange={(value) =>
+                            setTrustDraft((draft) =>
+                              draft
+                                ? {
+                                    ...draft,
+                                    autonomy: value as WorkspaceTrustAutonomy,
+                                  }
+                                : draft,
+                            )
+                          }
+                        >
+                          <SelectTrigger className="w-[190px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="plan-only">Plan only</SelectItem>
+                            <SelectItem value="approval-required">Approval required</SelectItem>
+                            <SelectItem value="trusted-patch">Trusted patch</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Scope"
+                      description="Folders and files the agent can inspect or modify when a tool accepts a path."
+                      value={trustDraft.allowedPaths}
+                      onChange={(allowedPaths) =>
+                        setTrustDraft((draft) => draft ? { ...draft, allowedPaths } : draft)
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Forbidden"
+                      description="Paths that remain blocked even when they sit under an allowed folder."
+                      value={trustDraft.forbiddenPaths}
+                      onChange={(forbiddenPaths) =>
+                        setTrustDraft((draft) => draft ? { ...draft, forbiddenPaths } : draft)
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Commands"
+                      description="Exact command prefixes allowed for controlled execution tools."
+                      value={trustDraft.allowedCommands}
+                      onChange={(allowedCommands) =>
+                        setTrustDraft((draft) => draft ? { ...draft, allowedCommands } : draft)
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Network"
+                      description="Domains the main process may query during governed runs."
+                      value={trustDraft.allowedDomains}
+                      onChange={(allowedDomains) =>
+                        setTrustDraft((draft) => draft ? { ...draft, allowedDomains } : draft)
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Secrets"
+                      description="Secret labels available to runs. Empty means no workspace secrets are released."
+                      value={trustDraft.allowedSecrets}
+                      placeholder="none"
+                      onChange={(allowedSecrets) =>
+                        setTrustDraft((draft) => draft ? { ...draft, allowedSecrets } : draft)
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Allowed actions"
+                      description="Action classes the tool loop may perform inside this workspace."
+                      value={trustDraft.allowedActions}
+                      onChange={(allowedActions) =>
+                        setTrustDraft((draft) => draft ? { ...draft, allowedActions } : draft)
+                      }
+                    />
+                    <TrustTextareaRow
+                      title="Blocked actions"
+                      description="High-risk action classes the contract rejects before execution."
+                      value={trustDraft.blockedActions}
+                      onChange={(blockedActions) =>
+                        setTrustDraft((draft) => draft ? { ...draft, blockedActions } : draft)
+                      }
+                    />
+                  </>
+                ) : (
+                  <SettingsRow
+                    title="No active workspace"
+                    description="Import or activate a workspace before editing its trust contract."
+                    control={null}
+                  />
+                )}
+              </SettingsSection>
+            ) : null}
+
             {section === 'archive' ? (
               <SettingsSection title="Archive" icon={<FolderArchiveIcon className="size-3.5" />}>
                 <>
@@ -338,6 +496,14 @@ export function SettingsPage() {
                         ? 'Rainy key saved and active'
                         : 'Rainy API key not configured'}
                   </span>
+                ) : section === 'trust' ? (
+                  <span>
+                    {hasTrustDraft
+                      ? 'Pending: workspace trust contract'
+                      : trustContract
+                        ? `Contract ${trustContract.name} v${trustContract.version} active`
+                        : 'No active trust contract'}
+                  </span>
                 ) : (
                   <span>
                     {changedSettingLabels.length > 0
@@ -347,17 +513,19 @@ export function SettingsPage() {
                 )}
               </div>
 
-              {section === 'connections' ? (
+              {section === 'connections' || section === 'trust' ? (
                 <Button
                   size="sm"
                   className="h-9 rounded-lg px-4"
                   onClick={() => void handleSave()}
-                  disabled={!hasKeyDraft || isBusy}
+                  disabled={section === 'connections' ? !hasKeyDraft || isBusy : !hasTrustDraft || isBusy}
                 >
                   {isBusy ? (
                     <Loader2Icon className="size-4 animate-spin" />
                   ) : saveState === 'saved' ? (
                     <CheckIcon className="size-4" />
+                  ) : section === 'trust' ? (
+                    <ShieldCheckIcon className="size-4" />
                   ) : (
                     <KeyRoundIcon className="size-4" />
                   )}
@@ -389,4 +557,71 @@ export function SettingsPage() {
 
 function isValidRainyApiKey(value: string) {
   return value.startsWith('ra-') || value.startsWith('rk_live_');
+}
+
+function TrustTextareaRow({
+  title,
+  description,
+  value,
+  placeholder,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  value: string[];
+  placeholder?: string;
+  onChange: (value: string[]) => void;
+}) {
+  return (
+    <SettingsRow
+      title={title}
+      description={description}
+      control={
+        <textarea
+          className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/50 focus-visible:border-ring sm:w-[360px]"
+          value={value.join('\n')}
+          placeholder={placeholder}
+          onChange={(event) => onChange(parseLines(event.target.value))}
+        />
+      }
+    />
+  );
+}
+
+function parseLines(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function serializeTrustContract(contract: WorkspaceTrustContract) {
+  return JSON.stringify({
+    name: contract.name,
+    version: contract.version,
+    autonomy: contract.autonomy,
+    allowedPaths: contract.allowedPaths,
+    forbiddenPaths: contract.forbiddenPaths,
+    allowedCommands: contract.allowedCommands,
+    allowedDomains: contract.allowedDomains,
+    allowedSecrets: contract.allowedSecrets,
+    allowedActions: contract.allowedActions,
+    blockedActions: contract.blockedActions,
+  });
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'unknown';
+  }
+
+  return date.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }

@@ -4,6 +4,7 @@ import type {
   Conversation,
 } from '../contracts/chat';
 import type { RepoInspectorApi } from '../contracts/ipc';
+import type { WorkspaceTrustContract } from '../contracts/workspace';
 
 function getMateApi(): RepoInspectorApi {
   if (!window.mate?.repo) {
@@ -23,6 +24,14 @@ export function listWorkspaces() {
 
 export function getWorkspaceSummary() {
   return getMateApi().getWorkspaceSummary();
+}
+
+export function getWorkspaceTrustContract(workspaceId?: string) {
+  return getMateApi().getWorkspaceTrustContract(workspaceId);
+}
+
+export function updateWorkspaceTrustContract(contract: WorkspaceTrustContract) {
+  return getMateApi().updateWorkspaceTrustContract(contract);
 }
 
 export function openWorkspacePicker() {

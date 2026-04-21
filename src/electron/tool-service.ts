@@ -32,6 +32,8 @@ import { readManyTool } from "./tools/read_many";
 import { jsonProbeTool } from "./tools/json_probe";
 import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
 import { runTestsTool } from "./tools/run_tests";
+import type { WorkspaceTrustContract } from "../contracts/workspace";
+import { evaluateTrustForToolCall } from "./workspace-trust";
 
 export interface Tool {
   name: string;
@@ -41,7 +43,10 @@ export interface Tool {
     properties: Record<string, any>;
     required?: string[];
   };
-  execute: (args: any, context: { workspacePath: string }) => Promise<string>;
+  execute: (
+    args: any,
+    context: { workspacePath: string; trustContract?: WorkspaceTrustContract },
+  ) => Promise<string>;
 }
 
 export class ToolService {
@@ -135,7 +140,7 @@ export class ToolService {
   async callTool(
     name: string,
     args: any,
-    context: { workspacePath: string },
+    context: { workspacePath: string; trustContract?: WorkspaceTrustContract },
   ): Promise<string> {
     const tool = this.tools.get(name);
     if (!tool) {
@@ -145,6 +150,17 @@ export class ToolService {
     const validationError = validateToolArguments(tool, args);
     if (validationError) {
       return `Invalid arguments for "${name}": ${validationError}`;
+    }
+
+    if (context.trustContract) {
+      const trustError = evaluateTrustForToolCall({
+        toolName: name,
+        args,
+        contract: context.trustContract,
+      });
+      if (trustError) {
+        return trustError;
+      }
     }
 
     try {
