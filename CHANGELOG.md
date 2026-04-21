@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.21 (1) [Workspace Trust Contracts]
+
+- Added workspace-scoped trust contracts that define allowed paths, forbidden paths, allowed commands, allowed network domains, allowed secrets, allowed actions, blocked actions, and autonomy level per workspace.
+- Persisted each contract in the local workspace database and included the active contract in workspace snapshots so renderer state, settings, and assistant runs share the same governed profile.
+- Added a same-shell Settings section at `/settings/trust` for editing the active workspace contract without leaving the existing MaTE X desktop chrome.
+- Displayed the active contract version, autonomy level, allowed scope, and blocked actions in the composer before each run.
+- Enforced contracts in the Electron tool layer before execution, including action checks, command allowlists, path scope checks, forbidden-path checks, and plan-only autonomy restrictions.
+- Scoped ripgrep searches through the active contract and prevented Rainy API calls when the provider domain is not allowed by the contract.
+- Added a narrow `bun:test` type shim so repository type-checking remains clean with the existing colocated tests.
+
 ## Unreleased - 2026.04.19 (1) [Tool Service Hardening and Native Tool Reliability]
 
 - Added native tools `read_many` and `json_probe` so agent can read many files fast and query JSON values directly.

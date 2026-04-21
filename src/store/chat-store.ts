@@ -6,7 +6,13 @@ import type {
   Conversation,
   RunStatus,
 } from '../contracts/chat';
-import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from '../contracts/workspace';
+import type {
+  SearchMatch,
+  WorkspaceEntry,
+  WorkspaceSnapshot,
+  WorkspaceSummary,
+  WorkspaceTrustContract,
+} from '../contracts/workspace';
 import { createId } from '../lib/id';
 import {
   bootstrapWorkspaceState,
@@ -22,6 +28,7 @@ import { buildThreadTitle } from '../features/desktop-shell/model';
 interface ChatState {
   workspaces: WorkspaceEntry[];
   workspace: WorkspaceSummary | null;
+  trustContract: WorkspaceTrustContract | null;
   activeWorkspaceId: string | null;
   repoFiles: string[];
   repoSignals: SearchMatch[];
@@ -76,6 +83,7 @@ function applyWorkspaceSnapshot(
   return {
     workspaces: snapshot.workspaces,
     workspace: snapshot.workspace,
+    trustContract: snapshot.trustContract,
     activeWorkspaceId: snapshot.activeWorkspaceId,
     repoFiles: snapshot.files,
     repoSignals: snapshot.signals,
@@ -122,6 +130,7 @@ function replaceMessageById(
 export const useChatStore = create<ChatState>((set, get) => ({
   workspaces: [],
   workspace: null,
+  trustContract: null,
   activeWorkspaceId: null,
   repoFiles: [],
   repoSignals: [],

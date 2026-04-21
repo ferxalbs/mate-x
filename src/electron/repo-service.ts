@@ -28,16 +28,22 @@ import type {
   WorkspaceEntry,
   WorkspaceSnapshot,
   WorkspaceSummary,
+  WorkspaceTrustContract,
 } from "../contracts/workspace";
 import {
   MATE_AGENT_PROMPT_STOP_WORDS,
   MATE_AGENT_SYSTEM_PROMPT,
 } from "../config/mate-agent";
+import {
+  canQueryDomain,
+  renderTrustContractForPrompt,
+} from "./workspace-trust";
 
 const execFileAsync = promisify(execFile);
 
 export interface RepoSnapshot {
   workspace: WorkspaceSummary;
+  trustContract: WorkspaceTrustContract;
   files: string[];
   packageJson: string | null;
   statusLines: string[];
@@ -142,6 +148,20 @@ export async function getWorkspaceSummary(
   return buildWorkspaceSummary(workspace);
 }
 
+export async function getWorkspaceTrustContract(
+  workspaceId?: string,
+): Promise<WorkspaceTrustContract> {
+  const workspace = await resolveWorkspace(workspaceId);
+  return tursoService.getWorkspaceTrustContract(workspace.id);
+}
+
+export async function updateWorkspaceTrustContract(
+  contract: WorkspaceTrustContract,
+): Promise<WorkspaceTrustContract> {
+  const workspace = await resolveWorkspace(contract.workspaceId);
+  return tursoService.setWorkspaceTrustContract(workspace.id, contract);
+}
+
 export async function listFiles(
   limit = 120,
   workspaceId?: string,
@@ -165,9 +185,10 @@ export async function collectRepoSnapshot(
 ): Promise<RepoSnapshot> {
   const workspace = await resolveWorkspace(workspaceId);
   const promptPattern = buildPromptPattern(prompt);
-  const [summary, files, packageJson, status, promptMatches] =
+  const [summary, trustContract, files, packageJson, status, promptMatches] =
     await Promise.all([
       buildWorkspaceSummary(workspace),
+      tursoService.getWorkspaceTrustContract(workspace.id),
       listWorkspaceFiles(workspace.path, 200),
       readFileMaybe(workspace.path, "package.json"),
       new GitService(workspace.path).getStatus(),
@@ -178,6 +199,7 @@ export async function collectRepoSnapshot(
 
   return {
     workspace: summary,
+    trustContract,
     files,
     packageJson,
     statusLines: status.files.map(
@@ -224,12 +246,15 @@ export async function runAssistant(
     tursoService.getApiKey(),
     tursoService.getModel(),
   ]);
-  const runtimeConfig = apiKey
+  const rainyHostAllowed = canQueryDomain(
+    snapshot.trustContract,
+    "rainy-api-v3-us-179843975974.us-east4.run.app",
+  );
+  const runtimeConfig = apiKey && rainyHostAllowed
     ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
     : null;
   const configuredModel = runtimeConfig?.model ?? null;
-
-  const hasRainyConfig = Boolean(apiKey && configuredModel);
+  const hasRainyConfig = Boolean(apiKey && configuredModel && rainyHostAllowed);
   const artifacts = buildArtifacts(
     snapshot,
     hasRainyConfig,
@@ -254,7 +279,7 @@ export async function runAssistant(
 
   emitProgress();
 
-  if (apiKey && configuredModel) {
+  if (apiKey && configuredModel && rainyHostAllowed) {
     try {
       const result = await requestRainyAgenticResponse({
         apiKey,
@@ -292,9 +317,11 @@ export async function runAssistant(
   } else {
     content = buildFallbackResponse(prompt, snapshot);
     events.push({
-      id: "step-rainy-model-missing",
-      label: "Model unavailable",
-      detail: "No compatible Rainy models were found for the current API key.",
+      id: rainyHostAllowed ? "step-rainy-model-missing" : "step-rainy-domain-blocked",
+      label: rainyHostAllowed ? "Model unavailable" : "Provider domain blocked",
+      detail: rainyHostAllowed
+        ? "No compatible Rainy models were found for the current API key."
+        : "The active Workspace Trust Contract does not allow the Rainy API domain.",
       status: "error",
     });
     emitProgress();
@@ -326,8 +353,9 @@ async function buildWorkspaceSnapshot(
   }
 
   const workspace = await resolveWorkspace(resolvedWorkspaceId, workspaces);
-  const [summary, files, signals, session] = await Promise.all([
+  const [summary, trustContract, files, signals, session] = await Promise.all([
     buildWorkspaceSummary(workspace),
+    tursoService.getWorkspaceTrustContract(workspace.id),
     listWorkspaceFiles(workspace.path, 18),
     searchWorkspaceFiles(
       workspace.path,
@@ -341,6 +369,7 @@ async function buildWorkspaceSnapshot(
     activeWorkspaceId: workspace.id,
     workspaces,
     workspace: summary,
+    trustContract,
     files,
     signals,
     threads: session.threads,
@@ -916,8 +945,14 @@ function buildArtifacts(
     },
     {
       id: "artifact-access",
-      label: "Access",
-      value: options.access,
+      label: "Contract",
+      value: `${snapshot.trustContract.name} v${snapshot.trustContract.version}`,
+      tone: "success",
+    },
+    {
+      id: "artifact-autonomy",
+      label: "Autonomy",
+      value: snapshot.trustContract.autonomy,
     },
     {
       id: "artifact-branch",
@@ -1087,6 +1122,7 @@ async function executeAgentToolCall({
     const result = await withTimeout(
       toolService.callTool(toolName, toolArgs, {
         workspacePath: snapshot.workspace.path,
+        trustContract: snapshot.trustContract,
       }),
       TOOL_EXECUTION_TIMEOUT_MS,
       `Tool ${toolName} timed out after ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
@@ -1159,6 +1195,8 @@ Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
 Operating mode: ${options.mode}
 Reasoning level: ${options.reasoning}
 Filesystem access policy: ${options.access}
+
+${renderTrustContractForPrompt(snapshot.trustContract)}
 
 Files:
 ${files || "(none)"}

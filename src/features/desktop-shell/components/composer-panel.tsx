@@ -1,4 +1,10 @@
-import { ArrowUpIcon, ChevronDownIcon, LoaderCircle, RotateCcwIcon } from 'lucide-react';
+import {
+  ArrowUpIcon,
+  ChevronDownIcon,
+  LoaderCircle,
+  RotateCcwIcon,
+  ShieldCheckIcon,
+} from 'lucide-react';
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
@@ -11,7 +17,10 @@ import {
 } from '../../../components/ui/select';
 import type { AssistantRunOptions } from '../../../contracts/chat';
 import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
-import type { WorkspaceSummary } from '../../../contracts/workspace';
+import type {
+  WorkspaceSummary,
+  WorkspaceTrustContract,
+} from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
 import { getModel, listModels, setModel } from '../../../services/settings-client';
 
@@ -24,6 +33,7 @@ interface ComposerPanelProps {
   onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   showScrollButton: boolean;
+  trustContract: WorkspaceTrustContract | null;
 }
 
 export function ComposerPanel({
@@ -35,6 +45,7 @@ export function ComposerPanel({
   onSubmit,
   onUndoLastTurn,
   showScrollButton,
+  trustContract,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [modelValue, setModelValue] = useState('');
@@ -44,7 +55,6 @@ export function ComposerPanel({
   const [isModelSaving, setIsModelSaving] = useState(false);
   const [reasoningValue, setReasoningValue] = useState('high');
   const [modeValue, setModeValue] = useState('build');
-  const [accessValue, setAccessValue] = useState('full');
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +106,7 @@ export function ComposerPanel({
   );
   const modelLabel = selectedModel?.label ?? (modelValue || 'Select model');
   const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
+  const accessValue = trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval';
 
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
@@ -213,10 +224,14 @@ export function ComposerPanel({
                 <SelectItem value="build">Build</SelectItem>
                 <SelectItem value="plan">Plan</SelectItem>
               </InlineSelect>
-              <InlineSelect value={accessValue} onValueChange={setAccessValue}>
-                <SelectItem value="full">Full access</SelectItem>
-                <SelectItem value="approval">Approval required</SelectItem>
-              </InlineSelect>
+              <div className="flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-emerald-600 dark:text-emerald-300/90">
+                <ShieldCheckIcon className="size-3.5" />
+                <span>
+                  {trustContract
+                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}`
+                    : 'Contract pending'}
+                </span>
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
@@ -254,8 +269,12 @@ export function ComposerPanel({
           </div>
         </div>
         <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
-          <span>Current checkout</span>
-          <span>{workspace?.branch ?? 'main'}</span>
+          <span className="truncate">
+            Scope {trustContract?.allowedPaths.slice(0, 3).join(', ') ?? 'loading'}
+          </span>
+          <span className="max-w-[42%] truncate text-right">
+            {workspace?.branch ?? 'main'} / blocked {trustContract?.blockedActions.slice(0, 2).join(', ') ?? 'loading'}
+          </span>
         </div>
       </div>
     </div>

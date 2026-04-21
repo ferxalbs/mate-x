@@ -6,12 +6,22 @@ import type {
 } from './chat';
 import type { GitCommit, GitDiff, GitStatus } from './git';
 import type { RainyModelCatalogEntry } from './rainy';
-import type { SearchMatch, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary } from './workspace';
+import type {
+  SearchMatch,
+  WorkspaceEntry,
+  WorkspaceSnapshot,
+  WorkspaceSummary,
+  WorkspaceTrustContract,
+} from './workspace';
 
 export interface RepoInspectorApi {
   bootstrap: () => Promise<WorkspaceSnapshot>;
   getWorkspaces: () => Promise<WorkspaceEntry[]>;
   getWorkspaceSummary: () => Promise<WorkspaceSummary>;
+  getWorkspaceTrustContract: (workspaceId?: string) => Promise<WorkspaceTrustContract>;
+  updateWorkspaceTrustContract: (
+    contract: WorkspaceTrustContract,
+  ) => Promise<WorkspaceTrustContract>;
   openWorkspacePicker: () => Promise<WorkspaceSnapshot | null>;
   setActiveWorkspace: (workspaceId: string) => Promise<WorkspaceSnapshot>;
   removeWorkspace: (workspaceId: string) => Promise<WorkspaceSnapshot>;

@@ -8,6 +8,10 @@ const repoApi: RepoInspectorApi = {
   bootstrap: () => ipcRenderer.invoke('repo:bootstrap'),
   getWorkspaces: () => ipcRenderer.invoke('repo:get-workspaces'),
   getWorkspaceSummary: () => ipcRenderer.invoke('repo:get-workspace-summary'),
+  getWorkspaceTrustContract: (workspaceId) =>
+    ipcRenderer.invoke('repo:get-workspace-trust-contract', workspaceId),
+  updateWorkspaceTrustContract: (contract) =>
+    ipcRenderer.invoke('repo:update-workspace-trust-contract', contract),
   openWorkspacePicker: () => ipcRenderer.invoke('repo:open-workspace-picker'),
   setActiveWorkspace: (workspaceId) => ipcRenderer.invoke('repo:set-active-workspace', workspaceId),
   removeWorkspace: (workspaceId) => ipcRenderer.invoke('repo:remove-workspace', workspaceId),

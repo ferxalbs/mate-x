@@ -10,6 +10,7 @@ export function HomePage() {
   const messageScrollerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const workspace = useChatStore((state) => state.workspace);
+  const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
   const activeThreadIds = useChatStore((state) => state.activeThreadIds);
@@ -60,6 +61,7 @@ export function HomePage() {
         }
         onSubmit={submitPrompt}
         onUndoLastTurn={undoLastTurn}
+        trustContract={trustContract}
         workspace={workspace}
         resolvedTheme={resolvedTheme}
         showScrollButton={showScrollButton}

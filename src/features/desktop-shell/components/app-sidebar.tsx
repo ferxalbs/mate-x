@@ -5,6 +5,7 @@ import {
   FolderGit2Icon,
   GitBranchIcon,
   PlusIcon,
+  ShieldCheckIcon,
   SettingsIcon,
   WaypointsIcon,
   Trash2Icon,
@@ -174,6 +175,23 @@ export function AppSidebar({
                   >
                     <WaypointsIcon className="size-4 shrink-0" />
                     <span>Connections</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    size="sm"
+                    isActive={settingsSection === 'trust'}
+                    className={
+                      settingsSection === 'trust'
+                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
+                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                    }
+                    render={
+                      <Link to="/settings/$section" params={{ section: 'trust' }} />
+                    }
+                  >
+                    <ShieldCheckIcon className="size-4 shrink-0" />
+                    <span>Trust</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>

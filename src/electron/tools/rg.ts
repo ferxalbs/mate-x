@@ -37,8 +37,12 @@ export const rgTool: Tool = {
     },
     required: ['query'],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, trustContract }) {
     const { query, isRegex = false, caseSensitive = false, include, exclude, wholeWord = false } = args;
+    const scopedPaths =
+      trustContract && !trustContract.allowedPaths.includes('.')
+        ? trustContract.allowedPaths
+        : ['.'];
 
     const commandArgs = [
       '--column',
@@ -54,10 +58,13 @@ export const rgTool: Tool = {
     if (wholeWord) commandArgs.push('--word-regexp');
     if (include) commandArgs.push('--glob', include);
     if (exclude) commandArgs.push('--glob', `!${exclude}`);
+    for (const forbiddenPath of trustContract?.forbiddenPaths ?? []) {
+      commandArgs.push('--glob', `!${forbiddenPath}`);
+    }
 
     // -- explicitly tells ripgrep that following arguments are patterns or paths, not flags.
     // This prevents an attacker from supplying flags like '--max-filesize' via the query.
-    commandArgs.push('--', query, '.');
+    commandArgs.push('--', query, ...scopedPaths);
 
     try {
       const { stdout } = await execFileAsync('rg', commandArgs, {
