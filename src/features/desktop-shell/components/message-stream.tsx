@@ -265,7 +265,7 @@ function InterleavedMessageContent({
   }, [content]);
 
   const usedEventIds = new Set<string>();
-  const leadingTraceEvents: ToolEvent[] = [];
+  const pendingTraceEvents: ToolEvent[] = [];
   let hasRenderedModelText = false;
 
   const renderedParts = parts.map((part, index) => {
@@ -275,16 +275,7 @@ function InterleavedMessageContent({
       const event = events.find((e) => e.id === eventId);
       if (event && isInlineTraceEvent(event)) {
         usedEventIds.add(eventId);
-        if (!hasRenderedModelText) {
-          leadingTraceEvents.push(event);
-          return null;
-        }
-
-        return (
-          <div key={`${eventId}-${index}`} className="my-1.5 first:mt-0 last:mb-0">
-            <CompactInlineTrace event={event} />
-          </div>
-        );
+        pendingTraceEvents.push(event);
       }
       return null;
     }
@@ -304,35 +295,60 @@ function InterleavedMessageContent({
     // Detect strict XML thought blocks
     const thoughtTagMatch = trimmedPart.match(/^<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>([\s\S]*?)<\/(?:thought|think|thinking|reasoning|analysis)>$/i);
     if (thoughtTagMatch) {
+      const traceGroup = pendingTraceEvents.length > 0
+        ? (
+          <div className="my-1.5">
+            <InlineTraceGroup events={pendingTraceEvents.splice(0)} />
+          </div>
+        )
+        : null;
+      const isFirstModelText = !hasRenderedModelText;
       hasRenderedModelText = true;
+
       return (
-        <div key={`thought-${index}`} className="my-2">
+        <div key={`thought-${index}`} className="my-2 space-y-2">
+          {isFirstModelText ? null : traceGroup}
           <ThinkingRow isStreaming={isStreaming} thought={thoughtTagMatch[1].trim()} />
+          {isFirstModelText ? traceGroup : null}
         </div>
       );
     }
 
-    hasRenderedModelText = true;
-    const leadingGroup = leadingTraceEvents.length > 0
+    const traceGroup = pendingTraceEvents.length > 0
       ? (
         <div className="my-1.5">
-          <InlineTraceGroup events={leadingTraceEvents.splice(0)} />
+          <InlineTraceGroup events={pendingTraceEvents.splice(0)} />
         </div>
       )
       : null;
+    const isFirstModelText = !hasRenderedModelText;
+    hasRenderedModelText = true;
 
     return (
       <div key={`text-${index}`} className="space-y-2">
+        {isFirstModelText ? null : traceGroup}
         <ChatMarkdown
           content={cleanedPart}
           isStreaming={isStreaming}
         />
-        {leadingGroup}
+        {isFirstModelText ? traceGroup : null}
       </div>
     );
   });
 
-  return <div className="space-y-4">{renderedParts}</div>;
+  const trailingTraceGroup = pendingTraceEvents.length > 0 && hasRenderedModelText
+    ? (
+      <div className="my-1.5">
+        <InlineTraceGroup events={pendingTraceEvents.splice(0)} />
+      </div>
+    )
+    : null;
+
+  if (!hasRenderedModelText && isStreaming) {
+    return <AssistantPendingRow events={events} />;
+  }
+
+  return <div className="space-y-4">{renderedParts}{trailingTraceGroup}</div>;
 }
 
 function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
@@ -351,9 +367,11 @@ function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
 
 function normalizeAssistantVisibleText(value: string) {
   return value
+    .replace(/<\|channel\|>\s*(?:analysis|thought|thinking|reasoning|final)?/gi, "")
     .replace(/<\|(?:start|end|message|channel|constrain|return|recipient)\|>/gi, "")
-    .replace(/<\s*channel\s*\|\s*>/gi, "")
-    .replace(/^\s*(?:analysis|thought|thinking|reasoning|final)\b\s*/i, "")
+    .replace(/<\/?\s*channel\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi, "")
+    .replace(/<\s*channel\s*\|\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi, "")
+    .replace(/(^|\n)\s*(?:analysis|thought|thinking|reasoning|final)\b\s*(?=<|\n|$)/gi, "$1")
     .replace(/[ \t]+\n/g, "\n");
 }
 
