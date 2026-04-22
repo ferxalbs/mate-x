@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.22 (4) [Structured Runbook Engine and Evidence Stage Telemetry]
+
+- Introduced a structured runbook engine contract with explicit workflow metadata: objective, mandatory stages, required checks, success criteria, stop conditions, and final evidence format.
+- Added the first flagship runbook (`patch_test_verify`) and expanded supported workflow ids for future sequences: `audit_reproduce_remediate`, `review_classify_summarize`, and `scan_contain_report`.
+- Wired runbook resolution into assistant execution so each run records the active runbook in runtime events/artifacts and injects the selected runbook contract into agent system guidance.
+- Added a composer-level runbook selector in the existing shell controls so operators can choose workflow structure per prompt without changing app layout patterns.
+- Extended `EvidencePack` with machine-parseable workflow telemetry: `stages[]`, `checks[]`, and `stopConditionTriggered`.
+- Enhanced finalization parsing to extract `Stages`, `Checks`, and `Stop conditions` sections from assistant output into structured evidence fields.
+- Updated Evidence Pack runtime assembly to persist parsed runbook stage/check results and runbook-aware fallback checks when structured check lines are missing.
+- Rendered new `Stages`, `Checks`, and `Stop condition triggered` sections in the Evidence Pack card while preserving existing visual density, border tokens, spacing rhythm, and warning styling.
+
 ## Unreleased - 2026.04.22 (3) [Unrestricted Workspace Trust Mode]
 
 - Introduced a new `unrestricted` autonomy mode for Workspace Trust Contracts, granting AI models full access to read/write any file, run any shell command, and access any network domain.
