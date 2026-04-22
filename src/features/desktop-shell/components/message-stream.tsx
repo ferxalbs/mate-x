@@ -219,7 +219,7 @@ function MessageEntry({
               isStreaming={isStreaming}
             />
           ) : isStreaming ? (
-            <AssistantPendingRow />
+            <AssistantPendingRow events={events} />
           ) : null
         ) : (
           <>
@@ -314,11 +314,15 @@ function InterleavedMessageContent({
   return <div className="space-y-4">{renderedParts}</div>;
 }
 
-function AssistantPendingRow() {
+function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
+  const activeEvent = [...events].reverse().find((event) => event.status === 'active');
+  const latestTraceEvent = activeEvent ?? [...events].reverse().find(isInlineTraceEvent);
+  const status = latestTraceEvent ? summarizeInlineTraceEvent(latestTraceEvent) : 'Working';
+
   return (
-    <div className="inline-flex items-center gap-2 text-[12px] text-muted-foreground/70">
+    <div className="inline-flex items-center gap-2 text-[12px] font-medium text-muted-foreground/72">
       <LoaderCircle className="size-3.5 animate-spin" />
-      <span>Waiting for model response</span>
+      <span>{status}</span>
     </div>
   );
 }
