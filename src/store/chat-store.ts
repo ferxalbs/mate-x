@@ -167,6 +167,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                           : {
                               ...message,
                               content: progress.content,
+                              thought: progress.thought,
                               events: progress.events,
                               artifacts: progress.artifacts,
                             },

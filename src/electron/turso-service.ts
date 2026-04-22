@@ -576,6 +576,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       input.timeFormat === '12h' || input.timeFormat === '24h' || input.timeFormat === 'system'
         ? input.timeFormat
         : DEFAULT_APP_SETTINGS.timeFormat,
+    agentTraceVersion:
+      input.agentTraceVersion === 'v1' || input.agentTraceVersion === 'v2'
+        ? input.agentTraceVersion
+        : DEFAULT_APP_SETTINGS.agentTraceVersion,
     diffLineWrapping:
       typeof input.diffLineWrapping === 'boolean'
         ? input.diffLineWrapping

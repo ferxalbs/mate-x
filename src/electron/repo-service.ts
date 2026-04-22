@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { GitService } from "./git-service";
 import {
   buildResponsesMessageInput,
+  extractResponseThought,
   extractResponseFunctionCalls,
   listRainyModels,
   requestRainyChatCompletion,
@@ -262,16 +263,22 @@ export async function runAssistant(
     resolvedOptions,
   );
   const createdAt = new Date().toISOString();
+  let thought = "";
   let content: string;
-  const emitProgress = () => {
+  const emitProgress = (nextThought?: string) => {
     if (!progressReporter) {
       return;
+    }
+
+    if (typeof nextThought === "string") {
+      thought = nextThought;
     }
 
     progressReporter.emit({
       runId: progressReporter.runId,
       status: "running",
       content: renderInlineProgress(events, resolvedOptions.mode),
+      thought: thought || undefined,
       events: cloneEvents(events),
       artifacts: cloneArtifacts(artifacts),
     });
@@ -292,6 +299,7 @@ export async function runAssistant(
         options: resolvedOptions,
         emitProgress,
       });
+      thought = result.thought ?? thought;
       content = result.content;
     } catch (error) {
       console.error("Agentic loop failed:", error);
@@ -333,6 +341,7 @@ export async function runAssistant(
       id: `assistant-${Date.now()}`,
       role: "assistant",
       content,
+      thought: thought || undefined,
       createdAt,
       events,
       artifacts,
@@ -1176,7 +1185,7 @@ async function requestRainyAgenticResponse({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   options: AssistantRunOptions;
-  emitProgress: () => void;
+  emitProgress: (thought?: string) => void;
 }) {
   const runtime = buildAgentRuntimeConfig(options);
   const files = snapshot.files.slice(0, 80).join("\n");
@@ -1260,7 +1269,7 @@ async function requestRainyChatAgenticResponse({
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
-  emitProgress: () => void;
+  emitProgress: (thought?: string) => void;
 }) {
   const historyMessages = buildHistoryMessages(history);
   let messages: any[] = [
@@ -1510,7 +1519,7 @@ async function requestRainyResponsesAgenticResponse({
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
-  emitProgress: () => void;
+  emitProgress: (thought?: string) => void;
 }) {
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
@@ -1523,6 +1532,7 @@ async function requestRainyResponsesAgenticResponse({
   let previousResponseId: string | undefined;
   let nextInput = initialInput;
   let lastContent = "";
+  let lastThought = "";
 
   while (iterations < runtime.maxIterations) {
     iterations++;
@@ -1557,6 +1567,8 @@ async function requestRainyResponsesAgenticResponse({
 
     previousResponseId = response.id;
     lastContent = response.output_text || lastContent;
+    lastThought = extractResponseThought(response) || lastThought;
+    emitProgress(lastThought);
 
     const loopEvent = events.find(
       (event) => event.id === `step-agent-loop-${iterations}`,
@@ -1630,6 +1642,7 @@ async function requestRainyResponsesAgenticResponse({
           });
 
       return {
+        thought: lastThought,
         content:
           response.output_text ||
           forcedFinalText ||
@@ -1724,6 +1737,7 @@ async function requestRainyResponsesAgenticResponse({
   });
 
   return {
+    thought: lastThought,
     content:
       forcedFinalText ||
       lastContent ||

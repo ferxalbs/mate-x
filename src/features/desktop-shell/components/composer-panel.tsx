@@ -104,7 +104,7 @@ export function ComposerPanel({
     () => catalog.find((entry) => entry.id === modelValue) ?? null,
     [catalog, modelValue],
   );
-  const modelLabel = selectedModel?.label ?? (modelValue || 'Select model');
+  const modelLabel = selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
   const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue = trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval';
 
@@ -211,7 +211,10 @@ export function ComposerPanel({
               >
                 {catalog.map((entry) => (
                   <SelectItem key={entry.id} value={entry.id}>
-                    {entry.label}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate">{entry.label}</span>
+                      <span className="truncate text-[10px] text-muted-foreground/75">{entry.id}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </InlineSelect>

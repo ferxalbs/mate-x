@@ -16,6 +16,7 @@ export interface AssistantRunProgress {
   runId: string;
   status: Extract<RunStatus, "running" | "failed">;
   content: string;
+  thought?: string;
   events: ToolEvent[];
   artifacts: MessageArtifact[];
 }
@@ -38,6 +39,7 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
+  thought?: string;
   createdAt: string;
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
