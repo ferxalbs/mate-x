@@ -264,8 +264,9 @@ export async function runAssistant(
   );
   const createdAt = new Date().toISOString();
   let thought = "";
-  let content: string;
-  const emitProgress = (nextThought?: string) => {
+  let content = "";
+
+  const emitProgress = (nextContent?: string, nextThought?: string) => {
     if (!progressReporter) {
       return;
     }
@@ -274,10 +275,14 @@ export async function runAssistant(
       thought = nextThought;
     }
 
+    if (typeof nextContent === "string") {
+      content = nextContent;
+    }
+
     progressReporter.emit({
       runId: progressReporter.runId,
       status: "running",
-      content: renderInlineProgress(events, resolvedOptions.mode),
+      content: content || renderInlineProgress(events, resolvedOptions.mode),
       thought: thought || undefined,
       events: cloneEvents(events),
       artifacts: cloneArtifacts(artifacts),
@@ -1185,7 +1190,7 @@ async function requestRainyAgenticResponse({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   options: AssistantRunOptions;
-  emitProgress: (thought?: string) => void;
+  emitProgress: (content?: string, thought?: string) => void;
 }) {
   const runtime = buildAgentRuntimeConfig(options);
   const files = snapshot.files.slice(0, 80).join("\n");
@@ -1269,7 +1274,7 @@ async function requestRainyChatAgenticResponse({
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
-  emitProgress: (thought?: string) => void;
+  emitProgress: (content?: string, thought?: string) => void;
 }) {
   const historyMessages = buildHistoryMessages(history);
   let messages: any[] = [
@@ -1282,7 +1287,9 @@ async function requestRainyChatAgenticResponse({
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
-  let lastNonEmptyAssistantText = "";
+  let lastNonEmptyAssistantText = events
+    .map((e) => `<!-- mate-trace:${e.id} -->`)
+    .join("\n\n");
 
   const { applyContextCompressionChat } = await import("./context-compression");
 
@@ -1338,7 +1345,8 @@ async function requestRainyChatAgenticResponse({
 
     const responseText = normalizeAssistantText(responseMessage.content);
     if (responseText.trim()) {
-      lastNonEmptyAssistantText = responseText;
+      lastNonEmptyAssistantText += (lastNonEmptyAssistantText ? "\n\n" : "") + responseText;
+      emitProgress(lastNonEmptyAssistantText);
     }
 
     const loopEvent = events.find(
@@ -1397,11 +1405,13 @@ async function requestRainyChatAgenticResponse({
             emitProgress,
           });
 
+      const finalContentText = forcedFinalText
+        ? (lastNonEmptyAssistantText ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}` : forcedFinalText)
+        : lastNonEmptyAssistantText;
+
       return {
         content:
-          responseText.trim() ||
-          forcedFinalText ||
-          lastNonEmptyAssistantText ||
+          finalContentText ||
           buildNoContentFinalResponse({
             iterations,
             toolRounds,
@@ -1433,7 +1443,14 @@ async function requestRainyChatAgenticResponse({
       detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent, with a ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s timeout each.`,
       status: "done",
     });
-    emitProgress();
+    // Insert markers for the current batch of tool calls
+    for (let i = 0; i < executableToolCalls.length; i++) {
+      const toolCall = executableToolCalls[i];
+      const eventId = `tool-${iterations}-${i}-${toolCall.name}`;
+      lastNonEmptyAssistantText += `\n\n<!-- mate-trace:${eventId} -->`;
+    }
+
+    emitProgress(lastNonEmptyAssistantText);
 
     const toolResults = await mapWithConcurrency(
       executableToolCalls,
@@ -1487,10 +1504,13 @@ async function requestRainyChatAgenticResponse({
     emitProgress,
   });
 
+  const finalContentText = forcedFinalText
+    ? (lastNonEmptyAssistantText ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}` : forcedFinalText)
+    : lastNonEmptyAssistantText;
+
   return {
     content:
-      forcedFinalText ||
-      lastNonEmptyAssistantText ||
+      finalContentText ||
       buildNoContentFinalResponse({
         iterations,
         toolRounds,
@@ -1519,7 +1539,7 @@ async function requestRainyResponsesAgenticResponse({
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
-  emitProgress: (thought?: string) => void;
+  emitProgress: (content?: string, thought?: string) => void;
 }) {
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
@@ -1531,7 +1551,9 @@ async function requestRainyResponsesAgenticResponse({
   let totalToolCalls = 0;
   let previousResponseId: string | undefined;
   let nextInput = initialInput;
-  let lastContent = "";
+  let lastContent = events
+    .map((e) => `<!-- mate-trace:${e.id} -->`)
+    .join("\n\n");
   let lastThought = "";
 
   while (iterations < runtime.maxIterations) {
@@ -1566,9 +1588,12 @@ async function requestRainyResponsesAgenticResponse({
     });
 
     previousResponseId = response.id;
-    lastContent = response.output_text || lastContent;
+    const responseText = response.output_text || "";
+    if (responseText.trim()) {
+      lastContent += (lastContent ? "\n\n" : "") + responseText;
+    }
     lastThought = extractResponseThought(response) || lastThought;
-    emitProgress(lastThought);
+    emitProgress(lastContent, lastThought);
 
     const loopEvent = events.find(
       (event) => event.id === `step-agent-loop-${iterations}`,
@@ -1641,12 +1666,14 @@ async function requestRainyResponsesAgenticResponse({
             emitProgress,
           });
 
+      const finalContentText = forcedFinalText
+        ? (lastContent ? `${lastContent}\n\n${forcedFinalText}` : forcedFinalText)
+        : lastContent;
+
       return {
         thought: lastThought,
         content:
-          response.output_text ||
-          forcedFinalText ||
-          lastContent ||
+          finalContentText ||
           "The model completed the tool loop without returning text.",
       };
     }
@@ -1680,7 +1707,14 @@ async function requestRainyResponsesAgenticResponse({
       detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent, with a ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s timeout each.`,
       status: "done",
     });
-    emitProgress();
+    // Insert markers for the current batch of tool calls
+    for (let i = 0; i < executableToolCalls.length; i++) {
+      const toolCall = executableToolCalls[i];
+      const eventId = `tool-${iterations}-${i}-${toolCall.name}`;
+      lastContent += `\n\n<!-- mate-trace:${eventId} -->`;
+    }
+
+    emitProgress(lastContent);
 
     const toolResults = await mapWithConcurrency(
       executableToolCalls,
@@ -1736,11 +1770,14 @@ async function requestRainyResponsesAgenticResponse({
     emitProgress,
   });
 
+  const finalContentText = forcedFinalText
+    ? (lastContent ? `${lastContent}\n\n${forcedFinalText}` : forcedFinalText)
+    : lastContent;
+
   return {
     thought: lastThought,
     content:
-      forcedFinalText ||
-      lastContent ||
+      finalContentText ||
       "Maximum agent iterations reached without a final response.",
   };
 }
