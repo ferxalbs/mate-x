@@ -283,7 +283,7 @@ export async function runAssistant(
     progressReporter.emit({
       runId: progressReporter.runId,
       status: "running",
-      content: content || renderInlineProgress(events, resolvedOptions.mode),
+      content,
       thought: thought || undefined,
       events: cloneEvents(events),
       artifacts: cloneArtifacts(artifacts),
@@ -854,75 +854,6 @@ function buildHistoryMessages(
   });
 }
 
-function describeProgressPhase(
-  label: string | undefined,
-  mode: AssistantRunOptions["mode"],
-) {
-  if (!label) {
-    return mode === "plan"
-      ? "Planning the investigation and preparing the next tool-backed pass."
-      : "Reviewing the repository and collecting evidence before answering.";
-  }
-
-  if (label.startsWith("Agent pass")) {
-    return "Inspecting the repository and pushing the model through another investigation pass.";
-  }
-
-  if (label.startsWith("Tool batch")) {
-    return "Running a batch of repository tools to gather more concrete evidence.";
-  }
-
-  if (label.startsWith("Executing ")) {
-    return "Working through repository evidence now and folding tool results back into the loop.";
-  }
-
-  if (label === "Continue investigation") {
-    return "The model tried to stop early, so the loop is forcing another evidence-gathering pass.";
-  }
-
-  if (label === "Tool budget reached") {
-    return "Enough tool evidence is collected. Preparing the final repo-grounded response.";
-  }
-
-  if (label === "Response complete") {
-    return "Finalizing the answer from the evidence already collected.";
-  }
-
-  return "Reviewing the repository and keeping the tool loop moving.";
-}
-
-function formatProgressEvent(event: ToolEvent) {
-  const prefix =
-    event.status === "active"
-      ? "Running"
-      : event.status === "error"
-        ? "Issue"
-        : "Done";
-  const shortDetail =
-    event.detail.length <= 180
-      ? event.detail
-      : `${event.detail.slice(0, 177).trimEnd()}...`;
-
-  return `• ${prefix} ${event.label}: ${shortDetail}`;
-}
-
-function renderInlineProgress(
-  events: ToolEvent[],
-  mode: AssistantRunOptions["mode"],
-) {
-  const currentEvent =
-    [...events].reverse().find((event) => event.status === "active") ??
-    events.at(-1);
-  const visibleEvents = events.slice(-6);
-  const intro = describeProgressPhase(currentEvent?.label, mode);
-
-  if (visibleEvents.length === 0) {
-    return intro;
-  }
-
-  return `${intro}\n\n${visibleEvents.map(formatProgressEvent).join("\n")}`;
-}
-
 function cloneArtifacts(artifacts: MessageArtifact[]) {
   return artifacts.map((artifact) => ({ ...artifact }));
 }
@@ -1291,9 +1222,7 @@ async function requestRainyChatAgenticResponse({
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
-  let lastNonEmptyAssistantText = events
-    .map((e) => `<!-- mate-trace:${e.id} -->`)
-    .join("\n\n");
+  let lastNonEmptyAssistantText = "";
 
   const { applyContextCompressionChat } = await import("./context-compression");
 
@@ -1559,9 +1488,7 @@ async function requestRainyResponsesAgenticResponse({
   let totalToolCalls = 0;
   let previousResponseId: string | undefined;
   let nextInput = initialInput;
-  let lastContent = events
-    .map((e) => `<!-- mate-trace:${e.id} -->`)
-    .join("\n\n");
+  let lastContent = "";
   let lastThought = "";
 
   while (iterations < runtime.maxIterations) {
