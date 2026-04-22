@@ -11,12 +11,23 @@
     "outDir": "dist",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "types": ["node"],
+    "ignoreDeprecations": "6.0",
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "~/*": ["src/*"],
-      "@/*": ["src/*"]
+      "~/*": [
+        "src/*"
+      ],
+      "@/*": [
+        "src/*"
+      ]
     }
   },
-  "include": ["src", "*.ts", "*.tsx"]
+  "include": [
+    "src",
+    "*.ts",
+    "*.tsx"
+  ]
 }

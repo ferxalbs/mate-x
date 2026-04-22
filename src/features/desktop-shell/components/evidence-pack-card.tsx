@@ -55,6 +55,39 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
         </div>
       ) : null}
 
+      {evidencePack.stages && evidencePack.stages.length > 0 ? (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] font-medium text-foreground/85">Stages</p>
+          {evidencePack.stages.slice(0, 8).map((stage, index) => (
+            <div key={`${stage.id}-${index}`} className="rounded-lg border border-border/45 bg-background/35 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+              <span className="text-foreground/85">{stage.name}</span>
+              <span className="ml-2 uppercase">{stage.status}</span>
+              {stage.summary ? <p className="mt-1 text-[10px] text-muted-foreground/90">{stage.summary}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {evidencePack.checks && evidencePack.checks.length > 0 ? (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] font-medium text-foreground/85">Checks</p>
+          {evidencePack.checks.slice(0, 10).map((check, index) => (
+            <div key={`${check.name}-${index}`} className="rounded-lg border border-border/45 bg-background/35 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+              <span className="text-foreground/85">{check.name}</span>
+              <span className="ml-2 uppercase">{check.status}</span>
+              {check.summary ? <p className="mt-1 text-[10px] text-muted-foreground/90">{check.summary}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {evidencePack.stopConditionTriggered ? (
+        <div className="mt-2 rounded-lg border border-amber-300/30 bg-amber-400/8 px-2.5 py-2 text-[11px] text-amber-100">
+          <p className="mb-1 font-medium">Stop condition triggered</p>
+          <p>{evidencePack.stopConditionTriggered}</p>
+        </div>
+      ) : null}
+
       {evidencePack.toolsUsed && evidencePack.toolsUsed.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {evidencePack.toolsUsed.map((tool) => (

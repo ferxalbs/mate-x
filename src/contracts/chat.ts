@@ -7,11 +7,35 @@ export type EvidencePackConfidence = "low" | "medium" | "high";
 export type AssistantReasoningLevel = "low" | "high" | "max";
 export type AssistantMode = "build" | "plan";
 export type AssistantAccess = "full" | "approval";
+export type AssistantRunbookId =
+  | "patch_test_verify"
+  | "audit_reproduce_remediate"
+  | "review_classify_summarize"
+  | "scan_contain_report";
+
+export interface AssistantRunbookStage {
+  id: string;
+  name: string;
+  required: boolean;
+  description: string;
+}
+
+export interface AssistantRunbookDefinition {
+  id: AssistantRunbookId;
+  name: string;
+  objective: string;
+  mandatoryStages: AssistantRunbookStage[];
+  requiredChecks: string[];
+  successCriteria: string[];
+  stopConditions: string[];
+  finalEvidenceFormat: string[];
+}
 
 export interface AssistantRunOptions {
   reasoning: AssistantReasoningLevel;
   mode: AssistantMode;
   access: AssistantAccess;
+  runbookId?: AssistantRunbookId;
 }
 
 export interface AssistantRunProgress {
@@ -66,6 +90,19 @@ export interface EvidencePackTestRun {
   summary?: string;
 }
 
+export interface EvidencePackStageResult {
+  id: string;
+  name: string;
+  status: "completed" | "failed" | "blocked" | "unknown";
+  summary?: string;
+}
+
+export interface EvidencePackCheckResult {
+  name: string;
+  status: "passed" | "failed" | "unknown";
+  summary?: string;
+}
+
 export interface EvidencePack {
   status: EvidencePackStatus;
   verdict: EvidencePackVerdict;
@@ -73,6 +110,9 @@ export interface EvidencePack {
   commandsExecuted?: EvidencePackCommand[];
   toolsUsed?: EvidencePackToolUsage[];
   testsRun?: EvidencePackTestRun[];
+  stages?: EvidencePackStageResult[];
+  checks?: EvidencePackCheckResult[];
+  stopConditionTriggered?: string;
   warnings?: string[];
   unresolvedRisks?: string[];
   recommendation?: string;

@@ -78,6 +78,11 @@ export function evaluateTrustForToolCall({
   contract: WorkspaceTrustContract;
 }) {
   const normalizedContract = normalizeWorkspaceTrustContract(contract);
+  
+  if (normalizedContract.autonomy === 'unrestricted') {
+    return null;
+  }
+
   const requiredAction = getRequiredAction(toolName, args);
 
   if (
@@ -132,14 +137,14 @@ export function renderTrustContractForPrompt(contract: WorkspaceTrustContract) {
 
   return [
     `Trust contract: ${normalized.name} v${normalized.version}`,
-    `Autonomy: ${normalized.autonomy}`,
-    `Allowed paths: ${formatList(normalized.allowedPaths)}`,
-    `Forbidden paths: ${formatList(normalized.forbiddenPaths)}`,
-    `Allowed commands: ${formatList(normalized.allowedCommands)}`,
-    `Allowed domains: ${formatList(normalized.allowedDomains)}`,
+    `Autonomy: ${normalized.autonomy}${normalized.autonomy === 'unrestricted' ? ' (FULL ACCESS - all restrictions bypassed)' : ''}`,
+    `Allowed paths: ${normalized.autonomy === 'unrestricted' ? 'ALL (workspace root and subdirectories)' : formatList(normalized.allowedPaths)}`,
+    `Forbidden paths: ${normalized.autonomy === 'unrestricted' ? 'NONE (all paths accessible)' : formatList(normalized.forbiddenPaths)}`,
+    `Allowed commands: ${normalized.autonomy === 'unrestricted' ? 'ALL (any shell command prefix)' : formatList(normalized.allowedCommands)}`,
+    `Allowed domains: ${normalized.autonomy === 'unrestricted' ? 'ALL (any hostname)' : formatList(normalized.allowedDomains)}`,
     `Allowed secrets: ${formatList(normalized.allowedSecrets)}`,
-    `Allowed actions: ${formatList(normalized.allowedActions)}`,
-    `Blocked actions: ${formatList(normalized.blockedActions)}`,
+    `Allowed actions: ${normalized.autonomy === 'unrestricted' ? 'ALL (read, search, patch, test, deploy, delete, etc)' : formatList(normalized.allowedActions)}`,
+    `Blocked actions: ${normalized.autonomy === 'unrestricted' ? 'NONE (no blocks active)' : formatList(normalized.blockedActions)}`,
   ].join('\n');
 }
 
