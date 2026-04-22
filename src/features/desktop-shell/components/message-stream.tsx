@@ -212,13 +212,15 @@ function MessageEntry({
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
         {thought ? <ThinkingRow isStreaming={isStreaming} thought={thought} /> : null}
         {traceVersion === "v2" && traceV2InlineEvents ? (
-          <InterleavedMessageContent
-            artifacts={artifacts}
-            content={message.content}
-            events={events}
-            isStreaming={isStreaming}
-            traceVersion={traceVersion}
-          />
+          normalizedContent.length > 0 ? (
+            <InterleavedMessageContent
+              content={message.content}
+              events={events}
+              isStreaming={isStreaming}
+            />
+          ) : isStreaming ? (
+            <AssistantPendingRow />
+          ) : null
         ) : (
           <>
             {hasTimeline ? (
@@ -252,15 +254,11 @@ function MessageEntry({
 function InterleavedMessageContent({
   content,
   events,
-  artifacts,
   isStreaming,
-  traceVersion,
 }: {
   content: string;
   events: ToolEvent[];
-  artifacts: MessageArtifact[];
   isStreaming: boolean;
-  traceVersion: "v1" | "v2";
 }) {
   const parts = useMemo(() => {
     return content.split(/(<!-- mate-trace:.*? -->|<thought>[\s\S]*?<\/thought>)/gi);
@@ -313,24 +311,14 @@ function InterleavedMessageContent({
     );
   });
 
-  const orphanedEvents = events.filter(
-    (event) =>
-      !usedEventIds.has(event.id) &&
-      isInlineTraceEvent(event)
-  );
+  return <div className="space-y-4">{renderedParts}</div>;
+}
 
+function AssistantPendingRow() {
   return (
-    <div className="space-y-4">
-      {renderedParts}
-      {orphanedEvents.length > 0 ? (
-        <RunTimeline
-          artifacts={artifacts}
-          events={orphanedEvents}
-          isStreaming={isStreaming}
-          traceVersion={traceVersion}
-          traceV2InlineEvents={true}
-        />
-      ) : null}
+    <div className="inline-flex items-center gap-2 text-[12px] text-muted-foreground/70">
+      <LoaderCircle className="size-3.5 animate-spin" />
+      <span>Waiting for model response</span>
     </div>
   );
 }
@@ -733,20 +721,77 @@ function StatusIcon({ status }: { status: ToolEvent['status'] }) {
 }
 
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
-  const command = extractCommandFromEvent(event);
-  const detail = command ?? event.detail;
+  const [expanded, setExpanded] = useState(false);
+  const summary = summarizeInlineTraceEvent(event);
+  const detail = extractCommandFromEvent(event) ?? event.detail;
 
   return (
-    <div className="flex min-w-0 items-start gap-2 rounded-lg border border-border/35 bg-background/24 px-3 py-2 text-[12px] leading-5 text-muted-foreground/90">
-      <StatusIcon status={event.status} />
-      <div className="min-w-0 flex-1">
-        <span className="font-medium text-foreground/82">{event.label}</span>
-        {detail ? (
-          <span className="text-muted-foreground/75"> - {detail}</span>
-        ) : null}
-      </div>
+    <div className="text-[12px] leading-5 text-muted-foreground/72">
+      <button
+        type="button"
+        className="inline-flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent/45 hover:text-foreground/85"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? (
+          <ChevronDownIcon className="size-3 shrink-0" />
+        ) : (
+          <ChevronRightIcon className="size-3 shrink-0" />
+        )}
+        <InlineTraceStatusDot status={event.status} />
+        <span className="truncate">{summary}</span>
+      </button>
+      {expanded && detail ? (
+        <div className="ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-background/24 px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78">
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function InlineTraceStatusDot({ status }: { status: ToolEvent['status'] }) {
+  if (status === 'active') {
+    return <LoaderCircle className="size-3 shrink-0 animate-spin text-muted-foreground/70" />;
+  }
+
+  if (status === 'error') {
+    return <span className="size-1.5 shrink-0 rounded-full bg-amber-300/90" />;
+  }
+
+  return <span className="size-1.5 shrink-0 rounded-full bg-emerald-300/80" />;
+}
+
+function summarizeInlineTraceEvent(event: ToolEvent) {
+  const label = event.label.replace(/^Executing\s+/i, '').trim() || event.label;
+  const target = extractInlineTraceTarget(event.detail);
+
+  if (event.status === 'error') {
+    return target ? `${label} failed - ${target}` : `${label} failed`;
+  }
+
+  return target ? `${label} - ${target}` : label;
+}
+
+function extractInlineTraceTarget(detail: string) {
+  const argsMatch = detail.match(/^Running\s+[a-zA-Z0-9_]+\s+with arguments:\s+(.+)$/);
+  if (!argsMatch) {
+    return null;
+  }
+
+  try {
+    const args = JSON.parse(argsMatch[1]) as Record<string, unknown>;
+    const value =
+      args.path ??
+      args.file ??
+      args.pattern ??
+      args.query ??
+      args.command ??
+      args.name;
+
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function TimelineEventRow({ event }: { event: ToolEvent }) {
