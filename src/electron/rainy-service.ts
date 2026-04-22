@@ -433,6 +433,32 @@ export function extractResponseFunctionCalls(
   );
 }
 
+export function extractResponseThought(response: OpenAIResponse): string {
+  const thoughtChunks: string[] = [];
+
+  for (const item of response.output) {
+    if (item.type !== "reasoning") {
+      continue;
+    }
+
+    if (!Array.isArray(item.summary)) {
+      continue;
+    }
+
+    for (const summaryItem of item.summary) {
+      if (!isRecord(summaryItem)) {
+        continue;
+      }
+      const summaryText = firstString(summaryItem.text, summaryItem.summary);
+      if (summaryText) {
+        thoughtChunks.push(summaryText);
+      }
+    }
+  }
+
+  return thoughtChunks.join("\n").trim();
+}
+
 export function isOpenAIGpt5OrNewerModel(modelId: string) {
   const normalizedModelId = modelId.trim().toLowerCase();
   if (!normalizedModelId) {

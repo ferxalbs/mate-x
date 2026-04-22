@@ -8,7 +8,7 @@ import {
   FileTextIcon,
   LoaderCircle,
 } from 'lucide-react';
-import { useDeferredValue, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import type { ChatMessage, MessageArtifact, ToolEvent } from '../../../contracts/chat';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
@@ -141,6 +141,7 @@ function MessageEntry({
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
   const artifacts = message.artifacts ?? [];
+  const thought = message.thought?.trim() ?? '';
   const hasTimeline = events.length > 0;
   const [copied, setCopied] = useState(false);
 
@@ -198,6 +199,7 @@ function MessageEntry({
   return (
     <article className="group pl-6">
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
+        {isStreaming && thought ? <ThinkingRow thought={thought} /> : null}
         {hasTimeline ? (
           <RunTimeline
             artifacts={artifacts}
@@ -248,9 +250,28 @@ function RunTimeline({
   isStreaming: boolean;
 }) {
   const [expanded, setExpanded] = useState(isStreaming);
+  const [phaseFilter, setPhaseFilter] = useState<'all' | EventPhase>('all');
   const total = events.length;
   const doneCount = events.filter((event) => event.status === 'done').length;
   const errorCount = events.filter((event) => event.status === 'error').length;
+  const phaseCounts = useMemo(() => {
+    const counts: Record<EventPhase, number> = {
+      initial: 0,
+      investigation: 0,
+      updates: 0,
+      summary: 0,
+    };
+
+    for (const event of events) {
+      counts[classifyEventPhase(event)] += 1;
+    }
+
+    return counts;
+  }, [events]);
+  const filteredEvents = useMemo(
+    () => (phaseFilter === 'all' ? events : events.filter((event) => classifyEventPhase(event) === phaseFilter)),
+    [events, phaseFilter],
+  );
 
   useEffect(() => {
     if (isStreaming) {
@@ -278,6 +299,36 @@ function RunTimeline({
           {errorCount > 0 ? <span className="text-amber-300/90">{errorCount} issues</span> : null}
         </div>
       </div>
+      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+        <span className="rounded-md border border-border/60 bg-background/45 px-2 py-1 text-muted-foreground">
+          Agent Trace v2
+        </span>
+        <PhaseFilterChip
+          active={phaseFilter === 'all'}
+          label={`All (${total})`}
+          onClick={() => setPhaseFilter('all')}
+        />
+        <PhaseFilterChip
+          active={phaseFilter === 'initial'}
+          label={`Initial (${phaseCounts.initial})`}
+          onClick={() => setPhaseFilter('initial')}
+        />
+        <PhaseFilterChip
+          active={phaseFilter === 'investigation'}
+          label={`Investigation (${phaseCounts.investigation})`}
+          onClick={() => setPhaseFilter('investigation')}
+        />
+        <PhaseFilterChip
+          active={phaseFilter === 'updates'}
+          label={`Updates (${phaseCounts.updates})`}
+          onClick={() => setPhaseFilter('updates')}
+        />
+        <PhaseFilterChip
+          active={phaseFilter === 'summary'}
+          label={`Summary (${phaseCounts.summary})`}
+          onClick={() => setPhaseFilter('summary')}
+        />
+      </div>
 
       {artifacts.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -301,7 +352,7 @@ function RunTimeline({
 
       {expanded ? (
         <div className="space-y-1.5">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <TimelineEventRow key={event.id} event={event} />
           ))}
         </div>
@@ -311,6 +362,33 @@ function RunTimeline({
         </div>
       )}
     </section>
+  );
+}
+
+type EventPhase = 'initial' | 'investigation' | 'updates' | 'summary';
+
+function PhaseFilterChip({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-md border px-2 py-1 transition-colors",
+        active
+          ? "border-border/70 bg-accent text-foreground"
+          : "border-border/55 bg-background/40 text-muted-foreground hover:bg-accent hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -378,6 +456,42 @@ function extractCommandFromEvent(event: ToolEvent) {
   return `${match[1]} ${match[2]}`;
 }
 
+function classifyEventPhase(event: ToolEvent): EventPhase {
+  const label = event.label.toLowerCase();
+  const detail = event.detail.toLowerCase();
+  const combined = `${label} ${detail}`;
+
+  if (
+    combined.includes('response complete') ||
+    combined.includes('turn complete') ||
+    combined.includes('final') ||
+    combined.includes('synthesis')
+  ) {
+    return 'summary';
+  }
+
+  if (
+    combined.includes('executing') ||
+    combined.includes('tool') ||
+    combined.includes('command') ||
+    combined.includes('patch') ||
+    combined.includes('file change')
+  ) {
+    return 'investigation';
+  }
+
+  if (
+    combined.includes('running agent pass') ||
+    combined.includes('start') ||
+    combined.includes('turn started') ||
+    combined.includes('agent message')
+  ) {
+    return 'initial';
+  }
+
+  return 'updates';
+}
+
 function isProgressTranscript(content: string) {
   if (!content) {
     return false;
@@ -436,13 +550,18 @@ function RotateUndoIcon() {
   );
 }
 
-function ThinkingRow() {
+function ThinkingRow({ thought }: { thought?: string }) {
   return (
-    <div className="pl-6 text-xs text-muted-foreground">
+    <div className="space-y-2 pl-6 text-xs text-muted-foreground">
       <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[var(--surface)] px-3 py-1.5">
         <LoaderCircle className="size-3.5 animate-spin text-foreground/80" />
         Thinking with OpenAI
       </span>
+      {thought ? (
+        <p className="max-w-[820px] whitespace-pre-wrap text-[12px] leading-5 text-muted-foreground/90">
+          {thought}
+        </p>
+      ) : null}
     </div>
   );
 }

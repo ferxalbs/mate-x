@@ -37,7 +37,12 @@ import type {
   WorkspaceTrustAutonomy,
   WorkspaceTrustContract,
 } from '../contracts/workspace';
-import { DEFAULT_APP_SETTINGS, type AppSettings, type TimeFormat } from '../contracts/settings';
+import {
+  DEFAULT_APP_SETTINGS,
+  type AgentTraceVersion,
+  type AppSettings,
+  type TimeFormat,
+} from '../contracts/settings';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { cn } from '../lib/utils';
 import {
@@ -239,6 +244,7 @@ export function SettingsPage() {
     () => [
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
+      ...(appSettings.agentTraceVersion !== savedAppSettings.agentTraceVersion ? ['Agent Trace mode'] : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
       ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
@@ -250,6 +256,7 @@ export function SettingsPage() {
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
       appSettings.diffLineWrapping,
+      appSettings.agentTraceVersion,
       appSettings.theme,
       appSettings.timeFormat,
       hasTrustDraft,
@@ -257,6 +264,7 @@ export function SettingsPage() {
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
       savedAppSettings.diffLineWrapping,
+      savedAppSettings.agentTraceVersion,
       savedAppSettings.theme,
       savedAppSettings.timeFormat,
     ],
@@ -339,6 +347,32 @@ export function SettingsPage() {
                           <SelectItem value="system">System default</SelectItem>
                           <SelectItem value="24h">24-hour</SelectItem>
                           <SelectItem value="12h">12-hour</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingsRow
+                    title="Agent Trace mode"
+                    description="Select the trace protocol version used for assistant runs."
+                    control={
+                      <Select
+                        value={appSettings.agentTraceVersion}
+                        onValueChange={(value) => {
+                          setAppSettings((current) => ({
+                            ...current,
+                            agentTraceVersion: value as AgentTraceVersion,
+                          }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="v1">Version 1</SelectItem>
+                          <SelectItem value="v2">Version 2</SelectItem>
                         </SelectContent>
                       </Select>
                     }
