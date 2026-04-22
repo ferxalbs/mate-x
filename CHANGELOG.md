@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.21 (3) [Agent Trace v2 UX and Settings Integration]
+
+- Added a persisted `agentTraceVersion` app setting (`v1` or `v2`) with strict normalization and default value `v2` in shared settings contracts and Turso persistence.
+- Added a new Settings → General control (`Agent Trace mode`) so users can switch between trace versions from the existing app shell.
+- Upgraded composer model selection UX to better handle full catalog browsing by showing both model label and raw model id in the dropdown options.
+- Wired chat route hydration to read persisted app settings and pass `agentTraceVersion` into the message stream renderer.
+- Introduced dual trace rendering paths in message stream:
+  - `v1`: legacy run activity timeline behavior.
+  - `v2`: inline model-actions trace integrated directly into assistant response flow.
+- Reworked v2 trace interaction to be collapsed by default, expandable on demand, and visually staggered for action rows so it feels embedded in chat rather than a standalone timeline panel.
+- Added full-action inspection for v2 with a dedicated modal (`View all actions`) that lists all executed tool actions extracted from the streamed run events.
+- Improved v2 modal interaction with close controls via dedicated button, backdrop click, and `Esc` keyboard shortcut.
+
 ## Unreleased - 2026.04.21 (2) [Real Settings Persistence and Theme/Time Wiring]
 
 - Added a real app-settings contract (`AppSettings`) with persisted fields for theme preference, time format, diff line wrapping, assistant streaming output, archive confirmation, and delete confirmation.

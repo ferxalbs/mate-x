@@ -20,6 +20,7 @@ interface MessageStreamProps {
   canUndoLastTurn: boolean;
   messages: ChatMessage[];
   isRunning: boolean;
+  traceVersion: 'v1' | 'v2';
   workspace: WorkspaceSummary | null;
   hasActiveThread: boolean;
   onUndoLastTurn: () => Promise<string | null>;
@@ -31,6 +32,7 @@ export function MessageStream({
   canUndoLastTurn,
   messages,
   isRunning,
+  traceVersion,
   workspace,
   hasActiveThread,
   onUndoLastTurn,
@@ -94,6 +96,7 @@ export function MessageStream({
               isStreaming={isRunning && index === messages.length - 1 && message.role === 'assistant'}
               message={message}
               onUndo={onUndoLastTurn}
+              traceVersion={traceVersion}
             />
           ))}
 
@@ -131,11 +134,13 @@ function MessageEntry({
   isStreaming,
   canUndo,
   onUndo,
+  traceVersion,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
   canUndo: boolean;
   onUndo: () => Promise<string | null>;
+  traceVersion: 'v1' | 'v2';
 }) {
   const isUser = message.role === 'user';
   const deferredContent = useDeferredValue(message.content);
@@ -205,6 +210,7 @@ function MessageEntry({
             artifacts={artifacts}
             events={events}
             isStreaming={isStreaming}
+            traceVersion={traceVersion}
           />
         ) : null}
         {shouldRenderMarkdown ? (
@@ -241,6 +247,24 @@ function ResultFallback() {
 }
 
 function RunTimeline({
+  events,
+  artifacts,
+  isStreaming,
+  traceVersion,
+}: {
+  events: ToolEvent[];
+  artifacts: MessageArtifact[];
+  isStreaming: boolean;
+  traceVersion: 'v1' | 'v2';
+}) {
+  if (traceVersion === 'v2') {
+    return <RunTimelineV2 events={events} artifacts={artifacts} isStreaming={isStreaming} />;
+  }
+
+  return <RunTimelineV1 events={events} artifacts={artifacts} isStreaming={isStreaming} />;
+}
+
+function RunTimelineV1({
   events,
   artifacts,
   isStreaming,
@@ -301,7 +325,7 @@ function RunTimeline({
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
         <span className="rounded-md border border-border/60 bg-background/45 px-2 py-1 text-muted-foreground">
-          Agent Trace v2
+          Agent Trace v1
         </span>
         <PhaseFilterChip
           active={phaseFilter === 'all'}
@@ -361,6 +385,162 @@ function RunTimeline({
           Details are collapsed. Expand <span className="text-foreground/85">Run activity</span> to inspect audit rows and commands.
         </div>
       )}
+    </section>
+  );
+}
+
+function RunTimelineV2({
+  events,
+  artifacts,
+  isStreaming,
+}: {
+  events: ToolEvent[];
+  artifacts: MessageArtifact[];
+  isStreaming: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [showAllActionsModal, setShowAllActionsModal] = useState(false);
+  const actionRows = useMemo(() => {
+    return events
+      .map((event) => {
+        const command = extractCommandFromEvent(event);
+        if (command) {
+          return `Ran command - ${command}`;
+        }
+
+        if (isPatchEvent(event)) {
+          return `Applied patch - ${event.label}`;
+        }
+
+        if (isApprovalEvent(event)) {
+          return `Approval request - ${event.label}`;
+        }
+
+        if (event.label.toLowerCase().includes('tool batch')) {
+          return `Tool batch - ${event.detail}`;
+        }
+
+        return null;
+      })
+      .filter((row): row is string => Boolean(row));
+  }, [events]);
+  const statusLabel = isStreaming ? 'running' : 'done';
+  const previewRows = actionRows.slice(0, 10);
+
+  useEffect(() => {
+    if (!showAllActionsModal) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowAllActionsModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showAllActionsModal]);
+
+  return (
+    <section className="space-y-1.5">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-background/35 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+        <span className="font-medium text-foreground/85">Model actions</span>
+        <span>{actionRows.length}</span>
+        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/75">{statusLabel}</span>
+      </button>
+
+      {expanded ? (
+        <div className="space-y-1.5">
+          {actionRows.length > 0 ? previewRows.map((row, index) => (
+            <div
+              key={`${row}-${index}`}
+              className={cn(
+                "rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] text-muted-foreground/95 backdrop-blur-sm",
+                index % 2 === 0 ? "mr-5" : "ml-5",
+              )}
+            >
+              <span className="mr-2 font-mono text-[11px] text-muted-foreground/70">{'>_'}</span>
+              {row}
+            </div>
+          )) : (
+            <div className="rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] text-muted-foreground">
+              No tool actions captured in this turn.
+            </div>
+          )}
+          {actionRows.length > previewRows.length ? (
+            <button
+              type="button"
+              className="inline-flex items-center rounded-md border border-border/55 bg-background/45 px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={() => setShowAllActionsModal(true)}
+            >
+              View all actions ({actionRows.length})
+            </button>
+          ) : null}
+          {artifacts.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {artifacts.slice(0, 4).map((artifact) => (
+                <span
+                  key={artifact.id}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-[10px] leading-none",
+                    artifact.tone === "success"
+                      ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
+                      : artifact.tone === "warning"
+                        ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
+                        : "border-border/60 bg-background/45 text-muted-foreground",
+                  )}
+                >
+                  {artifact.label}: {artifact.value}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showAllActionsModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+          onClick={() => setShowAllActionsModal(false)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-2xl border border-border/60 bg-[var(--surface)]/96 p-3 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[12px] font-semibold text-foreground/90">
+                All model actions
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border/55 bg-background/50 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                onClick={() => setShowAllActionsModal(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="max-h-[64vh] space-y-1.5 overflow-y-auto pr-1">
+              {actionRows.map((row, index) => (
+                <div
+                  key={`${row}-modal-${index}`}
+                  className="rounded-lg border border-border/45 bg-background/35 px-2.5 py-2 text-[12px] text-muted-foreground"
+                >
+                  <span className="mr-2 font-mono text-[11px] text-muted-foreground/70">{index + 1}.</span>
+                  {row}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -454,6 +634,16 @@ function extractCommandFromEvent(event: ToolEvent) {
   }
 
   return `${match[1]} ${match[2]}`;
+}
+
+function isPatchEvent(event: ToolEvent) {
+  const combined = `${event.label} ${event.detail}`.toLowerCase();
+  return combined.includes('file change') || combined.includes('patch');
+}
+
+function isApprovalEvent(event: ToolEvent) {
+  const combined = `${event.label} ${event.detail}`.toLowerCase();
+  return combined.includes('approval') || combined.includes('execapprovalrequest');
 }
 
 function classifyEventPhase(event: ToolEvent): EventPhase {
