@@ -6,11 +6,13 @@ import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
 import { MessageStream } from '../features/desktop-shell/components/message-stream';
 import { getAppSettings } from '../services/settings-client';
+import type { AppSettings } from '../contracts/settings';
 
 export function HomePage() {
   const messageScrollerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [traceVersion, setTraceVersion] = useState<'v1' | 'v2'>('v2');
+  const [traceV2InlineEvents, setTraceV2InlineEvents] = useState(false);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -36,6 +38,7 @@ export function HomePage() {
       .then((settings) => {
         if (!cancelled) {
           setTraceVersion(settings.agentTraceVersion);
+          setTraceV2InlineEvents(settings.agentTraceV2InlineEvents);
         }
       })
       .catch(() => {
@@ -44,6 +47,21 @@ export function HomePage() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleSettingsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<AppSettings>;
+      const nextSettings = customEvent.detail;
+      if (!nextSettings) return;
+      setTraceVersion(nextSettings.agentTraceVersion);
+      setTraceV2InlineEvents(nextSettings.agentTraceV2InlineEvents);
+    };
+
+    window.addEventListener('mate:app-settings-updated', handleSettingsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('mate:app-settings-updated', handleSettingsUpdated as EventListener);
     };
   }, []);
 
@@ -68,6 +86,7 @@ export function HomePage() {
         onVisibilityChange={setShowScrollButton}
         scrollerRef={messageScrollerRef}
         traceVersion={traceVersion}
+        traceV2InlineEvents={traceV2InlineEvents}
         workspace={workspace}
       />
       <ComposerPanel

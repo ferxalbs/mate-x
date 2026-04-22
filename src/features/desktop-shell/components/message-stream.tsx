@@ -21,6 +21,7 @@ interface MessageStreamProps {
   messages: ChatMessage[];
   isRunning: boolean;
   traceVersion: 'v1' | 'v2';
+  traceV2InlineEvents: boolean;
   workspace: WorkspaceSummary | null;
   hasActiveThread: boolean;
   onUndoLastTurn: () => Promise<string | null>;
@@ -33,6 +34,7 @@ export function MessageStream({
   messages,
   isRunning,
   traceVersion,
+  traceV2InlineEvents,
   workspace,
   hasActiveThread,
   onUndoLastTurn,
@@ -97,6 +99,7 @@ export function MessageStream({
               message={message}
               onUndo={onUndoLastTurn}
               traceVersion={traceVersion}
+              traceV2InlineEvents={traceV2InlineEvents}
             />
           ))}
 
@@ -135,12 +138,14 @@ function MessageEntry({
   canUndo,
   onUndo,
   traceVersion,
+  traceV2InlineEvents,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
   canUndo: boolean;
   onUndo: () => Promise<string | null>;
   traceVersion: 'v1' | 'v2';
+  traceV2InlineEvents: boolean;
 }) {
   const isUser = message.role === 'user';
   const deferredContent = useDeferredValue(message.content);
@@ -190,7 +195,8 @@ function MessageEntry({
   }
 
   const normalizedContent = deferredContent.trim();
-  const hideMarkdownWhileStreaming = isStreaming && hasTimeline;
+  const hideMarkdownWhileStreaming =
+    isStreaming && hasTimeline && !(traceVersion === 'v2' && traceV2InlineEvents);
   const hideProgressTranscript =
     hasTimeline &&
     isProgressTranscript(normalizedContent) &&
@@ -205,15 +211,19 @@ function MessageEntry({
     <article className="group pl-6">
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
         {isStreaming && thought ? <ThinkingRow thought={thought} /> : null}
+        {traceVersion === 'v2' && traceV2InlineEvents && shouldRenderMarkdown ? (
+          <ChatMarkdown content={deferredContent} isStreaming={isStreaming} />
+        ) : null}
         {hasTimeline ? (
           <RunTimeline
             artifacts={artifacts}
             events={events}
             isStreaming={isStreaming}
             traceVersion={traceVersion}
+            traceV2InlineEvents={traceV2InlineEvents}
           />
         ) : null}
-        {shouldRenderMarkdown ? (
+        {!(traceVersion === 'v2' && traceV2InlineEvents) && shouldRenderMarkdown ? (
           <ChatMarkdown content={deferredContent} isStreaming={isStreaming} />
         ) : null}
         {shouldRenderResultFallback ? (
@@ -251,14 +261,23 @@ function RunTimeline({
   artifacts,
   isStreaming,
   traceVersion,
+  traceV2InlineEvents,
 }: {
   events: ToolEvent[];
   artifacts: MessageArtifact[];
   isStreaming: boolean;
   traceVersion: 'v1' | 'v2';
+  traceV2InlineEvents: boolean;
 }) {
   if (traceVersion === 'v2') {
-    return <RunTimelineV2 events={events} artifacts={artifacts} isStreaming={isStreaming} />;
+    return (
+      <RunTimelineV2
+        events={events}
+        artifacts={artifacts}
+        isStreaming={isStreaming}
+        inlineEvents={traceV2InlineEvents}
+      />
+    );
   }
 
   return <RunTimelineV1 events={events} artifacts={artifacts} isStreaming={isStreaming} />;
@@ -393,46 +412,36 @@ function RunTimelineV2({
   events,
   artifacts,
   isStreaming,
+  inlineEvents,
 }: {
   events: ToolEvent[];
   artifacts: MessageArtifact[];
   isStreaming: boolean;
+  inlineEvents: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAllActionsModal, setShowAllActionsModal] = useState(false);
-  const actionRows = useMemo(() => {
-    return events
-      .map((event) => {
+  const actionRows = useMemo(
+    () =>
+      events.map((event) => {
         const command = extractCommandFromEvent(event);
         if (command) {
           return `Ran command - ${command}`;
         }
 
-        if (isPatchEvent(event)) {
-          return `Applied patch - ${event.label}`;
-        }
-
-        if (isApprovalEvent(event)) {
-          return `Approval request - ${event.label}`;
-        }
-
-        if (event.label.toLowerCase().includes('tool batch')) {
-          return `Tool batch - ${event.detail}`;
-        }
-
-        return null;
-      })
-      .filter((row): row is string => Boolean(row));
-  }, [events]);
+        return `${event.label} - ${event.detail}`;
+      }),
+    [events],
+  );
   const statusLabel = isStreaming ? 'running' : 'done';
   const previewRows = actionRows.slice(0, 10);
 
   useEffect(() => {
-    if (!showAllActionsModal) {
+    if (inlineEvents || !showAllActionsModal) {
       return;
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowAllActionsModal(false);
       }
@@ -442,7 +451,55 @@ function RunTimelineV2({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showAllActionsModal]);
+  }, [inlineEvents, showAllActionsModal]);
+
+  if (inlineEvents) {
+    const visibleRows = isStreaming ? actionRows.slice(-6) : actionRows;
+
+    return (
+      <section className="space-y-2">
+        <div className="space-y-1.5 rounded-2xl border border-border/45 bg-background/22 p-2.5">
+          {visibleRows.length > 0 ? visibleRows.map((row, index) => (
+            <div
+              key={`${row}-${index}`}
+              className="flex min-w-0 items-start gap-2 rounded-xl border border-border/35 bg-[var(--surface)]/45 px-3 py-2 text-[12px] leading-5 text-muted-foreground/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+            >
+              <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">{">_"}</span>
+              <span className="min-w-0 flex-1 break-words">{row}</span>
+            </div>
+          )) : (
+            <div className="rounded-xl border border-border/35 bg-[var(--surface)]/45 px-3 py-2 text-[12px] text-muted-foreground">
+              No tool actions captured in this turn.
+            </div>
+          )}
+          {isStreaming && actionRows.length > visibleRows.length ? (
+            <div className="px-1 pt-0.5 text-[11px] text-muted-foreground/55">
+              Showing latest {visibleRows.length} of {actionRows.length} trace events.
+            </div>
+          ) : null}
+          {artifacts.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {artifacts.slice(0, 4).map((artifact) => (
+                <span
+                  key={artifact.id}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-[10px] leading-none",
+                    artifact.tone === "success"
+                      ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
+                      : artifact.tone === "warning"
+                        ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
+                        : "border-border/60 bg-background/45 text-muted-foreground",
+                  )}
+                >
+                  {artifact.label}: {artifact.value}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-1.5">
@@ -467,7 +524,7 @@ function RunTimelineV2({
                 index % 2 === 0 ? "mr-5" : "ml-5",
               )}
             >
-              <span className="mr-2 font-mono text-[11px] text-muted-foreground/70">{'>_'}</span>
+              <span className="mr-2 font-mono text-[11px] text-muted-foreground/70">{">_"}</span>
               {row}
             </div>
           )) : (
@@ -634,16 +691,6 @@ function extractCommandFromEvent(event: ToolEvent) {
   }
 
   return `${match[1]} ${match[2]}`;
-}
-
-function isPatchEvent(event: ToolEvent) {
-  const combined = `${event.label} ${event.detail}`.toLowerCase();
-  return combined.includes('file change') || combined.includes('patch');
-}
-
-function isApprovalEvent(event: ToolEvent) {
-  const combined = `${event.label} ${event.detail}`.toLowerCase();
-  return combined.includes('approval') || combined.includes('execapprovalrequest');
 }
 
 function classifyEventPhase(event: ToolEvent): EventPhase {

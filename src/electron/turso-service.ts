@@ -580,6 +580,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       input.agentTraceVersion === 'v1' || input.agentTraceVersion === 'v2'
         ? input.agentTraceVersion
         : DEFAULT_APP_SETTINGS.agentTraceVersion,
+    agentTraceV2InlineEvents:
+      typeof input.agentTraceV2InlineEvents === 'boolean'
+        ? input.agentTraceV2InlineEvents
+        : DEFAULT_APP_SETTINGS.agentTraceV2InlineEvents,
     diffLineWrapping:
       typeof input.diffLineWrapping === 'boolean'
         ? input.diffLineWrapping
