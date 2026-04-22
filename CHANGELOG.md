@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.22 (2) [Evidence Pack Runtime Artifact and Modular Finalization]
+
+- Added a first-class `evidencePack` contract on chat messages with structured fields for verdict, status, modified files, commands, tools used, tests, warnings, unresolved risks, touched paths, and recommendation.
+- Implemented runtime Evidence Pack assembly from execution traces and tool metadata, including parsed structured tool outputs and git status-derived file impact.
+- Captured per-tool execution records during agent loops so Evidence Pack evidence is grounded in runtime actions rather than inferred from narrative text.
+- Added a dedicated Evidence Pack panel in assistant messages and kept RunTimeline as the separate raw operational log.
+- Modularized implementation by extracting Evidence Pack runtime logic into `src/electron/evidence-pack.ts` and UI rendering into `src/features/desktop-shell/components/evidence-pack-card.tsx`.
+- Added `src/electron/evidence-finalization.ts` to parse agent-authored judgment sections (`Verdict`, `Verdict summary`, `Confidence`, `Warnings`, `Unresolved risks`, `Final recommendation`) and merge them with runtime-derived evidence.
+- Updated agent final-answer guidance so those judgment headings are emitted consistently when applicable, improving reliability of structured finalization extraction.
+
 ## Unreleased - 2026.04.22 (1) [AgentTrace v2 Inline Streaming Repair]
 
 - Switched Rainy chat completions to the streaming API path for agentic runs, emitting assistant content deltas live instead of waiting for the full completion.
