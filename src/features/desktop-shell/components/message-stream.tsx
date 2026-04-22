@@ -261,18 +261,25 @@ function InterleavedMessageContent({
   isStreaming: boolean;
 }) {
   const parts = useMemo(() => {
-    return content.split(/(<!-- mate-trace:.*? -->|<thought>[\s\S]*?<\/thought>)/gi);
+    return content.split(/(<!-- mate-trace:.*? -->|<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?<\/(?:thought|think|thinking|reasoning|analysis)>)/gi);
   }, [content]);
 
   const usedEventIds = new Set<string>();
+  const leadingTraceEvents: ToolEvent[] = [];
+  let hasRenderedModelText = false;
 
   const renderedParts = parts.map((part, index) => {
     const markerMatch = part.match(/<!-- mate-trace:(.*?) -->/);
     if (markerMatch) {
       const eventId = markerMatch[1];
       const event = events.find((e) => e.id === eventId);
-      if (event) {
+      if (event && isInlineTraceEvent(event)) {
         usedEventIds.add(eventId);
+        if (!hasRenderedModelText) {
+          leadingTraceEvents.push(event);
+          return null;
+        }
+
         return (
           <div key={`${eventId}-${index}`} className="my-1.5 first:mt-0 last:mb-0">
             <CompactInlineTrace event={event} />
@@ -283,7 +290,9 @@ function InterleavedMessageContent({
     }
 
     // Hide partial markers during streaming
-    const cleanedPart = isStreaming ? part.replace(/<!-- mate-trace:.*$/, "").replace(/<!--$/, "") : part;
+    const cleanedPart = normalizeAssistantVisibleText(
+      isStreaming ? part.replace(/<!-- mate-trace:.*$/, "").replace(/<!--$/, "") : part,
+    );
     const trimmedPart = cleanedPart.trim();
     if (!trimmedPart) return null;
 
@@ -293,8 +302,9 @@ function InterleavedMessageContent({
     }
 
     // Detect strict XML thought blocks
-    const thoughtTagMatch = trimmedPart.match(/^<thought>([\s\S]*?)<\/thought>$/i);
+    const thoughtTagMatch = trimmedPart.match(/^<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>([\s\S]*?)<\/(?:thought|think|thinking|reasoning|analysis)>$/i);
     if (thoughtTagMatch) {
+      hasRenderedModelText = true;
       return (
         <div key={`thought-${index}`} className="my-2">
           <ThinkingRow isStreaming={isStreaming} thought={thoughtTagMatch[1].trim()} />
@@ -302,12 +312,23 @@ function InterleavedMessageContent({
       );
     }
 
+    hasRenderedModelText = true;
+    const leadingGroup = leadingTraceEvents.length > 0
+      ? (
+        <div className="my-1.5">
+          <InlineTraceGroup events={leadingTraceEvents.splice(0)} />
+        </div>
+      )
+      : null;
+
     return (
-      <ChatMarkdown
-        key={`text-${index}`}
-        content={cleanedPart}
-        isStreaming={isStreaming}
-      />
+      <div key={`text-${index}`} className="space-y-2">
+        <ChatMarkdown
+          content={cleanedPart}
+          isStreaming={isStreaming}
+        />
+        {leadingGroup}
+      </div>
     );
   });
 
@@ -315,8 +336,9 @@ function InterleavedMessageContent({
 }
 
 function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
-  const activeEvent = [...events].reverse().find((event) => event.status === 'active');
-  const latestTraceEvent = activeEvent ?? [...events].reverse().find(isInlineTraceEvent);
+  const latestTraceEvent = [...events].reverse().find((event) => {
+    return isInlineTraceEvent(event) && event.status === 'active';
+  }) ?? [...events].reverse().find(isInlineTraceEvent);
   const status = latestTraceEvent ? summarizeInlineTraceEvent(latestTraceEvent) : 'Working';
 
   return (
@@ -325,6 +347,14 @@ function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
       <span>{status}</span>
     </div>
   );
+}
+
+function normalizeAssistantVisibleText(value: string) {
+  return value
+    .replace(/<\|(?:start|end|message|channel|constrain|return|recipient)\|>/gi, "")
+    .replace(/<\s*channel\s*\|\s*>/gi, "")
+    .replace(/^\s*(?:analysis|thought|thinking|reasoning|final)\b\s*/i, "")
+    .replace(/[ \t]+\n/g, "\n");
 }
 
 function ResultFallback() {
@@ -747,6 +777,40 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
       {expanded && detail ? (
         <div className="ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-background/24 px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78">
           {detail}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const active = events.some((event) => event.status === 'active');
+  const failed = events.some((event) => event.status === 'error');
+  const label = events.length === 1
+    ? summarizeInlineTraceEvent(events[0])
+    : `${active ? 'Running' : 'Ran'} ${events.length} actions`;
+
+  return (
+    <div className="text-[12px] leading-5 text-muted-foreground/72">
+      <button
+        type="button"
+        className="inline-flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent/45 hover:text-foreground/85"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? (
+          <ChevronDownIcon className="size-3 shrink-0" />
+        ) : (
+          <ChevronRightIcon className="size-3 shrink-0" />
+        )}
+        <InlineTraceStatusDot status={active ? 'active' : failed ? 'error' : 'done'} />
+        <span className="truncate">{label}</span>
+      </button>
+      {expanded ? (
+        <div className="ml-6 mt-1 space-y-1">
+          {events.map((event) => (
+            <CompactInlineTrace key={event.id} event={event} />
+          ))}
         </div>
       ) : null}
     </div>
