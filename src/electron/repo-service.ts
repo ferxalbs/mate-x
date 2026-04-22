@@ -1204,6 +1204,7 @@ If more evidence is needed, first emit a brief assistant progress update explain
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
 Stop investigating once you can give a grounded answer. Do not continue until the tool budget unless the user explicitly asks for exhaustive analysis.
 If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
+In your final answer, include these explicit headings when applicable: "Verdict:", "Verdict summary:", "Confidence:", "Warnings:", "Unresolved risks:", and "Final recommendation:".
 When you need to search for something, use the 'rg' tool first.`;
 
   if (apiMode === "responses") {

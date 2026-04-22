@@ -75,6 +75,7 @@ export interface EvidencePack {
   testsRun?: EvidencePackTestRun[];
   warnings?: string[];
   unresolvedRisks?: string[];
+  recommendation?: string;
   touchedPaths?: string[];
   generatedAt: string;
 }

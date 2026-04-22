@@ -1,4 +1,5 @@
 import { GitService } from "./git-service";
+import { extractEvidenceFinalization } from "./evidence-finalization";
 
 import type { EvidencePack, ToolEvent } from "../contracts/chat";
 
@@ -58,36 +59,39 @@ function extractSummaryFromContent(content: string) {
 function buildVerdict(
   status: EvidencePack["status"],
   content: string,
+  finalization: ReturnType<typeof extractEvidenceFinalization>,
 ): EvidencePack["verdict"] {
+  const confidence = finalization.confidence;
+
   if (status === "blocked") {
     return {
-      label: "Blocked by configuration",
-      summary:
+      label: finalization.verdictLabel ?? "Blocked by configuration",
+      summary: finalization.verdictSummary ??
         "The run was limited by missing provider configuration or trust policy.",
-      confidence: "high",
+      confidence: confidence ?? "high",
     };
   }
 
   if (status === "partial") {
     return {
-      label: "Completed with issues",
-      summary: extractSummaryFromContent(content),
-      confidence: "medium",
+      label: finalization.verdictLabel ?? "Completed with issues",
+      summary: finalization.verdictSummary ?? extractSummaryFromContent(content),
+      confidence: confidence ?? "medium",
     };
   }
 
   if (status === "failed") {
     return {
-      label: "Run failed",
-      summary: extractSummaryFromContent(content),
-      confidence: "low",
+      label: finalization.verdictLabel ?? "Run failed",
+      summary: finalization.verdictSummary ?? extractSummaryFromContent(content),
+      confidence: confidence ?? "low",
     };
   }
 
   return {
-    label: "Completed",
-    summary: extractSummaryFromContent(content),
-    confidence: "high",
+    label: finalization.verdictLabel ?? "Completed",
+    summary: finalization.verdictSummary ?? extractSummaryFromContent(content),
+    confidence: confidence ?? "high",
   };
 }
 
@@ -106,8 +110,12 @@ export async function buildEvidencePack(params: {
 }): Promise<EvidencePack> {
   const { workspacePath, events, content, toolExecutions } = params;
   const status = classifyEvidenceStatus(events);
-  const verdict = buildVerdict(status, content);
-  const warnings = deriveWarnings(events);
+  const finalization = extractEvidenceFinalization(content);
+  const verdict = buildVerdict(status, content, finalization);
+  const runtimeWarnings = deriveWarnings(events);
+  const warnings = Array.from(
+    new Set([...(finalization.warnings ?? []), ...runtimeWarnings]),
+  ).slice(0, 6);
 
   const toolUsageCount = new Map<string, number>();
   for (const execution of toolExecutions) {
@@ -179,10 +187,12 @@ export async function buildEvidencePack(params: {
     })),
     testsRun,
     warnings: warnings.length > 0 ? warnings : undefined,
-    unresolvedRisks:
-      warnings.length > 0
+    unresolvedRisks: (finalization.unresolvedRisks?.length ?? 0) > 0
+      ? finalization.unresolvedRisks
+      : warnings.length > 0
         ? ["One or more tool steps failed; review warnings before trusting results."]
         : undefined,
+    recommendation: finalization.recommendation,
     touchedPaths: filesModified.map((file) => file.path),
     generatedAt: new Date().toISOString(),
   };

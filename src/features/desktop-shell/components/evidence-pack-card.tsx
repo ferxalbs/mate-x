@@ -73,6 +73,22 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
           ))}
         </div>
       ) : null}
+
+      {evidencePack.unresolvedRisks && evidencePack.unresolvedRisks.length > 0 ? (
+        <div className="mt-2 rounded-lg border border-border/45 bg-background/35 px-2.5 py-2 text-[11px] text-muted-foreground">
+          <p className="mb-1 font-medium text-foreground/85">Open risks</p>
+          {evidencePack.unresolvedRisks.slice(0, 4).map((risk, index) => (
+            <p key={`${risk}-${index}`}>- {risk}</p>
+          ))}
+        </div>
+      ) : null}
+
+      {evidencePack.recommendation ? (
+        <div className="mt-2 rounded-lg border border-border/45 bg-background/35 px-2.5 py-2 text-[11px] text-muted-foreground">
+          <p className="font-medium text-foreground/85">Final recommendation</p>
+          <p>{evidencePack.recommendation}</p>
+        </div>
+      ) : null}
     </section>
   );
 }
