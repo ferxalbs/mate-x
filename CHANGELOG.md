@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.22 (1) [AgentTrace v2 Inline Streaming Repair]
+
+- Switched Rainy chat completions to the streaming API path for agentic runs, emitting assistant content deltas live instead of waiting for the full completion.
+- Updated the agent loop so models can answer from existing workspace context, emit brief natural-language progress before tools, and avoid forced investigation/tool use when it is not needed.
+- Reworked AgentTrace v2 inline rendering so internal run metadata stays hidden while real tool activity remains available as compact collapsed action groups.
+- Fixed v2 pending states to avoid exposing internal events such as `Agent pass`, `workspace metadata`, `prompt-linked files`, and `response complete`.
+- Added fallback rendering for tool events that were emitted by the runtime but not referenced by model-inserted inline trace markers, preventing used tools from disappearing.
+- Added visible-text normalization for provider/model channel artifacts and reasoning tags, including `<think>`, `<thinking>`, `<thought>`, `<reasoning>`, `<analysis>`, and OpenAI-style channel tokens.
+- Rewrote the MaTE X system prompt in English with stricter guidance for scoped tool use, evidence-driven responses, inline progress updates, and avoiding redundant repository exploration.
+- Verified the repair with `bun run lint` and `bunx tsc --noEmit --ignoreDeprecations 6.0`.
+
 ## Unreleased - 2026.04.21 (3) [Agent Trace v2 UX and Settings Integration]
 
 - Added a persisted `agentTraceVersion` app setting (`v1` or `v2`) with strict normalization and default value `v2` in shared settings contracts and Turso persistence.
