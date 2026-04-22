@@ -170,8 +170,14 @@ export function SettingsPage() {
 
       try {
         const nextSettings = await updateAppSettings(appSettings);
+        setAppSettings(nextSettings);
         setSavedAppSettings(nextSettings);
         applyRendererSettings(nextSettings);
+        window.dispatchEvent(
+          new CustomEvent('mate:app-settings-updated', {
+            detail: nextSettings,
+          }),
+        );
         setSaveState('saved');
       } catch (error) {
         setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
@@ -212,6 +218,8 @@ export function SettingsPage() {
         ...current,
         theme: DEFAULT_APP_SETTINGS.theme,
         timeFormat: DEFAULT_APP_SETTINGS.timeFormat,
+        agentTraceVersion: DEFAULT_APP_SETTINGS.agentTraceVersion,
+        agentTraceV2InlineEvents: DEFAULT_APP_SETTINGS.agentTraceV2InlineEvents,
         diffLineWrapping: DEFAULT_APP_SETTINGS.diffLineWrapping,
         assistantOutput: DEFAULT_APP_SETTINGS.assistantOutput,
       }));
@@ -245,6 +253,9 @@ export function SettingsPage() {
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.agentTraceVersion !== savedAppSettings.agentTraceVersion ? ['Agent Trace mode'] : []),
+      ...(appSettings.agentTraceV2InlineEvents !== savedAppSettings.agentTraceV2InlineEvents
+        ? ['Agent Trace v2 inline events']
+        : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
       ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
@@ -257,6 +268,7 @@ export function SettingsPage() {
       appSettings.deleteConfirmation,
       appSettings.diffLineWrapping,
       appSettings.agentTraceVersion,
+      appSettings.agentTraceV2InlineEvents,
       appSettings.theme,
       appSettings.timeFormat,
       hasTrustDraft,
@@ -265,6 +277,7 @@ export function SettingsPage() {
       savedAppSettings.deleteConfirmation,
       savedAppSettings.diffLineWrapping,
       savedAppSettings.agentTraceVersion,
+      savedAppSettings.agentTraceV2InlineEvents,
       savedAppSettings.theme,
       savedAppSettings.timeFormat,
     ],
@@ -358,9 +371,12 @@ export function SettingsPage() {
                       <Select
                         value={appSettings.agentTraceVersion}
                         onValueChange={(value) => {
+                          const nextVersion = value as AgentTraceVersion;
                           setAppSettings((current) => ({
                             ...current,
-                            agentTraceVersion: value as AgentTraceVersion,
+                            agentTraceVersion: nextVersion,
+                            agentTraceV2InlineEvents:
+                              nextVersion === 'v2' ? current.agentTraceV2InlineEvents : false,
                           }));
                           if (saveState === 'saved') {
                             setSaveState('idle');
@@ -377,6 +393,26 @@ export function SettingsPage() {
                       </Select>
                     }
                   />
+                  {appSettings.agentTraceVersion === 'v2' ? (
+                    <SettingsRow
+                      title="Inline event streaming (v2)"
+                      description="Show agent trace events directly inside the assistant streaming response."
+                      control={
+                        <Switch
+                          checked={appSettings.agentTraceV2InlineEvents}
+                          onCheckedChange={(value) => {
+                            setAppSettings((current) => ({
+                              ...current,
+                              agentTraceV2InlineEvents: value,
+                            }));
+                            if (saveState === 'saved') {
+                              setSaveState('idle');
+                            }
+                          }}
+                        />
+                      }
+                    />
+                  ) : null}
                   <SettingsRow
                     title="Diff line wrapping"
                     description="Set the default wrap state when the diff panel opens."

@@ -6,6 +6,7 @@ export interface AppSettings {
   theme: ThemePreference;
   timeFormat: TimeFormat;
   agentTraceVersion: AgentTraceVersion;
+  agentTraceV2InlineEvents: boolean;
   diffLineWrapping: boolean;
   assistantOutput: boolean;
   archiveConfirmation: boolean;
@@ -16,6 +17,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'system',
   timeFormat: 'system',
   agentTraceVersion: 'v2',
+  agentTraceV2InlineEvents: false,
   diffLineWrapping: false,
   assistantOutput: false,
   archiveConfirmation: false,
