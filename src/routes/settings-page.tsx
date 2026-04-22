@@ -77,6 +77,7 @@ export function SettingsPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [isUnrestrictedDialogOpen, setIsUnrestrictedDialogOpen] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
   const [savedAppSettings, setSavedAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
@@ -536,16 +537,22 @@ export function SettingsPage() {
                       control={
                         <Select
                           value={trustDraft.autonomy}
-                          onValueChange={(value) =>
+                          onValueChange={(value) => {
+                            const nextAutonomy = value as WorkspaceTrustAutonomy;
+                            if (nextAutonomy === 'unrestricted') {
+                              setIsUnrestrictedDialogOpen(true);
+                              return;
+                            }
+
                             setTrustDraft((draft) =>
                               draft
                                 ? {
                                     ...draft,
-                                    autonomy: value as WorkspaceTrustAutonomy,
+                                    autonomy: nextAutonomy,
                                   }
                                 : draft,
-                            )
-                          }
+                            );
+                          }}
                         >
                           <SelectTrigger className="w-[190px]">
                             <SelectValue />
@@ -554,6 +561,7 @@ export function SettingsPage() {
                             <SelectItem value="plan-only">Plan only</SelectItem>
                             <SelectItem value="approval-required">Approval required</SelectItem>
                             <SelectItem value="trusted-patch">Trusted patch</SelectItem>
+                            <SelectItem value="unrestricted">Unrestricted</SelectItem>
                           </SelectContent>
                         </Select>
                       }
@@ -735,6 +743,45 @@ export function SettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button />}>Understood</AlertDialogClose>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isUnrestrictedDialogOpen} onOpenChange={setIsUnrestrictedDialogOpen}>
+        <AlertDialogContent className="border-destructive/20">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive-foreground flex items-center gap-2">
+              <ShieldCheckIcon className="size-5" />
+              Enable Unrestricted Mode?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              This mode grants the agent <strong>full access</strong> to your workspace. 
+              The AI will be able to:
+              <ul className="mt-3 list-disc space-y-1.5 ps-5 font-medium">
+                <li>Read and modify any file in the workspace</li>
+                <li>Execute any shell command without approval</li>
+                <li>Access any network domain</li>
+                <li>Bypass all safety guardrails in the Trust Contract</li>
+              </ul>
+              <p className="mt-4 font-bold text-destructive-foreground/90">
+                Only enable this if you fully trust the model and have backups of your data.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2">
+            <AlertDialogClose render={<Button variant="ghost" />}>Cancel</AlertDialogClose>
+            <Button
+              variant="destructive"
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                setTrustDraft((draft) =>
+                  draft ? { ...draft, autonomy: 'unrestricted' } : draft,
+                );
+                setIsUnrestrictedDialogOpen(false);
+              }}
+            >
+              Accept risks and enable
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

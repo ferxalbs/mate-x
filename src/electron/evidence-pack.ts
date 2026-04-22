@@ -107,8 +107,9 @@ export async function buildEvidencePack(params: {
   events: ToolEvent[];
   content: string;
   toolExecutions: ToolExecutionRecord[];
+  runbookId?: string;
 }): Promise<EvidencePack> {
-  const { workspacePath, events, content, toolExecutions } = params;
+  const { workspacePath, events, content, toolExecutions, runbookId } = params;
   const status = classifyEvidenceStatus(events);
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
@@ -186,6 +187,17 @@ export async function buildEvidencePack(params: {
       count,
     })),
     testsRun,
+    stages: finalization.stages?.length ? finalization.stages : undefined,
+    checks: finalization.checks?.length
+      ? finalization.checks
+      : runbookId
+        ? [{
+            name: `runbook:${runbookId}`,
+            status: "unknown",
+            summary: "No structured check lines parsed from final answer.",
+          }]
+        : undefined,
+    stopConditionTriggered: finalization.stopConditionTriggered,
     warnings: warnings.length > 0 ? warnings : undefined,
     unresolvedRisks: (finalization.unresolvedRisks?.length ?? 0) > 0
       ? finalization.unresolvedRisks

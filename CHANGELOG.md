@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.22 (3) [Unrestricted Workspace Trust Mode]
+
+- Introduced a new `unrestricted` autonomy mode for Workspace Trust Contracts, granting AI models full access to read/write any file, run any shell command, and access any network domain.
+- Added a high-risk confirmation modal in Settings > Trust that requires explicit user acceptance of security risks before enabling Unrestricted mode.
+- Updated the trust evaluation engine in the main process to bypass all security blocks when Unrestricted mode is active.
+- Enhanced the system prompt generation to explicitly communicate full permission status to the AI model when running in Unrestricted mode.
+
 ## Unreleased - 2026.04.22 (2) [Evidence Pack Runtime Artifact and Modular Finalization]
 
 - Added a first-class `evidencePack` contract on chat messages with structured fields for verdict, status, modified files, commands, tools used, tests, warnings, unresolved risks, touched paths, and recommendation.

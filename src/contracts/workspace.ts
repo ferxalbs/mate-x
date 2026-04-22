@@ -56,7 +56,7 @@ export interface ValidationRun {
   ranAt: string;
 }
 
-export type WorkspaceTrustAutonomy = 'plan-only' | 'approval-required' | 'trusted-patch';
+export type WorkspaceTrustAutonomy = 'plan-only' | 'approval-required' | 'trusted-patch' | 'unrestricted';
 
 export interface WorkspaceTrustContract {
   id: string;

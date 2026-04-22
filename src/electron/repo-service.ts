@@ -19,6 +19,8 @@ import { tursoService } from "./turso-service";
 import { createTokenEstimator } from "./token-estimator";
 import type {
   AssistantExecution,
+  AssistantRunbookDefinition,
+  AssistantRunbookId,
   AssistantRunProgress,
   AssistantRunOptions,
   Conversation,
@@ -75,6 +77,216 @@ const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   reasoning: "high",
   mode: "build",
   access: "full",
+  runbookId: "patch_test_verify",
+};
+const RUNBOOK_DEFINITIONS: Record<AssistantRunbookId, AssistantRunbookDefinition> = {
+  patch_test_verify: {
+    id: "patch_test_verify",
+    name: "Patch -> Test -> Verify",
+    objective:
+      "Deliver safe code change with explicit patch, test outcome, and verification evidence.",
+    mandatoryStages: [
+      {
+        id: "patch",
+        name: "Patch",
+        required: true,
+        description: "Define target files and apply minimal scoped code changes.",
+      },
+      {
+        id: "test",
+        name: "Test",
+        required: true,
+        description:
+          "Run relevant checks and record concrete pass/fail or blocked status.",
+      },
+      {
+        id: "verify",
+        name: "Verify",
+        required: true,
+        description:
+          "Confirm behavior, summarize residual risk, and map outcomes to user request.",
+      },
+    ],
+    requiredChecks: [
+      "Show exactly what changed.",
+      "Run at least one relevant validation command or explain blockage.",
+      "State whether requested behavior is now satisfied.",
+    ],
+    successCriteria: [
+      "Patch stage complete with touched files listed.",
+      "Test stage complete with command and outcome.",
+      "Verify stage complete with confidence and unresolved risks.",
+    ],
+    stopConditions: [
+      "Safety or trust-contract policy prevents required action.",
+      "Test failure indicates regression or uncertain outcome.",
+      "Insufficient repository evidence to complete verification.",
+    ],
+    finalEvidenceFormat: [
+      "Objective:",
+      "Stages:",
+      "Checks:",
+      "Success criteria:",
+      "Stop conditions:",
+      "Final evidence:",
+    ],
+  },
+  audit_reproduce_remediate: {
+    id: "audit_reproduce_remediate",
+    name: "Audit -> Reproduce -> Remediate",
+    objective:
+      "Audit suspicious behavior, reproduce issue deterministically, then remediate with evidence.",
+    mandatoryStages: [
+      {
+        id: "audit",
+        name: "Audit",
+        required: true,
+        description:
+          "Inspect relevant code paths, configs, and signals to identify risk surface.",
+      },
+      {
+        id: "reproduce",
+        name: "Reproduce",
+        required: true,
+        description:
+          "Provide deterministic reproduction steps and expected/actual behavior.",
+      },
+      {
+        id: "remediate",
+        name: "Remediate",
+        required: true,
+        description:
+          "Apply mitigation or fix, then confirm risk reduction and side effects.",
+      },
+    ],
+    requiredChecks: [
+      "List impacted component or file boundaries.",
+      "Include exact reproduction command or procedure.",
+      "State remediation scope and potential regressions.",
+    ],
+    successCriteria: [
+      "Audit stage identifies root cause or narrowed hypothesis.",
+      "Reproduction stage is repeatable.",
+      "Remediation stage includes validation result.",
+    ],
+    stopConditions: [
+      "Unable to reproduce despite complete inputs.",
+      "Remediation introduces unacceptable security or stability risk.",
+      "Required environment or permissions unavailable.",
+    ],
+    finalEvidenceFormat: [
+      "Objective:",
+      "Stages:",
+      "Checks:",
+      "Success criteria:",
+      "Stop conditions:",
+      "Final evidence:",
+    ],
+  },
+  review_classify_summarize: {
+    id: "review_classify_summarize",
+    name: "Review -> Classify -> Summarize",
+    objective:
+      "Review findings, classify by severity/impact, and summarize actionable outcomes.",
+    mandatoryStages: [
+      {
+        id: "review",
+        name: "Review",
+        required: true,
+        description:
+          "Inspect relevant artifacts and collect concrete findings with references.",
+      },
+      {
+        id: "classify",
+        name: "Classify",
+        required: true,
+        description:
+          "Rank findings by severity, exploitability, and confidence.",
+      },
+      {
+        id: "summarize",
+        name: "Summarize",
+        required: true,
+        description:
+          "Deliver concise executive and technical summary with next actions.",
+      },
+    ],
+    requiredChecks: [
+      "Every finding includes evidence or rationale.",
+      "Classification uses explicit severity labels.",
+      "Summary includes top risks and remediation priority.",
+    ],
+    successCriteria: [
+      "No unclassified critical finding remains.",
+      "Classification rationale is consistent.",
+      "Summary supports immediate decision-making.",
+    ],
+    stopConditions: [
+      "Evidence insufficient to classify with confidence.",
+      "Source artifacts missing or corrupted.",
+      "Requested scope conflicts with trust policy.",
+    ],
+    finalEvidenceFormat: [
+      "Objective:",
+      "Stages:",
+      "Checks:",
+      "Success criteria:",
+      "Stop conditions:",
+      "Final evidence:",
+    ],
+  },
+  scan_contain_report: {
+    id: "scan_contain_report",
+    name: "Scan -> Contain -> Report",
+    objective:
+      "Scan for active threats, contain blast radius, and report status with traceable evidence.",
+    mandatoryStages: [
+      {
+        id: "scan",
+        name: "Scan",
+        required: true,
+        description:
+          "Identify indicators of compromise, exposure, or policy violations.",
+      },
+      {
+        id: "contain",
+        name: "Contain",
+        required: true,
+        description:
+          "Apply immediate controls to reduce spread and protect critical assets.",
+      },
+      {
+        id: "report",
+        name: "Report",
+        required: true,
+        description:
+          "Communicate incident status, impact, and remaining risks to stakeholders.",
+      },
+    ],
+    requiredChecks: [
+      "Document indicators and scan scope.",
+      "Describe containment action and residual exposure.",
+      "Include incident timeline and owner handoff notes.",
+    ],
+    successCriteria: [
+      "Scan evidence captures current threat state.",
+      "Containment materially reduces exposure.",
+      "Report includes clear recommendations and open risks.",
+    ],
+    stopConditions: [
+      "Containment action could cause broader outage without approval.",
+      "Insufficient privileges to apply controls.",
+      "Threat state unknown due to missing telemetry.",
+    ],
+    finalEvidenceFormat: [
+      "Objective:",
+      "Stages:",
+      "Checks:",
+      "Success criteria:",
+      "Stop conditions:",
+      "Final evidence:",
+    ],
+  },
 };
 const TOOL_BATCH_MAX_CONCURRENCY = 6;
 const TOOL_EXECUTION_TIMEOUT_MS = 20_000;
@@ -221,6 +433,9 @@ export async function runAssistant(
 ): Promise<AssistantExecution> {
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
+  const runbookDefinition = resolveRunbookDefinition(
+    resolvedOptions.runbookId ?? "patch_test_verify",
+  );
   const events: ToolEvent[] = [
     {
       id: "step-workspace",
@@ -241,6 +456,12 @@ export async function runAssistant(
         snapshot.promptMatches.length > 0
           ? `Found ${snapshot.promptMatches.length} repo matches connected to the request.`
           : "No direct file matches from the current prompt terms.",
+      status: "done",
+    },
+    {
+      id: "step-runbook",
+      label: "Resolve runbook",
+      detail: `Using structured runbook: ${runbookDefinition.name}.`,
       status: "done",
     },
   ];
@@ -305,6 +526,7 @@ export async function runAssistant(
         snapshot,
         events,
         options: resolvedOptions,
+        runbookDefinition,
         emitProgress,
       });
       thought =
@@ -352,6 +574,7 @@ export async function runAssistant(
     events,
     content,
     toolExecutions,
+    runbookId: resolvedOptions.runbookId,
   });
 
   return {
@@ -596,7 +819,56 @@ function resolveAssistantRunOptions(
       options?.access === "approval"
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
+    runbookId: resolveRunbookId(options?.runbookId),
   };
+}
+
+function resolveRunbookId(runbookId?: AssistantRunbookId): AssistantRunbookId {
+  return runbookId && RUNBOOK_DEFINITIONS[runbookId]
+    ? runbookId
+    : DEFAULT_ASSISTANT_OPTIONS.runbookId ?? "patch_test_verify";
+}
+
+function resolveRunbookDefinition(
+  runbookId: AssistantRunbookId,
+): AssistantRunbookDefinition {
+  return RUNBOOK_DEFINITIONS[runbookId];
+}
+
+function renderRunbookForPrompt(runbook: AssistantRunbookDefinition): string {
+  const mandatoryStages = runbook.mandatoryStages
+    .map(
+      (stage, index) =>
+        `${index + 1}. ${stage.name} (${stage.required ? "required" : "optional"}) - ${stage.description}`,
+    )
+    .join("\n");
+  const requiredChecks = runbook.requiredChecks
+    .map((check, index) => `${index + 1}. ${check}`)
+    .join("\n");
+  const successCriteria = runbook.successCriteria
+    .map((criterion, index) => `${index + 1}. ${criterion}`)
+    .join("\n");
+  const stopConditions = runbook.stopConditions
+    .map((condition, index) => `${index + 1}. ${condition}`)
+    .join("\n");
+  const finalEvidenceFormat = runbook.finalEvidenceFormat
+    .map((line, index) => `${index + 1}. ${line}`)
+    .join("\n");
+
+  return [
+    `Runbook: ${runbook.name}`,
+    `Objective: ${runbook.objective}`,
+    "Mandatory stages:",
+    mandatoryStages,
+    "Required checks:",
+    requiredChecks,
+    "Success criteria:",
+    successCriteria,
+    "Stop conditions:",
+    stopConditions,
+    "Final evidence format:",
+    finalEvidenceFormat,
+  ].join("\n");
 }
 
 function buildAgentRuntimeConfig(
@@ -917,6 +1189,12 @@ function buildArtifacts(
       value: options.reasoning,
     },
     {
+      id: "artifact-runbook",
+      label: "Runbook",
+      value: options.runbookId ?? "patch_test_verify",
+      tone: "success",
+    },
+    {
       id: "artifact-access",
       label: "Contract",
       value: `${snapshot.trustContract.name} v${snapshot.trustContract.version}`,
@@ -1156,6 +1434,7 @@ async function requestRainyAgenticResponse({
   snapshot,
   events,
   options,
+  runbookDefinition,
   emitProgress,
 }: {
   apiKey: string;
@@ -1166,6 +1445,7 @@ async function requestRainyAgenticResponse({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   options: AssistantRunOptions;
+  runbookDefinition: AssistantRunbookDefinition;
   emitProgress: (content?: string, thought?: string) => void;
 }) {
   const runtime = buildAgentRuntimeConfig(options);
@@ -1205,7 +1485,10 @@ Prefer one focused tool batch over broad exploration. Do not call tools just to 
 Stop investigating once you can give a grounded answer. Do not continue until the tool budget unless the user explicitly asks for exhaustive analysis.
 If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
 In your final answer, include these explicit headings when applicable: "Verdict:", "Verdict summary:", "Confidence:", "Warnings:", "Unresolved risks:", and "Final recommendation:".
-When you need to search for something, use the 'rg' tool first.`;
+When you need to search for something, use the 'rg' tool first.
+
+Structured runbook contract (must follow):
+${renderRunbookForPrompt(runbookDefinition)}`;
 
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({

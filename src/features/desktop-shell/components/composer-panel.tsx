@@ -55,6 +55,8 @@ export function ComposerPanel({
   const [isModelSaving, setIsModelSaving] = useState(false);
   const [reasoningValue, setReasoningValue] = useState('high');
   const [modeValue, setModeValue] = useState('build');
+  const [runbookValue, setRunbookValue] =
+    useState<AssistantRunOptions['runbookId']>('patch_test_verify');
 
   useEffect(() => {
     let cancelled = false;
@@ -136,6 +138,7 @@ export function ComposerPanel({
       reasoning: reasoningValue as AssistantRunOptions['reasoning'],
       mode: modeValue as AssistantRunOptions['mode'],
       access: accessValue as AssistantRunOptions['access'],
+      runbookId: runbookValue,
     });
   }
 
@@ -226,6 +229,17 @@ export function ComposerPanel({
               <InlineSelect value={modeValue} onValueChange={setModeValue}>
                 <SelectItem value="build">Build</SelectItem>
                 <SelectItem value="plan">Plan</SelectItem>
+              </InlineSelect>
+              <InlineSelect
+                value={runbookValue ?? 'patch_test_verify'}
+                onValueChange={(value) =>
+                  setRunbookValue(value as AssistantRunOptions['runbookId'])
+                }
+              >
+                <SelectItem value="patch_test_verify">Patch - Test - Verify</SelectItem>
+                <SelectItem value="audit_reproduce_remediate">Audit - Reproduce - Remediate</SelectItem>
+                <SelectItem value="review_classify_summarize">Review - Classify - Summarize</SelectItem>
+                <SelectItem value="scan_contain_report">Scan - Contain - Report</SelectItem>
               </InlineSelect>
               <div className="flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-emerald-600 dark:text-emerald-300/90">
                 <ShieldCheckIcon className="size-3.5" />
