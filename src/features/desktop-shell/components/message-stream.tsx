@@ -316,8 +316,7 @@ function InterleavedMessageContent({
   const orphanedEvents = events.filter(
     (event) =>
       !usedEventIds.has(event.id) &&
-      !event.label.toLowerCase().includes("agent pass") &&
-      !event.label.toLowerCase().includes("tool batch")
+      isInlineTraceEvent(event)
   );
 
   return (
@@ -517,7 +516,7 @@ function RunTimelineV2({
   const [showAllActionsModal, setShowAllActionsModal] = useState(false);
   const actionRows = useMemo(
     () =>
-      events.map((event) => {
+      events.filter(isInlineTraceEvent).map((event) => {
         const command = extractCommandFromEvent(event);
         if (command) {
           return `Ran command - ${command}`;
@@ -569,25 +568,6 @@ function RunTimelineV2({
           {isStreaming && actionRows.length > visibleRows.length ? (
             <div className="px-1 pt-0.5 text-[11px] text-muted-foreground/55">
               Showing latest {visibleRows.length} of {actionRows.length} trace events.
-            </div>
-          ) : null}
-          {artifacts.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {artifacts.slice(0, 4).map((artifact) => (
-                <span
-                  key={artifact.id}
-                  className={cn(
-                    "rounded-md border px-2 py-1 text-[10px] leading-none",
-                    artifact.tone === "success"
-                      ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
-                      : artifact.tone === "warning"
-                        ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
-                        : "border-border/60 bg-background/45 text-muted-foreground",
-                  )}
-                >
-                  {artifact.label}: {artifact.value}
-                </span>
-              ))}
             </div>
           ) : null}
         </div>
@@ -694,6 +674,23 @@ function RunTimelineV2({
       ) : null}
     </section>
   );
+}
+
+function isInlineTraceEvent(event: ToolEvent) {
+  const label = event.label.toLowerCase();
+
+  if (
+    label.includes("agent pass") ||
+    label.includes("tool batch") ||
+    label.includes("workspace metadata") ||
+    label.includes("repository surface") ||
+    label.includes("prompt-linked files") ||
+    label.includes("response complete")
+  ) {
+    return false;
+  }
+
+  return label.startsWith("executing ") || event.status === "error";
 }
 
 type EventPhase = 'initial' | 'investigation' | 'updates' | 'summary';
