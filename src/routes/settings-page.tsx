@@ -37,13 +37,20 @@ import type {
   WorkspaceTrustAutonomy,
   WorkspaceTrustContract,
 } from '../contracts/workspace';
+import { DEFAULT_APP_SETTINGS, type AppSettings, type TimeFormat } from '../contracts/settings';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { cn } from '../lib/utils';
 import {
   getWorkspaceTrustContract,
   updateWorkspaceTrustContract,
 } from '../services/repo-client';
-import { getApiKey, setApiKey } from '../services/settings-client';
+import {
+  applyRendererSettings,
+  getApiKey,
+  getAppSettings,
+  setApiKey,
+  updateAppSettings,
+} from '../services/settings-client';
 import { useChatStore } from '../store/chat-store';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -56,7 +63,7 @@ function maskKey(key: string) {
 
 export function SettingsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const { theme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const activeWorkspace = useChatStore((state) => state.workspace);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
@@ -66,10 +73,8 @@ export function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
-  const [diffLineWrapping, setDiffLineWrapping] = useState(false);
-  const [assistantOutput, setAssistantOutput] = useState(false);
-  const [archiveConfirmation, setArchiveConfirmation] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState(true);
+  const [appSettings, setAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
+  const [savedAppSettings, setSavedAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
   const [trustContract, setTrustContract] = useState<WorkspaceTrustContract | null>(null);
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
 
@@ -88,16 +93,21 @@ export function SettingsPage() {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        const [apiKey, contract] = await Promise.all([
+        const [apiKey, contract, persistedAppSettings] = await Promise.all([
           getApiKey(),
           activeWorkspaceId
             ? getWorkspaceTrustContract(activeWorkspaceId)
             : Promise.resolve(null),
+          getAppSettings(),
         ]);
         if (cancelled) return;
         setCurrentKey(apiKey);
         setTrustContract(contract);
         setTrustDraft(contract);
+        setAppSettings(persistedAppSettings);
+        setSavedAppSettings(persistedAppSettings);
+        setTheme(persistedAppSettings.theme as Theme);
+        applyRendererSettings(persistedAppSettings);
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -110,9 +120,11 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, setTheme]);
 
   const hasKeyDraft = inputValue.trim().length > 0 && inputValue.trim() !== (currentKey ?? '');
+  const hasAppSettingsDraft =
+    serializeAppSettings(appSettings) !== serializeAppSettings(savedAppSettings);
   const hasTrustDraft = Boolean(
     trustContract &&
       trustDraft &&
@@ -143,6 +155,26 @@ export function SettingsPage() {
       return;
     }
 
+    if (section === 'general' || section === 'archive') {
+      if (!hasAppSettingsDraft) {
+        return;
+      }
+
+      setSaveState('saving');
+      setErrorMsg('');
+
+      try {
+        const nextSettings = await updateAppSettings(appSettings);
+        setSavedAppSettings(nextSettings);
+        applyRendererSettings(nextSettings);
+        setSaveState('saved');
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
+        setSaveState('error');
+      }
+      return;
+    }
+
     const trimmedKey = inputValue.trim();
     if (!trimmedKey || trimmedKey === currentKey) {
       return;
@@ -167,15 +199,32 @@ export function SettingsPage() {
       setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
       setSaveState('error');
     }
-  }, [currentKey, hasTrustDraft, inputValue, section, trustDraft]);
+  }, [appSettings, currentKey, hasAppSettingsDraft, hasTrustDraft, inputValue, section, trustDraft]);
 
   const handleRestoreDefaults = useCallback(() => {
-    setTheme('system');
-    setDiffLineWrapping(false);
-    setAssistantOutput(false);
-    setArchiveConfirmation(false);
-    setDeleteConfirmation(true);
-  }, [setTheme]);
+    if (section === 'general') {
+      setAppSettings((current) => ({
+        ...current,
+        theme: DEFAULT_APP_SETTINGS.theme,
+        timeFormat: DEFAULT_APP_SETTINGS.timeFormat,
+        diffLineWrapping: DEFAULT_APP_SETTINGS.diffLineWrapping,
+        assistantOutput: DEFAULT_APP_SETTINGS.assistantOutput,
+      }));
+      setTheme('system');
+    } else if (section === 'archive') {
+      setAppSettings((current) => ({
+        ...current,
+        archiveConfirmation: DEFAULT_APP_SETTINGS.archiveConfirmation,
+        deleteConfirmation: DEFAULT_APP_SETTINGS.deleteConfirmation,
+      }));
+    } else if (section === 'trust' && trustContract) {
+      setTrustDraft(trustContract);
+    } else if (section === 'connections') {
+      setInputValue('');
+      setIsEditingKey(false);
+    }
+    setSaveState('idle');
+  }, [section, setTheme, trustContract]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
@@ -188,20 +237,28 @@ export function SettingsPage() {
 
   const changedSettingLabels = useMemo(
     () => [
-      ...(theme !== 'system' ? ['Theme'] : []),
-      ...(diffLineWrapping ? ['Diff line wrapping'] : []),
-      ...(assistantOutput ? ['Assistant output'] : []),
-      ...(archiveConfirmation ? ['Archive confirmation'] : []),
-      ...(!deleteConfirmation ? ['Delete confirmation'] : []),
+      ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
+      ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
+      ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
+      ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
+      ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
+      ...(appSettings.deleteConfirmation !== savedAppSettings.deleteConfirmation ? ['Delete confirmation'] : []),
       ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
     [
-      archiveConfirmation,
-      assistantOutput,
-      deleteConfirmation,
-      diffLineWrapping,
+      appSettings.archiveConfirmation,
+      appSettings.assistantOutput,
+      appSettings.deleteConfirmation,
+      appSettings.diffLineWrapping,
+      appSettings.theme,
+      appSettings.timeFormat,
       hasTrustDraft,
-      theme,
+      savedAppSettings.archiveConfirmation,
+      savedAppSettings.assistantOutput,
+      savedAppSettings.deleteConfirmation,
+      savedAppSettings.diffLineWrapping,
+      savedAppSettings.theme,
+      savedAppSettings.timeFormat,
     ],
   );
 
@@ -238,7 +295,16 @@ export function SettingsPage() {
                     title="Theme"
                     description="Choose how Mate X looks across the app."
                     control={
-                      <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+                      <Select
+                        value={appSettings.theme}
+                        onValueChange={(value) => {
+                          setTheme(value as Theme);
+                          setAppSettings((current) => ({ ...current, theme: value as Theme }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      >
                         <SelectTrigger className="w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -254,7 +320,18 @@ export function SettingsPage() {
                     title="Time format"
                     description="System default follows your browser or OS clock preference."
                     control={
-                      <Select defaultValue="system">
+                      <Select
+                        value={appSettings.timeFormat}
+                        onValueChange={(value) => {
+                          setAppSettings((current) => ({
+                            ...current,
+                            timeFormat: value as TimeFormat,
+                          }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      >
                         <SelectTrigger className="w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -270,14 +347,30 @@ export function SettingsPage() {
                     title="Diff line wrapping"
                     description="Set the default wrap state when the diff panel opens."
                     control={
-                      <Switch checked={diffLineWrapping} onCheckedChange={setDiffLineWrapping} />
+                      <Switch
+                        checked={appSettings.diffLineWrapping}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, diffLineWrapping: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
                     }
                   />
                   <SettingsRow
                     title="Assistant output"
                     description="Show token-by-token output while a response is in progress."
                     control={
-                      <Switch checked={assistantOutput} onCheckedChange={setAssistantOutput} />
+                      <Switch
+                        checked={appSettings.assistantOutput}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, assistantOutput: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
                     }
                   />
                 </>
@@ -470,14 +563,30 @@ export function SettingsPage() {
                     title="Archive confirmation"
                     description="Require a second click on the inline archive action before a thread is archived."
                     control={
-                      <Switch checked={archiveConfirmation} onCheckedChange={setArchiveConfirmation} />
+                      <Switch
+                        checked={appSettings.archiveConfirmation}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, archiveConfirmation: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
                     }
                   />
                   <SettingsRow
                     title="Delete confirmation"
                     description="Ask before deleting a thread and its local chat history."
                     control={
-                      <Switch checked={deleteConfirmation} onCheckedChange={setDeleteConfirmation} />
+                      <Switch
+                        checked={appSettings.deleteConfirmation}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, deleteConfirmation: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
                     }
                   />
                 </>
@@ -513,12 +622,18 @@ export function SettingsPage() {
                 )}
               </div>
 
-              {section === 'connections' || section === 'trust' ? (
+              {section === 'general' || section === 'archive' || section === 'connections' || section === 'trust' ? (
                 <Button
                   size="sm"
                   className="h-9 rounded-lg px-4"
                   onClick={() => void handleSave()}
-                  disabled={section === 'connections' ? !hasKeyDraft || isBusy : !hasTrustDraft || isBusy}
+                  disabled={
+                    section === 'connections'
+                      ? !hasKeyDraft || isBusy
+                      : section === 'trust'
+                        ? !hasTrustDraft || isBusy
+                        : !hasAppSettingsDraft || isBusy
+                  }
                 >
                   {isBusy ? (
                     <Loader2Icon className="size-4 animate-spin" />
@@ -526,6 +641,8 @@ export function SettingsPage() {
                     <CheckIcon className="size-4" />
                   ) : section === 'trust' ? (
                     <ShieldCheckIcon className="size-4" />
+                  ) : section === 'general' || section === 'archive' ? (
+                    <Settings2Icon className="size-4" />
                   ) : (
                     <KeyRoundIcon className="size-4" />
                   )}
@@ -597,6 +714,10 @@ function parseLines(value: string) {
         .filter(Boolean),
     ),
   );
+}
+
+function serializeAppSettings(settings: AppSettings) {
+  return JSON.stringify(settings);
 }
 
 function serializeTrustContract(contract: WorkspaceTrustContract) {

@@ -3,6 +3,7 @@ import { Outlet } from '@tanstack/react-router';
 
 import { SidebarProvider } from '../../components/ui/sidebar';
 import { useTheme } from '../../hooks/use-theme';
+import { applyRendererSettings, getAppSettings } from '../../services/settings-client';
 import { useChatStore } from '../../store/chat-store';
 import { AppSidebar } from './components/app-sidebar';
 
@@ -21,11 +22,29 @@ export function DesktopShell() {
   const selectThread = useChatStore((state) => state.selectThread);
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
-  const { theme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAppSettings()
+      .then((settings) => {
+        if (!cancelled) {
+          setTheme(settings.theme);
+          applyRendererSettings(settings);
+        }
+      })
+      .catch(() => {
+        // Keep renderer defaults when settings are unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setTheme]);
 
   return (
     <SidebarProvider defaultOpen>
