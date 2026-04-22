@@ -1159,7 +1159,7 @@ ${matches || "(none)"}
 You are running in an agent loop, not a single reply.
 First, use the workspace metadata, git status, file list, prompt-linked matches, and conversation history already provided here.
 If that context is enough for the user's request, answer directly without calling tools.
-If more evidence is needed, briefly state what you will inspect, call the smallest useful set of tools, then continue from the tool results.
+If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
 Stop investigating once you can give a grounded answer. Do not continue until the tool budget unless the user explicitly asks for exhaustive analysis.
 If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
