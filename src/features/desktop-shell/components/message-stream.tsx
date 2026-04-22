@@ -336,10 +336,14 @@ function InterleavedMessageContent({
     );
   });
 
-  const trailingTraceGroup = pendingTraceEvents.length > 0 && hasRenderedModelText
+  const trailingTraceEvents = [
+    ...pendingTraceEvents,
+    ...events.filter((event) => isInlineTraceEvent(event) && !usedEventIds.has(event.id)),
+  ];
+  const trailingTraceGroup = trailingTraceEvents.length > 0 && hasRenderedModelText
     ? (
       <div className="my-1.5">
-        <InlineTraceGroup events={pendingTraceEvents.splice(0)} />
+        <InlineTraceGroup events={trailingTraceEvents} />
       </div>
     )
     : null;
