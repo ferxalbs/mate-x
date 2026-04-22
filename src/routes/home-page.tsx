@@ -1,14 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '../hooks/use-theme';
 import { useChatStore } from '../store/chat-store';
 import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
 import { MessageStream } from '../features/desktop-shell/components/message-stream';
+import { getAppSettings } from '../services/settings-client';
 
 export function HomePage() {
   const messageScrollerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [traceVersion, setTraceVersion] = useState<'v1' | 'v2'>('v2');
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -27,6 +29,23 @@ export function HomePage() {
   const canUndoLastTurn =
     runStatus !== 'running' &&
     (selectedThread?.messages ?? []).some((message) => message.role === 'user');
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAppSettings()
+      .then((settings) => {
+        if (!cancelled) {
+          setTraceVersion(settings.agentTraceVersion);
+        }
+      })
+      .catch(() => {
+        // Keep default trace mode when settings are unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-background">
@@ -48,6 +67,7 @@ export function HomePage() {
         onUndoLastTurn={undoLastTurn}
         onVisibilityChange={setShowScrollButton}
         scrollerRef={messageScrollerRef}
+        traceVersion={traceVersion}
         workspace={workspace}
       />
       <ComposerPanel
