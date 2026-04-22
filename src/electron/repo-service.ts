@@ -595,22 +595,22 @@ function buildAgentRuntimeConfig(
     case "low":
       return {
         maxIterations: options.mode === "plan" ? 5 : 6,
-        minToolRounds: 1,
-        maxToolCalls: 6,
+        minToolRounds: 0,
+        maxToolCalls: 20,
         requireToolingFirst: false,
       };
     case "max":
       return {
         maxIterations: options.mode === "plan" ? 10 : 12,
-        minToolRounds: 3,
-        maxToolCalls: 24,
+        minToolRounds: 0,
+        maxToolCalls: 200,
         requireToolingFirst: false,
       };
     default:
       return {
         maxIterations: options.mode === "plan" ? 8 : 9,
-        minToolRounds: 2,
-        maxToolCalls: 14,
+        minToolRounds: 0,
+        maxToolCalls: 100,
         requireToolingFirst: false,
       };
   }
@@ -1157,11 +1157,13 @@ Prompt-linked matches:
 ${matches || "(none)"}
 
 You are running in an agent loop, not a single reply.
-Use the repository tools aggressively before concluding. Prefer multiple tool calls in the same turn whenever they are independent.
-Do not stop after a shallow pass. Keep investigating until you have enough evidence or you hit the tool budget.
-If you include pre-tool reasoning, keep it short and action-oriented. The final answer must synthesize concrete evidence from the repo.
-When you need to search for something, use the 'rg' tool first.
-If a tool fails, adapt and continue.`;
+First, use the workspace metadata, git status, file list, prompt-linked matches, and conversation history already provided here.
+If that context is enough for the user's request, answer directly without calling tools.
+If more evidence is needed, briefly state what you will inspect, call the smallest useful set of tools, then continue from the tool results.
+Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
+Stop investigating once you can give a grounded answer. Do not continue until the tool budget unless the user explicitly asks for exhaustive analysis.
+If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
+When you need to search for something, use the 'rg' tool first.`;
 
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({
