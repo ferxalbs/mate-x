@@ -2,6 +2,8 @@ export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
 export type ToolEventStatus = "done" | "active" | "error";
 export type MessageArtifactTone = "default" | "success" | "warning";
+export type EvidencePackStatus = "complete" | "partial" | "blocked" | "failed";
+export type EvidencePackConfidence = "low" | "medium" | "high";
 export type AssistantReasoningLevel = "low" | "high" | "max";
 export type AssistantMode = "build" | "plan";
 export type AssistantAccess = "full" | "approval";
@@ -35,6 +37,48 @@ export interface MessageArtifact {
   tone?: MessageArtifactTone;
 }
 
+export interface EvidencePackVerdict {
+  label: string;
+  summary: string;
+  confidence: EvidencePackConfidence;
+}
+
+export interface EvidencePackFileChange {
+  path: string;
+  changeType?: "modified" | "created" | "deleted" | "renamed";
+  diffSummary?: string;
+}
+
+export interface EvidencePackCommand {
+  command: string;
+  exitCode?: number;
+  summary?: string;
+}
+
+export interface EvidencePackToolUsage {
+  name: string;
+  count?: number;
+}
+
+export interface EvidencePackTestRun {
+  name: string;
+  status: "passed" | "failed" | "skipped" | "unknown";
+  summary?: string;
+}
+
+export interface EvidencePack {
+  status: EvidencePackStatus;
+  verdict: EvidencePackVerdict;
+  filesModified?: EvidencePackFileChange[];
+  commandsExecuted?: EvidencePackCommand[];
+  toolsUsed?: EvidencePackToolUsage[];
+  testsRun?: EvidencePackTestRun[];
+  warnings?: string[];
+  unresolvedRisks?: string[];
+  touchedPaths?: string[];
+  generatedAt: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -43,6 +87,7 @@ export interface ChatMessage {
   createdAt: string;
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
+  evidencePack?: EvidencePack;
 }
 
 export interface Conversation {
