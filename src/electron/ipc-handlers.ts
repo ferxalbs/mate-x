@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
 import type { AssistantRunOptions } from '../contracts/chat';
+import type { AppSettings } from '../contracts/settings';
 import { GitService } from './git-service';
 import {
   addWorkspace,
@@ -163,4 +164,8 @@ export function registerIpcHandlers() {
     await validateRainyModelSelection({ apiKey, model });
     await tursoService.setModel(model);
   });
+  ipcMain.handle('settings:get-app-settings', async () => tursoService.getAppSettings());
+  ipcMain.handle('settings:update-app-settings', async (_event, settings: AppSettings) =>
+    tursoService.updateAppSettings(settings),
+  );
 }

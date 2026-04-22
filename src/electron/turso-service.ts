@@ -10,6 +10,7 @@ import type {
   WorkspaceTrustContract,
   ValidationRun,
 } from '../contracts/workspace';
+import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
 import { createId } from '../lib/id';
 import {
   createDefaultWorkspaceTrustContract,
@@ -268,13 +269,7 @@ export class TursoService {
   // ── API Key ─────────────────────────────────────────────────────────────
 
   async getApiKey(): Promise<string | null> {
-    await this.initialize();
-    const result = await this.getClient().execute({
-      sql: `SELECT value FROM app_state WHERE key = ? LIMIT 1`,
-      args: ['rainy_api_key'],
-    });
-    const raw = result.rows[0]?.value;
-    return raw ? String(raw) : null;
+    return this.getAppStateValue('rainy_api_key');
   }
 
   async setApiKey(apiKey: string) {
@@ -288,13 +283,7 @@ export class TursoService {
   }
 
   async getModel(): Promise<string | null> {
-    await this.initialize();
-    const result = await this.getClient().execute({
-      sql: `SELECT value FROM app_state WHERE key = ? LIMIT 1`,
-      args: ['rainy_model'],
-    });
-    const raw = result.rows[0]?.value;
-    return raw ? String(raw) : null;
+    return this.getAppStateValue('rainy_model');
   }
 
   async setModel(model: string) {
@@ -305,6 +294,32 @@ export class TursoService {
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       args: ['rainy_model', normalizedModel],
     });
+  }
+
+  async getAppSettings(): Promise<AppSettings> {
+    await this.initialize();
+    const raw = await this.getAppStateValue('app_settings');
+
+    if (!raw) {
+      return { ...DEFAULT_APP_SETTINGS };
+    }
+
+    try {
+      return normalizeAppSettings(JSON.parse(raw) as Partial<AppSettings>);
+    } catch {
+      return { ...DEFAULT_APP_SETTINGS };
+    }
+  }
+
+  async updateAppSettings(settings: AppSettings): Promise<AppSettings> {
+    await this.initialize();
+    const normalizedSettings = normalizeAppSettings(settings);
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: ['app_settings', JSON.stringify(normalizedSettings)],
+    });
+    return normalizedSettings;
   }
 
   // ── Workspace Profiles & Validation Runs ─────────────────────────────────
@@ -508,6 +523,16 @@ export class TursoService {
       args: [workspaceId, JSON.stringify(contract), contract.updatedAt],
     });
   }
+
+  private async getAppStateValue(key: string): Promise<string | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT value FROM app_state WHERE key = ? LIMIT 1`,
+      args: [key],
+    });
+    const raw = result.rows[0]?.value;
+    return raw ? String(raw) : null;
+  }
 }
 
 function safeParseThreads(raw: string): Conversation[] {
@@ -539,6 +564,35 @@ function safeParseTrustContract(raw: string, workspaceId: string): WorkspaceTrus
   }
 
   return createDefaultWorkspaceTrustContract(workspaceId, 'Workspace');
+}
+
+function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
+  return {
+    theme:
+      input.theme === 'dark' || input.theme === 'light' || input.theme === 'system'
+        ? input.theme
+        : DEFAULT_APP_SETTINGS.theme,
+    timeFormat:
+      input.timeFormat === '12h' || input.timeFormat === '24h' || input.timeFormat === 'system'
+        ? input.timeFormat
+        : DEFAULT_APP_SETTINGS.timeFormat,
+    diffLineWrapping:
+      typeof input.diffLineWrapping === 'boolean'
+        ? input.diffLineWrapping
+        : DEFAULT_APP_SETTINGS.diffLineWrapping,
+    assistantOutput:
+      typeof input.assistantOutput === 'boolean'
+        ? input.assistantOutput
+        : DEFAULT_APP_SETTINGS.assistantOutput,
+    archiveConfirmation:
+      typeof input.archiveConfirmation === 'boolean'
+        ? input.archiveConfirmation
+        : DEFAULT_APP_SETTINGS.archiveConfirmation,
+    deleteConfirmation:
+      typeof input.deleteConfirmation === 'boolean'
+        ? input.deleteConfirmation
+        : DEFAULT_APP_SETTINGS.deleteConfirmation,
+  };
 }
 
 export const tursoService = new TursoService();

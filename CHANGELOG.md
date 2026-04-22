@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.21 (2) [Real Settings Persistence and Theme/Time Wiring]
+
+- Added a real app-settings contract (`AppSettings`) with persisted fields for theme preference, time format, diff line wrapping, assistant streaming output, archive confirmation, and delete confirmation.
+- Extended settings IPC and preload bridges with `settings:get-app-settings` and `settings:update-app-settings`, plus renderer-side settings client helpers for reading, updating, and applying settings.
+- Persisted app settings in the existing `app_state` table through `turso-service`, including strict normalization and defaults fallback for malformed or missing values.
+- Rewired `/settings` General and Archive sections to load persisted values on entry, track pending changes against saved state, save through IPC, and restore defaults by section.
+- Connected theme preference to persisted app settings and shell hydration, so startup now applies the stored DB theme as the source of truth instead of isolated local-only toggles.
+- Connected time-format preference to chat timestamp formatting (`system`, `12h`, `24h`) and ensured renderer hydration applies it globally after boot.
+
 ## Unreleased - 2026.04.21 (1) [Workspace Trust Contracts]
 
 - Added workspace-scoped trust contracts that define allowed paths, forbidden paths, allowed commands, allowed network domains, allowed secrets, allowed actions, blocked actions, and autonomy level per workspace.

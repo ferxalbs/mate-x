@@ -70,6 +70,8 @@ const settingsApi: SettingsApi = {
   listModels: (forceRefresh) => ipcRenderer.invoke('settings:list-models', forceRefresh),
   getModel: () => ipcRenderer.invoke('settings:get-model'),
   setModel: (model) => ipcRenderer.invoke('settings:set-model', model),
+  getAppSettings: () => ipcRenderer.invoke('settings:get-app-settings'),
+  updateAppSettings: (settings) => ipcRenderer.invoke('settings:update-app-settings', settings),
 };
 
 contextBridge.exposeInMainWorld('mate', {

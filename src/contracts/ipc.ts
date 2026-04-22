@@ -6,6 +6,7 @@ import type {
 } from './chat';
 import type { GitCommit, GitDiff, GitStatus } from './git';
 import type { RainyModelCatalogEntry } from './rainy';
+import type { AppSettings } from './settings';
 import type {
   SearchMatch,
   WorkspaceEntry,
@@ -64,4 +65,6 @@ export interface SettingsApi {
   listModels: (forceRefresh?: boolean) => Promise<RainyModelCatalogEntry[]>;
   getModel: () => Promise<string | null>;
   setModel: (model: string) => Promise<void>;
+  getAppSettings: () => Promise<AppSettings>;
+  updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
 }
