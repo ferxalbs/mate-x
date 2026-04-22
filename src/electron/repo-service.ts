@@ -9,6 +9,7 @@ import {
   extractResponseFunctionCalls,
   listRainyModels,
   requestRainyChatCompletion,
+  requestRainyChatCompletionStream,
   requestRainyResponsesCompletion,
   resolvePreferredRainyApiMode,
 } from "./rainy-service";
@@ -304,7 +305,10 @@ export async function runAssistant(
         options: resolvedOptions,
         emitProgress,
       });
-      thought = result.thought ?? thought;
+      thought =
+        "thought" in result && typeof result.thought === "string"
+          ? result.thought
+          : thought;
       content = result.content;
     } catch (error) {
       console.error("Agentic loop failed:", error);
@@ -593,21 +597,21 @@ function buildAgentRuntimeConfig(
         maxIterations: options.mode === "plan" ? 5 : 6,
         minToolRounds: 1,
         maxToolCalls: 6,
-        requireToolingFirst: true,
+        requireToolingFirst: false,
       };
     case "max":
       return {
         maxIterations: options.mode === "plan" ? 10 : 12,
         minToolRounds: 3,
         maxToolCalls: 24,
-        requireToolingFirst: true,
+        requireToolingFirst: false,
       };
     default:
       return {
         maxIterations: options.mode === "plan" ? 8 : 9,
         minToolRounds: 2,
         maxToolCalls: 14,
-        requireToolingFirst: true,
+        requireToolingFirst: false,
       };
   }
 }
@@ -1316,7 +1320,8 @@ async function requestRainyChatAgenticResponse({
       emitProgress
     );
 
-    const response = await requestRainyChatCompletion({
+    let streamedPassText = "";
+    const responseMessage = await requestRainyChatCompletionStream({
       apiKey,
       messages,
       model,
@@ -1327,12 +1332,15 @@ async function requestRainyChatAgenticResponse({
         totalToolCalls < runtime.maxToolCalls
           ? "required"
           : undefined,
+      onContentDelta: (delta) => {
+        streamedPassText += delta;
+        emitProgress(
+          lastNonEmptyAssistantText
+            ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
+            : streamedPassText,
+        );
+      },
     });
-
-    const responseMessage = response.choices[0]?.message;
-    if (!responseMessage) {
-      throw new Error("Empty response from Rainy API.");
-    }
 
     messages.push(responseMessage);
     const toolCalls = responseMessage.tool_calls

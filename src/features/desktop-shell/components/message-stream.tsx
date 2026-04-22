@@ -736,41 +736,18 @@ function StatusIcon({ status }: { status: ToolEvent['status'] }) {
 }
 
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
-  const [expanded, setExpanded] = useState(false);
+  const command = extractCommandFromEvent(event);
+  const detail = command ?? event.detail;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/40 bg-[var(--surface-soft)]/30 text-xs transition-colors hover:bg-[var(--surface-soft)]/50">
-      <button
-        className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-foreground/80 hover:text-foreground"
-        onClick={() => setExpanded(!expanded)}
-        type="button"
-      >
-        {event.status === "active" ? (
-          <LoaderCircle className="size-3.5 animate-spin text-foreground/60" />
-        ) : event.status === "error" ? (
-          <div className="flex size-3.5 items-center justify-center rounded-full bg-destructive/20">
-            <div className="size-1.5 rounded-full bg-destructive" />
-          </div>
-        ) : (
-          <CheckIcon className="size-3.5 text-emerald-500/80" />
-        )}
-
-        <span className="flex-1 truncate">{event.label}</span>
-
-        {expanded ? (
-          <ChevronDownIcon className="size-3.5 text-muted-foreground/60" />
-        ) : (
-          <ChevronRightIcon className="size-3.5 text-muted-foreground/60" />
-        )}
-      </button>
-
-      {expanded ? (
-        <div className="border-t border-border/20 px-3 py-2">
-          <p className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground/80">
-            {event.detail}
-          </p>
-        </div>
-      ) : null}
+    <div className="flex min-w-0 items-start gap-2 rounded-lg border border-border/35 bg-background/24 px-3 py-2 text-[12px] leading-5 text-muted-foreground/90">
+      <StatusIcon status={event.status} />
+      <div className="min-w-0 flex-1">
+        <span className="font-medium text-foreground/82">{event.label}</span>
+        {detail ? (
+          <span className="text-muted-foreground/75"> - {detail}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -921,7 +898,7 @@ function RotateUndoIcon() {
   );
 }
 
-function ThinkingRow({ thought, isStreaming }: { thought: string; isStreaming: boolean }) {
+function ThinkingRow({ thought = '', isStreaming = true }: { thought?: string; isStreaming?: boolean }) {
   const [expanded, setExpanded] = useState(isStreaming);
 
   useEffect(() => {

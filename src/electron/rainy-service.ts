@@ -398,6 +398,86 @@ export async function requestRainyChatCompletion(params: {
   }
 }
 
+export async function requestRainyChatCompletionStream(params: {
+  apiKey: string;
+  messages: any[];
+  model: string;
+  onContentDelta: (delta: string) => void;
+  tools?: any[];
+  toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+}): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
+  const client = createRainyClient(params.apiKey);
+  const request = buildChatCompletionRequest({
+    model: params.model,
+    messages: params.messages,
+    tools: params.tools,
+    toolChoice: params.toolChoice,
+  });
+  const contentChunks: string[] = [];
+  const toolCalls: Array<{ id?: string; type: "function"; function: { name?: string; arguments: string } }> = [];
+
+  let stream;
+  try {
+    stream = await client.chat.completions.create(
+      { ...request, stream: true },
+      { timeout: RAINY_REQUEST_TIMEOUT_MS },
+    );
+  } catch (error) {
+    if (!params.toolChoice || !isUnsupportedToolChoiceError(error)) {
+      throw error;
+    }
+
+    stream = await client.chat.completions.create(
+      {
+        ...buildChatCompletionRequest({
+          model: params.model,
+          messages: params.messages,
+          tools: params.tools,
+        }),
+        stream: true,
+      },
+      { timeout: RAINY_REQUEST_TIMEOUT_MS },
+    );
+  }
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices?.[0]?.delta;
+    if (!delta) {
+      continue;
+    }
+
+    if (delta.content) {
+      contentChunks.push(delta.content);
+      params.onContentDelta(delta.content);
+    }
+
+    for (const toolCallDelta of delta.tool_calls ?? []) {
+      const index = toolCallDelta.index;
+      const current = toolCalls[index] ?? { type: "function" as const, function: { arguments: "" } };
+      current.id = toolCallDelta.id ?? current.id;
+      current.function.name = toolCallDelta.function?.name ?? current.function.name;
+      current.function.arguments += toolCallDelta.function?.arguments ?? "";
+      toolCalls[index] = current;
+    }
+  }
+
+  return {
+    role: "assistant",
+    content: contentChunks.join(""),
+    refusal: null,
+    tool_calls: toolCalls
+      .filter((toolCall) => toolCall.id && toolCall.function.name)
+      .map((toolCall) => ({
+        id: toolCall.id!,
+        type: "function" as const,
+        function: {
+          name: toolCall.function.name!,
+          arguments: toolCall.function.arguments,
+        },
+      })),
+  };
+}
+
 export async function requestRainyResponsesCompletion(params: {
   apiKey: string;
   input: string | ResponseInputItem[];
