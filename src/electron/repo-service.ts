@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
+import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
 import { GitService } from "./git-service";
 import {
   buildResponsesMessageInput,
@@ -21,7 +22,6 @@ import type {
   AssistantRunProgress,
   AssistantRunOptions,
   Conversation,
-  EvidencePack,
   MessageArtifact,
   ToolEvent,
 } from "../contracts/chat";
@@ -69,13 +69,6 @@ interface AgentToolCall {
   id: string;
   name: string;
   arguments?: string;
-}
-
-interface ToolExecutionRecord {
-  toolName: string;
-  args: Record<string, unknown>;
-  output: string;
-  parsedOutput?: Record<string, unknown>;
 }
 
 const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
@@ -699,172 +692,6 @@ function parseJsonObject(value: string): Record<string, unknown> | null {
   }
 
   return null;
-}
-
-function classifyEvidenceStatus(events: ToolEvent[]): EvidencePack["status"] {
-  const hasBlockingStep = events.some(
-    (event) =>
-      event.id === "step-rainy-missing" ||
-      event.id === "step-rainy-model-missing" ||
-      event.id === "step-rainy-domain-blocked",
-  );
-  if (hasBlockingStep) {
-    return "blocked";
-  }
-
-  const hasErrors = events.some((event) => event.status === "error");
-  if (hasErrors) {
-    return "partial";
-  }
-
-  const finished = events.some((event) => event.label === "Response complete");
-  return finished ? "complete" : "failed";
-}
-
-function extractSummaryFromContent(content: string) {
-  const cleaned = content
-    .replace(/<!-- mate-trace:.*? -->/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!cleaned) {
-    return "Run finished without a model-authored summary.";
-  }
-
-  const firstSentence = cleaned.split(/(?<=[.!?])\s+/)[0] ?? cleaned;
-  return firstSentence.length <= 180
-    ? firstSentence
-    : `${firstSentence.slice(0, 177).trimEnd()}...`;
-}
-
-function buildVerdict(
-  status: EvidencePack["status"],
-  content: string,
-): EvidencePack["verdict"] {
-  if (status === "blocked") {
-    return {
-      label: "Blocked by configuration",
-      summary: "The run was limited by missing provider configuration or trust policy.",
-      confidence: "high",
-    };
-  }
-
-  if (status === "partial") {
-    return {
-      label: "Completed with issues",
-      summary: extractSummaryFromContent(content),
-      confidence: "medium",
-    };
-  }
-
-  if (status === "failed") {
-    return {
-      label: "Run failed",
-      summary: extractSummaryFromContent(content),
-      confidence: "low",
-    };
-  }
-
-  return {
-    label: "Completed",
-    summary: extractSummaryFromContent(content),
-    confidence: "high",
-  };
-}
-
-function deriveWarnings(events: ToolEvent[]) {
-  return events
-    .filter((event) => event.status === "error")
-    .map((event) => `${event.label}: ${event.detail}`)
-    .slice(0, 6);
-}
-
-async function buildEvidencePack(params: {
-  workspacePath: string;
-  events: ToolEvent[];
-  content: string;
-  toolExecutions: ToolExecutionRecord[];
-}): Promise<EvidencePack> {
-  const { workspacePath, events, content, toolExecutions } = params;
-  const status = classifyEvidenceStatus(events);
-  const verdict = buildVerdict(status, content);
-  const warnings = deriveWarnings(events);
-
-  const toolUsageCount = new Map<string, number>();
-  for (const execution of toolExecutions) {
-    toolUsageCount.set(
-      execution.toolName,
-      (toolUsageCount.get(execution.toolName) ?? 0) + 1,
-    );
-  }
-
-  const commandsExecuted = toolExecutions.map((execution) => ({
-    command: `${execution.toolName} ${JSON.stringify(execution.args)}`,
-    exitCode:
-      typeof execution.parsedOutput?.exitCode === "number"
-        ? execution.parsedOutput.exitCode
-        : undefined,
-    summary:
-      typeof execution.parsedOutput?.summary === "string"
-        ? execution.parsedOutput.summary
-        : summarizeToolOutput(execution.output),
-  }));
-
-  const testsRun = toolExecutions
-    .filter((execution) => execution.toolName === "run_tests")
-    .map((execution) => {
-      const parsedStatus = execution.parsedOutput?.status;
-      const statusValue =
-        parsedStatus === "success"
-          ? "passed"
-          : parsedStatus === "failed"
-            ? "failed"
-            : "unknown";
-
-      return {
-        name:
-          typeof execution.args.scope === "string"
-            ? `run_tests (${execution.args.scope})`
-            : "run_tests",
-        status: statusValue as "passed" | "failed" | "unknown",
-        summary:
-          typeof execution.parsedOutput?.summary === "string"
-            ? execution.parsedOutput.summary
-            : summarizeToolOutput(execution.output),
-      };
-    });
-
-  const gitStatus = await new GitService(workspacePath).getStatusSafe();
-  const filesModified = (gitStatus?.files ?? []).map((file) => {
-    const path = file.path;
-    const changeCode = `${file.index}${file.working_dir}`;
-    let changeType: "modified" | "created" | "deleted" | "renamed" = "modified";
-    if (changeCode.includes("A")) changeType = "created";
-    if (changeCode.includes("D")) changeType = "deleted";
-    if (changeCode.includes("R")) changeType = "renamed";
-    return {
-      path,
-      changeType,
-      diffSummary: `Git status ${changeCode || "??"}`,
-    };
-  });
-
-  return {
-    status,
-    verdict,
-    filesModified,
-    commandsExecuted,
-    toolsUsed: Array.from(toolUsageCount.entries()).map(([name, count]) => ({
-      name,
-      count,
-    })),
-    testsRun,
-    warnings: warnings.length > 0 ? warnings : undefined,
-    unresolvedRisks: warnings.length > 0
-      ? ["One or more tool steps failed; review warnings before trusting results."]
-      : undefined,
-    touchedPaths: filesModified.map((file) => file.path),
-    generatedAt: new Date().toISOString(),
-  };
 }
 
 function buildNoContentFinalResponse(params: {
