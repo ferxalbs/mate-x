@@ -58,6 +58,7 @@
     "@electron/node-gyp": "^10.2.0-electron.2",
     "@fontsource/dm-sans": "^5.2.8",
     "@letta-ai/vercel-ai-sdk-provider": "^1.4.0",
+    "@libpdf/core": "^0.3.4",
     "@libsql/client": "^0.17.2",
     "@mem0/vercel-ai-provider": "^2.0.5",
     "@supermemory/tools": "^1.4.6",

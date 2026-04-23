@@ -33,6 +33,7 @@ import { jsonProbeTool } from "./tools/json_probe";
 import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
 import { runTestsTool } from "./tools/run_tests";
 import { supermemoryTool } from "./tools/supermemory";
+import { pdfReportTool } from "./tools/pdf_report";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -94,6 +95,7 @@ export class ToolService {
     this.registerTool(detectWorkspaceCapabilitiesTool);
     this.registerTool(runTestsTool);
     this.registerTool(supermemoryTool);
+    this.registerTool(pdfReportTool);
     // Future tools can be registered here or dynamically loaded
   }
 

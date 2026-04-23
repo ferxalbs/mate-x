@@ -1,5 +1,19 @@
 # CHANGELOG
 
+# Unreleased - 2026.04.23 (2) [Premium PDF Security Reports Tool]
+
+- Added the `pdf_security_report` tool, enabling the agent to autonomously generate precise, shareable, and premium PDF security reports.
+- Integrated `@libpdf/core` to dynamically construct and style the PDF using standard fonts and varied colors for risk severities.
+- Registered the new tool in `ToolService` making it available for the agentic loop.
+
+## Unreleased - 2026.04.23 (1) [Policy Stops Runtime Foundation]
+
+- Added structured Policy Stop contracts for paused runs, attempted actions, recommendations, scoped resolutions, and run state.
+- Implemented a main-process Policy Stop service that detects out-of-scope file access, dangerous commands, secret-like tool arguments, and high-impact security-surface changes before agent tool execution.
+- Wired Policy Stops into the agent tool loop so blocked actions produce auditable paused tool results instead of executing silently.
+- Added typed Policy Stop IPC and preload APIs for listing stops, reading run policy state, and resolving stops.
+- Verified the change with `bun run lint && bun run typecheck`; existing unused `settings` warnings remain in tool modules.
+
 ## Unreleased - 2026.04.22 (6) [Supermemory Persistent Context Plugin]
 
 - Integrated **Supermemory** as a persistent, context-aware memory plugin for long-term agent context management.

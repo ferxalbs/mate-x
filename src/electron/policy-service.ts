@@ -1,0 +1,300 @@
+import path from "node:path";
+
+import type {
+  PolicyRunState,
+  PolicyStop,
+  PolicyStopAction,
+  PolicyStopAttemptKind,
+  ResolvePolicyStopRequest,
+} from "../contracts/policy";
+
+type PolicyEvaluationInput = {
+  runId: string;
+  workspacePath: string;
+  toolName: string;
+  args: Record<string, unknown>;
+};
+
+type PolicyFinding = {
+  severity: PolicyStop["severity"];
+  policyId: string;
+  title: string;
+  explanation: string;
+  kind: PolicyStopAttemptKind;
+  target?: string;
+  command?: string;
+  metadata?: Record<string, unknown>;
+  recommendation: PolicyStopAction;
+  availableActions: PolicyStopAction[];
+};
+
+const DANGEROUS_COMMAND_PATTERNS = [
+  /\brm\s+-[^\n]*[rf][^\n]*\s+(\/|~|\*)/i,
+  /\bgit\s+reset\s+--hard\b/i,
+  /\bgit\s+clean\s+-[^\n]*[df][^\n]*/i,
+  /\bchmod\s+-R\s+777\b/i,
+  /\bchown\s+-R\b/i,
+  /\bsudo\b/i,
+  /\bcurl\b[^\n|;&]*\|\s*(sh|bash|zsh)\b/i,
+  /\bwget\b[^\n|;&]*\|\s*(sh|bash|zsh)\b/i,
+];
+
+const PATH_ARG_KEYS = [
+  "path",
+  "file",
+  "filePath",
+  "relativePath",
+  "specificPath",
+  "scope",
+  "target",
+];
+
+const COMMAND_ARG_KEYS = ["command", "cmd", "script"];
+const SECRET_ARG_KEYS = ["apiKey", "token", "secret", "password", "credential"];
+
+const HIGH_IMPACT_PATH_PATTERNS = [
+  /^src\/preload\.ts$/,
+  /^src\/main\.ts$/,
+  /^src\/electron\//,
+  /^src\/contracts\//,
+  /(^|\/)\.env(\.|$)/,
+  /(^|\/)package\.json$/,
+  /(^|\/)vite\.config\./,
+  /(^|\/)electron\.vite\.config\./,
+];
+
+class PolicyService {
+  private stops = new Map<string, PolicyStop>();
+
+  evaluateToolCall(input: PolicyEvaluationInput): PolicyStop | null {
+    const finding = this.findPolicyIssue(input);
+
+    if (!finding) {
+      return null;
+    }
+
+    const stop: PolicyStop = {
+      id: `policy-stop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      runId: input.runId,
+      workspacePath: input.workspacePath,
+      createdAt: new Date().toISOString(),
+      severity: finding.severity,
+      policyId: finding.policyId,
+      title: finding.title,
+      explanation: finding.explanation,
+      attemptedAction: {
+        kind: finding.kind,
+        toolName: input.toolName,
+        target: finding.target,
+        command: finding.command,
+        metadata: finding.metadata,
+      },
+      recommendation: finding.recommendation,
+      availableActions: finding.availableActions,
+      status: "open",
+    };
+
+    this.stops.set(stop.id, stop);
+    return stop;
+  }
+
+  listStops(runId?: string) {
+    const stops = Array.from(this.stops.values()).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
+
+    return runId ? stops.filter((stop) => stop.runId === runId) : stops;
+  }
+
+  getRunState(runId: string): PolicyRunState {
+    const openStops = this.listStops(runId).filter(
+      (stop) => stop.status === "open",
+    );
+
+    return {
+      runId,
+      status: openStops.length > 0 ? "paused" : "clear",
+      openStops,
+    };
+  }
+
+  resolveStop(request: ResolvePolicyStopRequest): PolicyStop {
+    if (!request || typeof request !== "object") {
+      throw new Error("Policy stop resolution request is required.");
+    }
+
+    if (!this.isPolicyStopAction(request.action)) {
+      throw new Error("Invalid policy stop resolution action.");
+    }
+
+    if (typeof request.stopId !== "string" || !request.stopId.trim()) {
+      throw new Error("Policy stop id is required.");
+    }
+
+    const stop = this.stops.get(request.stopId);
+
+    if (!stop) {
+      throw new Error("Policy stop not found.");
+    }
+
+    if (stop.status === "resolved") {
+      return stop;
+    }
+
+    const resolvedStop: PolicyStop = {
+      ...stop,
+      status: "resolved",
+      resolution: {
+        action: request.action,
+        resolvedAt: new Date().toISOString(),
+        scopeExpansion: request.scopeExpansion,
+      },
+    };
+
+    this.stops.set(stop.id, resolvedStop);
+    return resolvedStop;
+  }
+
+  private findPolicyIssue(input: PolicyEvaluationInput): PolicyFinding | null {
+    const secretKey = Object.keys(input.args).find((key) =>
+      SECRET_ARG_KEYS.some((secretKey) =>
+        key.toLowerCase().includes(secretKey.toLowerCase()),
+      ),
+    );
+
+    if (secretKey) {
+      return {
+        severity: "critical",
+        policyId: "secret.unauthorized_access",
+        title: "Run paused: attempted action included a secret-like argument.",
+        explanation:
+          "The agent attempted to use an argument that looks like a secret. Secret values must be resolved by trusted main-process services and never passed through tool calls.",
+        kind: "secret",
+        metadata: { argumentName: secretKey },
+        recommendation: "abort",
+        availableActions: ["abort", "safer_alternative"],
+      };
+    }
+
+    const command = this.extractCommand(input.args);
+    if (
+      command &&
+      DANGEROUS_COMMAND_PATTERNS.some((pattern) => pattern.test(command))
+    ) {
+      return {
+        severity: "critical",
+        policyId: "command.dangerous",
+        title: "Run paused: command requires risk approval.",
+        explanation:
+          "The agent attempted to execute a destructive or privileged command. This requires explicit user review before any execution can continue.",
+        kind: "command",
+        command,
+        recommendation: "abort",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      };
+    }
+
+    const outOfScopePath = this.findOutOfScopePath(input);
+    if (outOfScopePath) {
+      return {
+        severity: "critical",
+        policyId: this.isWriteTool(input.toolName)
+          ? "workspace.scope.write"
+          : "workspace.scope.read",
+        title: "Run paused: attempted action exceeded workspace contract.",
+        explanation:
+          "The agent attempted to access a path outside the active workspace. Workspace scope must be expanded explicitly before this action can run.",
+        kind: this.isWriteTool(input.toolName) ? "file_write" : "file_read",
+        target: outOfScopePath,
+        recommendation: "abort",
+        availableActions: [
+          "approve_once",
+          "expand_scope",
+          "abort",
+          "safer_alternative",
+        ],
+      };
+    }
+
+    const highImpactPath = this.findHighImpactPath(input.args);
+    if (highImpactPath && this.isWriteTool(input.toolName)) {
+      return {
+        severity: "warning",
+        policyId: "change.high_impact",
+        title: "Run paused: high-impact security surface changed.",
+        explanation:
+          "The agent attempted to modify main-process, preload, shared contract, environment, or build configuration files. These changes affect MaTE X trust boundaries and require explicit approval.",
+        kind: "code_change",
+        target: highImpactPath,
+        recommendation: "safer_alternative",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      };
+    }
+
+    return null;
+  }
+
+  private extractCommand(args: Record<string, unknown>) {
+    for (const key of COMMAND_ARG_KEYS) {
+      const value = args[key];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return null;
+  }
+
+  private findOutOfScopePath(input: PolicyEvaluationInput) {
+    for (const key of PATH_ARG_KEYS) {
+      const value = input.args[key];
+      if (typeof value !== "string" || !value.trim()) {
+        continue;
+      }
+
+      const requestedPath = value.trim();
+      if (!path.isAbsolute(requestedPath) && !requestedPath.startsWith("..")) {
+        continue;
+      }
+
+      const absolutePath = path.resolve(input.workspacePath, requestedPath);
+      const relativePath = path.relative(input.workspacePath, absolutePath);
+
+      if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+        return requestedPath;
+      }
+    }
+
+    return null;
+  }
+
+  private findHighImpactPath(args: Record<string, unknown>) {
+    const values = Object.values(args).flatMap((value) =>
+      typeof value === "string" ? value.split(/\s+/) : [],
+    );
+
+    return (
+      values.find((value) => {
+        const normalized = value.replace(/^["'`]+|["'`,:;]+$/g, "");
+        return HIGH_IMPACT_PATH_PATTERNS.some((pattern) =>
+          pattern.test(normalized),
+        );
+      }) ?? null
+    );
+  }
+
+  private isWriteTool(toolName: string) {
+    return /patch|write|edit|mutation/i.test(toolName);
+  }
+
+  private isPolicyStopAction(action: string): action is PolicyStopAction {
+    return (
+      action === "approve_once" ||
+      action === "expand_scope" ||
+      action === "abort" ||
+      action === "safer_alternative"
+    );
+  }
+}
+
+export const policyService = new PolicyService();

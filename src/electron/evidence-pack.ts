@@ -66,7 +66,8 @@ function buildVerdict(
   if (status === "blocked") {
     return {
       label: finalization.verdictLabel ?? "Blocked by configuration",
-      summary: finalization.verdictSummary ??
+      summary:
+        finalization.verdictSummary ??
         "The run was limited by missing provider configuration or trust policy.",
       confidence: confidence ?? "high",
     };
@@ -75,7 +76,8 @@ function buildVerdict(
   if (status === "partial") {
     return {
       label: finalization.verdictLabel ?? "Completed with issues",
-      summary: finalization.verdictSummary ?? extractSummaryFromContent(content),
+      summary:
+        finalization.verdictSummary ?? extractSummaryFromContent(content),
       confidence: confidence ?? "medium",
     };
   }
@@ -83,7 +85,8 @@ function buildVerdict(
   if (status === "failed") {
     return {
       label: finalization.verdictLabel ?? "Run failed",
-      summary: finalization.verdictSummary ?? extractSummaryFromContent(content),
+      summary:
+        finalization.verdictSummary ?? extractSummaryFromContent(content),
       confidence: confidence ?? "low",
     };
   }
@@ -191,19 +194,24 @@ export async function buildEvidencePack(params: {
     checks: finalization.checks?.length
       ? finalization.checks
       : runbookId
-        ? [{
-            name: `runbook:${runbookId}`,
-            status: "unknown",
-            summary: "No structured check lines parsed from final answer.",
-          }]
+        ? [
+            {
+              name: `runbook:${runbookId}`,
+              status: "unknown",
+              summary: "No structured check lines parsed from final answer.",
+            },
+          ]
         : undefined,
     stopConditionTriggered: finalization.stopConditionTriggered,
     warnings: warnings.length > 0 ? warnings : undefined,
-    unresolvedRisks: (finalization.unresolvedRisks?.length ?? 0) > 0
-      ? finalization.unresolvedRisks
-      : warnings.length > 0
-        ? ["One or more tool steps failed; review warnings before trusting results."]
-        : undefined,
+    unresolvedRisks:
+      (finalization.unresolvedRisks?.length ?? 0) > 0
+        ? finalization.unresolvedRisks
+        : warnings.length > 0
+          ? [
+              "One or more tool steps failed; review warnings before trusting results.",
+            ]
+          : undefined,
     recommendation: finalization.recommendation,
     touchedPaths: filesModified.map((file) => file.path),
     generatedAt: new Date().toISOString(),
