@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.23 (4) [Mission Log Reproducible Runs]
+
+- Added the **Mission Log** route for reviewable execution history inside the existing MaTE X desktop shell.
+- Introduced first-class `ReproducibleRun` records with captured initial state, user intent, decisions, live tool events, artifacts, final result, and evidence pack linkage.
+- Persisted run records with workspace conversation state so new assistant executions produce operational history instead of UI-only mock data.
+- Added secret redaction and SHA-256 hash-chain sealing for completed or failed runs, exposing sealed root hashes as exportable evidence.
+- Added JSON export for sealed run artifacts and upgraded the run evidence panel with operational decisions, integrity status, structured command evidence, and semantic timeline labels such as Tool batch, Policy pause, Patch attempt, Scoped retry, and Verification pass.
+- Verified lint and typecheck; existing unused `settings` warnings remain in tool modules.
+
 ## Unreleased - 2026.04.23 (3) [Policy Stops Enhanced Security + UI]
 
 - Enhanced agent run policy to enforce a "security-surface budget" that caps high-risk operations (large file writes, removals, build/install commands) per run, proactively pausing the agent before exceeding the budget.
