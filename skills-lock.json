@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "chat-sdk": {
+      "source": "vercel/chat",
+      "sourceType": "github",
+      "computedHash": "674f41a8e861862d33c6a7392551f046225403783d676b434332e3b86ef5c7a1"
+    }
+  }
+}
