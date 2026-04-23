@@ -72,6 +72,7 @@ const HIGH_IMPACT_PATH_PATTERNS = [
 
 class PolicyService {
   private stops = new Map<string, PolicyStop>();
+  private approvedOnce = new Set<string>();
 
   classifyToolCall(input: Omit<PolicyEvaluationInput, "runId">): ToolPolicyClassification {
     const action = this.getRequiredAction(input.toolName, input.args);
@@ -109,6 +110,10 @@ class PolicyService {
   }
 
   evaluateToolCall(input: PolicyEvaluationInput): PolicyStop | null {
+    if (this.isApprovedOnce(input)) {
+      return null;
+    }
+
     const finding = this.findPolicyIssue(input);
 
     if (!finding) {
@@ -194,7 +199,35 @@ class PolicyService {
     };
 
     this.stops.set(stop.id, resolvedStop);
+    if (request.action === "approve_once") {
+      this.approvedOnce.add(this.approvalKey({
+        workspacePath: stop.workspacePath,
+        toolName: stop.attemptedAction.toolName ?? "",
+        target: stop.attemptedAction.target,
+        command: stop.attemptedAction.command,
+      }));
+    }
     return resolvedStop;
+  }
+
+  isApprovedToolCall(input: Omit<PolicyEvaluationInput, "runId" | "contract">) {
+    return this.isApprovedOnce(input);
+  }
+
+  consumeApprovedToolCall(input: Omit<PolicyEvaluationInput, "runId" | "contract">) {
+    const key = this.approvalKey({
+      workspacePath: input.workspacePath,
+      toolName: input.toolName,
+      target: this.findHighImpactPath(input.args) ?? this.findFirstPathValue(input.args),
+      command: this.extractCommand(input.args) ?? undefined,
+    });
+
+    if (!this.approvedOnce.has(key)) {
+      return false;
+    }
+
+    this.approvedOnce.delete(key);
+    return true;
   }
 
   private findPolicyIssue(input: PolicyEvaluationInput): PolicyFinding | null {
@@ -274,6 +307,44 @@ class PolicyService {
     }
 
     return null;
+  }
+
+  private isApprovedOnce(input: {
+    workspacePath: string;
+    toolName: string;
+    args: Record<string, unknown>;
+  }) {
+    return this.approvedOnce.has(this.approvalKey({
+      workspacePath: input.workspacePath,
+      toolName: input.toolName,
+      target: this.findHighImpactPath(input.args) ?? this.findFirstPathValue(input.args),
+      command: this.extractCommand(input.args) ?? undefined,
+    }));
+  }
+
+  private approvalKey(input: {
+    workspacePath: string;
+    toolName: string;
+    target?: string;
+    command?: string;
+  }) {
+    return [
+      input.workspacePath,
+      input.toolName,
+      input.command ?? "",
+      input.target ?? "",
+    ].join("\n");
+  }
+
+  private findFirstPathValue(args: Record<string, unknown>) {
+    for (const key of PATH_ARG_KEYS) {
+      const value = args[key];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return undefined;
   }
 
   private extractCommand(args: Record<string, unknown>) {

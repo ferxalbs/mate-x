@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '../../../components/ui/select';
 import type { AssistantRunOptions } from '../../../contracts/chat';
+import type { PolicyStop, PolicyStopAction } from '../../../contracts/policy';
 import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
 import type {
   WorkspaceSummary,
@@ -28,11 +29,13 @@ interface ComposerPanelProps {
   canUndoLastTurn: boolean;
   isRunning: boolean;
   onScrollToBottom: () => void;
+  onResolvePolicyStop: (stop: PolicyStop, action: PolicyStopAction) => Promise<void>;
   workspace: WorkspaceSummary | null;
   resolvedTheme: 'light' | 'dark';
   onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   showScrollButton: boolean;
+  pendingPolicyStop: PolicyStop | null;
   trustContract: WorkspaceTrustContract | null;
 }
 
@@ -40,11 +43,13 @@ export function ComposerPanel({
   canUndoLastTurn,
   isRunning,
   onScrollToBottom,
+  onResolvePolicyStop,
   workspace,
   resolvedTheme: _resolvedTheme,
   onSubmit,
   onUndoLastTurn,
   showScrollButton,
+  pendingPolicyStop,
   trustContract,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
@@ -57,6 +62,7 @@ export function ComposerPanel({
   const [modeValue, setModeValue] = useState('build');
   const [runbookValue, setRunbookValue] =
     useState<AssistantRunOptions['runbookId']>('patch_test_verify');
+  const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +175,19 @@ export function ComposerPanel({
     }
   }
 
+  async function handlePolicyAction(action: PolicyStopAction) {
+    if (!pendingPolicyStop || isRunning || isResolvingPolicyStop) {
+      return;
+    }
+
+    setIsResolvingPolicyStop(true);
+    try {
+      await onResolvePolicyStop(pendingPolicyStop, action);
+    } finally {
+      setIsResolvingPolicyStop(false);
+    }
+  }
+
   return (
     <div className="px-8 pb-6 pt-2">
       <div className="relative mx-auto w-full max-w-[820px]">
@@ -186,6 +205,13 @@ export function ComposerPanel({
           </div>
         ) : null}
         <div className="rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)]/92 shadow-[0_22px_80px_-42px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+          {pendingPolicyStop ? (
+            <PermissionPrompt
+              disabled={isRunning || isResolvingPolicyStop}
+              onAction={handlePolicyAction}
+              stop={pendingPolicyStop}
+            />
+          ) : null}
           <div className="px-5 py-4">
             <textarea
               className="min-h-[60px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
@@ -292,6 +318,67 @@ export function ComposerPanel({
           <span className="max-w-[42%] truncate text-right">
             {workspace?.branch ?? 'main'} / blocked {trustContract?.blockedActions.slice(0, 2).join(', ') ?? 'loading'}
           </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PermissionPrompt({
+  disabled,
+  onAction,
+  stop,
+}: {
+  disabled: boolean;
+  onAction: (action: PolicyStopAction) => void;
+  stop: PolicyStop;
+}) {
+  const toolName = stop.attemptedAction.toolName ?? 'tool action';
+  const target = stop.attemptedAction.command ?? stop.attemptedAction.target ?? stop.policyId;
+  const canApprove = stop.availableActions.includes('approve_once');
+  const canDecline = stop.availableActions.includes('safer_alternative') || stop.availableActions.includes('abort');
+
+  return (
+    <div className="border-b border-border/50 px-4 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="rounded-md border border-amber-300/30 bg-amber-400/8 px-2 py-1 font-medium text-amber-200">
+              Approval required
+            </span>
+            <span className="text-muted-foreground">{toolName}</span>
+            <span className="truncate rounded-md border border-border/55 bg-background/45 px-2 py-1 font-mono text-[10px] text-muted-foreground">
+              {target}
+            </span>
+          </div>
+          <div className="mt-2 text-[12px] font-medium text-foreground/90">{stop.title}</div>
+          <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground">
+            {stop.explanation}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {canDecline ? (
+            <Button
+              className="h-8 rounded-full border-border/60 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
+              disabled={disabled}
+              onClick={() => onAction(stop.availableActions.includes('safer_alternative') ? 'safer_alternative' : 'abort')}
+              size="xs"
+              variant="outline"
+            >
+              Continue without it
+            </Button>
+          ) : null}
+          {canApprove ? (
+            <Button
+              className="h-8 rounded-full bg-emerald-500 px-3 text-[11px] text-white shadow-none hover:bg-emerald-400"
+              disabled={disabled}
+              onClick={() => onAction('approve_once')}
+              size="xs"
+              variant="outline"
+            >
+              Approve once
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>
