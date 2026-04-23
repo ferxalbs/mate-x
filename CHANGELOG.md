@@ -5,6 +5,7 @@
 - Added shared Safe Tool Classes contracts for risk class, impact type, contract allowance, and escalation decisions.
 - Classified agent tool calls at runtime before execution and attached policy metadata to trace events.
 - Updated the action timeline to display risk class, impact tags, contract status, escalation status, and classification reason.
+- Added an inline approval prompt above the composer so approval-required runs can approve once or continue with safer alternatives.
 
 ## Unreleased - 2026.04.23 (5) [Workspace Memory Files]
 

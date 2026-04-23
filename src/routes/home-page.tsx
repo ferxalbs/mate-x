@@ -6,13 +6,16 @@ import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
 import { MessageStream } from '../features/desktop-shell/components/message-stream';
 import { getAppSettings } from '../services/settings-client';
+import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
 import type { AppSettings } from '../contracts/settings';
+import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 
 export function HomePage() {
   const messageScrollerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [traceVersion, setTraceVersion] = useState<'v1' | 'v2'>('v2');
   const [traceV2InlineEvents, setTraceV2InlineEvents] = useState(false);
+  const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -49,6 +52,61 @@ export function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshPolicyStops() {
+      try {
+        const stops = await listPolicyStops();
+        if (!cancelled) {
+          setPendingPolicyStop(stops.find((stop) => stop.status === 'open') ?? null);
+        }
+      } catch {
+        if (!cancelled) {
+          setPendingPolicyStop(null);
+        }
+      }
+    }
+
+    void refreshPolicyStops();
+    const interval = window.setInterval(refreshPolicyStops, runStatus === 'running' ? 1200 : 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [runStatus]);
+
+  async function handleResolvePolicyStop(stop: PolicyStop, action: PolicyStopAction) {
+    await resolvePolicyStop({ stopId: stop.id, action });
+    setPendingPolicyStop(null);
+
+    if (action === 'approve_once') {
+      await submitPrompt(
+        `Continue the run. The user approved the previously blocked ${stop.attemptedAction.toolName ?? 'tool'} action once. Execute only that approved action if still needed, then continue with the result.`,
+        {
+          reasoning: 'high',
+          mode: 'build',
+          access: trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval',
+          runbookId: 'patch_test_verify',
+        },
+      );
+      return;
+    }
+
+    if (action === 'safer_alternative' || action === 'abort') {
+      await submitPrompt(
+        `Continue without the blocked action. The user declined ${stop.attemptedAction.toolName ?? 'the tool action'} and wants you to proceed using only currently permitted tools and safer alternatives.`,
+        {
+          reasoning: 'high',
+          mode: 'build',
+          access: 'approval',
+          runbookId: 'patch_test_verify',
+        },
+      );
+    }
+  }
 
   useEffect(() => {
     const handleSettingsUpdated = (event: Event) => {
@@ -99,7 +157,9 @@ export function HomePage() {
           })
         }
         onSubmit={submitPrompt}
+        onResolvePolicyStop={handleResolvePolicyStop}
         onUndoLastTurn={undoLastTurn}
+        pendingPolicyStop={pendingPolicyStop}
         trustContract={trustContract}
         workspace={workspace}
         resolvedTheme={resolvedTheme}

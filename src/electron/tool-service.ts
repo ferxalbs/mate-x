@@ -37,6 +37,7 @@ import { pdfReportTool } from "./tools/pdf_report";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
+import { policyService } from "./policy-service";
 
 export interface Tool {
   name: string;
@@ -171,8 +172,20 @@ export class ToolService {
         args,
         contract: context.trustContract,
       });
-      if (trustError) {
+      const approvedOnce = policyService.isApprovedToolCall({
+        workspacePath: context.workspacePath,
+        toolName: name,
+        args,
+      });
+      if (trustError && !approvedOnce) {
         return trustError;
+      }
+      if (trustError) {
+        policyService.consumeApprovedToolCall({
+          workspacePath: context.workspacePath,
+          toolName: name,
+          args,
+        });
       }
     }
 
