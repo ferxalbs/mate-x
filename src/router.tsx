@@ -7,6 +7,7 @@ import {
 
 import { DesktopShell } from './features/desktop-shell/desktop-shell';
 import { HomePage } from './routes/home-page';
+import { RunsPage } from './routes/runs-page';
 import { SettingsPage } from './routes/settings-page';
 
 const rootRoute = createRootRoute({
@@ -25,13 +26,19 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const runsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/runs',
+  component: RunsPage,
+});
+
 const settingsSectionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings/$section',
   component: SettingsPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, settingsRoute, settingsSectionRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, runsRoute, settingsRoute, settingsSectionRoute]);
 
 export const router = createRouter({
   routeTree,

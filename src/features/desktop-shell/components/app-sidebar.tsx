@@ -4,6 +4,7 @@ import {
   ChevronDown,
   FolderGit2Icon,
   GitBranchIcon,
+  ListChecksIcon,
   PlusIcon,
   ShieldCheckIcon,
   SettingsIcon,
@@ -400,6 +401,16 @@ export function AppSidebar({
           <SidebarFooter className="no-drag p-2">
             <SidebarMenu>
               <SidebarMenuItem>
+                <div className="mb-1 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+                  <Link
+                    to="/runs"
+                    className="flex min-w-0 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
+                    aria-label="Open Mission Log"
+                  >
+                    <ListChecksIcon className="size-3.5" />
+                    <span className="text-xs">Mission Log</span>
+                  </Link>
+                </div>
                 <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
                   <Link
                     to="/settings/$section"

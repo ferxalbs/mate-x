@@ -4,6 +4,7 @@ import type {
   AssistantRunOptions,
   ChatMessage,
   Conversation,
+  ReproducibleRun,
   RunStatus,
 } from "../contracts/chat";
 import type {
@@ -41,6 +42,7 @@ interface ChatState {
     workspaceId: string;
     threadId: string;
     messageId: string;
+    reproducibleRunId: string;
   } | null;
   runStatus: RunStatus;
   isBootstrapped: boolean;
@@ -140,6 +142,128 @@ function replaceMessageById(
   );
 }
 
+function replaceRunById(
+  runs: ReproducibleRun[] | undefined,
+  nextRun: ReproducibleRun,
+) {
+  const existingRuns = runs ?? [];
+  const runIndex = existingRuns.findIndex((run) => run.id === nextRun.id);
+
+  if (runIndex === -1) {
+    return [nextRun, ...existingRuns];
+  }
+
+  return existingRuns.map((run, index) =>
+    index === runIndex ? nextRun : run,
+  );
+}
+
+function redactSensitiveText(value: string) {
+  return value
+    .replace(/(ra-[a-z0-9_-]{16,})/gi, "[REDACTED_RAINY_KEY]")
+    .replace(/(sk-[a-z0-9_-]{16,})/gi, "[REDACTED_API_KEY]")
+    .replace(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi, "[REDACTED_EMAIL]")
+    .replace(/(token|api[_-]?key|secret|password)\s*[:=]\s*["']?[^"'\s]+/gi, "$1=[REDACTED]");
+}
+
+function redactRun(run: ReproducibleRun): ReproducibleRun {
+  return {
+    ...run,
+    userIntent: redactSensitiveText(run.userIntent),
+    decisions: run.decisions.map((decision) => ({
+      ...decision,
+      summary: redactSensitiveText(decision.summary),
+      reason: redactSensitiveText(decision.reason),
+    })),
+    events: run.events.map((event) => ({
+      ...event,
+      label: redactSensitiveText(event.label),
+      detail: redactSensitiveText(event.detail),
+    })),
+    artifacts: run.artifacts.map((artifact) => ({
+      ...artifact,
+      label: redactSensitiveText(artifact.label),
+      value: redactSensitiveText(artifact.value),
+    })),
+    result: run.result
+      ? {
+          ...run.result,
+          summary: redactSensitiveText(run.result.summary),
+        }
+      : undefined,
+  };
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  }
+
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(",")}}`;
+}
+
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function sealRunIntegrity(run: ReproducibleRun): Promise<ReproducibleRun> {
+  const redactedRun = redactRun(run);
+  const hashInputs = [
+    {
+      type: "initial_state",
+      payload: redactedRun.initialState,
+    },
+    ...redactedRun.decisions.map((decision) => ({
+      type: "decision",
+      payload: decision,
+    })),
+    ...redactedRun.events.map((event) => ({
+      type: "event",
+      payload: event,
+    })),
+    {
+      type: "result",
+      payload: redactedRun.result ?? null,
+    },
+  ];
+  const eventHashes: string[] = [];
+  let previousHash = "GENESIS";
+
+  for (const input of hashInputs) {
+    previousHash = await sha256(
+      stableJson({
+        previousHash,
+        ...input,
+      }),
+    );
+    eventHashes.push(previousHash);
+  }
+
+  return {
+    ...redactedRun,
+    integrity: {
+      algorithm: "sha256",
+      canonicalVersion: 1,
+      eventHashes,
+      rootHash: previousHash,
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   workspaces: [],
   workspace: null,
@@ -187,6 +311,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             ...message,
                             content: progress.content,
                             thought: progress.thought,
+                            events: progress.events,
+                            artifacts: progress.artifacts,
+                          },
+                    ),
+                    runs: (thread.runs ?? []).map((run) =>
+                      run.id !== activeRun.reproducibleRunId
+                        ? run
+                        : {
+                            ...run,
+                            status: progress.status,
                             events: progress.events,
                             artifacts: progress.artifacts,
                           },
@@ -460,6 +594,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
       events: [],
       artifacts: [],
     };
+    const reproducibleRun: ReproducibleRun = redactRun({
+      id: runId,
+      threadId: activeThreadId,
+      userMessageId: userMessage.id,
+      assistantMessageId: assistantPlaceholder.id,
+      title: buildThreadTitle(trimmedPrompt),
+      userIntent: trimmedPrompt,
+      status: "running",
+      startedAt: userMessage.createdAt,
+      initialState: {
+        workspaceId,
+        workspacePath: get().workspace?.path ?? "",
+        workspaceName: get().workspace?.name ?? "",
+        branch: get().workspace?.branch ?? "unknown",
+        threadId: activeThreadId,
+        activeMessageCount: currentThread.messages.length,
+        settings: {
+          reasoning: options.reasoning,
+          mode: options.mode,
+          access: options.access,
+          runbookId: options.runbookId,
+        },
+        trustAutonomy: get().trustContract?.autonomy,
+      },
+      decisions: [
+        {
+          id: createId("decision"),
+          at: userMessage.createdAt,
+          summary: "Execution scope accepted",
+          reason:
+            "User submitted prompt from active workspace thread; MaTE X captured initial state before running tools.",
+        },
+      ],
+      events: [],
+      artifacts: [],
+    });
 
     set((state) => {
       const nextThreadsByWorkspace = {
@@ -481,6 +651,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     userMessage,
                     assistantPlaceholder,
                   ],
+                  runs: replaceRunById(thread.runs, reproducibleRun),
                 },
         ),
       };
@@ -492,14 +663,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
 
       return {
-        activeRun: {
-          runId,
-          workspaceId,
-          threadId: activeThreadId,
-          messageId: assistantPlaceholder.id,
-        },
-        runStatus: "running",
-        threadsByWorkspace: nextThreadsByWorkspace,
+          activeRun: {
+            runId,
+            workspaceId,
+            threadId: activeThreadId,
+            messageId: assistantPlaceholder.id,
+            reproducibleRunId: reproducibleRun.id,
+          },
+          runStatus: "running",
+          threadsByWorkspace: nextThreadsByWorkspace,
       };
     });
 
@@ -510,6 +682,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
         options,
         runId,
       );
+
+      const finalRun = await sealRunIntegrity({
+        ...reproducibleRun,
+        assistantMessageId: execution.message.id,
+        status: "completed",
+        completedAt: execution.message.createdAt,
+        events: execution.message.events ?? [],
+        artifacts: execution.message.artifacts ?? [],
+        result: {
+          status: "completed",
+          summary:
+            execution.message.evidencePack?.verdict.summary ??
+            execution.message.content.trim().slice(0, 600) ??
+            "Assistant completed without final synthesis text.",
+          evidencePack: execution.message.evidencePack,
+        },
+      });
 
       set((state) => {
         const activeRun = state.activeRun;
@@ -532,6 +721,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             execution.message,
                           )
                         : [...thread.messages, execution.message],
+                    runs: replaceRunById(thread.runs, finalRun),
                   },
             )
             .toSorted((left, right) =>
@@ -569,6 +759,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
           },
         ],
       };
+      const failedRun = await sealRunIntegrity({
+        ...reproducibleRun,
+        assistantMessageId: fallbackMessage.id,
+        status: "failed",
+        completedAt: fallbackMessage.createdAt,
+        artifacts: fallbackMessage.artifacts ?? [],
+        result: {
+          status: "failed",
+          summary: fallbackMessage.content,
+        },
+      });
 
       set((state) => {
         const activeRun = state.activeRun;
@@ -590,6 +791,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             fallbackMessage,
                           )
                         : [...thread.messages, fallbackMessage],
+                    runs: replaceRunById(thread.runs, failedRun),
                   },
           ),
         };
