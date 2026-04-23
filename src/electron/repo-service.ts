@@ -32,6 +32,8 @@ import type {
 import type { RainyApiMode } from "../contracts/rainy";
 import type {
   SearchMatch,
+  WorkspaceMemoryBootstrapContext,
+  WorkspaceMemoryProposedUpdate,
   WorkspaceEntry,
   WorkspaceSnapshot,
   WorkspaceSummary,
@@ -56,6 +58,7 @@ export interface RepoSnapshot {
   packageJson: string | null;
   statusLines: string[];
   promptMatches: SearchMatch[];
+  memoryContext?: WorkspaceMemoryBootstrapContext;
 }
 
 interface AgentRuntimeConfig {
@@ -407,7 +410,15 @@ export async function collectRepoSnapshot(
 ): Promise<RepoSnapshot> {
   const workspace = await resolveWorkspace(workspaceId);
   const promptPattern = buildPromptPattern(prompt);
-  const [summary, trustContract, files, packageJson, status, promptMatches] =
+  const [
+    summary,
+    trustContract,
+    files,
+    packageJson,
+    status,
+    promptMatches,
+    memoryContext,
+  ] =
     await Promise.all([
       buildWorkspaceSummary(workspace),
       tursoService.getWorkspaceTrustContract(workspace.id),
@@ -417,6 +428,7 @@ export async function collectRepoSnapshot(
       promptPattern
         ? searchWorkspaceFiles(workspace.path, promptPattern, 16)
         : Promise.resolve([]),
+      workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path),
     ]);
 
   return {
@@ -428,6 +440,7 @@ export async function collectRepoSnapshot(
       (f) => `${f.index}${f.working_dir} ${f.path}`,
     ),
     promptMatches,
+    memoryContext,
   };
 }
 
@@ -589,6 +602,21 @@ export async function runAssistant(
     toolExecutions,
     runbookId: resolvedOptions.runbookId,
   });
+  const memoryProposals = await workspaceMemoryService.summarizeRun(
+    snapshot.workspace.id,
+    snapshot.workspace.path,
+    {
+      prompt,
+      response: content,
+      toolNames: toolExecutions.map((execution) => execution.toolName),
+      touchedPaths: evidencePack.touchedPaths ?? [],
+      completedAt: createdAt,
+    },
+  );
+  const finalArtifacts = [
+    ...artifacts,
+    ...buildWorkspaceMemoryArtifacts(memoryProposals),
+  ];
 
   return {
     suggestedTitle: history.length === 0 ? buildThreadTitle(prompt) : undefined,
@@ -599,7 +627,7 @@ export async function runAssistant(
       thought: thought || undefined,
       createdAt,
       events,
-      artifacts,
+      artifacts: finalArtifacts,
       evidencePack,
     },
   };
@@ -1232,6 +1260,29 @@ function buildArtifacts(
   ];
 }
 
+function buildWorkspaceMemoryArtifacts(
+  proposals: WorkspaceMemoryProposedUpdate[],
+): MessageArtifact[] {
+  const proposedTargets = proposals
+    .map((proposal) => proposal.filename)
+    .join(", ");
+
+  return [
+    {
+      id: "artifact-workspace-memory-workstate",
+      label: "Workspace memory",
+      value: "WORKSTATE.md updated",
+      tone: "success",
+    },
+    {
+      id: "artifact-workspace-memory-proposals",
+      label: "Memory proposals",
+      value: proposedTargets || "none",
+      tone: proposals.length > 0 ? "warning" : "default",
+    },
+  ];
+}
+
 function buildFallbackResponse(
   prompt: string,
   snapshot: RepoSnapshot,
@@ -1531,6 +1582,9 @@ ${gitStatus || "(clean)"}
 
 Prompt-linked matches:
 ${matches || "(none)"}
+
+Workspace memory:
+${snapshot.memoryContext?.context || "(none)"}
 
 You are running in an agent loop, not a single reply.
 First, use the workspace metadata, git status, file list, prompt-linked matches, and conversation history already provided here.

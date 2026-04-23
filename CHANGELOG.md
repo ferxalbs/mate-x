@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.23 (5) [Workspace Memory Files]
+
+- Added workspace-scoped memory files stored in private app data outside the repository: `MEMORY.md`, `GUARDRAILS.md`, `WORKSTATE.md`, and `metadata.json`.
+- Added the `/settings/workspace-memory` settings section with editable memory, guardrails, and workstate files plus save, reset, and reveal-folder controls.
+- Wired typed main-process IPC, preload, renderer client APIs, and strict file-kind validation for workspace memory operations.
+- Initialized workspace memory during workspace bootstrap and activation so memory files exist for every opened workspace.
+- Injected workspace memory into assistant bootstrap context so agent runs can use mission-scoped operational context.
+- Added automatic post-run memory summarization: `WORKSTATE.md` receives generated session summaries and pending proposals, while durable memory and guardrail updates are proposed for human review.
+- Verified lint and typecheck; existing unused `settings` warnings remain in tool modules.
+
 ## Unreleased - 2026.04.23 (4) [Mission Log Reproducible Runs]
 
 - Added the **Mission Log** route for reviewable execution history inside the existing MaTE X desktop shell.

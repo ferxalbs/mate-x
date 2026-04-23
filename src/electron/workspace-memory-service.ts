@@ -7,6 +7,8 @@ import type {
   WorkspaceMemoryBootstrapContext,
   WorkspaceMemoryFile,
   WorkspaceMemoryFileKind,
+  WorkspaceMemoryProposedUpdate,
+  WorkspaceMemoryRunSummary,
   WorkspaceMemoryStatus,
 } from "../contracts/workspace";
 
@@ -167,6 +169,77 @@ export class WorkspaceMemoryService {
     };
   }
 
+  async summarizeRun(
+    workspaceId: string,
+    repoPath: string,
+    summary: WorkspaceMemoryRunSummary,
+  ): Promise<WorkspaceMemoryProposedUpdate[]> {
+    const metadata = await this.ensureWorkspaceMemory(workspaceId, repoPath);
+    const createdAt = summary.completedAt;
+    const responseSummary = this.summarizeText(summary.response);
+    const touchedPaths = summary.touchedPaths.slice(0, 12);
+    const toolNames = Array.from(new Set(summary.toolNames)).slice(0, 12);
+
+    await this.appendGeneratedSection(metadata, "workstate", [
+      `## Session Summary - ${this.formatDate(createdAt)}`,
+      "<!-- mate-x:generated:start -->",
+      `- Prompt: ${this.singleLine(summary.prompt)}`,
+      `- Result: ${responseSummary}`,
+      touchedPaths.length > 0
+        ? `- Touched paths: ${touchedPaths.join(", ")}`
+        : "- Touched paths: none recorded",
+      toolNames.length > 0
+        ? `- Tools used: ${toolNames.join(", ")}`
+        : "- Tools used: none recorded",
+      "<!-- mate-x:generated:end -->",
+    ].join("\n"));
+
+    await this.touchMetadata(metadata);
+
+    const memoryContent = [
+      `## Proposed Durable Memory - ${this.formatDate(createdAt)}`,
+      "<!-- mate-x:generated:start -->",
+      `- User intent: ${this.singleLine(summary.prompt)}`,
+      `- Outcome: ${responseSummary}`,
+      touchedPaths.length > 0 ? `- Relevant paths: ${touchedPaths.join(", ")}` : "",
+      "<!-- mate-x:generated:end -->",
+    ].filter(Boolean).join("\n");
+
+    const guardrailContent = this.extractGuardrailProposal(summary.response, createdAt);
+    const proposals: WorkspaceMemoryProposedUpdate[] = [
+      {
+        kind: "memory",
+        filename: "MEMORY.md",
+        title: "Proposed durable memory",
+        content: memoryContent,
+        createdAt,
+      },
+    ];
+
+    if (guardrailContent) {
+      proposals.push({
+        kind: "guardrails",
+        filename: "GUARDRAILS.md",
+        title: "Proposed guardrail",
+        content: guardrailContent,
+        createdAt,
+      });
+    }
+
+    await this.appendGeneratedSection(metadata, "workstate", [
+      `## Pending Memory Proposals - ${this.formatDate(createdAt)}`,
+      "<!-- mate-x:generated:start -->",
+      ...proposals.map(
+        (proposal) =>
+          `### ${proposal.filename}\n${proposal.content}`,
+      ),
+      "<!-- mate-x:generated:end -->",
+    ].join("\n"));
+    await this.touchMetadata(metadata);
+
+    return proposals;
+  }
+
   private async ensureWorkspaceMemory(
     workspaceId: string,
     repoPath: string,
@@ -274,6 +347,17 @@ export class WorkspaceMemoryService {
     );
   }
 
+  private async appendGeneratedSection(
+    metadata: WorkspaceMemoryMetadata,
+    kind: WorkspaceMemoryFileKind,
+    section: string,
+  ) {
+    const filePath = this.getMemoryFilePath(metadata.memoryWorkspaceId, kind);
+    const current = await readFile(filePath, "utf8");
+    const separator = current.endsWith("\n") ? "\n" : "\n\n";
+    await writeFile(filePath, `${current}${separator}${section}\n`, "utf8");
+  }
+
   private getMemoryFilePath(memoryWorkspaceId: string, kind: WorkspaceMemoryFileKind) {
     this.assertValidKind(kind);
     return path.join(this.getWorkspaceMemoryDir(memoryWorkspaceId), MEMORY_FILES[kind].filename);
@@ -305,6 +389,62 @@ export class WorkspaceMemoryService {
     if (Buffer.byteLength(content, "utf8") > MAX_MEMORY_FILE_BYTES) {
       throw new Error("Workspace memory file is too large.");
     }
+  }
+
+  private summarizeText(value: string) {
+    const normalized = this.singleLine(value);
+    if (!normalized) {
+      return "Run completed without a final response summary.";
+    }
+
+    return normalized.length > 260 ? `${normalized.slice(0, 257)}...` : normalized;
+  }
+
+  private singleLine(value: string) {
+    return value.replace(/\s+/g, " ").trim();
+  }
+
+  private formatDate(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    return date.toISOString().slice(0, 10);
+  }
+
+  private extractGuardrailProposal(response: string, createdAt: string) {
+    const normalized = response.toLowerCase();
+    const guardrailSignals = [
+      "never ",
+      "always ",
+      "must ",
+      "do not ",
+      "don't ",
+      "requires approval",
+      "should require",
+    ];
+
+    if (!guardrailSignals.some((signal) => normalized.includes(signal))) {
+      return null;
+    }
+
+    const sentence = response
+      .split(/(?<=[.!?])\s+/)
+      .find((part) =>
+        guardrailSignals.some((signal) => part.toLowerCase().includes(signal)),
+      );
+
+    if (!sentence) {
+      return null;
+    }
+
+    return [
+      `## Proposed Guardrail - ${this.formatDate(createdAt)}`,
+      "<!-- mate-x:generated:start -->",
+      `- ${this.summarizeText(sentence)}`,
+      "<!-- mate-x:generated:end -->",
+    ].join("\n");
   }
 
   async clearWorkspaceMemory(workspaceId: string, repoPath: string) {
