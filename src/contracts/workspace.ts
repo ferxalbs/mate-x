@@ -88,3 +88,31 @@ export interface WorkspaceSnapshot {
   threads: Conversation[];
   activeThreadId: string;
 }
+
+export type WorkspaceMemoryFileKind = "memory" | "guardrails" | "workstate";
+
+export interface WorkspaceMemoryFile {
+  kind: WorkspaceMemoryFileKind;
+  filename: "MEMORY.md" | "GUARDRAILS.md" | "WORKSTATE.md";
+  title: string;
+  description: string;
+  content: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceMemoryStatus {
+  workspaceId: string;
+  memoryWorkspaceId: string;
+  repoPath: string;
+  storagePath: string;
+  createdAt: string;
+  updatedAt: string;
+  lastOpenedAt: string;
+  files: WorkspaceMemoryFile[];
+}
+
+export interface WorkspaceMemoryBootstrapContext {
+  workspaceId: string;
+  storagePath: string;
+  context: string;
+}

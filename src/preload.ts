@@ -41,6 +41,16 @@ const repoApi: RepoInspectorApi = {
     ipcRenderer.invoke("repo:get-workspace-trust-contract", workspaceId),
   updateWorkspaceTrustContract: (contract) =>
     ipcRenderer.invoke("repo:update-workspace-trust-contract", contract),
+  getWorkspaceMemoryStatus: () =>
+    ipcRenderer.invoke("repo:get-workspace-memory-status"),
+  writeWorkspaceMemoryFile: (kind, content) =>
+    ipcRenderer.invoke("repo:write-workspace-memory-file", kind, content),
+  resetWorkspaceMemoryFile: (kind) =>
+    ipcRenderer.invoke("repo:reset-workspace-memory-file", kind),
+  revealWorkspaceMemoryFolder: () =>
+    ipcRenderer.invoke("repo:reveal-workspace-memory-folder"),
+  getWorkspaceMemoryBootstrapContext: () =>
+    ipcRenderer.invoke("repo:get-workspace-memory-bootstrap-context"),
   openWorkspacePicker: () => ipcRenderer.invoke("repo:open-workspace-picker"),
   setActiveWorkspace: (workspaceId) =>
     ipcRenderer.invoke("repo:set-active-workspace", workspaceId),

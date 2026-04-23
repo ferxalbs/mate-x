@@ -4,7 +4,10 @@ import type {
   Conversation,
 } from '../contracts/chat';
 import type { RepoInspectorApi } from '../contracts/ipc';
-import type { WorkspaceTrustContract } from '../contracts/workspace';
+import type {
+  WorkspaceMemoryFileKind,
+  WorkspaceTrustContract,
+} from '../contracts/workspace';
 
 function getMateApi(): RepoInspectorApi {
   if (!window.mate?.repo) {
@@ -32,6 +35,29 @@ export function getWorkspaceTrustContract(workspaceId?: string) {
 
 export function updateWorkspaceTrustContract(contract: WorkspaceTrustContract) {
   return getMateApi().updateWorkspaceTrustContract(contract);
+}
+
+export function getWorkspaceMemoryStatus() {
+  return getMateApi().getWorkspaceMemoryStatus();
+}
+
+export function writeWorkspaceMemoryFile(
+  kind: WorkspaceMemoryFileKind,
+  content: string,
+) {
+  return getMateApi().writeWorkspaceMemoryFile(kind, content);
+}
+
+export function resetWorkspaceMemoryFile(kind: WorkspaceMemoryFileKind) {
+  return getMateApi().resetWorkspaceMemoryFile(kind);
+}
+
+export function revealWorkspaceMemoryFolder() {
+  return getMateApi().revealWorkspaceMemoryFolder();
+}
+
+export function getWorkspaceMemoryBootstrapContext() {
+  return getMateApi().getWorkspaceMemoryBootstrapContext();
 }
 
 export function openWorkspacePicker() {

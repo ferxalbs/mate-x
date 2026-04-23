@@ -15,6 +15,9 @@ import type { AppSettings } from "./settings";
 import type {
   SearchMatch,
   WorkspaceEntry,
+  WorkspaceMemoryBootstrapContext,
+  WorkspaceMemoryFileKind,
+  WorkspaceMemoryStatus,
   WorkspaceSnapshot,
   WorkspaceSummary,
   WorkspaceTrustContract,
@@ -30,6 +33,16 @@ export interface RepoInspectorApi {
   updateWorkspaceTrustContract: (
     contract: WorkspaceTrustContract,
   ) => Promise<WorkspaceTrustContract>;
+  getWorkspaceMemoryStatus: () => Promise<WorkspaceMemoryStatus>;
+  writeWorkspaceMemoryFile: (
+    kind: WorkspaceMemoryFileKind,
+    content: string,
+  ) => Promise<WorkspaceMemoryStatus>;
+  resetWorkspaceMemoryFile: (
+    kind: WorkspaceMemoryFileKind,
+  ) => Promise<WorkspaceMemoryStatus>;
+  revealWorkspaceMemoryFolder: () => Promise<void>;
+  getWorkspaceMemoryBootstrapContext: () => Promise<WorkspaceMemoryBootstrapContext>;
   openWorkspacePicker: () => Promise<WorkspaceSnapshot | null>;
   setActiveWorkspace: (workspaceId: string) => Promise<WorkspaceSnapshot>;
   removeWorkspace: (workspaceId: string) => Promise<WorkspaceSnapshot>;

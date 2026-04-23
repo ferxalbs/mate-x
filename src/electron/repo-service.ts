@@ -17,6 +17,7 @@ import {
 } from "./rainy-service";
 import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
+import { workspaceMemoryService } from "./workspace-memory-service";
 import { createTokenEstimator } from "./token-estimator";
 import type {
   AssistantExecution,
@@ -627,6 +628,7 @@ async function buildWorkspaceSnapshot(
       10,
     ),
     tursoService.getWorkspaceSession(workspace.id),
+    workspaceMemoryService.getStatus(workspace.id, workspace.path),
   ]);
 
   return {
