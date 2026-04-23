@@ -54,16 +54,21 @@ export const securityAuditTool: Tool = {
         }
       }
 
-      let report = 'Security Audit Report:\n======================\n';
       const categories = Object.keys(results);
       if (categories.length === 0) return 'No high-risk patterns found.';
 
+      const reportParts = ['Security Audit Report:\n======================\n'];
+
       for (const cat of categories) {
-        report += `\n[${cat}]\n` + results[cat].slice(0, 10).join('\n');
-        if (results[cat].length > 10) report += `\n... and ${results[cat].length - 10} more.`;
+        const res = results[cat];
+        reportParts.push(`\n[${cat}]\n`);
+        reportParts.push(res.slice(0, 10).join('\n'));
+        if (res.length > 10) {
+          reportParts.push(`\n... and ${res.length - 10} more.`);
+        }
       }
 
-      return report;
+      return reportParts.join('');
     } catch (error) {
       return `Error performing security audit: ${(error as Error).message}`;
     }
