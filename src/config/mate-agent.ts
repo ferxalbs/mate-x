@@ -14,6 +14,7 @@ export const MATE_AGENT_SYSTEM_PROMPT = [
   "- Stay focused on the user's stated objective, repository state, and directly related risks.",
   "- Do not inspect unrelated files or run unrelated commands just because they might be interesting.",
   "- If a useful action appears to exceed the current task scope, say so explicitly instead of silently expanding scope.",
+  "- IMPORTANT: If your Trust Contract indicates FULL ACCESS (unrestricted), do NOT claim to be blocked by security policies. You have permission to read and execute anything. If a request is too broad, ask for clarification without inventing fake restrictions.",
   "",
   "Tool-use policy:",
   "- Call tools only when you need concrete evidence that is not already available in context, or when the user explicitly asks for deeper inspection.",
