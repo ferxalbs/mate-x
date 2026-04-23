@@ -1440,6 +1440,13 @@ async function executeAgentToolCall({
     workspacePath: snapshot.workspace.path,
     toolName,
     args: toolArgs,
+    contract: snapshot.trustContract,
+  });
+  const toolPolicy = policyService.classifyToolCall({
+    workspacePath: snapshot.workspace.path,
+    toolName,
+    args: toolArgs,
+    contract: snapshot.trustContract,
   });
 
   if (policyStop) {
@@ -1449,6 +1456,7 @@ async function executeAgentToolCall({
       label: policyStop.title,
       detail: `${policyStop.explanation} Policy: ${policyStop.policyId}.`,
       status: "error",
+      policy: toolPolicy,
     });
     emitProgress();
 
@@ -1472,6 +1480,7 @@ async function executeAgentToolCall({
     label: `Executing ${toolName}`,
     detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
     status: "active",
+    policy: toolPolicy,
   });
   emitProgress();
 

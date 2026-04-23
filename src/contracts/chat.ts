@@ -1,3 +1,5 @@
+import type { ToolPolicyClassification } from "./tool-policy";
+
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
 export type ToolEventStatus = "done" | "active" | "error";
@@ -52,6 +54,7 @@ export interface ToolEvent {
   label: string;
   detail: string;
   status: ToolEventStatus;
+  policy?: ToolPolicyClassification;
 }
 
 export interface MessageArtifact {
