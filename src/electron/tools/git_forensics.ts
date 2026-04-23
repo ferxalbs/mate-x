@@ -22,7 +22,7 @@ export const gitForensicsTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const { monthsOut = 6, limit = 10 } = args;
 
     try {

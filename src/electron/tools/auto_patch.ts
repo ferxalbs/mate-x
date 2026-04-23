@@ -30,7 +30,7 @@ export const autoPatchTool: Tool = {
     },
     required: ["path", "searchString", "replacementString"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const { path, searchString, replacementString, replaceAll = false } = args;
     const targetFile = resolveWorkspacePath(workspacePath, path);
     const backupFile = `${targetFile}.bak`;

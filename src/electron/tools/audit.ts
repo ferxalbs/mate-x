@@ -31,7 +31,7 @@ export const securityAuditTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const relativePath = args.path || '.';
     
     try {

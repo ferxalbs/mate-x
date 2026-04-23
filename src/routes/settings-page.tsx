@@ -6,6 +6,7 @@ import {
   KeyRoundIcon,
   Loader2Icon,
   PencilIcon,
+  PuzzleIcon,
   RefreshCcwIcon,
   ServerIcon,
   Settings2Icon,
@@ -59,7 +60,7 @@ import {
 import { useChatStore } from '../store/chat-store';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type SettingsSectionId = 'general' | 'connections' | 'trust' | 'archive';
+type SettingsSectionId = 'general' | 'connections' | 'trust' | 'archive' | 'integrations';
 
 function maskKey(key: string) {
   if (key.length <= 8) return '••••••••';
@@ -89,9 +90,11 @@ export function SettingsPage() {
       ? 'connections'
       : pathname === '/settings/trust'
         ? 'trust'
-        : pathname === '/settings/archive'
-          ? 'archive'
-          : 'general';
+          : pathname === '/settings/archive'
+            ? 'archive'
+            : pathname === '/settings/integrations'
+              ? 'integrations'
+              : 'general';
 
   useEffect(() => {
     let cancelled = false;
@@ -188,6 +191,28 @@ export function SettingsPage() {
       return;
     }
 
+    if (section === 'integrations') {
+      if (!hasAppSettingsDraft) {
+        return;
+      }
+
+      setSaveState('saving');
+      setErrorMsg('');
+
+      try {
+        const nextSettings = await updateAppSettings(appSettings);
+        setAppSettings(nextSettings);
+        setSavedAppSettings(nextSettings);
+        applyRendererSettings(nextSettings);
+        useChatStore.getState().setSettings(nextSettings);
+        setSaveState('saved');
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Could not save integrations.');
+        setSaveState('error');
+      }
+      return;
+    }
+
     const trimmedKey = inputValue.trim();
     if (!trimmedKey || trimmedKey === currentKey) {
       return;
@@ -237,6 +262,11 @@ export function SettingsPage() {
     } else if (section === 'connections') {
       setInputValue('');
       setIsEditingKey(false);
+    } else if (section === 'integrations') {
+      setAppSettings((current) => ({
+        ...current,
+        supermemoryApiKey: DEFAULT_APP_SETTINGS.supermemoryApiKey,
+      }));
     }
     setSaveState('idle');
   }, [section, setTheme, trustContract]);
@@ -262,6 +292,7 @@ export function SettingsPage() {
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
       ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
       ...(appSettings.deleteConfirmation !== savedAppSettings.deleteConfirmation ? ['Delete confirmation'] : []),
+      ...(appSettings.supermemoryApiKey !== savedAppSettings.supermemoryApiKey ? ['Supermemory API key'] : []),
       ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
     [
@@ -635,6 +666,44 @@ export function SettingsPage() {
               </SettingsSection>
             ) : null}
 
+            {section === 'integrations' ? (
+              <SettingsSection title="Integrations" icon={<PuzzleIcon className="size-3.5" />}>
+                <>
+                  <SettingsRow
+                    title="Supermemory"
+                    description="AI context and long-term memory for your agents."
+                    control={
+                      <div className="flex items-center gap-2">
+                        <Input
+                          nativeInput
+                          type="password"
+                          value={appSettings.supermemoryApiKey || ''}
+                          onChange={(event) => {
+                            setAppSettings((current) => ({
+                              ...current,
+                              supermemoryApiKey: event.target.value,
+                            }));
+                            if (saveState === 'saved') {
+                              setSaveState('idle');
+                            }
+                          }}
+                          onKeyDown={handleKeyDown}
+                          placeholder="sm-••••••••"
+                          className="w-[220px]"
+                          disabled={isBusy}
+                        />
+                        {appSettings.supermemoryApiKey && (
+                          <span className="rounded-full bg-emerald-500/12 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-500">
+                            {saveState === 'saved' ? 'Saved' : 'Configured'}
+                          </span>
+                        )}
+                      </div>
+                    }
+                  />
+                </>
+              </SettingsSection>
+            ) : null}
+
             {section === 'archive' ? (
               <SettingsSection title="Archive" icon={<FolderArchiveIcon className="size-3.5" />}>
                 <>
@@ -701,7 +770,7 @@ export function SettingsPage() {
                 )}
               </div>
 
-              {section === 'general' || section === 'archive' || section === 'connections' || section === 'trust' ? (
+              {section === 'general' || section === 'archive' || section === 'connections' || section === 'trust' || section === 'integrations' ? (
                 <Button
                   size="sm"
                   className="h-9 rounded-lg px-4"
@@ -720,7 +789,7 @@ export function SettingsPage() {
                     <CheckIcon className="size-4" />
                   ) : section === 'trust' ? (
                     <ShieldCheckIcon className="size-4" />
-                  ) : section === 'general' || section === 'archive' ? (
+                  ) : section === 'general' || section === 'archive' || section === 'integrations' ? (
                     <Settings2Icon className="size-4" />
                   ) : (
                     <KeyRoundIcon className="size-4" />

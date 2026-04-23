@@ -11,6 +11,7 @@ export interface AppSettings {
   assistantOutput: boolean;
   archiveConfirmation: boolean;
   deleteConfirmation: boolean;
+  supermemoryApiKey?: string;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -22,4 +23,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   assistantOutput: false,
   archiveConfirmation: false,
   deleteConfirmation: true,
+  supermemoryApiKey: '',
 };

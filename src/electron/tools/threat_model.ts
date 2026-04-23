@@ -11,7 +11,7 @@ export const threatModelTool: Tool = {
     properties: {}, // No params needed, scans generically
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const findings = {
       Spoofing: [] as string[],
       Tampering: [] as string[],

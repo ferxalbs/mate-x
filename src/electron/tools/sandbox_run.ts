@@ -37,7 +37,7 @@ export const sandboxRunnerTool: Tool = {
     },
     required: ["command"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const { command } = args;
 
     if (!command) return "Error: Command is required.";
