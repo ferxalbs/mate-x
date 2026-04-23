@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.22 (6) [Supermemory Persistent Context Plugin]
+
+- Integrated **Supermemory** as a persistent, context-aware memory plugin for long-term agent context management.
+- Added `supermemoryApiKey` to `AppSettings` and `DEFAULT_APP_SETTINGS` with full Turso-based persistence.
+- Refactored the core `Tool` interface to include the `settings` context in the `execute` method.
+- Updated the entire agentic loop in `RepoService` to propagate `appSettings` from the main process to all executed tools.
+- Refactored all 32+ existing tools (security, code analysis, infrastructure) to support the new tool signature.
+- Implemented the `supermemory` tool with `add`, `search`, and `profile` actions, featuring automatic repository isolation via workspace path tagging.
+- Added a new **Integrations** section in the `SettingsPage` UI for secure Supermemory API key management.
+- Integrated the "Integrations" link into the main `AppSidebar` navigation for immediate access.
+- Verified all architectural changes with `bun run lint` and `bun run typecheck`.
+
 ## Unreleased - 2026.04.22 (5) [Native Chat Context Menu and Thread Management]
 
 - Added a native context menu for chat threads in the sidebar with support for Rename, Archive, and Delete actions.
