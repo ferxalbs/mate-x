@@ -1,8 +1,10 @@
 import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { AssistantRunOptions } from "../contracts/chat";
+import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
 import { GitService } from "./git-service";
+import { policyService } from "./policy-service";
 import {
   addWorkspace,
   bootstrapWorkspaceState,
@@ -170,6 +172,23 @@ export function registerIpcHandlers() {
   ipcMain.handle("git:diff", async () => (await resolveGitService()).getDiff());
   ipcMain.handle("git:unstage", async (_event, files: string[]) =>
     (await resolveGitService()).unstageFiles(files),
+  );
+
+  // ── Policy Stops ────────────────────────────────────────────────────────
+  ipcMain.handle("policy:list-stops", async (_event, runId?: string) =>
+    policyService.listStops(runId),
+  );
+  ipcMain.handle("policy:get-run-state", async (_event, runId: string) => {
+    if (typeof runId !== "string" || !runId.trim()) {
+      throw new Error("Policy run id is required.");
+    }
+
+    return policyService.getRunState(runId);
+  });
+  ipcMain.handle(
+    "policy:resolve-stop",
+    async (_event, request: ResolvePolicyStopRequest) =>
+      policyService.resolveStop(request),
   );
 
   // ── Settings ─────────────────────────────────────────────────────────────

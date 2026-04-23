@@ -5,6 +5,11 @@ import type {
   Conversation,
 } from "./chat";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
+import type {
+  PolicyRunState,
+  PolicyStop,
+  ResolvePolicyStopRequest,
+} from "./policy";
 import type { RainyModelCatalogEntry } from "./rainy";
 import type { AppSettings } from "./settings";
 import type {
@@ -75,6 +80,12 @@ export interface SettingsApi {
   setModel: (model: string) => Promise<void>;
   getAppSettings: () => Promise<AppSettings>;
   updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
+}
+
+export interface PolicyApi {
+  listStops: (runId?: string) => Promise<PolicyStop[]>;
+  getRunState: (runId: string) => Promise<PolicyRunState>;
+  resolveStop: (request: ResolvePolicyStopRequest) => Promise<PolicyStop>;
 }
 
 export interface UiApi {

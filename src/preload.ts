@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type {
   GitApi,
+  PolicyApi,
   RepoInspectorApi,
   SettingsApi,
   UiApi,
@@ -113,9 +114,16 @@ const settingsApi: SettingsApi = {
     ipcRenderer.invoke("settings:update-app-settings", settings),
 };
 
+const policyApi: PolicyApi = {
+  listStops: (runId) => ipcRenderer.invoke("policy:list-stops", runId),
+  getRunState: (runId) => ipcRenderer.invoke("policy:get-run-state", runId),
+  resolveStop: (request) => ipcRenderer.invoke("policy:resolve-stop", request),
+};
+
 contextBridge.exposeInMainWorld("mate", {
   repo: repoApi,
   git: gitApi,
   settings: settingsApi,
+  policy: policyApi,
   ui: uiApi,
 });

@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 
 import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
 import { GitService } from "./git-service";
+import { policyService } from "./policy-service";
 import {
   buildResponsesMessageInput,
   extractResponseThought,
@@ -80,7 +81,10 @@ const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   access: "full",
   runbookId: "patch_test_verify",
 };
-const RUNBOOK_DEFINITIONS: Record<AssistantRunbookId, AssistantRunbookDefinition> = {
+const RUNBOOK_DEFINITIONS: Record<
+  AssistantRunbookId,
+  AssistantRunbookDefinition
+> = {
   patch_test_verify: {
     id: "patch_test_verify",
     name: "Patch -> Test -> Verify",
@@ -91,7 +95,8 @@ const RUNBOOK_DEFINITIONS: Record<AssistantRunbookId, AssistantRunbookDefinition
         id: "patch",
         name: "Patch",
         required: true,
-        description: "Define target files and apply minimal scoped code changes.",
+        description:
+          "Define target files and apply minimal scoped code changes.",
       },
       {
         id: "test",
@@ -476,9 +481,10 @@ export async function runAssistant(
     snapshot.trustContract,
     "rainy-api-v3-us-179843975974.us-east4.run.app",
   );
-  const runtimeConfig = apiKey && rainyHostAllowed
-    ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
-    : null;
+  const runtimeConfig =
+    apiKey && rainyHostAllowed
+      ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
+      : null;
   const configuredModel = runtimeConfig?.model ?? null;
   const hasRainyConfig = Boolean(apiKey && configuredModel && rainyHostAllowed);
   const artifacts = buildArtifacts(
@@ -531,6 +537,7 @@ export async function runAssistant(
         runbookDefinition,
         emitProgress,
         appSettings,
+        runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
       });
       thought =
         "thought" in result && typeof result.thought === "string"
@@ -562,7 +569,9 @@ export async function runAssistant(
   } else {
     content = buildFallbackResponse(prompt, snapshot);
     events.push({
-      id: rainyHostAllowed ? "step-rainy-model-missing" : "step-rainy-domain-blocked",
+      id: rainyHostAllowed
+        ? "step-rainy-model-missing"
+        : "step-rainy-domain-blocked",
       label: rainyHostAllowed ? "Model unavailable" : "Provider domain blocked",
       detail: rainyHostAllowed
         ? "No compatible Rainy models were found for the current API key."
@@ -829,7 +838,7 @@ function resolveAssistantRunOptions(
 function resolveRunbookId(runbookId?: AssistantRunbookId): AssistantRunbookId {
   return runbookId && RUNBOOK_DEFINITIONS[runbookId]
     ? runbookId
-    : DEFAULT_ASSISTANT_OPTIONS.runbookId ?? "patch_test_verify";
+    : (DEFAULT_ASSISTANT_OPTIONS.runbookId ?? "patch_test_verify");
 }
 
 function resolveRunbookDefinition(
@@ -1333,6 +1342,7 @@ async function executeAgentToolCall({
   events,
   emitProgress,
   appSettings,
+  runId,
 }: {
   toolCall: AgentToolCall;
   toolIndex: number;
@@ -1341,6 +1351,7 @@ async function executeAgentToolCall({
   events: ToolEvent[];
   emitProgress: () => void;
   appSettings: AppSettings;
+  runId: string;
 }) {
   const toolName = toolCall.name;
   const eventId = `tool-${iteration}-${toolIndex}-${toolName}`;
@@ -1367,6 +1378,38 @@ async function executeAgentToolCall({
         toolName,
         args: {},
         output: `Tool argument parsing failed for ${toolName}: ${reason}`,
+      } satisfies ToolExecutionRecord,
+    };
+  }
+
+  const policyStop = policyService.evaluateToolCall({
+    runId,
+    workspacePath: snapshot.workspace.path,
+    toolName,
+    args: toolArgs,
+  });
+
+  if (policyStop) {
+    const stopMessage = `${policyStop.title}\n\n${policyStop.explanation}\n\nPolicy: ${policyStop.policyId}\nStop: ${policyStop.id}`;
+    events.push({
+      id: eventId,
+      label: policyStop.title,
+      detail: `${policyStop.explanation} Policy: ${policyStop.policyId}.`,
+      status: "error",
+    });
+    emitProgress();
+
+    return {
+      toolCallId: toolCall.id,
+      content: stopMessage,
+      toolExecution: {
+        toolName,
+        args: toolArgs,
+        output: stopMessage,
+        parsedOutput: {
+          policyStop,
+          status: "paused",
+        },
       } satisfies ToolExecutionRecord,
     };
   }
@@ -1443,6 +1486,7 @@ async function requestRainyAgenticResponse({
   runbookDefinition,
   emitProgress,
   appSettings,
+  runId,
 }: {
   apiKey: string;
   history: string[];
@@ -1455,6 +1499,7 @@ async function requestRainyAgenticResponse({
   runbookDefinition: AssistantRunbookDefinition;
   emitProgress: (content?: string, thought?: string) => void;
   appSettings: AppSettings;
+  runId: string;
 }) {
   const runtime = buildAgentRuntimeConfig(options);
   const files = snapshot.files.slice(0, 80).join("\n");
@@ -1510,6 +1555,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       events,
       emitProgress,
       appSettings,
+      runId,
     });
   }
 
@@ -1524,6 +1570,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     events,
     emitProgress,
     appSettings,
+    runId,
   });
 }
 
@@ -1538,6 +1585,7 @@ async function requestRainyChatAgenticResponse({
   events,
   emitProgress,
   appSettings,
+  runId,
 }: {
   apiKey: string;
   history: string[];
@@ -1549,6 +1597,7 @@ async function requestRainyChatAgenticResponse({
   events: ToolEvent[];
   emitProgress: (content?: string, thought?: string) => void;
   appSettings: AppSettings;
+  runId: string;
 }) {
   const historyMessages = buildHistoryMessages(history);
   let messages: any[] = [
@@ -1586,7 +1635,7 @@ async function requestRainyChatAgenticResponse({
       apiKey,
       model,
       events,
-      emitProgress
+      emitProgress,
     );
 
     let streamedPassText = "";
@@ -1622,7 +1671,8 @@ async function requestRainyChatAgenticResponse({
 
     const responseText = normalizeAssistantText(responseMessage.content);
     if (responseText.trim()) {
-      lastNonEmptyAssistantText += (lastNonEmptyAssistantText ? "\n\n" : "") + responseText;
+      lastNonEmptyAssistantText +=
+        (lastNonEmptyAssistantText ? "\n\n" : "") + responseText;
       emitProgress(lastNonEmptyAssistantText);
     }
 
@@ -1683,7 +1733,9 @@ async function requestRainyChatAgenticResponse({
           });
 
       const finalContentText = forcedFinalText
-        ? (lastNonEmptyAssistantText ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}` : forcedFinalText)
+        ? lastNonEmptyAssistantText
+          ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}`
+          : forcedFinalText
         : lastNonEmptyAssistantText;
 
       return {
@@ -1742,6 +1794,7 @@ async function requestRainyChatAgenticResponse({
           events,
           emitProgress,
           appSettings,
+          runId,
         }),
     );
 
@@ -1785,7 +1838,9 @@ async function requestRainyChatAgenticResponse({
   });
 
   const finalContentText = forcedFinalText
-    ? (lastNonEmptyAssistantText ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}` : forcedFinalText)
+    ? lastNonEmptyAssistantText
+      ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}`
+      : forcedFinalText
     : lastNonEmptyAssistantText;
 
   return {
@@ -1812,6 +1867,7 @@ async function requestRainyResponsesAgenticResponse({
   events,
   emitProgress,
   appSettings,
+  runId,
 }: {
   apiKey: string;
   history: string[];
@@ -1823,6 +1879,7 @@ async function requestRainyResponsesAgenticResponse({
   events: ToolEvent[];
   emitProgress: (content?: string, thought?: string) => void;
   appSettings: AppSettings;
+  runId: string;
 }) {
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
@@ -1949,7 +2006,9 @@ async function requestRainyResponsesAgenticResponse({
           });
 
       const finalContentText = forcedFinalText
-        ? (lastContent ? `${lastContent}\n\n${forcedFinalText}` : forcedFinalText)
+        ? lastContent
+          ? `${lastContent}\n\n${forcedFinalText}`
+          : forcedFinalText
         : lastContent;
 
       return {
@@ -2011,6 +2070,7 @@ async function requestRainyResponsesAgenticResponse({
           events,
           emitProgress,
           appSettings,
+          runId,
         }),
     );
 
@@ -2056,7 +2116,9 @@ async function requestRainyResponsesAgenticResponse({
   });
 
   const finalContentText = forcedFinalText
-    ? (lastContent ? `${lastContent}\n\n${forcedFinalText}` : forcedFinalText)
+    ? lastContent
+      ? `${lastContent}\n\n${forcedFinalText}`
+      : forcedFinalText
     : lastContent;
 
   return {

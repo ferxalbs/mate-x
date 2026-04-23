@@ -414,7 +414,11 @@ export async function requestRainyChatCompletionStream(params: {
     toolChoice: params.toolChoice,
   });
   const contentChunks: string[] = [];
-  const toolCalls: Array<{ id?: string; type: "function"; function: { name?: string; arguments: string } }> = [];
+  const toolCalls: Array<{
+    id?: string;
+    type: "function";
+    function: { name?: string; arguments: string };
+  }> = [];
 
   let stream;
   try {
@@ -453,9 +457,13 @@ export async function requestRainyChatCompletionStream(params: {
 
     for (const toolCallDelta of delta.tool_calls ?? []) {
       const index = toolCallDelta.index;
-      const current = toolCalls[index] ?? { type: "function" as const, function: { arguments: "" } };
+      const current = toolCalls[index] ?? {
+        type: "function" as const,
+        function: { arguments: "" },
+      };
       current.id = toolCallDelta.id ?? current.id;
-      current.function.name = toolCallDelta.function?.name ?? current.function.name;
+      current.function.name =
+        toolCallDelta.function?.name ?? current.function.name;
       current.function.arguments += toolCallDelta.function?.arguments ?? "";
       toolCalls[index] = current;
     }

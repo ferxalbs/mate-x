@@ -65,7 +65,9 @@ function parseLabeledStatusLine(value: string) {
   };
 }
 
-function parseStageStatus(detail: string): "completed" | "failed" | "blocked" | "unknown" {
+function parseStageStatus(
+  detail: string,
+): "completed" | "failed" | "blocked" | "unknown" {
   const normalized = detail.toLowerCase();
   if (/\b(pass|passed|ok|complete|completed|done|success)\b/.test(normalized)) {
     return "completed";
@@ -97,12 +99,16 @@ function parseConfidence(content: string): EvidencePackConfidence | undefined {
   }
 
   const normalized = match[1].toLowerCase();
-  return normalized === "low" || normalized === "medium" || normalized === "high"
+  return normalized === "low" ||
+    normalized === "medium" ||
+    normalized === "high"
     ? normalized
     : undefined;
 }
 
-export function extractEvidenceFinalization(content: string): EvidenceFinalization {
+export function extractEvidenceFinalization(
+  content: string,
+): EvidenceFinalization {
   const result: EvidenceFinalization = {};
 
   const verdictLabelMatch = content.match(/\bverdict\s*:\s*([^\n]+)/i);
@@ -112,7 +118,9 @@ export function extractEvidenceFinalization(content: string): EvidenceFinalizati
 
   const verdictSummarySection = parseSection(content, "Verdict summary");
   if (verdictSummarySection) {
-    result.verdictSummary = cleanLine(verdictSummarySection.split("\n")[0] ?? "");
+    result.verdictSummary = cleanLine(
+      verdictSummarySection.split("\n")[0] ?? "",
+    );
   }
 
   result.confidence = parseConfidence(content);
@@ -171,7 +179,9 @@ export function extractEvidenceFinalization(content: string): EvidenceFinalizati
     parseSection(content, "Final recommendation") ||
     parseSection(content, "Recommendation");
   if (recommendationSection) {
-    result.recommendation = cleanLine(recommendationSection.split("\n")[0] ?? "");
+    result.recommendation = cleanLine(
+      recommendationSection.split("\n")[0] ?? "",
+    );
   }
 
   return result;

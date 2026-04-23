@@ -1,6 +1,6 @@
-import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git';
+import { simpleGit, type SimpleGit, type StatusResult } from "simple-git";
 
-import type { GitCommit, GitDiff, GitStatus } from '../contracts/git';
+import type { GitCommit, GitDiff, GitStatus } from "../contracts/git";
 
 export class GitService {
   private git: SimpleGit;
@@ -66,9 +66,9 @@ export class GitService {
   async unstageFiles(files: string[]): Promise<void> {
     if (files.length === 0) {
       // Unstage all staged files
-      await this.git.reset(['HEAD']);
+      await this.git.reset(["HEAD"]);
     } else {
-      await this.git.reset(['HEAD', '--', ...files]);
+      await this.git.reset(["HEAD", "--", ...files]);
     }
   }
 
@@ -89,7 +89,7 @@ export class GitService {
 
   async getBranch(): Promise<string> {
     const status = await this.git.status();
-    return status.current || 'unknown';
+    return status.current || "unknown";
   }
 }
 
