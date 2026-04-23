@@ -120,6 +120,61 @@ export interface EvidencePack {
   generatedAt: string;
 }
 
+export interface ReproducibleRunInitialState {
+  workspaceId: string;
+  workspacePath: string;
+  workspaceName: string;
+  branch: string;
+  threadId: string;
+  activeMessageCount: number;
+  settings: {
+    reasoning: AssistantReasoningLevel;
+    mode: AssistantMode;
+    access: AssistantAccess;
+    runbookId?: AssistantRunbookId;
+  };
+  trustAutonomy?: string;
+}
+
+export interface ReproducibleRunDecision {
+  id: string;
+  at: string;
+  summary: string;
+  reason: string;
+}
+
+export interface ReproducibleRunResult {
+  status: "completed" | "failed";
+  summary: string;
+  evidencePack?: EvidencePack;
+}
+
+export interface ReproducibleRunIntegrity {
+  algorithm: "sha256";
+  canonicalVersion: 1;
+  eventHashes: string[];
+  rootHash: string;
+  generatedAt: string;
+}
+
+export interface ReproducibleRun {
+  id: string;
+  threadId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  title: string;
+  userIntent: string;
+  status: Extract<RunStatus, "running" | "completed" | "failed">;
+  startedAt: string;
+  completedAt?: string;
+  initialState: ReproducibleRunInitialState;
+  decisions: ReproducibleRunDecision[];
+  events: ToolEvent[];
+  artifacts: MessageArtifact[];
+  result?: ReproducibleRunResult;
+  integrity?: ReproducibleRunIntegrity;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -135,6 +190,7 @@ export interface Conversation {
   id: string;
   title: string;
   messages: ChatMessage[];
+  runs?: ReproducibleRun[];
   lastUpdatedAt: string;
   isArchived?: boolean;
 }
