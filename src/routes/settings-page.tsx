@@ -45,6 +45,7 @@ import {
   type TimeFormat,
 } from '../contracts/settings';
 import { useTheme, type Theme } from '../hooks/use-theme';
+import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
 import { cn } from '../lib/utils';
 import {
   getWorkspaceTrustContract,
@@ -60,7 +61,13 @@ import {
 import { useChatStore } from '../store/chat-store';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type SettingsSectionId = 'general' | 'connections' | 'trust' | 'archive' | 'integrations';
+type SettingsSectionId =
+  | 'general'
+  | 'connections'
+  | 'trust'
+  | 'archive'
+  | 'integrations'
+  | 'workspace-memory';
 
 function maskKey(key: string) {
   if (key.length <= 8) return '••••••••';
@@ -86,7 +93,9 @@ export function SettingsPage() {
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
 
   const section: SettingsSectionId =
-    pathname === '/settings/connections'
+    pathname === '/settings/workspace-memory'
+      ? 'workspace-memory'
+      : pathname === '/settings/connections'
       ? 'connections'
       : pathname === '/settings/trust'
         ? 'trust'
@@ -161,6 +170,10 @@ export function SettingsPage() {
         setErrorMsg(error instanceof Error ? error.message : 'Could not save trust contract.');
         setSaveState('error');
       }
+      return;
+    }
+
+    if (section === 'workspace-memory') {
       return;
     }
 
@@ -666,6 +679,8 @@ export function SettingsPage() {
               </SettingsSection>
             ) : null}
 
+            {section === 'workspace-memory' ? <WorkspaceMemorySettings /> : null}
+
             {section === 'integrations' ? (
               <SettingsSection title="Integrations" icon={<PuzzleIcon className="size-3.5" />}>
                 <>
@@ -770,7 +785,7 @@ export function SettingsPage() {
                 )}
               </div>
 
-              {section === 'general' || section === 'archive' || section === 'connections' || section === 'trust' || section === 'integrations' ? (
+              {section === 'workspace-memory' ? null : (
                 <Button
                   size="sm"
                   className="h-9 rounded-lg px-4"
@@ -796,7 +811,7 @@ export function SettingsPage() {
                   )}
                   {saveLabel}
                 </Button>
-              ) : null}
+              )}
             </div>
           </div>
         </div>

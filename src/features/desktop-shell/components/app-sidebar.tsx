@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ArrowLeftIcon,
   ChevronDown,
+  FileTextIcon,
   FolderGit2Icon,
   GitBranchIcon,
   ListChecksIcon,
@@ -232,6 +233,26 @@ export function AppSidebar({
                   >
                     <ShieldCheckIcon className="size-4 shrink-0" />
                     <span>Trust</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    size="sm"
+                    isActive={settingsSection === "workspace-memory"}
+                    className={
+                      settingsSection === "workspace-memory"
+                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                    }
+                    render={
+                      <Link
+                        to="/settings/$section"
+                        params={{ section: "workspace-memory" }}
+                      />
+                    }
+                  >
+                    <FileTextIcon className="size-4 shrink-0" />
+                    <span>Workspace Memory</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>

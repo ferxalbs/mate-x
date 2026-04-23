@@ -3,6 +3,7 @@ import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { AssistantRunOptions } from "../contracts/chat";
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
+import type { WorkspaceMemoryFileKind } from "../contracts/workspace";
 import { GitService } from "./git-service";
 import { policyService } from "./policy-service";
 import {
@@ -21,6 +22,7 @@ import {
 } from "./repo-service";
 import { listRainyModels, validateRainyModelSelection } from "./rainy-service";
 import { tursoService } from "./turso-service";
+import { workspaceMemoryService } from "./workspace-memory-service";
 
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
@@ -50,6 +52,21 @@ async function resolveActiveWorkspacePath() {
   return activeWorkspace.path;
 }
 
+async function resolveActiveWorkspace() {
+  await tursoService.ensureSeedWorkspace(process.cwd());
+  const workspaces = await tursoService.getWorkspaces();
+  const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
+    workspaces[0];
+
+  if (!activeWorkspace) {
+    throw new Error("No active workspace available.");
+  }
+
+  return activeWorkspace;
+}
+
 async function resolveGitService() {
   const workspacePath = await resolveActiveWorkspacePath();
   return new GitService(workspacePath);
@@ -70,6 +87,32 @@ export function registerIpcHandlers() {
     "repo:update-workspace-trust-contract",
     async (_event, contract) => updateWorkspaceTrustContract(contract),
   );
+  ipcMain.handle("repo:get-workspace-memory-status", async () => {
+    const workspace = await resolveActiveWorkspace();
+    return workspaceMemoryService.getStatus(workspace.id, workspace.path);
+  });
+  ipcMain.handle(
+    "repo:write-workspace-memory-file",
+    async (_event, kind: WorkspaceMemoryFileKind, content: string) => {
+      const workspace = await resolveActiveWorkspace();
+      return workspaceMemoryService.writeFile(workspace.id, workspace.path, kind, content);
+    },
+  );
+  ipcMain.handle(
+    "repo:reset-workspace-memory-file",
+    async (_event, kind: WorkspaceMemoryFileKind) => {
+      const workspace = await resolveActiveWorkspace();
+      return workspaceMemoryService.resetFile(workspace.id, workspace.path, kind);
+    },
+  );
+  ipcMain.handle("repo:reveal-workspace-memory-folder", async () => {
+    const workspace = await resolveActiveWorkspace();
+    return workspaceMemoryService.revealFolder(workspace.id, workspace.path);
+  });
+  ipcMain.handle("repo:get-workspace-memory-bootstrap-context", async () => {
+    const workspace = await resolveActiveWorkspace();
+    return workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path);
+  });
   ipcMain.handle(
     "repo:set-active-workspace",
     async (_event, workspaceId: string) => setActiveWorkspace(workspaceId),
