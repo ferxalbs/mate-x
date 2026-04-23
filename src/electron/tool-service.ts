@@ -32,7 +32,9 @@ import { readManyTool } from "./tools/read_many";
 import { jsonProbeTool } from "./tools/json_probe";
 import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
 import { runTestsTool } from "./tools/run_tests";
+import { supermemoryTool } from "./tools/supermemory";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
 
 export interface Tool {
@@ -45,7 +47,11 @@ export interface Tool {
   };
   execute: (
     args: any,
-    context: { workspacePath: string; trustContract?: WorkspaceTrustContract },
+    context: {
+      workspacePath: string;
+      trustContract?: WorkspaceTrustContract;
+      settings: AppSettings;
+    },
   ) => Promise<string>;
 }
 
@@ -87,6 +93,7 @@ export class ToolService {
     this.registerTool(jsonProbeTool);
     this.registerTool(detectWorkspaceCapabilitiesTool);
     this.registerTool(runTestsTool);
+    this.registerTool(supermemoryTool);
     // Future tools can be registered here or dynamically loaded
   }
 
@@ -140,7 +147,11 @@ export class ToolService {
   async callTool(
     name: string,
     args: any,
-    context: { workspacePath: string; trustContract?: WorkspaceTrustContract },
+    context: {
+      workspacePath: string;
+      trustContract?: WorkspaceTrustContract;
+      settings: AppSettings;
+    },
   ): Promise<string> {
     const tool = this.tools.get(name);
     if (!tool) {

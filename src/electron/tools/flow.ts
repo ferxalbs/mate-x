@@ -28,7 +28,7 @@ export const flowTraceTool: Tool = {
     },
     required: ["source"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const { source, maxDepth = 5 } = args;
     const safeDepth = Math.max(1, Math.min(12, Number(maxDepth) || 5));
     let currentTrace = [source];

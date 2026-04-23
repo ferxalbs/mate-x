@@ -16,7 +16,7 @@ export const fileMetadataTool: Tool = {
     },
     required: ['path'],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const { path } = args;
 
     try {

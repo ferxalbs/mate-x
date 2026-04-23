@@ -22,7 +22,7 @@ export const lsTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const relativePath = args.path || '.';
     const targetDir = resolveWorkspacePath(workspacePath, relativePath);
     const recursive = args.recursive || false;

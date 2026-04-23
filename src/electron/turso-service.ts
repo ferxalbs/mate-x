@@ -600,6 +600,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.deleteConfirmation === 'boolean'
         ? input.deleteConfirmation
         : DEFAULT_APP_SETTINGS.deleteConfirmation,
+    supermemoryApiKey:
+      typeof input.supermemoryApiKey === 'string'
+        ? input.supermemoryApiKey
+        : DEFAULT_APP_SETTINGS.supermemoryApiKey,
   };
 }
 

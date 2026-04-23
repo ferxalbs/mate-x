@@ -43,6 +43,7 @@ import {
   canQueryDomain,
   renderTrustContractForPrompt,
 } from "./workspace-trust";
+import type { AppSettings } from "../contracts/settings";
 
 const execFileAsync = promisify(execFile);
 
@@ -466,9 +467,10 @@ export async function runAssistant(
     },
   ];
 
-  const [apiKey, storedModel] = await Promise.all([
+  const [apiKey, storedModel, appSettings] = await Promise.all([
     tursoService.getApiKey(),
     tursoService.getModel(),
+    tursoService.getAppSettings(),
   ]);
   const rainyHostAllowed = canQueryDomain(
     snapshot.trustContract,
@@ -528,6 +530,7 @@ export async function runAssistant(
         options: resolvedOptions,
         runbookDefinition,
         emitProgress,
+        appSettings,
       });
       thought =
         "thought" in result && typeof result.thought === "string"
@@ -1329,6 +1332,7 @@ async function executeAgentToolCall({
   snapshot,
   events,
   emitProgress,
+  appSettings,
 }: {
   toolCall: AgentToolCall;
   toolIndex: number;
@@ -1336,6 +1340,7 @@ async function executeAgentToolCall({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   emitProgress: () => void;
+  appSettings: AppSettings;
 }) {
   const toolName = toolCall.name;
   const eventId = `tool-${iteration}-${toolIndex}-${toolName}`;
@@ -1379,6 +1384,7 @@ async function executeAgentToolCall({
       toolService.callTool(toolName, toolArgs, {
         workspacePath: snapshot.workspace.path,
         trustContract: snapshot.trustContract,
+        settings: appSettings,
       }),
       TOOL_EXECUTION_TIMEOUT_MS,
       `Tool ${toolName} timed out after ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
@@ -1436,6 +1442,7 @@ async function requestRainyAgenticResponse({
   options,
   runbookDefinition,
   emitProgress,
+  appSettings,
 }: {
   apiKey: string;
   history: string[];
@@ -1447,6 +1454,7 @@ async function requestRainyAgenticResponse({
   options: AssistantRunOptions;
   runbookDefinition: AssistantRunbookDefinition;
   emitProgress: (content?: string, thought?: string) => void;
+  appSettings: AppSettings;
 }) {
   const runtime = buildAgentRuntimeConfig(options);
   const files = snapshot.files.slice(0, 80).join("\n");
@@ -1501,6 +1509,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       snapshot,
       events,
       emitProgress,
+      appSettings,
     });
   }
 
@@ -1514,6 +1523,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     snapshot,
     events,
     emitProgress,
+    appSettings,
   });
 }
 
@@ -1527,6 +1537,7 @@ async function requestRainyChatAgenticResponse({
   snapshot,
   events,
   emitProgress,
+  appSettings,
 }: {
   apiKey: string;
   history: string[];
@@ -1537,6 +1548,7 @@ async function requestRainyChatAgenticResponse({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   emitProgress: (content?: string, thought?: string) => void;
+  appSettings: AppSettings;
 }) {
   const historyMessages = buildHistoryMessages(history);
   let messages: any[] = [
@@ -1729,6 +1741,7 @@ async function requestRainyChatAgenticResponse({
           snapshot,
           events,
           emitProgress,
+          appSettings,
         }),
     );
 
@@ -1798,6 +1811,7 @@ async function requestRainyResponsesAgenticResponse({
   snapshot,
   events,
   emitProgress,
+  appSettings,
 }: {
   apiKey: string;
   history: string[];
@@ -1808,6 +1822,7 @@ async function requestRainyResponsesAgenticResponse({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   emitProgress: (content?: string, thought?: string) => void;
+  appSettings: AppSettings;
 }) {
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
@@ -1995,6 +2010,7 @@ async function requestRainyResponsesAgenticResponse({
           snapshot,
           events,
           emitProgress,
+          appSettings,
         }),
     );
 

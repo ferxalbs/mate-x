@@ -54,7 +54,7 @@ export const mutationTesterTool: Tool = {
     },
     required: ["path", "searchString", "mutationString", "verificationCommand"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const { path, searchString, mutationString, verificationCommand } = args;
     let cmd: string;
     let cmdArgs: string[];

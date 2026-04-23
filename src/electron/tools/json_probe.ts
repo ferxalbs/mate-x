@@ -42,7 +42,7 @@ export const jsonProbeTool: Tool = {
     },
     required: ["path"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const pretty = args.pretty !== false;
     const query = typeof args.query === "string" ? args.query.trim() : "";
 

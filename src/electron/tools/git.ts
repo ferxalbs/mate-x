@@ -23,7 +23,7 @@ export const gitTool: Tool = {
     },
     required: ['operation'],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, settings }) {
     const git = new GitService(workspacePath);
     const { operation, limit = 5, commitHash } = args;
 
