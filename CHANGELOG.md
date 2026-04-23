@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.22 (5) [Native Chat Context Menu and Thread Management]
+
+- Added a native context menu for chat threads in the sidebar with support for Rename, Archive, and Delete actions.
+- Implemented macOS-native and Windows-compatible context menu integration via main-process IPC handlers.
+- Added an inline renaming UI in the sidebar that allows editing thread titles directly with automatic focus and persistence on Enter or blur.
+- Introduced thread archiving logic that filters archived conversations from the main sidebar list while preserving them in the local session.
+- Enhanced thread deletion to ensure at least one active conversation remains per workspace, automatically selecting a fallback thread when the active one is removed.
+- Updated `Conversation` contract and `chat-store` logic to support `isArchived` status and title updates.
+
 ## Unreleased - 2026.04.22 (4) [Structured Runbook Engine and Evidence Stage Telemetry]
 
 - Introduced a structured runbook engine contract with explicit workflow metadata: objective, mandatory stages, required checks, success criteria, stop conditions, and final evidence format.

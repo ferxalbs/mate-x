@@ -20,6 +20,7 @@ export function DesktopShell() {
   const removeWorkspace = useChatStore((state) => state.removeWorkspace);
   const createThread = useChatStore((state) => state.createThread);
   const selectThread = useChatStore((state) => state.selectThread);
+  const renameThread = useChatStore((state) => state.renameThread);
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
   const { theme, setTheme } = useTheme();
@@ -58,6 +59,7 @@ export function DesktopShell() {
             onImportWorkspace={importWorkspace}
             onRemoveWorkspace={removeWorkspace}
             onSelectThread={selectThread}
+            onRenameThread={renameThread}
             theme={theme}
             threads={threads}
             workspaces={workspaces}

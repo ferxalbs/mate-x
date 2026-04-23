@@ -174,6 +174,7 @@ export function SettingsPage() {
         setAppSettings(nextSettings);
         setSavedAppSettings(nextSettings);
         applyRendererSettings(nextSettings);
+        useChatStore.getState().setSettings(nextSettings);
         window.dispatchEvent(
           new CustomEvent('mate:app-settings-updated', {
             detail: nextSettings,

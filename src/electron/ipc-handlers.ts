@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 
 import type { AssistantRunOptions } from '../contracts/chat';
 import type { AppSettings } from '../contracts/settings';
@@ -168,4 +168,41 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:update-app-settings', async (_event, settings: AppSettings) =>
     tursoService.updateAppSettings(settings),
   );
+
+  // ── UI ───────────────────────────────────────────────────────────────────
+  ipcMain.handle('ui:show-chat-context-menu', async (event, threadId: string) => {
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: 'Rename',
+        click: () => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('chat:rename-thread', threadId);
+          }
+        },
+      },
+      {
+        label: 'Archive',
+        click: () => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('chat:archive-thread', threadId);
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete',
+        click: () => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('chat:delete-thread', threadId);
+          }
+        },
+      },
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+      menu.popup({ window });
+    }
+  });
 }

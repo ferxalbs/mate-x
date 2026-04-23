@@ -68,3 +68,10 @@ export interface SettingsApi {
   getAppSettings: () => Promise<AppSettings>;
   updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
 }
+
+export interface UiApi {
+  showChatContextMenu: (threadId: string) => Promise<void>;
+  onRenameThread: (listener: (threadId: string) => void) => () => void;
+  onArchiveThread: (listener: (threadId: string) => void) => () => void;
+  onDeleteThread: (listener: (threadId: string) => void) => () => void;
+}
