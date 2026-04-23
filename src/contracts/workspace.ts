@@ -116,3 +116,19 @@ export interface WorkspaceMemoryBootstrapContext {
   storagePath: string;
   context: string;
 }
+
+export interface WorkspaceMemoryProposedUpdate {
+  kind: WorkspaceMemoryFileKind;
+  filename: WorkspaceMemoryFile["filename"];
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface WorkspaceMemoryRunSummary {
+  prompt: string;
+  response: string;
+  toolNames: string[];
+  touchedPaths: string[];
+  completedAt: string;
+}

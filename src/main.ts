@@ -28,7 +28,7 @@ process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
 // Linux is not a supported target yet. Keep startup behavior explicit.
 if (!['darwin', 'win32'].includes(process.platform)) {
   app.whenReady().then(() => {
-    console.error(`Unsupported platform: ${process.platform}. MaTE X currently supports macOS and Windows only.`);
+    console.error(`Unsupported platform: ${process.platform}. MaTE X currently supports macOS and Windows only. And never implement for this OS.`);
     app.quit();
   });
 }
