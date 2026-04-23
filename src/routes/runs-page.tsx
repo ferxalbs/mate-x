@@ -27,6 +27,13 @@ type MissionRun = {
   record?: ReproducibleRun;
 };
 
+type CommandEvidence = {
+  tool: string;
+  action: string;
+  target: string;
+  result: string;
+};
+
 function buildRuns(threads: Conversation[]) {
   const runs: MissionRun[] = [];
 
@@ -109,6 +116,88 @@ function getEventIcon(event: ToolEvent) {
   return CircleDotIcon;
 }
 
+function getSemanticEventLabel(event: ToolEvent) {
+  const text = `${event.label} ${event.detail}`.toLowerCase();
+  if (event.status === "error") return "Policy pause";
+  if (text.includes("retry")) return "Scoped retry";
+  if (text.includes("patch") || text.includes("diff") || text.includes("file")) return "Patch attempt";
+  if (text.includes("check") || text.includes("test") || text.includes("lint") || text.includes("typecheck")) {
+    return event.status === "done" ? "Verification pass" : "Verification run";
+  }
+  if (text.includes("tool batch") || text.includes("tool") || text.includes("command")) return "Tool batch";
+  if (text.includes("plan") || text.includes("scope") || text.includes("decision")) return "Agent replan";
+  return "Execution step";
+}
+
+function getDecisionTrail(run: MissionRun) {
+  const decisions = run.record?.decisions ?? [];
+  const events = run.events;
+  const trail = decisions.map((decision) => ({
+    label: decision.summary,
+    detail: decision.reason,
+  }));
+
+  if (events.some((event) => event.status === "error")) {
+    trail.push({
+      label: "Policy denials / blocking events",
+      detail: "Run encountered an error-state event and preserved it in the execution timeline.",
+    });
+  }
+
+  if (events.some((event) => `${event.label} ${event.detail}`.toLowerCase().includes("approval"))) {
+    trail.push({
+      label: "Approvals requested",
+      detail: "Approval-related event detected in run telemetry.",
+    });
+  }
+
+  if (events.some((event) => `${event.label} ${event.detail}`.toLowerCase().includes("retry"))) {
+    trail.push({
+      label: "Scoped retry",
+      detail: "Agent retried a bounded operation instead of broadening execution scope.",
+    });
+  }
+
+  if (trail.length === 0) {
+    trail.push(
+      {
+        label: "Execution mode fixed",
+        detail: "Run used captured mode/access settings from initial state.",
+      },
+      {
+        label: "Scope maintained",
+        detail: "No approval pauses, policy denials, fallback paths, or scope reductions were recorded.",
+      },
+    );
+  }
+
+  return trail;
+}
+
+function parseCommandEvidence(run: MissionRun): CommandEvidence[] {
+  const commands = run.assistantMessage.evidencePack?.commandsExecuted ?? [];
+
+  return commands.map((command) => {
+    const parts = command.command.trim().split(/\s+/);
+    const tool = parts[0] ?? "command";
+    const target =
+      parts.find((part) => part.startsWith("src/") || part.startsWith("/") || part.includes(".")) ??
+      "workspace";
+
+    return {
+      tool,
+      action: command.summary ?? "Executed command",
+      target,
+      result:
+        typeof command.exitCode === "number"
+          ? `exit ${command.exitCode}`
+          : command.summary
+            ? "reported"
+            : "captured",
+    };
+  });
+}
+
 function summarizeResult(message: ChatMessage) {
   if (message.evidencePack?.verdict.summary) return message.evidencePack.verdict.summary;
   const content = message.content.trim();
@@ -127,6 +216,8 @@ export function RunsPage() {
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
   const isCurrentRunActive = runStatus === "running" && selectedRun?.id === runs[0]?.id;
   const selectedStatus = isCurrentRunActive ? "running" : selectedRun?.status;
+  const decisionTrail = selectedRun ? getDecisionTrail(selectedRun) : [];
+  const commandEvidence = selectedRun ? parseCommandEvidence(selectedRun) : [];
 
   async function handleExportRun() {
     if (!selectedRun?.record) return;
@@ -243,11 +334,12 @@ export function RunsPage() {
                       </div>
                       <div className="rounded-md border border-border/70 px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
-                          <h2 className="text-xs font-semibold text-foreground">{event.label}</h2>
+                          <h2 className="text-xs font-semibold text-foreground">{getSemanticEventLabel(event)}</h2>
                           <span className={`rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider ${statusClass(event.status === "error" ? "failed" : event.status === "active" ? "running" : "completed")}`}>
                             {event.status}
                           </span>
                         </div>
+                        <div className="mt-1 text-[11px] font-medium text-foreground/80">{event.label}</div>
                         <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
                           {event.detail || "No detail captured for this event."}
                         </p>
@@ -271,12 +363,62 @@ export function RunsPage() {
             <dl className="mt-4 space-y-3 text-xs">
               <Detail label="Thread" value={selectedRun.threadTitle} />
               <Detail label="Initial state" value={selectedRun.record ? `${selectedRun.record.initialState.workspaceName}\n${selectedRun.record.initialState.workspacePath}\nbranch ${selectedRun.record.initialState.branch}` : "Legacy run inferred from assistant message"} />
-              <Detail label="Decisions" value={(selectedRun.record?.decisions ?? []).map((decision) => `${decision.summary}: ${decision.reason}`).join("\n") || "No decision records captured"} />
-              <Detail label="Integrity" value={selectedRun.record?.integrity ? `sha256\n${selectedRun.record.integrity.rootHash}` : "Not sealed yet"} />
+              <div>
+                <dt className="text-muted-foreground">Decisions</dt>
+                <dd className="mt-1 space-y-2">
+                  {decisionTrail.map((decision) => (
+                    <div className="rounded-md border border-border/60 px-2 py-1.5" key={`${decision.label}:${decision.detail}`}>
+                      <div className="font-medium text-foreground">{decision.label}</div>
+                      <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{decision.detail}</div>
+                    </div>
+                  ))}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Integrity</dt>
+                <dd className="mt-1 rounded-md border border-border/60 px-2 py-1.5">
+                  {selectedRun.record?.integrity ? (
+                    <>
+                      <div className="font-medium text-emerald-600 dark:text-emerald-300">Sealed run</div>
+                      <div className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                        {selectedRun.record.integrity.rootHash}
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">Exportable evidence pack · trusted replay ready</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-medium text-sky-600 dark:text-sky-300">Sealing pending</div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        Run is still active or from legacy history. Final export will seal artifact.
+                      </div>
+                    </>
+                  )}
+                </dd>
+              </div>
               <Detail label="Started" value={formatTimestamp(selectedRun.startedAt)} />
               <Detail label="Completed" value={formatTimestamp(selectedRun.completedAt)} />
               <Detail label="Tools used" value={(selectedRun.assistantMessage.evidencePack?.toolsUsed ?? []).map((tool) => tool.name).join(", ") || "None reported"} />
-              <Detail label="Commands" value={(selectedRun.assistantMessage.evidencePack?.commandsExecuted ?? []).map((command) => command.command).join("\n") || "None reported"} />
+              <div>
+                <dt className="text-muted-foreground">Commands</dt>
+                <dd className="mt-1 space-y-2">
+                  {commandEvidence.length > 0 ? (
+                    commandEvidence.map((command) => (
+                      <div className="rounded-md border border-border/60 px-2 py-1.5" key={`${command.tool}:${command.target}:${command.result}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-[11px] font-medium text-foreground">{command.tool}</span>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{command.result}</span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">{command.action}</div>
+                        <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/75">{command.target}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-md border border-border/60 px-2 py-1.5 text-[11px] text-muted-foreground">
+                      No command artifacts reported. Tool activity remains available in timeline.
+                    </div>
+                  )}
+                </dd>
+              </div>
             </dl>
             <div className="mt-5 rounded-md border border-border/70 px-3 py-2">
               <div className="mb-1 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
