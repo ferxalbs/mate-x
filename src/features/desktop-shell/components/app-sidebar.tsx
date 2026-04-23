@@ -13,6 +13,7 @@ import {
 
 import { GitPanel } from './git-panel';
 import { useGitStore } from '../../../store/git-store';
+import { useChatStore } from '../../../store/chat-store';
 
 import {
   Sidebar,
@@ -29,8 +30,8 @@ import type { Conversation, RunStatus } from '../../../contracts/chat';
 import type { WorkspaceEntry, WorkspaceSummary } from '../../../contracts/workspace';
 import type { Theme } from '../../../hooks/use-theme';
 import { cn } from '../../../lib/utils';
-import { formatRelativeTimestamp } from '../model';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { ThreadMenuItem } from './thread-menu-item';
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -45,6 +46,7 @@ interface AppSidebarProps {
   onRemoveWorkspace: (workspaceId: string) => Promise<void>;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
+  onRenameThread: (threadId: string, title: string) => Promise<void>;
 }
 
 function getThreadStatusLabel(thread: Conversation, isActive: boolean, runStatus: RunStatus) {
@@ -109,6 +111,7 @@ export function AppSidebar({
   onRemoveWorkspace,
   onCreateThread,
   onSelectThread,
+  onRenameThread,
 }: AppSidebarProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isSettingsRoute = pathname === '/settings' || pathname.startsWith('/settings/');
@@ -297,42 +300,25 @@ export function AppSidebar({
                             </button>
                           </div>
 
-                          {threads.map((thread) => {
-                            const isActive = thread.id === activeThreadId;
-                            const status = getThreadStatusLabel(thread, isActive, runStatus);
-
-                            return (
-                              <button
+                          {threads
+                            .filter((t) => !t.isArchived)
+                            .map((thread) => (
+                              <ThreadMenuItem
                                 key={thread.id}
-                                onClick={() => onSelectThread(thread.id)}
-                                className={cn(
-                                  'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-[12px] outline-none transition-colors',
-                                  isActive
-                                    ? 'bg-accent text-accent-foreground font-medium'
-                                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                                )}
-                              >
-                                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                                  <span
-                                    className={cn(
-                                      'size-1.5 rounded-full',
-                                      status.dotClass,
-                                      status.pulse ? 'animate-pulse' : '',
-                                    )}
-                                  />
-                                  <span className="flex-1 truncate">
-                                    {thread.title || 'New thread'}
-                                  </span>
-                                </div>
-
-                                <div className="flex shrink-0 items-center justify-end">
-                                  <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
-                                    {formatRelativeTimestamp(thread.lastUpdatedAt)}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
+                                thread={thread}
+                                isActive={thread.id === activeThreadId}
+                                runStatus={runStatus}
+                                onSelectThread={onSelectThread}
+                                onArchiveThread={(id) => {
+                                  void useChatStore.getState().archiveThread(id);
+                                }}
+                                onDeleteThread={(id) => {
+                                  void useChatStore.getState().deleteThread(id);
+                                }}
+                                onRenameThread={onRenameThread}
+                                getThreadStatusLabel={getThreadStatusLabel}
+                              />
+                            ))}
                         </div>
                       ) : null}
                     </SidebarMenuItem>

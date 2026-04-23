@@ -1,8 +1,27 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { GitApi, RepoInspectorApi, SettingsApi } from './contracts/ipc';
+import type { GitApi, RepoInspectorApi, SettingsApi, UiApi } from './contracts/ipc';
 
 const ASSISTANT_PROGRESS_CHANNEL = 'repo:assistant-progress';
+
+const uiApi: UiApi = {
+  showChatContextMenu: (threadId) => ipcRenderer.invoke('ui:show-chat-context-menu', threadId),
+  onRenameThread: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, threadId: string) => listener(threadId);
+    ipcRenderer.on('chat:rename-thread', handler);
+    return () => ipcRenderer.removeListener('chat:rename-thread', handler);
+  },
+  onArchiveThread: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, threadId: string) => listener(threadId);
+    ipcRenderer.on('chat:archive-thread', handler);
+    return () => ipcRenderer.removeListener('chat:archive-thread', handler);
+  },
+  onDeleteThread: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, threadId: string) => listener(threadId);
+    ipcRenderer.on('chat:delete-thread', handler);
+    return () => ipcRenderer.removeListener('chat:delete-thread', handler);
+  },
+};
 
 const repoApi: RepoInspectorApi = {
   bootstrap: () => ipcRenderer.invoke('repo:bootstrap'),
@@ -78,4 +97,5 @@ contextBridge.exposeInMainWorld('mate', {
   repo: repoApi,
   git: gitApi,
   settings: settingsApi,
+  ui: uiApi,
 });

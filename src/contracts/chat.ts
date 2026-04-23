@@ -136,6 +136,7 @@ export interface Conversation {
   title: string;
   messages: ChatMessage[];
   lastUpdatedAt: string;
+  isArchived?: boolean;
 }
 
 export interface AssistantExecution {

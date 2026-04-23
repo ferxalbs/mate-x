@@ -24,6 +24,8 @@ import {
   setActiveWorkspace,
 } from '../services/repo-client';
 import { buildThreadTitle } from '../features/desktop-shell/model';
+import { type AppSettings, DEFAULT_APP_SETTINGS } from '../contracts/settings';
+import { getAppSettings } from '../services/settings-client';
 
 interface ChatState {
   workspaces: WorkspaceEntry[];
@@ -48,8 +50,13 @@ interface ChatState {
   removeWorkspace: (workspaceId: string) => Promise<void>;
   createThread: () => void;
   selectThread: (threadId: string) => void;
+  archiveThread: (threadId: string) => Promise<void>;
+  deleteThread: (threadId: string) => Promise<void>;
+  renameThread: (threadId: string, title: string) => Promise<void>;
   submitPrompt: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   undoLastTurn: () => Promise<string | null>;
+  settings: AppSettings;
+  setSettings: (settings: AppSettings) => void;
 }
 
 let assistantProgressUnsubscribe: (() => void) | null = null;
@@ -139,10 +146,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeRun: null,
   runStatus: 'idle',
   isBootstrapped: false,
+  settings: DEFAULT_APP_SETTINGS,
+  setSettings: (settings) => set({ settings }),
   async bootstrap() {
     if (get().isBootstrapped) {
       return;
     }
+
+    const appSettings = await getAppSettings();
+    set({ settings: appSettings });
 
     if (!assistantProgressUnsubscribe) {
       assistantProgressUnsubscribe = onAssistantProgress((progress) => {
@@ -185,6 +197,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     const snapshot = await bootstrapWorkspaceState();
+    const { ui } = (window as any).mate;
+
+    if (ui) {
+      ui.onRenameThread((threadId: string) => {
+        // Dispatch a custom event to the sidebar to trigger rename UI
+        window.dispatchEvent(new CustomEvent('mate:trigger-rename-thread', { detail: { threadId } }));
+      });
+      ui.onArchiveThread((threadId: string) => {
+        window.dispatchEvent(new CustomEvent('mate:trigger-archive-thread', { detail: { threadId } }));
+      });
+      ui.onDeleteThread((threadId: string) => {
+        window.dispatchEvent(new CustomEvent('mate:trigger-delete-thread', { detail: { threadId } }));
+      });
+    }
 
     set((state) => ({
       ...applyWorkspaceSnapshot(snapshot, state.threadsByWorkspace, state.activeThreadIds),
@@ -271,6 +297,73 @@ export const useChatStore = create<ChatState>((set, get) => ({
         nextState.activeThreadIds,
       );
 
+      return nextState;
+    });
+  },
+  async archiveThread(threadId) {
+    const workspaceId = get().activeWorkspaceId;
+    if (!workspaceId) return;
+
+    set((state) => {
+      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).map((t) =>
+        t.id === threadId ? { ...t, isArchived: true } : t,
+      );
+      const nextState = {
+        threadsByWorkspace: {
+          ...state.threadsByWorkspace,
+          [workspaceId]: nextThreads,
+        },
+      };
+      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, state.activeThreadIds);
+      return nextState;
+    });
+  },
+  async deleteThread(threadId) {
+    const workspaceId = get().activeWorkspaceId;
+    if (!workspaceId) return;
+
+    set((state) => {
+      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).filter(
+        (t) => t.id !== threadId,
+      );
+      
+      // Ensure there's always at least one thread
+      if (nextThreads.length === 0) {
+        nextThreads.push(createEmptyConversation({ id: createId(`thread-${workspaceId}`) }));
+      }
+
+      const currentActiveId = state.activeThreadIds[workspaceId];
+      const nextActiveId = currentActiveId === threadId ? nextThreads[0].id : currentActiveId;
+
+      const nextState = {
+        threadsByWorkspace: {
+          ...state.threadsByWorkspace,
+          [workspaceId]: nextThreads,
+        },
+        activeThreadIds: {
+          ...state.activeThreadIds,
+          [workspaceId]: nextActiveId,
+        },
+      };
+      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, nextState.activeThreadIds);
+      return nextState;
+    });
+  },
+  async renameThread(threadId, title) {
+    const workspaceId = get().activeWorkspaceId;
+    if (!workspaceId) return;
+
+    set((state) => {
+      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).map((t) =>
+        t.id === threadId ? { ...t, title } : t,
+      );
+      const nextState = {
+        threadsByWorkspace: {
+          ...state.threadsByWorkspace,
+          [workspaceId]: nextThreads,
+        },
+      };
+      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, state.activeThreadIds);
       return nextState;
     });
   },
