@@ -742,7 +742,7 @@ export function SettingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogClose render={<Button />}>Understood</AlertDialogClose>
+            <AlertDialogClose render={<Button size="sm" />}>Understood</AlertDialogClose>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -750,7 +750,7 @@ export function SettingsPage() {
       <AlertDialog open={isUnrestrictedDialogOpen} onOpenChange={setIsUnrestrictedDialogOpen}>
         <AlertDialogContent className="border-destructive/20">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive-foreground flex items-center gap-2">
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive-foreground">
               <ShieldCheckIcon className="size-5" />
               Enable Unrestricted Mode?
             </AlertDialogTitle>
@@ -768,11 +768,11 @@ export function SettingsPage() {
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-2">
-            <AlertDialogClose render={<Button variant="ghost" />}>Cancel</AlertDialogClose>
+          <AlertDialogFooter>
+            <AlertDialogClose render={<Button variant="ghost" size="sm" />}>Cancel</AlertDialogClose>
             <Button
               variant="destructive"
-              className="bg-destructive hover:bg-destructive/90"
+              size="sm"
               onClick={() => {
                 setTrustDraft((draft) =>
                   draft ? { ...draft, autonomy: 'unrestricted' } : draft,
