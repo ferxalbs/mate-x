@@ -561,20 +561,9 @@ function RunTimelineV2({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAllActionsModal, setShowAllActionsModal] = useState(false);
-  const actionRows = useMemo(
-    () =>
-      events.filter(isInlineTraceEvent).map((event) => {
-        const command = extractCommandFromEvent(event);
-        if (command) {
-          return `Ran command - ${command}`;
-        }
-
-        return `${event.label} - ${event.detail}`;
-      }),
-    [events],
-  );
+  const actionEvents = useMemo(() => events.filter(isInlineTraceEvent), [events]);
   const statusLabel = isStreaming ? 'running' : 'done';
-  const previewRows = actionRows.slice(0, 10);
+  const previewEvents = actionEvents.slice(0, 10);
 
   useEffect(() => {
     if (inlineEvents || !showAllActionsModal) {
@@ -594,27 +583,21 @@ function RunTimelineV2({
   }, [inlineEvents, showAllActionsModal]);
 
   if (inlineEvents) {
-    const visibleRows = isStreaming ? actionRows.slice(-6) : actionRows;
+    const visibleEvents = isStreaming ? actionEvents.slice(-6) : actionEvents;
 
     return (
       <section className="space-y-2">
         <div className="space-y-1.5 rounded-2xl border border-border/45 bg-background/22 p-2.5">
-          {visibleRows.length > 0 ? visibleRows.map((row, index) => (
-            <div
-              key={`${row}-${index}`}
-              className="flex min-w-0 items-start gap-2 rounded-xl border border-border/35 bg-[var(--surface)]/45 px-3 py-2 text-[12px] leading-5 text-muted-foreground/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
-            >
-              <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">{">_"}</span>
-              <span className="min-w-0 flex-1 break-words">{row}</span>
-            </div>
+          {visibleEvents.length > 0 ? visibleEvents.map((event) => (
+            <ActionEventCard key={event.id} event={event} />
           )) : (
             <div className="rounded-xl border border-border/35 bg-[var(--surface)]/45 px-3 py-2 text-[12px] text-muted-foreground">
               No tool actions captured in this turn.
             </div>
           )}
-          {isStreaming && actionRows.length > visibleRows.length ? (
+          {isStreaming && actionEvents.length > visibleEvents.length ? (
             <div className="px-1 pt-0.5 text-[11px] text-muted-foreground/55">
-              Showing latest {visibleRows.length} of {actionRows.length} trace events.
+              Showing latest {visibleEvents.length} of {actionEvents.length} trace events.
             </div>
           ) : null}
         </div>
@@ -631,35 +614,30 @@ function RunTimelineV2({
       >
         {expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
         <span className="font-medium text-foreground/85">Model actions</span>
-        <span>{actionRows.length}</span>
+        <span>{actionEvents.length}</span>
         <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/75">{statusLabel}</span>
       </button>
 
       {expanded ? (
         <div className="space-y-1.5">
-          {actionRows.length > 0 ? previewRows.map((row, index) => (
-            <div
-              key={`${row}-${index}`}
-              className={cn(
-                "rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] text-muted-foreground/95 backdrop-blur-sm",
-                index % 2 === 0 ? "mr-5" : "ml-5",
-              )}
-            >
-              <span className="mr-2 font-mono text-[11px] text-muted-foreground/70">{">_"}</span>
-              {row}
-            </div>
+          {actionEvents.length > 0 ? previewEvents.map((event, index) => (
+            <ActionEventCard
+              key={event.id}
+              event={event}
+              className={index % 2 === 0 ? "mr-5" : "ml-5"}
+            />
           )) : (
             <div className="rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] text-muted-foreground">
               No tool actions captured in this turn.
             </div>
           )}
-          {actionRows.length > previewRows.length ? (
+          {actionEvents.length > previewEvents.length ? (
             <button
               type="button"
               className="inline-flex items-center rounded-md border border-border/55 bg-background/45 px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               onClick={() => setShowAllActionsModal(true)}
             >
-              View all actions ({actionRows.length})
+              View all actions ({actionEvents.length})
             </button>
           ) : null}
           {artifacts.length > 0 ? (
@@ -706,20 +684,42 @@ function RunTimelineV2({
               </button>
             </div>
             <div className="max-h-[64vh] space-y-1.5 overflow-y-auto pr-1">
-              {actionRows.map((row, index) => (
-                <div
-                  key={`${row}-modal-${index}`}
-                  className="rounded-lg border border-border/45 bg-background/35 px-2.5 py-2 text-[12px] text-muted-foreground"
-                >
-                  <span className="mr-2 font-mono text-[11px] text-muted-foreground/70">{index + 1}.</span>
-                  {row}
-                </div>
+              {actionEvents.map((event, index) => (
+                <ActionEventCard key={event.id} event={event} prefix={`${index + 1}.`} />
               ))}
             </div>
           </div>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function ActionEventCard({
+  event,
+  className,
+  prefix = ">_",
+}: {
+  event: ToolEvent;
+  className?: string;
+  prefix?: string;
+}) {
+  const command = extractCommandFromEvent(event);
+  const row = command ? `Ran command - ${command}` : `${event.label} - ${event.detail}`;
+
+  return (
+    <div
+      className={cn(
+        "min-w-0 rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] leading-5 text-muted-foreground/95 backdrop-blur-sm",
+        className,
+      )}
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/70">{prefix}</span>
+        <span className="min-w-0 flex-1 break-words">{row}</span>
+      </div>
+      {event.policy ? <ToolPolicyBadges event={event} /> : null}
+    </div>
   );
 }
 
@@ -915,6 +915,7 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
           <div className="mt-0.5 text-[11px] leading-5 text-muted-foreground">
             {expanded ? event.detail : preview}
           </div>
+          {event.policy ? <ToolPolicyBadges event={event} /> : null}
           {command ? (
             <div className="mt-1 rounded-md border border-border/45 bg-background/70 px-2 py-1 font-mono text-[10px] leading-4 text-foreground/85">
               {command}
@@ -922,6 +923,49 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ToolPolicyBadges({ event }: { event: ToolEvent }) {
+  const policy = event.policy;
+  if (!policy) {
+    return null;
+  }
+
+  const riskTone =
+    policy.riskClass === "safe"
+      ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
+      : policy.riskClass === "sensitive"
+        ? "border-sky-300/30 bg-sky-400/8 text-sky-200"
+        : policy.riskClass === "dangerous"
+          ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
+          : "border-red-300/30 bg-red-400/8 text-red-200";
+  const contractLabel = policy.allowedByContract ? "contract allowed" : "contract blocked";
+  const escalationLabel = policy.escalationRequired ? "escalation needed" : "no escalation";
+
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] leading-none">
+      <span className={cn("rounded-md border px-2 py-1 capitalize", riskTone)}>
+        {policy.riskClass}
+      </span>
+      {policy.impactTypes.map((impact) => (
+        <span
+          key={impact}
+          className="rounded-md border border-border/55 bg-background/45 px-2 py-1 text-muted-foreground"
+        >
+          {impact.replaceAll("_", " ")}
+        </span>
+      ))}
+      <span className="rounded-md border border-border/55 bg-background/45 px-2 py-1 text-muted-foreground">
+        {contractLabel}
+      </span>
+      <span className="rounded-md border border-border/55 bg-background/45 px-2 py-1 text-muted-foreground">
+        {escalationLabel}
+      </span>
+      <span className="basis-full text-[10px] leading-4 text-muted-foreground/75">
+        {policy.reason}
+      </span>
     </div>
   );
 }

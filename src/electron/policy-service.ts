@@ -7,12 +7,19 @@ import type {
   PolicyStopAttemptKind,
   ResolvePolicyStopRequest,
 } from "../contracts/policy";
+import type {
+  ToolImpactType,
+  ToolPolicyClassification,
+  ToolRiskClass,
+} from "../contracts/tool-policy";
+import type { WorkspaceTrustContract } from "../contracts/workspace";
 
 type PolicyEvaluationInput = {
   runId: string;
   workspacePath: string;
   toolName: string;
   args: Record<string, unknown>;
+  contract?: WorkspaceTrustContract;
 };
 
 type PolicyFinding = {
@@ -65,6 +72,41 @@ const HIGH_IMPACT_PATH_PATTERNS = [
 
 class PolicyService {
   private stops = new Map<string, PolicyStop>();
+
+  classifyToolCall(input: Omit<PolicyEvaluationInput, "runId">): ToolPolicyClassification {
+    const action = this.getRequiredAction(input.toolName, input.args);
+    const impactTypes = this.classifyImpactTypes(input.toolName, input.args);
+    const policyIssue = this.findPolicyIssue({
+      ...input,
+      runId: "classification",
+    });
+    const riskClass = policyIssue
+      ? "blocked"
+      : this.classifyRisk(input.toolName, input.args, impactTypes);
+    const allowedByContract = this.isAllowedByContract(action, input.contract);
+    const escalationRequired =
+      riskClass === "dangerous" ||
+      riskClass === "blocked" ||
+      (!allowedByContract && riskClass !== "safe");
+    const blockedReason = policyIssue?.explanation ??
+      (!allowedByContract ? `Workspace Trust Contract does not allow action "${action}".` : undefined);
+
+    return {
+      toolName: input.toolName,
+      action,
+      riskClass,
+      impactTypes,
+      reason: policyIssue?.explanation ?? this.describeRisk(riskClass, impactTypes),
+      allowedByContract,
+      escalationRequired,
+      decision: policyIssue || !allowedByContract
+        ? "blocked"
+        : escalationRequired
+          ? "escalation_required"
+          : "allowed",
+      blockedReason,
+    };
+  }
 
   evaluateToolCall(input: PolicyEvaluationInput): PolicyStop | null {
     const finding = this.findPolicyIssue(input);
@@ -285,6 +327,83 @@ class PolicyService {
 
   private isWriteTool(toolName: string) {
     return /patch|write|edit|mutation/i.test(toolName);
+  }
+
+  private classifyRisk(
+    toolName: string,
+    args: Record<string, unknown>,
+    impactTypes: ToolImpactType[],
+  ): ToolRiskClass {
+    if (this.extractCommand(args) || impactTypes.includes("package_install")) {
+      return "dangerous";
+    }
+
+    if (
+      this.isWriteTool(toolName) ||
+      impactTypes.includes("network") ||
+      impactTypes.includes("external_communication") ||
+      impactTypes.includes("secrets") ||
+      impactTypes.includes("process_control")
+    ) {
+      return "sensitive";
+    }
+
+    return "safe";
+  }
+
+  private classifyImpactTypes(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): ToolImpactType[] {
+    const impacts = new Set<ToolImpactType>();
+    const command = this.extractCommand(args);
+
+    if (this.isWriteTool(toolName)) impacts.add("file_edit");
+    if (toolName === "sandbox_run" || command) impacts.add("shell");
+    if (/cve|deps|network|supermemory|traffic|poison/i.test(toolName)) impacts.add("network");
+    if (/secret|env|auth/i.test(toolName)) impacts.add("secrets");
+    if (/supermemory|pdf_report/i.test(toolName)) impacts.add("external_communication");
+    if (command && /\b(bun|npm|pnpm|yarn)\s+(add|install|i)\b/i.test(command)) {
+      impacts.add("package_install");
+      impacts.add("network");
+      impacts.add("file_edit");
+    }
+    if (/mock_poison|traffic_poison|fuzzer|sandbox_run/i.test(toolName)) {
+      impacts.add("process_control");
+    }
+
+    return Array.from(impacts);
+  }
+
+  private describeRisk(riskClass: ToolRiskClass, impactTypes: ToolImpactType[]) {
+    if (riskClass === "safe") {
+      return "Read-only local inspection with no meaningful side effects.";
+    }
+
+    if (riskClass === "dangerous") {
+      return "Can execute commands, install code, modify dependency state, or affect processes.";
+    }
+
+    if (impactTypes.length === 0) {
+      return "Requires policy tracking because the operation may touch sensitive runtime context.";
+    }
+
+    return `Touches ${impactTypes.map((impact) => impact.replaceAll("_", " ")).join(", ")} and requires runtime policy review.`;
+  }
+
+  private getRequiredAction(toolName: string, args: Record<string, unknown>) {
+    if (this.isWriteTool(toolName)) return "patch";
+    if (toolName === "run_tests" || toolName === "sandbox_run") return "test";
+    if (toolName === "rg" || "pattern" in args || "query" in args) return "search";
+    return "read";
+  }
+
+  private isAllowedByContract(action: string, contract?: WorkspaceTrustContract) {
+    if (!contract || contract.autonomy === "unrestricted") {
+      return true;
+    }
+
+    return contract.allowedActions.includes(action) && !contract.blockedActions.includes(action);
   }
 
   private isPolicyStopAction(action: string): action is PolicyStopAction {
