@@ -1,19 +1,19 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 import type {
   AssistantRunOptions,
   ChatMessage,
   Conversation,
   RunStatus,
-} from '../contracts/chat';
+} from "../contracts/chat";
 import type {
   SearchMatch,
   WorkspaceEntry,
   WorkspaceSnapshot,
   WorkspaceSummary,
   WorkspaceTrustContract,
-} from '../contracts/workspace';
-import { createId } from '../lib/id';
+} from "../contracts/workspace";
+import { createId } from "../lib/id";
 import {
   bootstrapWorkspaceState,
   onAssistantProgress,
@@ -22,10 +22,10 @@ import {
   runAssistant,
   saveWorkspaceSession,
   setActiveWorkspace,
-} from '../services/repo-client';
-import { buildThreadTitle } from '../features/desktop-shell/model';
-import { type AppSettings, DEFAULT_APP_SETTINGS } from '../contracts/settings';
-import { getAppSettings } from '../services/settings-client';
+} from "../services/repo-client";
+import { buildThreadTitle } from "../features/desktop-shell/model";
+import { type AppSettings, DEFAULT_APP_SETTINGS } from "../contracts/settings";
+import { getAppSettings } from "../services/settings-client";
 
 interface ChatState {
   workspaces: WorkspaceEntry[];
@@ -61,10 +61,12 @@ interface ChatState {
 
 let assistantProgressUnsubscribe: (() => void) | null = null;
 
-function createEmptyConversation(partial?: Partial<Conversation>): Conversation {
+function createEmptyConversation(
+  partial?: Partial<Conversation>,
+): Conversation {
   return {
-    id: partial?.id ?? createId('thread'),
-    title: partial?.title ?? 'New thread',
+    id: partial?.id ?? createId("thread"),
+    title: partial?.title ?? "New thread",
     lastUpdatedAt: partial?.lastUpdatedAt ?? new Date().toISOString(),
     messages: partial?.messages ?? [],
   };
@@ -82,7 +84,7 @@ function applyWorkspaceSnapshot(
       : [
           createEmptyConversation({
             id: createId(`thread-${nextWorkspaceId}`),
-            title: 'New thread',
+            title: "New thread",
           }),
         ];
   const nextActiveThreadId = snapshot.activeThreadId || snapshotThreads[0].id;
@@ -125,13 +127,17 @@ function replaceMessageById(
   messageId: string,
   nextMessage: ChatMessage,
 ) {
-  const messageIndex = messages.findIndex((message) => message.id === messageId);
+  const messageIndex = messages.findIndex(
+    (message) => message.id === messageId,
+  );
 
   if (messageIndex === -1) {
     return [...messages, nextMessage];
   }
 
-  return messages.map((message, index) => (index === messageIndex ? nextMessage : message));
+  return messages.map((message, index) =>
+    index === messageIndex ? nextMessage : message,
+  );
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -144,7 +150,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   threadsByWorkspace: {},
   activeThreadIds: {},
   activeRun: null,
-  runStatus: 'idle',
+  runStatus: "idle",
   isBootstrapped: false,
   settings: DEFAULT_APP_SETTINGS,
   setSettings: (settings) => set({ settings }),
@@ -166,25 +172,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
           const nextThreadsByWorkspace = {
             ...state.threadsByWorkspace,
-            [activeRun.workspaceId]: (state.threadsByWorkspace[activeRun.workspaceId] ?? []).map(
-              (thread) =>
-                thread.id !== activeRun.threadId
-                  ? thread
-                  : {
-                      ...thread,
-                      lastUpdatedAt: new Date().toISOString(),
-                      messages: thread.messages.map((message) =>
-                        message.id !== activeRun.messageId
-                          ? message
-                          : {
-                              ...message,
-                              content: progress.content,
-                              thought: progress.thought,
-                              events: progress.events,
-                              artifacts: progress.artifacts,
-                            },
-                      ),
-                    },
+            [activeRun.workspaceId]: (
+              state.threadsByWorkspace[activeRun.workspaceId] ?? []
+            ).map((thread) =>
+              thread.id !== activeRun.threadId
+                ? thread
+                : {
+                    ...thread,
+                    lastUpdatedAt: new Date().toISOString(),
+                    messages: thread.messages.map((message) =>
+                      message.id !== activeRun.messageId
+                        ? message
+                        : {
+                            ...message,
+                            content: progress.content,
+                            thought: progress.thought,
+                            events: progress.events,
+                            artifacts: progress.artifacts,
+                          },
+                    ),
+                  },
             ),
           };
 
@@ -202,18 +209,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (ui) {
       ui.onRenameThread((threadId: string) => {
         // Dispatch a custom event to the sidebar to trigger rename UI
-        window.dispatchEvent(new CustomEvent('mate:trigger-rename-thread', { detail: { threadId } }));
+        window.dispatchEvent(
+          new CustomEvent("mate:trigger-rename-thread", {
+            detail: { threadId },
+          }),
+        );
       });
       ui.onArchiveThread((threadId: string) => {
-        window.dispatchEvent(new CustomEvent('mate:trigger-archive-thread', { detail: { threadId } }));
+        window.dispatchEvent(
+          new CustomEvent("mate:trigger-archive-thread", {
+            detail: { threadId },
+          }),
+        );
       });
       ui.onDeleteThread((threadId: string) => {
-        window.dispatchEvent(new CustomEvent('mate:trigger-delete-thread', { detail: { threadId } }));
+        window.dispatchEvent(
+          new CustomEvent("mate:trigger-delete-thread", {
+            detail: { threadId },
+          }),
+        );
       });
     }
 
     set((state) => ({
-      ...applyWorkspaceSnapshot(snapshot, state.threadsByWorkspace, state.activeThreadIds),
+      ...applyWorkspaceSnapshot(
+        snapshot,
+        state.threadsByWorkspace,
+        state.activeThreadIds,
+      ),
       isBootstrapped: true,
     }));
   },
@@ -224,17 +247,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     set((state) => ({
-      ...applyWorkspaceSnapshot(snapshot, state.threadsByWorkspace, state.activeThreadIds),
+      ...applyWorkspaceSnapshot(
+        snapshot,
+        state.threadsByWorkspace,
+        state.activeThreadIds,
+      ),
       activeRun: null,
-      runStatus: 'idle',
+      runStatus: "idle",
     }));
   },
   async activateWorkspace(workspaceId) {
     const snapshot = await setActiveWorkspace(workspaceId);
     set((state) => ({
-      ...applyWorkspaceSnapshot(snapshot, state.threadsByWorkspace, state.activeThreadIds),
+      ...applyWorkspaceSnapshot(
+        snapshot,
+        state.threadsByWorkspace,
+        state.activeThreadIds,
+      ),
       activeRun: null,
-      runStatus: 'idle',
+      runStatus: "idle",
     }));
   },
   async removeWorkspace(workspaceId) {
@@ -247,9 +278,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       delete nextActiveThreadIds[workspaceId];
 
       return {
-        ...applyWorkspaceSnapshot(snapshot, nextThreadsByWorkspace, nextActiveThreadIds),
+        ...applyWorkspaceSnapshot(
+          snapshot,
+          nextThreadsByWorkspace,
+          nextActiveThreadIds,
+        ),
         activeRun: null,
-        runStatus: 'idle',
+        runStatus: "idle",
       };
     });
   },
@@ -268,11 +303,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         threadsByWorkspace: {
           ...state.threadsByWorkspace,
-          [workspaceId]: [nextThread, ...(state.threadsByWorkspace[workspaceId] ?? [])],
+          [workspaceId]: [
+            nextThread,
+            ...(state.threadsByWorkspace[workspaceId] ?? []),
+          ],
         },
       };
 
-      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, nextState.activeThreadIds);
+      void persistWorkspaceState(
+        workspaceId,
+        nextState.threadsByWorkspace,
+        nextState.activeThreadIds,
+      );
 
       return nextState;
     });
@@ -305,8 +347,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!workspaceId) return;
 
     set((state) => {
-      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).map((t) =>
-        t.id === threadId ? { ...t, isArchived: true } : t,
+      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).map(
+        (t) => (t.id === threadId ? { ...t, isArchived: true } : t),
       );
       const nextState = {
         threadsByWorkspace: {
@@ -314,7 +356,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [workspaceId]: nextThreads,
         },
       };
-      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, state.activeThreadIds);
+      void persistWorkspaceState(
+        workspaceId,
+        nextState.threadsByWorkspace,
+        state.activeThreadIds,
+      );
       return nextState;
     });
   },
@@ -326,14 +372,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).filter(
         (t) => t.id !== threadId,
       );
-      
+
       // Ensure there's always at least one thread
       if (nextThreads.length === 0) {
-        nextThreads.push(createEmptyConversation({ id: createId(`thread-${workspaceId}`) }));
+        nextThreads.push(
+          createEmptyConversation({ id: createId(`thread-${workspaceId}`) }),
+        );
       }
 
       const currentActiveId = state.activeThreadIds[workspaceId];
-      const nextActiveId = currentActiveId === threadId ? nextThreads[0].id : currentActiveId;
+      const nextActiveId =
+        currentActiveId === threadId ? nextThreads[0].id : currentActiveId;
 
       const nextState = {
         threadsByWorkspace: {
@@ -345,7 +394,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [workspaceId]: nextActiveId,
         },
       };
-      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, nextState.activeThreadIds);
+      void persistWorkspaceState(
+        workspaceId,
+        nextState.threadsByWorkspace,
+        nextState.activeThreadIds,
+      );
       return nextState;
     });
   },
@@ -354,8 +407,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!workspaceId) return;
 
     set((state) => {
-      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).map((t) =>
-        t.id === threadId ? { ...t, title } : t,
+      const nextThreads = (state.threadsByWorkspace[workspaceId] ?? []).map(
+        (t) => (t.id === threadId ? { ...t, title } : t),
       );
       const nextState = {
         threadsByWorkspace: {
@@ -363,7 +416,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [workspaceId]: nextThreads,
         },
       };
-      void persistWorkspaceState(workspaceId, nextState.threadsByWorkspace, state.activeThreadIds);
+      void persistWorkspaceState(
+        workspaceId,
+        nextState.threadsByWorkspace,
+        state.activeThreadIds,
+      );
       return nextState;
     });
   },
@@ -371,13 +428,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const trimmedPrompt = prompt.trim();
     const workspaceId = get().activeWorkspaceId;
 
-    if (!trimmedPrompt || get().runStatus === 'running' || !workspaceId) {
+    if (!trimmedPrompt || get().runStatus === "running" || !workspaceId) {
       return;
     }
 
     const workspaceThreads = get().threadsByWorkspace[workspaceId] ?? [];
     const activeThreadId = get().activeThreadIds[workspaceId];
-    const currentThread = workspaceThreads.find((thread) => thread.id === activeThreadId);
+    const currentThread = workspaceThreads.find(
+      (thread) => thread.id === activeThreadId,
+    );
     if (!currentThread) {
       return;
     }
@@ -386,15 +445,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     );
 
     const userMessage: ChatMessage = {
-      id: createId('user'),
-      role: 'user',
+      id: createId("user"),
+      role: "user",
       content: trimmedPrompt,
       createdAt: new Date().toISOString(),
     };
-    const runId = createId('run');
+    const runId = createId("run");
     const assistantPlaceholder: ChatMessage = {
-      id: createId('assistant'),
-      role: 'assistant',
+      id: createId("assistant"),
+      role: "assistant",
       content:
         "Reviewing the repository structure and locating the files tied to your request. I'll keep iterating with tools before answering.",
       createdAt: new Date().toISOString(),
@@ -405,22 +464,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       const nextThreadsByWorkspace = {
         ...state.threadsByWorkspace,
-        [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? []).map((thread) =>
-          thread.id !== state.activeThreadIds[workspaceId]
-            ? thread
-            : {
-                ...thread,
-                title:
-                  thread.messages.length === 0 || thread.title === 'New thread'
-                    ? buildThreadTitle(trimmedPrompt)
-                    : thread.title,
-                lastUpdatedAt: assistantPlaceholder.createdAt,
-                messages: [...thread.messages, userMessage, assistantPlaceholder],
-              },
+        [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? []).map(
+          (thread) =>
+            thread.id !== state.activeThreadIds[workspaceId]
+              ? thread
+              : {
+                  ...thread,
+                  title:
+                    thread.messages.length === 0 ||
+                    thread.title === "New thread"
+                      ? buildThreadTitle(trimmedPrompt)
+                      : thread.title,
+                  lastUpdatedAt: assistantPlaceholder.createdAt,
+                  messages: [
+                    ...thread.messages,
+                    userMessage,
+                    assistantPlaceholder,
+                  ],
+                },
         ),
       };
 
-      void persistWorkspaceState(workspaceId, nextThreadsByWorkspace, state.activeThreadIds);
+      void persistWorkspaceState(
+        workspaceId,
+        nextThreadsByWorkspace,
+        state.activeThreadIds,
+      );
 
       return {
         activeRun: {
@@ -429,13 +498,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           threadId: activeThreadId,
           messageId: assistantPlaceholder.id,
         },
-        runStatus: 'running',
+        runStatus: "running",
         threadsByWorkspace: nextThreadsByWorkspace,
       };
     });
 
     try {
-      const execution = await runAssistant(trimmedPrompt, historyBeforePrompt, options, runId);
+      const execution = await runAssistant(
+        trimmedPrompt,
+        historyBeforePrompt,
+        options,
+        runId,
+      );
 
       set((state) => {
         const activeRun = state.activeRun;
@@ -443,7 +517,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...state.threadsByWorkspace,
           [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? [])
             .map((thread) =>
-              thread.id !== (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
+              thread.id !==
+              (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
                 ? thread
                 : {
                     ...thread,
@@ -459,58 +534,75 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         : [...thread.messages, execution.message],
                   },
             )
-            .toSorted((left, right) => right.lastUpdatedAt.localeCompare(left.lastUpdatedAt)),
+            .toSorted((left, right) =>
+              right.lastUpdatedAt.localeCompare(left.lastUpdatedAt),
+            ),
         };
 
-        void persistWorkspaceState(workspaceId, nextThreadsByWorkspace, state.activeThreadIds);
+        void persistWorkspaceState(
+          workspaceId,
+          nextThreadsByWorkspace,
+          state.activeThreadIds,
+        );
 
         return {
-          activeRun:
-            state.activeRun?.runId === runId ? null : state.activeRun,
-          runStatus: 'completed',
+          activeRun: state.activeRun?.runId === runId ? null : state.activeRun,
+          runStatus: "completed",
           threadsByWorkspace: nextThreadsByWorkspace,
         };
       });
     } catch (error) {
       const fallbackMessage: ChatMessage = {
-        id: createId('assistant'),
-        role: 'assistant',
+        id: createId("assistant"),
+        role: "assistant",
         content:
           error instanceof Error
             ? `The assistant failed before responding.\n\n${error.message}`
-            : 'The assistant failed before responding.',
+            : "The assistant failed before responding.",
         createdAt: new Date().toISOString(),
-        artifacts: [{ id: 'assistant-error', label: 'Status', value: 'Failed', tone: 'warning' }],
+        artifacts: [
+          {
+            id: "assistant-error",
+            label: "Status",
+            value: "Failed",
+            tone: "warning",
+          },
+        ],
       };
 
       set((state) => {
         const activeRun = state.activeRun;
         const nextThreadsByWorkspace = {
           ...state.threadsByWorkspace,
-          [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? []).map((thread) =>
-            thread.id !== (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
-              ? thread
-              : {
-                  ...thread,
-                  lastUpdatedAt: fallbackMessage.createdAt,
-                  messages:
-                    activeRun && activeRun.runId === runId
-                      ? replaceMessageById(
-                          thread.messages,
-                          activeRun.messageId,
-                          fallbackMessage,
-                        )
-                      : [...thread.messages, fallbackMessage],
-                },
+          [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? []).map(
+            (thread) =>
+              thread.id !==
+              (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
+                ? thread
+                : {
+                    ...thread,
+                    lastUpdatedAt: fallbackMessage.createdAt,
+                    messages:
+                      activeRun && activeRun.runId === runId
+                        ? replaceMessageById(
+                            thread.messages,
+                            activeRun.messageId,
+                            fallbackMessage,
+                          )
+                        : [...thread.messages, fallbackMessage],
+                  },
           ),
         };
 
-        void persistWorkspaceState(workspaceId, nextThreadsByWorkspace, state.activeThreadIds);
+        void persistWorkspaceState(
+          workspaceId,
+          nextThreadsByWorkspace,
+          state.activeThreadIds,
+        );
 
         return {
-          activeRun:
-            state.activeRun?.runId === runId ? null : state.activeRun,
-          runStatus: 'failed',
+          activeRun: state.activeRun?.runId === runId ? null : state.activeRun,
+          runStatus: "failed",
           threadsByWorkspace: nextThreadsByWorkspace,
         };
       });
@@ -519,24 +611,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
   async undoLastTurn() {
     const workspaceId = get().activeWorkspaceId;
 
-    if (!workspaceId || get().runStatus === 'running') {
+    if (!workspaceId || get().runStatus === "running") {
       return null;
     }
 
     const threads = get().threadsByWorkspace[workspaceId] ?? [];
     const activeThreadId = get().activeThreadIds[workspaceId];
-    const currentThread = threads.find((thread) => thread.id === activeThreadId);
+    const currentThread = threads.find(
+      (thread) => thread.id === activeThreadId,
+    );
 
     if (!currentThread) {
       return null;
     }
 
-    const lastUserIndex = currentThread.messages.findLastIndex((message) => message.role === 'user');
+    const lastUserIndex = currentThread.messages.findLastIndex(
+      (message) => message.role === "user",
+    );
     if (lastUserIndex === -1) {
       return null;
     }
 
-    const restoredPrompt = currentThread.messages[lastUserIndex]?.content ?? null;
+    const restoredPrompt =
+      currentThread.messages[lastUserIndex]?.content ?? null;
     const nextMessages = currentThread.messages.slice(0, lastUserIndex);
     const nextLastUpdatedAt =
       nextMessages.at(-1)?.createdAt ?? new Date().toISOString();
@@ -548,7 +645,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ...thread,
             lastUpdatedAt: nextLastUpdatedAt,
             messages: nextMessages,
-            title: nextMessages.length === 0 ? 'New thread' : thread.title,
+            title: nextMessages.length === 0 ? "New thread" : thread.title,
           },
     );
 

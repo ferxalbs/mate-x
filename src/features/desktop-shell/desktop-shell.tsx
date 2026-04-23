@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
-import { Outlet } from '@tanstack/react-router';
+import { useEffect } from "react";
+import { Outlet } from "@tanstack/react-router";
 
-import { SidebarProvider } from '../../components/ui/sidebar';
-import { useTheme } from '../../hooks/use-theme';
-import { applyRendererSettings, getAppSettings } from '../../services/settings-client';
-import { useChatStore } from '../../store/chat-store';
-import { AppSidebar } from './components/app-sidebar';
+import { SidebarProvider } from "../../components/ui/sidebar";
+import { useTheme } from "../../hooks/use-theme";
+import {
+  applyRendererSettings,
+  getAppSettings,
+} from "../../services/settings-client";
+import { useChatStore } from "../../store/chat-store";
+import { AppSidebar } from "./components/app-sidebar";
 
 export function DesktopShell() {
   const workspaces = useChatStore((state) => state.workspaces);
@@ -21,8 +24,12 @@ export function DesktopShell() {
   const createThread = useChatStore((state) => state.createThread);
   const selectThread = useChatStore((state) => state.selectThread);
   const renameThread = useChatStore((state) => state.renameThread);
-  const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
-  const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
+  const threads = activeWorkspaceId
+    ? (threadsByWorkspace[activeWorkspaceId] ?? [])
+    : [];
+  const activeThreadId = activeWorkspaceId
+    ? (activeThreadIds[activeWorkspaceId] ?? "")
+    : "";
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
