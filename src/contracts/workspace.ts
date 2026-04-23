@@ -1,6 +1,6 @@
-import type { Conversation } from './chat';
+import type { Conversation } from "./chat";
 
-export type WorkspaceStatus = 'ready' | 'indexing' | 'offline';
+export type WorkspaceStatus = "ready" | "indexing" | "offline";
 
 export interface RepoFact {
   label: string;
@@ -56,7 +56,11 @@ export interface ValidationRun {
   ranAt: string;
 }
 
-export type WorkspaceTrustAutonomy = 'plan-only' | 'approval-required' | 'trusted-patch' | 'unrestricted';
+export type WorkspaceTrustAutonomy =
+  | "plan-only"
+  | "approval-required"
+  | "trusted-patch"
+  | "unrestricted";
 
 export interface WorkspaceTrustContract {
   id: string;

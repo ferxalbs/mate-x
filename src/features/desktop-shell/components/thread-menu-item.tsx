@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { cn } from '../../../lib/utils';
-import { formatRelativeTimestamp } from '../model';
-import type { Conversation, RunStatus } from '../../../contracts/chat';
-import { useChatStore } from '../../../store/chat-store';
-import { Button } from '../../../components/ui/button';
+import { useState, useEffect, useRef } from "react";
+import { cn } from "../../../lib/utils";
+import { formatRelativeTimestamp } from "../model";
+import type { Conversation, RunStatus } from "../../../contracts/chat";
+import { useChatStore } from "../../../store/chat-store";
+import { Button } from "../../../components/ui/button";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -12,7 +12,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../../components/ui/alert-dialog';
+} from "../../../components/ui/alert-dialog";
 
 interface ThreadMenuItemProps {
   thread: Conversation;
@@ -22,7 +22,11 @@ interface ThreadMenuItemProps {
   onArchiveThread: (threadId: string) => void;
   onDeleteThread: (threadId: string) => void;
   onRenameThread: (threadId: string, title: string) => Promise<void>;
-  getThreadStatusLabel: (thread: Conversation, isActive: boolean, runStatus: RunStatus) => {
+  getThreadStatusLabel: (
+    thread: Conversation,
+    isActive: boolean,
+    runStatus: RunStatus,
+  ) => {
     dotClass: string;
     pulse: boolean;
   };
@@ -75,16 +79,41 @@ export function ThreadMenuItem({
       }
     };
 
-    window.addEventListener('mate:trigger-rename-thread', handleTriggerRename as EventListener);
-    window.addEventListener('mate:trigger-archive-thread', handleTriggerArchive as EventListener);
-    window.addEventListener('mate:trigger-delete-thread', handleTriggerDelete as EventListener);
-    
+    window.addEventListener(
+      "mate:trigger-rename-thread",
+      handleTriggerRename as EventListener,
+    );
+    window.addEventListener(
+      "mate:trigger-archive-thread",
+      handleTriggerArchive as EventListener,
+    );
+    window.addEventListener(
+      "mate:trigger-delete-thread",
+      handleTriggerDelete as EventListener,
+    );
+
     return () => {
-      window.removeEventListener('mate:trigger-rename-thread', handleTriggerRename as EventListener);
-      window.removeEventListener('mate:trigger-archive-thread', handleTriggerArchive as EventListener);
-      window.removeEventListener('mate:trigger-delete-thread', handleTriggerDelete as EventListener);
+      window.removeEventListener(
+        "mate:trigger-rename-thread",
+        handleTriggerRename as EventListener,
+      );
+      window.removeEventListener(
+        "mate:trigger-archive-thread",
+        handleTriggerArchive as EventListener,
+      );
+      window.removeEventListener(
+        "mate:trigger-delete-thread",
+        handleTriggerDelete as EventListener,
+      );
     };
-  }, [thread.id, thread.title, settings.archiveConfirmation, settings.deleteConfirmation, onArchiveThread, onDeleteThread]);
+  }, [
+    thread.id,
+    thread.title,
+    settings.archiveConfirmation,
+    settings.deleteConfirmation,
+    onArchiveThread,
+    onDeleteThread,
+  ]);
 
   const handleRenameSubmit = async () => {
     if (renamingTitle.trim() && renamingTitle.trim() !== thread.title) {
@@ -102,18 +131,18 @@ export function ThreadMenuItem({
           void (window as any).mate.ui.showChatContextMenu(thread.id);
         }}
         className={cn(
-          'group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-[12px] outline-none transition-colors',
+          "group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-[12px] outline-none transition-colors",
           isActive
-            ? 'bg-accent text-accent-foreground font-medium'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+            ? "bg-accent text-accent-foreground font-medium"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <span
             className={cn(
-              'size-1.5 rounded-full',
+              "size-1.5 rounded-full",
               status.dotClass,
-              status.pulse ? 'animate-pulse' : '',
+              status.pulse ? "animate-pulse" : "",
             )}
           />
           <span className="flex-1 truncate">
@@ -125,9 +154,9 @@ export function ThreadMenuItem({
                 value={renamingTitle}
                 onChange={(e) => setRenamingTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === "Enter") {
                     void handleRenameSubmit();
-                  } else if (e.key === 'Escape') {
+                  } else if (e.key === "Escape") {
                     setIsRenaming(false);
                   }
                 }}
@@ -135,7 +164,7 @@ export function ThreadMenuItem({
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              thread.title || 'New thread'
+              thread.title || "New thread"
             )}
           </span>
         </div>
@@ -154,7 +183,9 @@ export function ThreadMenuItem({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Thread</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{thread.title || 'New thread'}"? This action cannot be undone and will remove the local chat history.
+              Are you sure you want to delete "{thread.title || "New thread"}"?
+              This action cannot be undone and will remove the local chat
+              history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -176,12 +207,16 @@ export function ThreadMenuItem({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
+      <AlertDialog
+        open={showArchiveConfirm}
+        onOpenChange={setShowArchiveConfirm}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Archive Thread</AlertDialogTitle>
             <AlertDialogDescription>
-              Move "{thread.title || 'New thread'}" to archive? It will be hidden from your active threads list.
+              Move "{thread.title || "New thread"}" to archive? It will be
+              hidden from your active threads list.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -190,10 +225,7 @@ export function ThreadMenuItem({
             </AlertDialogClose>
             <AlertDialogClose
               render={
-                <Button
-                  size="sm"
-                  onClick={() => onArchiveThread(thread.id)}
-                />
+                <Button size="sm" onClick={() => onArchiveThread(thread.id)} />
               }
             >
               Archive

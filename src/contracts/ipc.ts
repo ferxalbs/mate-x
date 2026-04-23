@@ -3,23 +3,25 @@ import type {
   AssistantRunOptions,
   AssistantRunProgress,
   Conversation,
-} from './chat';
-import type { GitCommit, GitDiff, GitStatus } from './git';
-import type { RainyModelCatalogEntry } from './rainy';
-import type { AppSettings } from './settings';
+} from "./chat";
+import type { GitCommit, GitDiff, GitStatus } from "./git";
+import type { RainyModelCatalogEntry } from "./rainy";
+import type { AppSettings } from "./settings";
 import type {
   SearchMatch,
   WorkspaceEntry,
   WorkspaceSnapshot,
   WorkspaceSummary,
   WorkspaceTrustContract,
-} from './workspace';
+} from "./workspace";
 
 export interface RepoInspectorApi {
   bootstrap: () => Promise<WorkspaceSnapshot>;
   getWorkspaces: () => Promise<WorkspaceEntry[]>;
   getWorkspaceSummary: () => Promise<WorkspaceSummary>;
-  getWorkspaceTrustContract: (workspaceId?: string) => Promise<WorkspaceTrustContract>;
+  getWorkspaceTrustContract: (
+    workspaceId?: string,
+  ) => Promise<WorkspaceTrustContract>;
   updateWorkspaceTrustContract: (
     contract: WorkspaceTrustContract,
   ) => Promise<WorkspaceTrustContract>;
@@ -43,9 +45,15 @@ export interface RepoInspectorApi {
     listener: (progress: AssistantRunProgress) => void,
   ) => () => void;
   onTestStreamChunk: (
-    listener: (chunk: { workspaceId: string; timestamp: number; chunk: string }) => void,
+    listener: (chunk: {
+      workspaceId: string;
+      timestamp: number;
+      chunk: string;
+    }) => void,
   ) => () => void;
-  openWorkspacePath: (target: 'folder' | 'vscode' | 'terminal') => Promise<void>;
+  openWorkspacePath: (
+    target: "folder" | "vscode" | "terminal",
+  ) => Promise<void>;
 }
 
 export interface GitApi {

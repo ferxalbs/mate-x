@@ -1,8 +1,8 @@
-import { BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
+import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 
-import type { AssistantRunOptions } from '../contracts/chat';
-import type { AppSettings } from '../contracts/settings';
-import { GitService } from './git-service';
+import type { AssistantRunOptions } from "../contracts/chat";
+import type { AppSettings } from "../contracts/settings";
+import { GitService } from "./git-service";
 import {
   addWorkspace,
   bootstrapWorkspaceState,
@@ -16,14 +16,17 @@ import {
   searchInFiles,
   setActiveWorkspace,
   updateWorkspaceTrustContract,
-} from './repo-service';
-import { listRainyModels, validateRainyModelSelection } from './rainy-service';
-import { tursoService } from './turso-service';
+} from "./repo-service";
+import { listRainyModels, validateRainyModelSelection } from "./rainy-service";
+import { tursoService } from "./turso-service";
 
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
 
-  if (!trimmedApiKey.startsWith('ra-') && !trimmedApiKey.startsWith('rk_live_')) {
+  if (
+    !trimmedApiKey.startsWith("ra-") &&
+    !trimmedApiKey.startsWith("rk_live_")
+  ) {
     throw new Error('Rainy API key must start with "ra-" or "rk_live_".');
   }
 
@@ -39,7 +42,7 @@ async function resolveActiveWorkspacePath() {
     workspaces[0];
 
   if (!activeWorkspace) {
-    throw new Error('No active workspace available.');
+    throw new Error("No active workspace available.");
   }
 
   return activeWorkspace.path;
@@ -51,36 +54,40 @@ async function resolveGitService() {
 }
 
 export function registerIpcHandlers() {
-  ipcMain.handle('repo:bootstrap', async () => bootstrapWorkspaceState());
-  ipcMain.handle('repo:get-workspaces', async () => getWorkspaceEntries());
-  ipcMain.handle('repo:get-workspace-summary', async () => getWorkspaceSummary());
-  ipcMain.handle(
-    'repo:get-workspace-trust-contract',
-    async (_event, workspaceId?: string) => getWorkspaceTrustContract(workspaceId),
+  ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
+  ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());
+  ipcMain.handle("repo:get-workspace-summary", async () =>
+    getWorkspaceSummary(),
   );
   ipcMain.handle(
-    'repo:update-workspace-trust-contract',
+    "repo:get-workspace-trust-contract",
+    async (_event, workspaceId?: string) =>
+      getWorkspaceTrustContract(workspaceId),
+  );
+  ipcMain.handle(
+    "repo:update-workspace-trust-contract",
     async (_event, contract) => updateWorkspaceTrustContract(contract),
   );
-  ipcMain.handle('repo:set-active-workspace', async (_event, workspaceId: string) =>
-    setActiveWorkspace(workspaceId),
+  ipcMain.handle(
+    "repo:set-active-workspace",
+    async (_event, workspaceId: string) => setActiveWorkspace(workspaceId),
   );
-  ipcMain.handle('repo:remove-workspace', async (_event, workspaceId: string) =>
+  ipcMain.handle("repo:remove-workspace", async (_event, workspaceId: string) =>
     removeWorkspace(workspaceId),
   );
   ipcMain.handle(
-    'repo:save-workspace-session',
+    "repo:save-workspace-session",
     async (_event, workspaceId: string, threads, activeThreadId: string) =>
       saveWorkspaceSession(workspaceId, threads, activeThreadId),
   );
-  ipcMain.handle('repo:open-workspace-picker', async (event) => {
+  ipcMain.handle("repo:open-workspace-picker", async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const result = window
       ? await dialog.showOpenDialog(window, {
-          properties: ['openDirectory'],
+          properties: ["openDirectory"],
         })
       : await dialog.showOpenDialog({
-          properties: ['openDirectory'],
+          properties: ["openDirectory"],
         });
 
     if (result.canceled || result.filePaths.length === 0) {
@@ -89,33 +96,38 @@ export function registerIpcHandlers() {
 
     return addWorkspace(result.filePaths[0]);
   });
-  ipcMain.handle('repo:open-workspace-path', async (_event, target: 'folder' | 'vscode' | 'terminal') => {
-    const workspacePath = await resolveActiveWorkspacePath();
-    const encodedWorkspacePath = encodeURI(workspacePath);
+  ipcMain.handle(
+    "repo:open-workspace-path",
+    async (_event, target: "folder" | "vscode" | "terminal") => {
+      const workspacePath = await resolveActiveWorkspacePath();
+      const encodedWorkspacePath = encodeURI(workspacePath);
 
-    if (target === 'folder') {
+      if (target === "folder") {
+        await shell.openPath(workspacePath);
+        return;
+      }
+
+      if (target === "vscode") {
+        await shell.openExternal(`vscode://file/${encodedWorkspacePath}`);
+        return;
+      }
+
+      if (process.platform === "darwin") {
+        await shell.openExternal(`file://${encodedWorkspacePath}`);
+        return;
+      }
+
       await shell.openPath(workspacePath);
-      return;
-    }
-
-    if (target === 'vscode') {
-      await shell.openExternal(`vscode://file/${encodedWorkspacePath}`);
-      return;
-    }
-
-    if (process.platform === 'darwin') {
-      await shell.openExternal(`file://${encodedWorkspacePath}`);
-      return;
-    }
-
-    await shell.openPath(workspacePath);
-  });
-  ipcMain.handle('repo:list-files', async (_event, limit?: number) => listFiles(limit));
-  ipcMain.handle('repo:search', async (_event, query: string, limit?: number) =>
+    },
+  );
+  ipcMain.handle("repo:list-files", async (_event, limit?: number) =>
+    listFiles(limit),
+  );
+  ipcMain.handle("repo:search", async (_event, query: string, limit?: number) =>
     searchInFiles(query, limit),
   );
   ipcMain.handle(
-    'repo:run-assistant',
+    "repo:run-assistant",
     async (
       event,
       prompt: string,
@@ -123,86 +135,105 @@ export function registerIpcHandlers() {
       options?: AssistantRunOptions,
       runId?: string,
     ) =>
-      runAssistant(prompt, history, undefined, options, runId
-        ? {
-            runId,
-            emit: (progress) => {
-              if (!event.sender.isDestroyed()) {
-                event.sender.send('repo:assistant-progress', progress);
-              }
-            },
-          }
-        : undefined),
+      runAssistant(
+        prompt,
+        history,
+        undefined,
+        options,
+        runId
+          ? {
+              runId,
+              emit: (progress) => {
+                if (!event.sender.isDestroyed()) {
+                  event.sender.send("repo:assistant-progress", progress);
+                }
+              },
+            }
+          : undefined,
+      ),
   );
 
-  ipcMain.handle('git:status', async () => (await resolveGitService()).getStatus());
-  ipcMain.handle('git:log', async (_event, limit?: number) => (await resolveGitService()).getLog(limit));
-  ipcMain.handle('git:stage-files', async (_event, files: string[]) =>
+  ipcMain.handle("git:status", async () =>
+    (await resolveGitService()).getStatus(),
+  );
+  ipcMain.handle("git:log", async (_event, limit?: number) =>
+    (await resolveGitService()).getLog(limit),
+  );
+  ipcMain.handle("git:stage-files", async (_event, files: string[]) =>
     (await resolveGitService()).stageFiles(files),
   );
-  ipcMain.handle('git:commit', async (_event, message: string) =>
+  ipcMain.handle("git:commit", async (_event, message: string) =>
     (await resolveGitService()).commit(message),
   );
-  ipcMain.handle('git:push', async () => (await resolveGitService()).push());
-  ipcMain.handle('git:pull', async () => (await resolveGitService()).pull());
-  ipcMain.handle('git:diff', async () => (await resolveGitService()).getDiff());
-  ipcMain.handle('git:unstage', async (_event, files: string[]) =>
+  ipcMain.handle("git:push", async () => (await resolveGitService()).push());
+  ipcMain.handle("git:pull", async () => (await resolveGitService()).pull());
+  ipcMain.handle("git:diff", async () => (await resolveGitService()).getDiff());
+  ipcMain.handle("git:unstage", async (_event, files: string[]) =>
     (await resolveGitService()).unstageFiles(files),
   );
 
   // ── Settings ─────────────────────────────────────────────────────────────
-  ipcMain.handle('settings:get-api-key', async () => tursoService.getApiKey());
-  ipcMain.handle('settings:set-api-key', async (_event, apiKey: string) =>
+  ipcMain.handle("settings:get-api-key", async () => tursoService.getApiKey());
+  ipcMain.handle("settings:set-api-key", async (_event, apiKey: string) =>
     tursoService.setApiKey(normalizeRainyApiKey(apiKey)),
   );
-  ipcMain.handle('settings:list-models', async (_event, forceRefresh?: boolean) =>
-    listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh }),
+  ipcMain.handle(
+    "settings:list-models",
+    async (_event, forceRefresh?: boolean) =>
+      listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh }),
   );
-  ipcMain.handle('settings:get-model', async () => tursoService.getModel());
-  ipcMain.handle('settings:set-model', async (_event, model: string) => {
+  ipcMain.handle("settings:get-model", async () => tursoService.getModel());
+  ipcMain.handle("settings:set-model", async (_event, model: string) => {
     const apiKey = await tursoService.getApiKey();
     await validateRainyModelSelection({ apiKey, model });
     await tursoService.setModel(model);
   });
-  ipcMain.handle('settings:get-app-settings', async () => tursoService.getAppSettings());
-  ipcMain.handle('settings:update-app-settings', async (_event, settings: AppSettings) =>
-    tursoService.updateAppSettings(settings),
+  ipcMain.handle("settings:get-app-settings", async () =>
+    tursoService.getAppSettings(),
+  );
+  ipcMain.handle(
+    "settings:update-app-settings",
+    async (_event, settings: AppSettings) =>
+      tursoService.updateAppSettings(settings),
   );
 
   // ── UI ───────────────────────────────────────────────────────────────────
-  ipcMain.handle('ui:show-chat-context-menu', async (event, threadId: string) => {
-    const template: Electron.MenuItemConstructorOptions[] = [
-      {
-        label: 'Rename',
-        click: () => {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send('chat:rename-thread', threadId);
-          }
+  ipcMain.handle(
+    "ui:show-chat-context-menu",
+    async (event, threadId: string) => {
+      const template: Electron.MenuItemConstructorOptions[] = [
+        {
+          label: "Rename",
+          click: () => {
+            if (!event.sender.isDestroyed()) {
+              event.sender.send("chat:rename-thread", threadId);
+            }
+          },
         },
-      },
-      {
-        label: 'Archive',
-        click: () => {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send('chat:archive-thread', threadId);
-          }
+        {
+          label: "Archive",
+          click: () => {
+            if (!event.sender.isDestroyed()) {
+              event.sender.send("chat:archive-thread", threadId);
+            }
+          },
         },
-      },
-      { type: 'separator' },
-      {
-        label: 'Delete',
-        click: () => {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send('chat:delete-thread', threadId);
-          }
+        { type: "separator" },
+        {
+          label: "Delete",
+          click: () => {
+            if (!event.sender.isDestroyed()) {
+              event.sender.send("chat:delete-thread", threadId);
+            }
+          },
         },
-      },
-    ];
+      ];
 
-    const menu = Menu.buildFromTemplate(template);
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (window) {
-      menu.popup({ window });
-    }
-  });
+      const menu = Menu.buildFromTemplate(template);
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window) {
+        menu.popup({ window });
+      }
+    },
+  );
 }

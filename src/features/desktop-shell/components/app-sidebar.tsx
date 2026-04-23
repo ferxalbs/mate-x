@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   ArrowLeftIcon,
   ChevronDown,
@@ -9,11 +9,11 @@ import {
   SettingsIcon,
   WaypointsIcon,
   Trash2Icon,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { GitPanel } from './git-panel';
-import { useGitStore } from '../../../store/git-store';
-import { useChatStore } from '../../../store/chat-store';
+import { GitPanel } from "./git-panel";
+import { useGitStore } from "../../../store/git-store";
+import { useChatStore } from "../../../store/chat-store";
 
 import {
   Sidebar,
@@ -25,13 +25,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from '../../../components/ui/sidebar';
-import type { Conversation, RunStatus } from '../../../contracts/chat';
-import type { WorkspaceEntry, WorkspaceSummary } from '../../../contracts/workspace';
-import type { Theme } from '../../../hooks/use-theme';
-import { cn } from '../../../lib/utils';
-import { Link, useRouterState } from '@tanstack/react-router';
-import { ThreadMenuItem } from './thread-menu-item';
+} from "../../../components/ui/sidebar";
+import type { Conversation, RunStatus } from "../../../contracts/chat";
+import type {
+  WorkspaceEntry,
+  WorkspaceSummary,
+} from "../../../contracts/workspace";
+import type { Theme } from "../../../hooks/use-theme";
+import { cn } from "../../../lib/utils";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { ThreadMenuItem } from "./thread-menu-item";
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -49,14 +52,33 @@ interface AppSidebarProps {
   onRenameThread: (threadId: string, title: string) => Promise<void>;
 }
 
-function getThreadStatusLabel(thread: Conversation, isActive: boolean, runStatus: RunStatus) {
-  if (isActive && runStatus === 'running') {
-    return { label: 'Working', colorClass: 'text-teal-600 dark:text-teal-300/90', dotClass: 'bg-teal-600 dark:bg-teal-300/90', pulse: true };
+function getThreadStatusLabel(
+  thread: Conversation,
+  isActive: boolean,
+  runStatus: RunStatus,
+) {
+  if (isActive && runStatus === "running") {
+    return {
+      label: "Working",
+      colorClass: "text-teal-600 dark:text-teal-300/90",
+      dotClass: "bg-teal-600 dark:bg-teal-300/90",
+      pulse: true,
+    };
   }
   if (thread.messages.length > 0) {
-    return { label: 'Idle', colorClass: 'text-zinc-500 dark:text-zinc-400', dotClass: 'bg-zinc-500 dark:bg-zinc-400', pulse: false };
+    return {
+      label: "Idle",
+      colorClass: "text-zinc-500 dark:text-zinc-400",
+      dotClass: "bg-zinc-500 dark:bg-zinc-400",
+      pulse: false,
+    };
   }
-  return { label: 'New', colorClass: 'text-zinc-400 dark:text-zinc-500', dotClass: 'bg-zinc-400 dark:bg-zinc-500', pulse: false };
+  return {
+    label: "New",
+    colorClass: "text-zinc-400 dark:text-zinc-500",
+    dotClass: "bg-zinc-400 dark:bg-zinc-500",
+    pulse: false,
+  };
 }
 
 function GitSidebarSection() {
@@ -83,8 +105,8 @@ function GitSidebarSection() {
         </div>
         <ChevronDown
           className={cn(
-            'size-3 text-muted-foreground/40 transition-transform duration-200',
-            open ? 'rotate-0' : '-rotate-90',
+            "size-3 text-muted-foreground/40 transition-transform duration-200",
+            open ? "rotate-0" : "-rotate-90",
           )}
         />
       </button>
@@ -113,20 +135,24 @@ export function AppSidebar({
   onSelectThread,
   onRenameThread,
 }: AppSidebarProps) {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isSettingsRoute = pathname === '/settings' || pathname.startsWith('/settings/');
-  const settingsSection = pathname === '/settings'
-    ? 'general'
-    : pathname.startsWith('/settings/')
-      ? pathname.split('/')[2] ?? 'general'
-      : null;
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+  const isSettingsRoute =
+    pathname === "/settings" || pathname.startsWith("/settings/");
+  const settingsSection =
+    pathname === "/settings"
+      ? "general"
+      : pathname.startsWith("/settings/")
+        ? (pathname.split("/")[2] ?? "general")
+        : null;
 
   return (
     <Sidebar
       side="left"
       collapsible="offcanvas"
       className="drag-region border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
-      style={{ minWidth: '220px' }}
+      style={{ minWidth: "220px" }}
     >
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
         <div className="flex min-w-0 items-center gap-2">
@@ -149,14 +175,17 @@ export function AppSidebar({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"
-                    isActive={settingsSection === 'general'}
+                    isActive={settingsSection === "general"}
                     className={
-                      settingsSection === 'general'
-                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
-                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                      settingsSection === "general"
+                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link to="/settings/$section" params={{ section: 'general' }} />
+                      <Link
+                        to="/settings/$section"
+                        params={{ section: "general" }}
+                      />
                     }
                   >
                     <SettingsIcon className="size-4 shrink-0" />
@@ -166,14 +195,17 @@ export function AppSidebar({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"
-                    isActive={settingsSection === 'connections'}
+                    isActive={settingsSection === "connections"}
                     className={
-                      settingsSection === 'connections'
-                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
-                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                      settingsSection === "connections"
+                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link to="/settings/$section" params={{ section: 'connections' }} />
+                      <Link
+                        to="/settings/$section"
+                        params={{ section: "connections" }}
+                      />
                     }
                   >
                     <WaypointsIcon className="size-4 shrink-0" />
@@ -183,14 +215,17 @@ export function AppSidebar({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"
-                    isActive={settingsSection === 'trust'}
+                    isActive={settingsSection === "trust"}
                     className={
-                      settingsSection === 'trust'
-                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
-                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                      settingsSection === "trust"
+                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link to="/settings/$section" params={{ section: 'trust' }} />
+                      <Link
+                        to="/settings/$section"
+                        params={{ section: "trust" }}
+                      />
                     }
                   >
                     <ShieldCheckIcon className="size-4 shrink-0" />
@@ -200,14 +235,17 @@ export function AppSidebar({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"
-                    isActive={settingsSection === 'archive'}
+                    isActive={settingsSection === "archive"}
                     className={
-                      settingsSection === 'archive'
-                        ? 'gap-2 px-2 py-2 text-left text-xs text-foreground'
-                        : 'gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80'
+                      settingsSection === "archive"
+                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link to="/settings/$section" params={{ section: 'archive' }} />
+                      <Link
+                        to="/settings/$section"
+                        params={{ section: "archive" }}
+                      />
                     }
                   >
                     <Trash2Icon className="size-4 shrink-0" />
@@ -225,9 +263,7 @@ export function AppSidebar({
                 <SidebarMenuButton
                   size="sm"
                   className="gap-2 px-2 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                  render={
-                    <Link to="/" />
-                  }
+                  render={<Link to="/" />}
                 >
                   <ArrowLeftIcon className="size-4" />
                   <span>Back</span>
@@ -286,9 +322,9 @@ export function AppSidebar({
                             <div className="min-w-0">
                               <div className="truncate">{workspace?.path}</div>
                               <div className="truncate">
-                                {workspace?.branch === 'not-a-repo'
-                                  ? 'No git repository'
-                                  : `Branch ${workspace?.branch ?? 'unknown'}`}
+                                {workspace?.branch === "not-a-repo"
+                                  ? "No git repository"
+                                  : `Branch ${workspace?.branch ?? "unknown"}`}
                               </div>
                             </div>
                             <button
@@ -310,7 +346,9 @@ export function AppSidebar({
                                 runStatus={runStatus}
                                 onSelectThread={onSelectThread}
                                 onArchiveThread={(id) => {
-                                  void useChatStore.getState().archiveThread(id);
+                                  void useChatStore
+                                    .getState()
+                                    .archiveThread(id);
                                 }}
                                 onDeleteThread={(id) => {
                                   void useChatStore.getState().deleteThread(id);
@@ -344,7 +382,7 @@ export function AppSidebar({
                 <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
                   <Link
                     to="/settings/$section"
-                    params={{ section: 'general' }}
+                    params={{ section: "general" }}
                     className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
@@ -353,10 +391,10 @@ export function AppSidebar({
                   </Link>
                   <span
                     className={cn(
-                      'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]',
-                      theme === 'dark'
-                        ? 'bg-accent text-foreground'
-                        : 'bg-muted/70 text-muted-foreground',
+                      "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]",
+                      theme === "dark"
+                        ? "bg-accent text-foreground"
+                        : "bg-muted/70 text-muted-foreground",
                     )}
                   >
                     {theme}

@@ -20,7 +20,7 @@ export const MATE_AGENT_SYSTEM_PROMPT = [
   "- Call tools only when you need concrete evidence that is not already available in context, or when the user explicitly asks for deeper inspection.",
   "- Before the first tool call in a turn, emit a short progress update in natural language, then call the tool.",
   "- Before later tool calls, emit another short update only when it adds useful context or the direction changes.",
-  "- Progress updates must be concise and specific, like: \"I'll inspect the compression script and related hooks now.\"",
+  '- Progress updates must be concise and specific, like: "I\'ll inspect the compression script and related hooks now."',
   "- After the tool returns, incorporate the result immediately and avoid redundant follow-up calls unless the new evidence creates a clear need.",
   "- Prefer the minimum number of tool calls needed to reach a well-supported conclusion.",
   "- Do not chain speculative tool calls. Every call must have a clear purpose.",
