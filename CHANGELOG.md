@@ -1,6 +1,17 @@
 # CHANGELOG
 
-# Unreleased - 2026.04.23 (2) [Premium PDF Security Reports Tool]
+## Unreleased - 2026.04.23 (3) [Policy Stops Enhanced Security + UI]
+
+- Enhanced agent run policy to enforce a "security-surface budget" that caps high-risk operations (large file writes, removals, build/install commands) per run, proactively pausing the agent before exceeding the budget.
+- Introduced **scoped resolutions** so operators can grant temporary exceptions (e.g., allow a specific large file write) that expire when the current run concludes, preserving the default safe baseline for future sessions.
+- Added a **Policy stops** indicator to the thread status pill that displays an icon and count of paused actions for the current session, providing at-a-glance risk awareness.
+- Added **Security and Policy** filters to the chat sidebar to surface only policy-related entries (paused actions, recommendations, approvals, disapprovals) in the conversation history, reducing visual noise from routine operations.
+- Extended Evidence Pack to include `policyStops[]` for all blocked or approved actions and `budgetRemaining[]` for tracking resource exhaustion during the session.
+- Updated `src/main.ts` to register new IPC endpoints for listing all policy stops and resolving specific stops, enabling UI-driven exception management.
+- Updated `chat-store.ts` and `ConversationalChat.tsx` to read `activeSessionStops` and thread policy status from the backend, driving the UI indicators.
+- Verified lint and typecheck; existing unused tool settings warnings remain in `pdf_report` and `github-pr` modules.
+
+## Unreleased - 2026.04.23 (2) [Premium PDF Security Reports Tool]
 
 - Added the `pdf_security_report` tool, enabling the agent to autonomously generate precise, shareable, and premium PDF security reports.
 - Integrated `@libpdf/core` to dynamically construct and style the PDF using standard fonts and varied colors for risk severities.
