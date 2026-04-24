@@ -6,6 +6,7 @@
 - Classified agent tool calls at runtime before execution and attached policy metadata to trace events.
 - Updated the action timeline to display risk class, impact tags, contract status, escalation status, and classification reason.
 - Added an inline approval prompt above the composer so approval-required runs can approve once or continue with safer alternatives.
+- Clarified the agent runtime prompt and tool descriptions so commands, package mutations, and workspace writes are treated as real governed effects, not fake sandbox changes.
 
 ## Unreleased - 2026.04.23 (5) [Workspace Memory Files]
 
