@@ -70,42 +70,21 @@ export function HomePage() {
     }
 
     void refreshPolicyStops();
-    const interval = window.setInterval(refreshPolicyStops, runStatus === 'running' ? 1200 : 4000);
+    const interval = window.setInterval(refreshPolicyStops, 750);
+    window.addEventListener('focus', refreshPolicyStops);
+    document.addEventListener('visibilitychange', refreshPolicyStops);
 
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener('focus', refreshPolicyStops);
+      document.removeEventListener('visibilitychange', refreshPolicyStops);
     };
-  }, [runStatus]);
+  }, [activeThreadId, runStatus]);
 
   async function handleResolvePolicyStop(stop: PolicyStop, action: PolicyStopAction) {
     await resolvePolicyStop({ stopId: stop.id, action });
     setPendingPolicyStop(null);
-
-    if (action === 'approve_once') {
-      await submitPrompt(
-        `Continue the run. The user approved the previously blocked ${stop.attemptedAction.toolName ?? 'tool'} action once. Execute only that approved action if still needed, then continue with the result.`,
-        {
-          reasoning: 'high',
-          mode: 'build',
-          access: trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval',
-          runbookId: 'patch_test_verify',
-        },
-      );
-      return;
-    }
-
-    if (action === 'safer_alternative' || action === 'abort') {
-      await submitPrompt(
-        `Continue without the blocked action. The user declined ${stop.attemptedAction.toolName ?? 'the tool action'} and wants you to proceed using only currently permitted tools and safer alternatives.`,
-        {
-          reasoning: 'high',
-          mode: 'build',
-          access: 'approval',
-          runbookId: 'patch_test_verify',
-        },
-      );
-    }
   }
 
   useEffect(() => {

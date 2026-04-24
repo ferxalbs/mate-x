@@ -73,6 +73,7 @@ const HIGH_IMPACT_PATH_PATTERNS = [
 class PolicyService {
   private stops = new Map<string, PolicyStop>();
   private approvedOnce = new Set<string>();
+  private stopResolvers = new Map<string, (stop: PolicyStop) => void>();
 
   classifyToolCall(input: Omit<PolicyEvaluationInput, "runId">): ToolPolicyClassification {
     const action = this.getRequiredAction(input.toolName, input.args);
@@ -184,13 +185,13 @@ class PolicyService {
       throw new Error("Policy stop not found.");
     }
 
-    if (stop.status === "resolved") {
+    if (stop.status !== "open") {
       return stop;
     }
 
     const resolvedStop: PolicyStop = {
       ...stop,
-      status: "resolved",
+      status: request.action === "approve_once" ? "approved" : "declined",
       resolution: {
         action: request.action,
         resolvedAt: new Date().toISOString(),
@@ -207,7 +208,41 @@ class PolicyService {
         command: stop.attemptedAction.command,
       }));
     }
+
+    const resolver = this.stopResolvers.get(stop.id);
+    if (resolver) {
+      this.stopResolvers.delete(stop.id);
+      resolver(resolvedStop);
+    }
+
     return resolvedStop;
+  }
+
+  waitForResolution(stopId: string): Promise<PolicyStop> {
+    const stop = this.stops.get(stopId);
+    if (!stop) {
+      return Promise.reject(new Error("Policy stop not found."));
+    }
+
+    if (stop.status !== "open") {
+      return Promise.resolve(stop);
+    }
+
+    return new Promise((resolve) => {
+      this.stopResolvers.set(stopId, resolve);
+    });
+  }
+
+  markStopResumed(stopId: string): PolicyStop | null {
+    return this.updateStopStatus(stopId, "resumed");
+  }
+
+  markStopCompleted(stopId: string): PolicyStop | null {
+    return this.updateStopStatus(stopId, "completed");
+  }
+
+  markStopFailed(stopId: string): PolicyStop | null {
+    return this.updateStopStatus(stopId, "failed");
   }
 
   isApprovedToolCall(input: Omit<PolicyEvaluationInput, "runId" | "contract">) {
@@ -310,7 +345,11 @@ class PolicyService {
     }
 
     const highImpactPath = this.findHighImpactPath(input.args);
-    if (highImpactPath && this.isWriteTool(input.toolName)) {
+    if (
+      highImpactPath &&
+      this.isWriteTool(input.toolName) &&
+      input.contract?.autonomy !== "unrestricted"
+    ) {
       return {
         severity: "warning",
         policyId: "change.high_impact",
@@ -511,6 +550,20 @@ class PolicyService {
       action === "abort" ||
       action === "safer_alternative"
     );
+  }
+
+  private updateStopStatus(stopId: string, status: PolicyStop["status"]) {
+    const stop = this.stops.get(stopId);
+    if (!stop) {
+      return null;
+    }
+
+    const nextStop = {
+      ...stop,
+      status,
+    };
+    this.stops.set(stopId, nextStop);
+    return nextStop;
   }
 }
 

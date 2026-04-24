@@ -1469,7 +1469,6 @@ async function executeAgentToolCall({
   });
 
   if (policyStop) {
-    const stopMessage = `${policyStop.title}\n\n${policyStop.explanation}\n\nPolicy: ${policyStop.policyId}\nStop: ${policyStop.id}`;
     events.push({
       id: eventId,
       label: policyStop.title,
@@ -1479,29 +1478,51 @@ async function executeAgentToolCall({
     });
     emitProgress();
 
-    return {
-      toolCallId: toolCall.id,
-      content: stopMessage,
-      toolExecution: {
-        toolName,
-        args: toolArgs,
-        output: stopMessage,
-        parsedOutput: {
-          policyStop,
-          status: "paused",
-        },
-      } satisfies ToolExecutionRecord,
-    };
+    const resolvedStop = await policyService.waitForResolution(policyStop.id);
+    const toolEvent = events.find((event) => event.id === eventId);
+    if (resolvedStop.resolution?.action !== "approve_once") {
+      const declinedMessage = `Policy stop ${policyStop.id} was ${resolvedStop.resolution?.action ?? "declined"}. Continue with allowed safer alternatives; do not execute ${toolName}.`;
+      if (toolEvent) {
+        toolEvent.status = "done";
+        toolEvent.detail = declinedMessage;
+      }
+      policyService.markStopCompleted(policyStop.id);
+      emitProgress();
+
+      return {
+        toolCallId: toolCall.id,
+        content: declinedMessage,
+        toolExecution: {
+          toolName,
+          args: toolArgs,
+          output: declinedMessage,
+          parsedOutput: {
+            policyStop: resolvedStop,
+            status: "declined",
+          },
+        } satisfies ToolExecutionRecord,
+      };
+    }
+
+    policyService.markStopResumed(policyStop.id);
+    if (toolEvent) {
+      toolEvent.label = `Executing approved ${toolName}`;
+      toolEvent.detail = `Approval received for policy stop ${policyStop.id}.`;
+      toolEvent.status = "active";
+    }
+    emitProgress();
   }
 
-  events.push({
-    id: eventId,
-    label: `Executing ${toolName}`,
-    detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
-    status: "active",
-    policy: toolPolicy,
-  });
-  emitProgress();
+  if (!policyStop) {
+    events.push({
+      id: eventId,
+      label: `Executing ${toolName}`,
+      detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
+      status: "active",
+      policy: toolPolicy,
+    });
+    emitProgress();
+  }
 
   try {
     const result = await withTimeout(
@@ -1520,6 +1541,9 @@ async function executeAgentToolCall({
     if (toolEvent) {
       toolEvent.status = "done";
       toolEvent.detail = summarizeToolOutput(normalizedResult);
+    }
+    if (policyStop) {
+      policyService.markStopCompleted(policyStop.id);
     }
     emitProgress();
 
@@ -1540,6 +1564,9 @@ async function executeAgentToolCall({
     if (toolEvent) {
       toolEvent.status = "error";
       toolEvent.detail = message;
+    }
+    if (policyStop) {
+      policyService.markStopFailed(policyStop.id);
     }
     emitProgress();
 

@@ -36,7 +36,13 @@ export interface PolicyStop {
   attemptedAction: PolicyStopAttemptedAction;
   recommendation: PolicyStopAction;
   availableActions: PolicyStopAction[];
-  status: "open" | "resolved";
+  status:
+    | "open"
+    | "approved"
+    | "declined"
+    | "resumed"
+    | "completed"
+    | "failed";
   resolution?: PolicyStopResolution;
 }
 
@@ -61,4 +67,3 @@ export interface PolicyRunState {
   status: "clear" | "paused";
   openStops: PolicyStop[];
 }
-

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.24 (1) [Internal Approval Resume]
+
+- Replaced synthetic approval continuation prompts with internal policy-stop resolution so approving or declining a tool action resumes the existing run instead of creating a fake user chat turn.
+- Added explicit policy-stop lifecycle states for approval, decline, resume, completion, and failure, and wired the agent tool loop to wait for policy resolution before continuing.
+- Kept approval controls usable while a run is paused and removed duplicate queued continuation behavior from the chat route.
+
 ## Unreleased - 2026.04.23 (6) [Safe Tool Classes Runtime Policy]
 
 - Added shared Safe Tool Classes contracts for risk class, impact type, contract allowance, and escalation decisions.
@@ -10,6 +16,8 @@
 - Fixed execution-intent runs so build-mode requests like retry, update, run, fix, or verify require a tool-backed pass instead of stopping after a single streamed text step.
 - Fixed package-manager mutation permissions so unrestricted workspaces can execute them, while approval-required workspaces surface a package mutation approval stop instead of returning a hard-coded command block.
 - Removed the canned assistant placeholder text so streaming starts from real model/tool progress instead of repeating a static message.
+- Fixed the approval workflow so pending policy stops refresh without route changes, approval controls stay clickable while the run settles, and the approved/declined continuation is queued until the runner is ready.
+- Stopped high-impact edit approval stops from firing under unrestricted contracts.
 
 ## Unreleased - 2026.04.23 (5) [Workspace Memory Files]
 
