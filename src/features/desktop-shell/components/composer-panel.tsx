@@ -176,7 +176,7 @@ export function ComposerPanel({
   }
 
   async function handlePolicyAction(action: PolicyStopAction) {
-    if (!pendingPolicyStop || isRunning || isResolvingPolicyStop) {
+    if (!pendingPolicyStop || isResolvingPolicyStop) {
       return;
     }
 
@@ -207,7 +207,7 @@ export function ComposerPanel({
         <div className="rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)]/92 shadow-[0_22px_80px_-42px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           {pendingPolicyStop ? (
             <PermissionPrompt
-              disabled={isRunning || isResolvingPolicyStop}
+              disabled={isResolvingPolicyStop}
               onAction={handlePolicyAction}
               stop={pendingPolicyStop}
             />
