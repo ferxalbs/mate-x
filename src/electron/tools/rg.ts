@@ -34,15 +34,20 @@ export const rgTool: Tool = {
         type: 'boolean',
         description: 'Whether to match whole words only.',
       },
+      path: {
+        type: 'string',
+        description: 'Optional path or directory to search within. Defaults to the workspace root.',
+      },
     },
     required: ['query'],
   },
   async execute(args, { workspacePath, trustContract, settings }) {
-    const { query, isRegex = false, caseSensitive = false, include, exclude, wholeWord = false } = args;
+    const { query, isRegex = false, caseSensitive = false, include, exclude, wholeWord = false, path } = args;
+    const requestedPaths = path ? [path] : ['.'];
     const scopedPaths =
       trustContract && !trustContract.allowedPaths.includes('.')
         ? trustContract.allowedPaths
-        : ['.'];
+        : requestedPaths;
 
     const commandArgs = [
       '--column',
