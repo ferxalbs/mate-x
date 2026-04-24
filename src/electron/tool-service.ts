@@ -45,6 +45,10 @@ import { redosAnalyzerTool } from "./tools/redos_analyzer";
 import { jwtDecoderTool } from "./tools/jwt_decoder";
 import { browserProberTool } from "./tools/browser_prober";
 import { sourceMapAnalyzerTool } from "./tools/source_map_analyzer";
+import { oobListenerTool } from "./tools/oob_listener";
+import { credsValidatorTool } from "./tools/creds_validator";
+import { prototypePollutionFuzzerTool } from "./tools/prototype_pollution_fuzzer";
+import { localNetworkReconTool } from "./tools/local_network_recon";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -119,6 +123,10 @@ export class ToolService {
     this.registerTool(jwtDecoderTool);
     this.registerTool(browserProberTool);
     this.registerTool(sourceMapAnalyzerTool);
+    this.registerTool(oobListenerTool);
+    this.registerTool(credsValidatorTool);
+    this.registerTool(prototypePollutionFuzzerTool);
+    this.registerTool(localNetworkReconTool);
     // Future tools can be registered here or dynamically loaded
   }
 

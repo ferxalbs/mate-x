@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.24 (2) [Advanced Offensive Security Arsenal]
+
+- Expanded MaTE X agent capabilities with 14 new highly specialized, enterprise-grade offensive security tools.
+- Implemented **File System Utilities (`pwd`, `du`, `find`)** as pure Node.js multi-platform tools, bypassing OS-specific shell commands.
+- Added **Dynamic Application Security Testing (DAST) (`http_prober`, `browser_prober`)** using native `fetch` and an invisible Electron `BrowserWindow` to execute DOM payloads without heavy Puppeteer dependencies.
+- Built **Red Teaming Exploit Handlers (`oob_listener`, `creds_validator`)** to catch Blind SSRF/XSS via ephemeral `node:http` servers and actively validate leaked GitHub/Slack/NPM tokens against live APIs.
+- Integrated **Deep Code Analyzers (`redos_analyzer`, `prototype_pollution_fuzzer`)** using highly isolated `node:worker_threads` y `node:vm` sandboxes to test Catastrophic Backtracking and JS Prototype Pollution safely without crashing the main application.
+- Added **Forensic Auditors (`package_audit`, `source_map_analyzer`, `local_network_recon`)** to map localhost TCP ports in milliseconds, extract CVEs via native package managers, and aggressively hunt leaked environment variables in `.js.map` build artifacts.
+- Introduced a stable **Remediation Engine (`file_editor`)** capable of surgically replacing multi-line code blocks via strict line ranges with automatic `.bak` backups.
+- Registered all 14 tools in the central `ToolService` and ensured zero warnings via `bun run lint && bun run typecheck`.
+
 ## Unreleased - 2026.04.24 (1) [Internal Approval Resume]
 
 - Replaced synthetic approval continuation prompts with internal policy-stop resolution so approving or declining a tool action resumes the existing run instead of creating a fake user chat turn.
