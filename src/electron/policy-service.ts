@@ -254,6 +254,24 @@ class PolicyService {
     const command = this.extractCommand(input.args);
     if (
       command &&
+      this.isPackageManagerMutation(command) &&
+      input.contract?.autonomy !== "unrestricted"
+    ) {
+      return {
+        severity: "warning",
+        policyId: "package.mutation",
+        title: "Run paused: package mutation requires approval.",
+        explanation:
+          "The agent attempted to run a package-manager mutation. This can modify dependencies, lockfiles, generated artifacts, and installed packages in the real workspace.",
+        kind: "command",
+        command,
+        recommendation: "approve_once",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      };
+    }
+
+    if (
+      command &&
       DANGEROUS_COMMAND_PATTERNS.some((pattern) => pattern.test(command))
     ) {
       return {
@@ -464,6 +482,9 @@ class PolicyService {
 
   private getRequiredAction(toolName: string, args: Record<string, unknown>) {
     if (this.isWriteTool(toolName)) return "patch";
+    if (toolName === "sandbox_run" && this.isPackageManagerMutation(this.extractCommand(args) ?? "")) {
+      return "package-install";
+    }
     if (toolName === "run_tests" || toolName === "sandbox_run") return "test";
     if (toolName === "rg" || "pattern" in args || "query" in args) return "search";
     return "read";
@@ -475,6 +496,12 @@ class PolicyService {
     }
 
     return contract.allowedActions.includes(action) && !contract.blockedActions.includes(action);
+  }
+
+  private isPackageManagerMutation(command: string) {
+    return /\b(bun|npm|pnpm|yarn)\s+(add|install|i|update|upgrade|remove|uninstall)\b/i.test(
+      command,
+    );
   }
 
   private isPolicyStopAction(action: string): action is PolicyStopAction {

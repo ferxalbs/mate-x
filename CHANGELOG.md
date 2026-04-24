@@ -7,6 +7,9 @@
 - Updated the action timeline to display risk class, impact tags, contract status, escalation status, and classification reason.
 - Added an inline approval prompt above the composer so approval-required runs can approve once or continue with safer alternatives.
 - Clarified the agent runtime prompt and tool descriptions so commands, package mutations, and workspace writes are treated as real governed effects, not fake sandbox changes.
+- Fixed execution-intent runs so build-mode requests like retry, update, run, fix, or verify require a tool-backed pass instead of stopping after a single streamed text step.
+- Fixed package-manager mutation permissions so unrestricted workspaces can execute them, while approval-required workspaces surface a package mutation approval stop instead of returning a hard-coded command block.
+- Removed the canned assistant placeholder text so streaming starts from real model/tool progress instead of repeating a static message.
 
 ## Unreleased - 2026.04.23 (5) [Workspace Memory Files]
 
