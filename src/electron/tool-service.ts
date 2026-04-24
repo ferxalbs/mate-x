@@ -120,7 +120,7 @@ export class ToolService {
         type: "function" as const,
         function: {
           name: tool.name,
-          description: tool.description,
+          description: buildGovernedToolDescription(tool),
           parameters: toStrictObjectSchema(tool.parameters),
         },
       }),
@@ -138,7 +138,7 @@ export class ToolService {
       (tool) => ({
         type: "function" as const,
         name: tool.name,
-        description: tool.description,
+        description: buildGovernedToolDescription(tool),
         parameters: toStrictObjectSchema(tool.parameters),
         strict: true,
       }),
@@ -202,6 +202,24 @@ export class ToolService {
 }
 
 export const toolService = new ToolService();
+
+function buildGovernedToolDescription(tool: Tool) {
+  const policy = policyService.classifyToolCall({
+    workspacePath: "",
+    toolName: tool.name,
+    args: {},
+  });
+
+  const impacts =
+    policy.impactTypes.length > 0
+      ? policy.impactTypes.map((impact) => impact.replaceAll("_", " ")).join(", ")
+      : "read-only or diagnostic";
+
+  return [
+    tool.description,
+    `Policy: default risk class ${policy.riskClass}; impact: ${impacts}. The active Workspace Trust Contract may allow, require approval for, or block this tool based on its arguments.`,
+  ].join("\n\n");
+}
 
 function toStrictObjectSchema(schema: Tool["parameters"]): Tool["parameters"] {
   const normalized = strictifySchemaNode(schema);

@@ -26,13 +26,13 @@ function parseCommand(command: string) {
 export const sandboxRunnerTool: Tool = {
   name: "sandbox_run",
   description:
-    "Spins up the application or a specific script in a controlled, isolated background process. Monitors for crashes, unhandled rejections, and memory leaks. Automatically kills the process after a max lifespan of 30 seconds to guarantee stability.",
+    "Runs a direct command in the real workspace as a time-bounded child process for validation or diagnostics. It sets test-like environment variables and kills long-running processes after 30 seconds, but it is not a disposable filesystem sandbox: file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project when policy allows the command.",
   parameters: {
     type: "object",
     properties: {
       command: {
         type: "string",
-        description: "The command to run (e.g., 'bun run start' or 'node server.js').",
+        description: "The direct command to run in the real workspace, without shell operators (e.g., 'bun run start' or 'node server.js'). Package-manager mutation commands require policy approval because they can modify the project.",
       },
     },
     required: ["command"],

@@ -1583,6 +1583,15 @@ Filesystem access policy: ${options.access}
 
 ${renderTrustContractForPrompt(snapshot.trustContract)}
 
+Runtime truth and permissions:
+- Current workspace path is the real project root: ${snapshot.workspace.path}
+- Treat package-manager mutations, generated files, lockfiles, git operations, and source edits as real workspace effects when a tool is allowed to run them.
+- The sandbox_run tool time-limits a child process and pins test-like env vars; it does not create a disposable copy of the repository and must not be described as changing only a fake project.
+- If a tool returns a Workspace Trust Contract block, the product can surface approval. State what was blocked and continue with permitted alternatives if approval is declined.
+- When contract autonomy is ${snapshot.trustContract.autonomy}, allowed actions are: ${snapshot.trustContract.allowedActions.join(", ") || "none"}.
+- Blocked actions are: ${snapshot.trustContract.blockedActions.join(", ") || "none"}.
+- Do not ask the user to run a command manually unless MaTE X lacks a permitted or approvable path to perform it.
+
 Files:
 ${files || "(none)"}
 
