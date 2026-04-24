@@ -34,6 +34,17 @@ import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
 import { runTestsTool } from "./tools/run_tests";
 import { supermemoryTool } from "./tools/supermemory";
 import { pdfReportTool } from "./tools/pdf_report";
+import { globTool } from "./tools/glob";
+import { pwdTool } from "./tools/pwd";
+import { duTool } from "./tools/du";
+import { findTool } from "./tools/find";
+import { packageAuditTool } from "./tools/package_audit";
+import { fileEditorTool } from "./tools/file_editor";
+import { httpProberTool } from "./tools/http_prober";
+import { redosAnalyzerTool } from "./tools/redos_analyzer";
+import { jwtDecoderTool } from "./tools/jwt_decoder";
+import { browserProberTool } from "./tools/browser_prober";
+import { sourceMapAnalyzerTool } from "./tools/source_map_analyzer";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -97,6 +108,17 @@ export class ToolService {
     this.registerTool(runTestsTool);
     this.registerTool(supermemoryTool);
     this.registerTool(pdfReportTool);
+    this.registerTool(globTool);
+    this.registerTool(pwdTool);
+    this.registerTool(duTool);
+    this.registerTool(findTool);
+    this.registerTool(packageAuditTool);
+    this.registerTool(fileEditorTool);
+    this.registerTool(httpProberTool);
+    this.registerTool(redosAnalyzerTool);
+    this.registerTool(jwtDecoderTool);
+    this.registerTool(browserProberTool);
+    this.registerTool(sourceMapAnalyzerTool);
     // Future tools can be registered here or dynamically loaded
   }
 
