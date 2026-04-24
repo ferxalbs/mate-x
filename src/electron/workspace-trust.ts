@@ -172,6 +172,10 @@ function getRequiredAction(toolName: string, args: Record<string, unknown>) {
     return "patch";
   }
 
+  if (toolName === "sandbox_run" && isPackageManagerMutation(args)) {
+    return "package-install";
+  }
+
   if (toolName === "run_tests" || toolName === "sandbox_run") {
     return "test";
   }
@@ -187,6 +191,14 @@ function getRequiredAction(toolName: string, args: Record<string, unknown>) {
   }
 
   return toolName === "rg" ? "search" : "read";
+}
+
+function isPackageManagerMutation(args: Record<string, unknown>) {
+  const command = typeof args.command === "string" ? args.command : "";
+
+  return /\b(bun|npm|pnpm|yarn)\s+(add|install|i|update|upgrade|remove|uninstall)\b/i.test(
+    command,
+  );
 }
 
 function getBlockedAction(

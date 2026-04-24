@@ -31,7 +31,7 @@
     "@electron/fuses": "^2.1.1",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.4",
-    "@tanstack/router-plugin": "^1.167.22",
+    "@tanstack/router-plugin": "^1.167.23",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

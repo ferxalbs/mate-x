@@ -66,6 +66,7 @@ interface AgentRuntimeConfig {
   minToolRounds: number;
   maxToolCalls: number;
   requireToolingFirst: boolean;
+  executionIntent: boolean;
 }
 
 interface AssistantProgressReporter {
@@ -915,30 +916,48 @@ function renderRunbookForPrompt(runbook: AssistantRunbookDefinition): string {
 
 function buildAgentRuntimeConfig(
   options: AssistantRunOptions,
+  prompt = "",
 ): AgentRuntimeConfig {
+  const executionIntent =
+    options.mode === "build" && isExecutionIntentPrompt(prompt);
+  const requireToolingFirst = executionIntent;
+  const minToolRounds = executionIntent ? 1 : 0;
+
   switch (options.reasoning) {
     case "low":
       return {
         maxIterations: options.mode === "plan" ? 5 : 6,
-        minToolRounds: 0,
+        minToolRounds,
         maxToolCalls: 20,
-        requireToolingFirst: false,
+        requireToolingFirst,
+        executionIntent,
       };
     case "max":
       return {
         maxIterations: options.mode === "plan" ? 10 : 12,
-        minToolRounds: 0,
+        minToolRounds,
         maxToolCalls: 200,
-        requireToolingFirst: false,
+        requireToolingFirst,
+        executionIntent,
       };
     default:
       return {
         maxIterations: options.mode === "plan" ? 8 : 9,
-        minToolRounds: 0,
+        minToolRounds,
         maxToolCalls: 100,
-        requireToolingFirst: false,
+        requireToolingFirst,
+        executionIntent,
       };
   }
+}
+
+function isExecutionIntentPrompt(prompt: string) {
+  const normalized = prompt.toLowerCase();
+
+  return [
+    /\b(run|rerun|retry|continue|execute|apply|update|install|fix|verify|test|commit|push)\b/,
+    /\b(reintenta|intenta|continua|continúa|ejecuta|aplica|actualiza|instala|arregla|verifica|prueba)\b/,
+  ].some((pattern) => pattern.test(normalized));
 }
 
 function summarizeCheckpoint(content: unknown) {
@@ -1563,7 +1582,7 @@ async function requestRainyAgenticResponse({
   appSettings: AppSettings;
   runId: string;
 }) {
-  const runtime = buildAgentRuntimeConfig(options);
+  const runtime = buildAgentRuntimeConfig(options, prompt);
   const files = snapshot.files.slice(0, 80).join("\n");
   const matches = snapshot.promptMatches
     .slice(0, 12)
@@ -1580,6 +1599,7 @@ Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
 Operating mode: ${options.mode}
 Reasoning level: ${options.reasoning}
 Filesystem access policy: ${options.access}
+Execution intent detected: ${runtime.executionIntent ? "yes - at least one tool-backed pass is required before the final answer" : "no"}
 
 ${renderTrustContractForPrompt(snapshot.trustContract)}
 
@@ -1772,7 +1792,9 @@ async function requestRainyChatAgenticResponse({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
           detail:
-            "Model tried to conclude early. Requesting another tool-backed pass.",
+            runtime.executionIntent
+              ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
+              : "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
         emitProgress();
@@ -1780,7 +1802,9 @@ async function requestRainyChatAgenticResponse({
         messages.push({
           role: "user",
           content:
-            "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
+            runtime.executionIntent
+              ? "The user asked you to perform an action. Do not answer with only text. Call the smallest appropriate tool now, then continue from the result."
+              : "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
         });
         continue;
       }
@@ -2038,7 +2062,9 @@ async function requestRainyResponsesAgenticResponse({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
           detail:
-            "Model tried to conclude early. Requesting another tool-backed pass.",
+            runtime.executionIntent
+              ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
+              : "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
         emitProgress();
@@ -2050,7 +2076,9 @@ async function requestRainyResponsesAgenticResponse({
             content: [
               {
                 type: "input_text",
-                text: "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
+                text: runtime.executionIntent
+                  ? "The user asked you to perform an action. Do not answer with only text. Call the smallest appropriate tool now, then continue from the result."
+                  : "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
               },
             ],
           },
