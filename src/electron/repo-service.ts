@@ -17,6 +17,7 @@ import {
 } from "./rainy-service";
 import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
+import { repoGraphService } from "./repo-graph-service";
 import { workspaceMemoryService } from "./workspace-memory-service";
 import { createTokenEstimator } from "./token-estimator";
 import type {
@@ -35,6 +36,7 @@ import type {
   WorkspaceMemoryBootstrapContext,
   WorkspaceMemoryProposedUpdate,
   WorkspaceEntry,
+  WorkspaceHealthProfile,
   WorkspaceSnapshot,
   WorkspaceSummary,
   WorkspaceTrustContract,
@@ -732,6 +734,12 @@ async function buildWorkspaceSummary(
       },
     ],
   };
+}
+
+function normalizePersistedValue(value: string) {
+  return value.startsWith("unknown") || value === "not configured"
+    ? undefined
+    : value;
 }
 
 async function listWorkspaceFiles(
@@ -1616,6 +1624,7 @@ async function requestRainyAgenticResponse({
     .map((match) => `${match.file}:${match.line} ${match.text}`)
     .join("\n");
   const gitStatus = snapshot.statusLines.slice(0, 40).join("\n");
+  const repoGraphSummary = await repoGraphService.getPromptSummary(snapshot.workspace);
 
   const systemPrompt = `${MATE_AGENT_SYSTEM_PROMPT}
 
@@ -1651,8 +1660,12 @@ ${matches || "(none)"}
 Workspace memory:
 ${snapshot.memoryContext?.context || "(none)"}
 
+Repo Intelligence Graph:
+${repoGraphSummary}
+
 You are running in an agent loop, not a single reply.
 First, use the workspace metadata, git status, file list, prompt-linked matches, and conversation history already provided here.
+Before broad file search, use Repo Intelligence Graph APIs for entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.

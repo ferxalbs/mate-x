@@ -99,6 +99,21 @@ const repoApi: RepoInspectorApi = {
   },
   openWorkspacePath: (target) =>
     ipcRenderer.invoke("repo:open-workspace-path", target),
+  graph: {
+    refresh: () => ipcRenderer.invoke("repo-graph:refresh"),
+    getEntrypoints: () => ipcRenderer.invoke("repo-graph:get-entrypoints"),
+    getImpactedFiles: (files) =>
+      ipcRenderer.invoke("repo-graph:get-impacted-files", files),
+    getTestsForFile: (file) =>
+      ipcRenderer.invoke("repo-graph:get-tests-for-file", file),
+    getImportChain: (from, to) =>
+      ipcRenderer.invoke("repo-graph:get-import-chain", from, to),
+    getIpcSurface: () => ipcRenderer.invoke("repo-graph:get-ipc-surface"),
+    getEnvUsage: (variable) =>
+      ipcRenderer.invoke("repo-graph:get-env-usage", variable),
+    getDependencySurface: () =>
+      ipcRenderer.invoke("repo-graph:get-dependency-surface"),
+  },
 };
 
 const gitApi: GitApi = {

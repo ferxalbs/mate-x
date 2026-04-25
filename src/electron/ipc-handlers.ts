@@ -21,6 +21,10 @@ import {
   updateWorkspaceTrustContract,
 } from "./repo-service";
 import { listRainyModels, validateRainyModelSelection } from "./rainy-service";
+import {
+  repoGraphService,
+  resolveActiveWorkspaceForRepoGraph,
+} from "./repo-graph-service";
 import { tursoService } from "./turso-service";
 import { workspaceMemoryService } from "./workspace-memory-service";
 
@@ -115,7 +119,12 @@ export function registerIpcHandlers() {
   });
   ipcMain.handle(
     "repo:set-active-workspace",
-    async (_event, workspaceId: string) => setActiveWorkspace(workspaceId),
+    async (_event, workspaceId: string) => {
+      const snapshot = await setActiveWorkspace(workspaceId);
+      const workspace = await resolveActiveWorkspace();
+      void repoGraphService.ensureWorkspaceGraph(workspace);
+      return snapshot;
+    },
   );
   ipcMain.handle("repo:remove-workspace", async (_event, workspaceId: string) =>
     removeWorkspace(workspaceId),
@@ -198,9 +207,45 @@ export function registerIpcHandlers() {
       ),
   );
 
-  ipcMain.handle("git:status", async () =>
-    (await resolveGitService()).getStatus(),
-  );
+  ipcMain.handle("repo-graph:refresh", async () => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.refreshWorkspace(workspace);
+  });
+  ipcMain.handle("repo-graph:get-entrypoints", async () => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getEntrypoints(workspace);
+  });
+  ipcMain.handle("repo-graph:get-impacted-files", async (_event, files: string[]) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getImpactedFiles(workspace, Array.isArray(files) ? files : []);
+  });
+  ipcMain.handle("repo-graph:get-tests-for-file", async (_event, file: string) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getTestsForFile(workspace, String(file ?? ""));
+  });
+  ipcMain.handle("repo-graph:get-import-chain", async (_event, from: string, to: string) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getImportChain(workspace, String(from ?? ""), String(to ?? ""));
+  });
+  ipcMain.handle("repo-graph:get-ipc-surface", async () => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getIpcSurface(workspace);
+  });
+  ipcMain.handle("repo-graph:get-env-usage", async (_event, variable?: string) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getEnvUsage(workspace, variable?.trim() || undefined);
+  });
+  ipcMain.handle("repo-graph:get-dependency-surface", async () => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getDependencySurface(workspace);
+  });
+
+  ipcMain.handle("git:status", async () => {
+    const workspace = await resolveActiveWorkspace();
+    const status = await (await resolveGitService()).getStatus();
+    void repoGraphService.noteGitStatusChanged(workspace);
+    return status;
+  });
   ipcMain.handle("git:log", async (_event, limit?: number) =>
     (await resolveGitService()).getLog(limit),
   );

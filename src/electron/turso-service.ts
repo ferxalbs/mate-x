@@ -5,6 +5,11 @@ import path from 'node:path';
 
 import type { Conversation } from '../contracts/chat';
 import type {
+  RepoGraphEdge,
+  RepoGraphNode,
+  RepoGraphSnapshot,
+} from '../contracts/repo-graph';
+import type {
   WorkspaceEntry,
   WorkspaceProfile,
   WorkspaceTrustContract,
@@ -106,6 +111,41 @@ export class TursoService {
           updated_at TEXT NOT NULL,
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
+        `CREATE TABLE IF NOT EXISTS repo_graph_nodes (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          key TEXT NOT NULL,
+          label TEXT NOT NULL,
+          metadata_json TEXT,
+          updated_at TEXT NOT NULL,
+          UNIQUE(workspace_id, kind, key),
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS repo_graph_edges (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          from_node_id TEXT NOT NULL,
+          to_node_id TEXT NOT NULL,
+          metadata_json TEXT,
+          updated_at TEXT NOT NULL,
+          UNIQUE(workspace_id, kind, from_node_id, to_node_id),
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+          FOREIGN KEY(from_node_id) REFERENCES repo_graph_nodes(id) ON DELETE CASCADE,
+          FOREIGN KEY(to_node_id) REFERENCES repo_graph_nodes(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS repo_graph_snapshots (
+          workspace_id TEXT PRIMARY KEY,
+          indexed_at TEXT NOT NULL,
+          node_count INTEGER NOT NULL,
+          edge_count INTEGER NOT NULL,
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_repo_graph_nodes_workspace_kind
+          ON repo_graph_nodes(workspace_id, kind)`,
+        `CREATE INDEX IF NOT EXISTS idx_repo_graph_edges_workspace_kind
+          ON repo_graph_edges(workspace_id, kind)`,
       ],
       'write',
     );
@@ -438,6 +478,138 @@ export class TursoService {
     }));
   }
 
+  // ── Repo Graph ──────────────────────────────────────────────────────────
+
+  async replaceRepoGraph(
+    workspaceId: string,
+    nodes: RepoGraphNode[],
+    edges: RepoGraphEdge[],
+  ): Promise<RepoGraphSnapshot> {
+    await this.initialize();
+    const indexedAt = new Date().toISOString();
+    const statements = [
+      { sql: `DELETE FROM repo_graph_edges WHERE workspace_id = ?`, args: [workspaceId] },
+      { sql: `DELETE FROM repo_graph_nodes WHERE workspace_id = ?`, args: [workspaceId] },
+      ...nodes.map((node) => ({
+        sql: `INSERT INTO repo_graph_nodes (id, workspace_id, kind, key, label, metadata_json, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          node.id,
+          workspaceId,
+          node.kind,
+          node.key,
+          node.label,
+          node.metadata ? JSON.stringify(node.metadata) : null,
+          indexedAt,
+        ],
+      })),
+      ...edges.map((edge) => ({
+        sql: `INSERT INTO repo_graph_edges (id, workspace_id, kind, from_node_id, to_node_id, metadata_json, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          edge.id,
+          workspaceId,
+          edge.kind,
+          edge.fromNodeId,
+          edge.toNodeId,
+          edge.metadata ? JSON.stringify(edge.metadata) : null,
+          indexedAt,
+        ],
+      })),
+      {
+        sql: `INSERT INTO repo_graph_snapshots (workspace_id, indexed_at, node_count, edge_count)
+              VALUES (?, ?, ?, ?)
+              ON CONFLICT(workspace_id) DO UPDATE SET
+                indexed_at = excluded.indexed_at,
+                node_count = excluded.node_count,
+                edge_count = excluded.edge_count`,
+        args: [workspaceId, indexedAt, nodes.length, edges.length],
+      },
+    ];
+
+    await this.getClient().batch(statements, 'write');
+
+    return {
+      workspaceId,
+      indexedAt,
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+    };
+  }
+
+  async getRepoGraphSnapshot(workspaceId: string): Promise<RepoGraphSnapshot | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT workspace_id, indexed_at, node_count, edge_count
+            FROM repo_graph_snapshots
+            WHERE workspace_id = ?
+            LIMIT 1`,
+      args: [workspaceId],
+    });
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      workspaceId: String(row.workspace_id),
+      indexedAt: String(row.indexed_at),
+      nodeCount: Number(row.node_count),
+      edgeCount: Number(row.edge_count),
+    };
+  }
+
+  async getRepoGraphNodes(workspaceId: string, kinds?: string[]): Promise<RepoGraphNode[]> {
+    await this.initialize();
+    const whereKinds = kinds?.length
+      ? `AND kind IN (${kinds.map(() => '?').join(', ')})`
+      : '';
+    const result = await this.getClient().execute({
+      sql: `SELECT id, workspace_id, kind, key, label, metadata_json, updated_at
+            FROM repo_graph_nodes
+            WHERE workspace_id = ? ${whereKinds}
+            ORDER BY kind, key`,
+      args: [workspaceId, ...(kinds ?? [])],
+    });
+
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      workspaceId: String(row.workspace_id),
+      kind: String(row.kind) as RepoGraphNode['kind'],
+      key: String(row.key),
+      label: String(row.label),
+      metadata: row.metadata_json
+        ? safeParseRecord(String(row.metadata_json))
+        : undefined,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async getRepoGraphEdges(workspaceId: string, kinds?: string[]): Promise<RepoGraphEdge[]> {
+    await this.initialize();
+    const whereKinds = kinds?.length
+      ? `AND kind IN (${kinds.map(() => '?').join(', ')})`
+      : '';
+    const result = await this.getClient().execute({
+      sql: `SELECT id, workspace_id, kind, from_node_id, to_node_id, metadata_json, updated_at
+            FROM repo_graph_edges
+            WHERE workspace_id = ? ${whereKinds}`,
+      args: [workspaceId, ...(kinds ?? [])],
+    });
+
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      workspaceId: String(row.workspace_id),
+      kind: String(row.kind) as RepoGraphEdge['kind'],
+      fromNodeId: String(row.from_node_id),
+      toNodeId: String(row.to_node_id),
+      metadata: row.metadata_json
+        ? safeParseRecord(String(row.metadata_json))
+        : undefined,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
   // ── Workspace Trust Contracts ────────────────────────────────────────────
 
   async getWorkspaceTrustContract(workspaceId: string): Promise<WorkspaceTrustContract> {
@@ -550,6 +722,17 @@ function safeParseFailingTests(raw: string): string[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function safeParseRecord(raw: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : undefined;
+  } catch {
+    return undefined;
   }
 }
 
