@@ -50,6 +50,9 @@ const IGNORED_DIRS = new Set([
 ]);
 const MAX_FILES = 3500;
 const MAX_FILE_BYTES = 600_000;
+const SERVICE_CALL_PATTERN =
+  /\b([A-Za-z0-9_$]+(?:Service)?)\.([A-Za-z0-9_$]+)\s*\(/g;
+const DIRECT_CALL_PATTERN = /\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
 
 export class RepoGraphService {
   private watchers = new Map<string, FSWatcher>();
@@ -110,7 +113,7 @@ export class RepoGraphService {
     changedFiles: string[],
   ): Promise<RepoGraphImpactedFile[]> {
     await this.ensureWorkspaceGraph(workspace);
-    const { nodesById, fileNodeByKey, reverseImports, testsByFile } =
+    const { nodesById, fileNodeByKey, reverseImports, runtimeTargets, testsByFile } =
       await this.loadFileGraph(workspace.id);
     const queue = changedFiles
       .map((file) => normalizeRelativePath(file))
@@ -131,6 +134,14 @@ export class RepoGraphService {
           file: dependent,
           distance: current.distance + 1,
           reason: `imports ${current.file}`,
+        });
+      }
+
+      for (const target of runtimeTargets.get(current.file) ?? []) {
+        queue.push({
+          file: target,
+          distance: current.distance + 1,
+          reason: `runtime delegate from ${current.file}`,
         });
       }
 
@@ -189,10 +200,12 @@ export class RepoGraphService {
     const nodes = await tursoService.getRepoGraphNodes(workspace.id, [
       'ipc_channel',
       'file',
+      'function',
     ]);
     const edges = await tursoService.getRepoGraphEdges(workspace.id, [
       'ipc_calls',
       'ipc_handles',
+      'delegates_to',
     ]);
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const surface = new Map<string, RepoGraphIpcSurface>();
@@ -212,8 +225,10 @@ export class RepoGraphService {
           .get(channel.key)!;
       if (edge.kind === 'ipc_calls') {
         entry.callers.push(file.key);
-      } else {
+      } else if (edge.kind === 'ipc_handles') {
         entry.callees.push(file.key);
+      } else if (edge.kind === 'delegates_to' && from?.kind === 'ipc_channel' && to?.kind === 'function') {
+        entry.callees.push(to.key);
       }
     }
 
@@ -345,11 +360,16 @@ export class RepoGraphService {
 
   private async loadFileGraph(workspaceId: string) {
     const nodes = await tursoService.getRepoGraphNodes(workspaceId, ['file', 'test']);
-    const edges = await tursoService.getRepoGraphEdges(workspaceId, ['imports', 'tests']);
+    const edges = await tursoService.getRepoGraphEdges(workspaceId, [
+      'imports',
+      'tests',
+      'runtime_depends_on',
+    ]);
     const nodesById = new Map(nodes.map((node) => [node.id, node]));
     const fileNodeByKey = new Map(nodes.map((node) => [node.key, node]));
     const importsByFile = new Map<string, string[]>();
     const reverseImports = new Map<string, string[]>();
+    const runtimeTargets = new Map<string, string[]>();
     const testsByFile = new Map<string, string[]>();
 
     for (const edge of edges) {
@@ -362,12 +382,20 @@ export class RepoGraphService {
         importsByFile.set(from.key, [...(importsByFile.get(from.key) ?? []), to.key]);
         reverseImports.set(to.key, [...(reverseImports.get(to.key) ?? []), from.key]);
       }
+      if (
+        edge.kind === 'runtime_depends_on' &&
+        (from.kind === 'file' || from.kind === 'test') &&
+        (to.kind === 'file' || to.kind === 'test')
+      ) {
+        runtimeTargets.set(from.key, [...(runtimeTargets.get(from.key) ?? []), to.key]);
+        reverseImports.set(to.key, [...(reverseImports.get(to.key) ?? []), from.key]);
+      }
       if (edge.kind === 'tests' && from.kind === 'test') {
         testsByFile.set(to.key, [...(testsByFile.get(to.key) ?? []), from.key]);
       }
     }
 
-    return { nodesById, fileNodeByKey, importsByFile, reverseImports, testsByFile };
+    return { nodesById, fileNodeByKey, importsByFile, reverseImports, runtimeTargets, testsByFile };
   }
 
   private ensureWatcher(workspace: RepoGraphWorkspace) {
@@ -532,6 +560,18 @@ function parseSourceFile(
   }
   for (const channel of extractIpcChannels(content, ['ipcMain.handle', 'ipcMain.on'])) {
     builder.edge('file', file, 'ipc_channel', channel, 'ipc_handles');
+  }
+
+  for (const delegation of extractIpcDelegations(rootPath, file, content, allFiles)) {
+    builder.edge('ipc_channel', delegation.channel, 'function', delegation.functionKey, 'delegates_to', {
+      file: delegation.file,
+      function: delegation.functionName,
+      service: delegation.serviceName,
+    });
+    builder.edge('file', file, classifyFile(delegation.file), delegation.file, 'runtime_depends_on', {
+      channel: delegation.channel,
+      function: delegation.functionName,
+    });
   }
 }
 
@@ -698,6 +738,102 @@ function extractIpcChannels(content: string, callees: string[]) {
     }
   }
   return [...channels];
+}
+
+function extractIpcDelegations(
+  rootPath: string,
+  file: string,
+  content: string,
+  allFiles: string[],
+) {
+  const importMap = buildImportedIdentifierMap(rootPath, file, content, allFiles);
+  const delegations: Array<{
+    channel: string;
+    serviceName: string;
+    functionName: string;
+    functionKey: string;
+    file: string;
+  }> = [];
+  for (const handler of extractIpcHandlerSections(content)) {
+    const channel = handler.channel;
+    const body = handler.body;
+    for (const callMatch of body.matchAll(SERVICE_CALL_PATTERN)) {
+      const serviceName = callMatch[1];
+      const functionName = callMatch[2];
+      const targetFile = importMap.get(serviceName);
+      if (!targetFile || serviceName === 'ipcMain') {
+        continue;
+      }
+      delegations.push({
+        channel,
+        serviceName,
+        functionName,
+        functionKey: `${targetFile}#${functionName}`,
+        file: targetFile,
+      });
+    }
+    for (const callMatch of body.matchAll(DIRECT_CALL_PATTERN)) {
+      const functionName = callMatch[1];
+      const targetFile = importMap.get(functionName);
+      if (!targetFile) {
+        continue;
+      }
+      delegations.push({
+        channel,
+        serviceName: functionName,
+        functionName,
+        functionKey: `${targetFile}#${functionName}`,
+        file: targetFile,
+      });
+    }
+  }
+
+  return delegations;
+}
+
+function extractIpcHandlerSections(content: string) {
+  const starts = [...content.matchAll(/\bipcMain\.(?:handle|on)\(\s*["']([^"']+)["']/g)];
+  return starts.map((match, index) => {
+    const start = match.index ?? 0;
+    const end = starts[index + 1]?.index ?? content.length;
+    return {
+      channel: match[1],
+      body: content.slice(start, end),
+    };
+  });
+}
+
+function buildImportedIdentifierMap(
+  rootPath: string,
+  file: string,
+  content: string,
+  allFiles: string[],
+) {
+  const imports = new Map<string, string>();
+  const namedImportPattern = /\bimport\s+\{([^}]+)\}\s+from\s+["']([^"']+)["']/g;
+  const defaultImportPattern = /\bimport\s+([A-Za-z0-9_$]+)\s+from\s+["']([^"']+)["']/g;
+
+  for (const match of content.matchAll(namedImportPattern)) {
+    const targetFile = resolveImport(rootPath, file, match[2], allFiles);
+    if (!targetFile) {
+      continue;
+    }
+    for (const imported of match[1].split(',')) {
+      const localName = imported.trim().split(/\s+as\s+/).pop()?.trim();
+      if (localName) {
+        imports.set(localName, targetFile);
+      }
+    }
+  }
+
+  for (const match of content.matchAll(defaultImportPattern)) {
+    const targetFile = resolveImport(rootPath, file, match[2], allFiles);
+    if (targetFile) {
+      imports.set(match[1], targetFile);
+    }
+  }
+
+  return imports;
 }
 
 function resolveImport(

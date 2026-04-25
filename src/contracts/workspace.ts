@@ -22,7 +22,23 @@ export interface WorkspaceSummary {
   branch: string;
   status: WorkspaceStatus;
   stack: string[];
+  health?: WorkspaceHealthProfile;
   facts: RepoFact[];
+}
+
+export interface WorkspaceHealthProfile {
+  stack: string[];
+  packageManager: string;
+  framework: string;
+  testRunner: string;
+  testCommand: string;
+  lintCommand: string;
+  buildCommand: string;
+  gitDirtyState: string;
+  dependencyWarningCount: number;
+  secretWarningCount: number;
+  recommendedNextAction: string;
+  updatedAt: string;
 }
 
 export interface SearchMatch {

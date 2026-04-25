@@ -6,6 +6,7 @@ export type RepoGraphNodeKind =
   | "env_var"
   | "ipc_channel"
   | "dependency"
+  | "function"
   | "entrypoint"
   | "config"
   | "manifest"
@@ -20,6 +21,8 @@ export type RepoGraphEdgeKind =
   | "uses_env"
   | "ipc_calls"
   | "ipc_handles"
+  | "delegates_to"
+  | "runtime_depends_on"
   | "depends_on"
   | "entrypoint_for"
   | "impacts";
