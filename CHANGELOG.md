@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.25 (2) [Working Set Compiler]
+
+- Added a Working Set Compiler that builds a budgeted, structured context pack before each agent run from the Repo Intelligence Graph, current objective, git state, prompt-linked files, recent validation failures, package scripts, and workspace memory notes.
+- Ranked primary targets, direct imports, direct importers, related tests, contract/type surfaces, git diff snippets, and relevant scripts so agents start from high-signal context instead of broad repository exploration.
+- Injected the working set into the agent prompt with explicit instructions to use it first, prefer graph context over broad search, and avoid inspecting unrelated files unless evidence requires it.
+- Persisted working set metadata on reproducible run results and attached the full working set to assistant messages for auditability.
+- Tightened validation prompt guidance so a successful narrow validation command is treated as resolved or unreproduced unless concrete diagnostics prove otherwise.
+- Verified with `bun run typecheck` and `bun run lint`; lint still reports existing unrelated unused `settings` warnings in legacy tool modules.
+
 ## Unreleased - 2026.04.25 (1) [Repo Intelligence Graph and Change Impact]
 
 - Added a persistent per-workspace Repo Intelligence Graph in the Electron main process, stored in Turso/libSQL with graph nodes, edges, and refresh snapshots.

@@ -18,6 +18,10 @@ import {
 import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
 import { repoGraphService } from "./repo-graph-service";
+import {
+  renderWorkingSetForPrompt,
+  workingSetCompiler,
+} from "./working-set-compiler";
 import { workspaceMemoryService } from "./workspace-memory-service";
 import { createTokenEstimator } from "./token-estimator";
 import type {
@@ -455,10 +459,25 @@ export async function runAssistant(
 ): Promise<AssistantExecution> {
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
+  const workingSet = await workingSetCompiler.compile({
+    prompt,
+    workspace: snapshot.workspace,
+    gitState: snapshot.statusLines,
+    selectedFiles: [],
+    runMode: resolvedOptions.mode,
+    promptMatches: snapshot.promptMatches,
+    memoryContext: snapshot.memoryContext,
+  });
   const runbookDefinition = resolveRunbookDefinition(
     resolvedOptions.runbookId ?? "patch_test_verify",
   );
   const events: ToolEvent[] = [
+    {
+      id: "step-working-set",
+      label: "Compile working set",
+      detail: `Ranked ${workingSet.metadata.totalFileCount} files within a ${workingSet.metadata.tokenBudget} token budget.`,
+      status: "done",
+    },
     {
       id: "step-workspace",
       label: "Read workspace metadata",
@@ -548,6 +567,7 @@ export async function runAssistant(
         apiMode: runtimeConfig?.apiMode ?? "chat_completions",
         prompt,
         snapshot,
+        workingSet,
         events,
         options: resolvedOptions,
         runbookDefinition,
@@ -631,6 +651,7 @@ export async function runAssistant(
       events,
       artifacts: finalArtifacts,
       evidencePack,
+      workingSet,
     },
   };
 }
@@ -1590,6 +1611,7 @@ async function requestRainyAgenticResponse({
   apiMode,
   prompt,
   snapshot,
+  workingSet,
   events,
   options,
   runbookDefinition,
@@ -1603,6 +1625,7 @@ async function requestRainyAgenticResponse({
   apiMode: RainyApiMode;
   prompt: string;
   snapshot: RepoSnapshot;
+  workingSet: import("../contracts/working-set").WorkingSet;
   events: ToolEvent[];
   options: AssistantRunOptions;
   runbookDefinition: AssistantRunbookDefinition;
@@ -1611,7 +1634,6 @@ async function requestRainyAgenticResponse({
   runId: string;
 }) {
   const runtime = buildAgentRuntimeConfig(options, prompt);
-  const files = snapshot.files.slice(0, 80).join("\n");
   const matches = snapshot.promptMatches
     .slice(0, 12)
     .map((match) => `${match.file}:${match.line} ${match.text}`)
@@ -1641,8 +1663,16 @@ Runtime truth and permissions:
 - Blocked actions are: ${snapshot.trustContract.blockedActions.join(", ") || "none"}.
 - Do not ask the user to run a command manually unless MaTE X lacks a permitted or approvable path to perform it.
 
-Files:
-${files || "(none)"}
+Working Set:
+${renderWorkingSetForPrompt(workingSet)}
+
+Working set discipline:
+- Treat the working set as the authoritative starting context for this run.
+- Do not read primary target files just to restate that they are relevant; first use the ranked paths, git diff snippets, recent failures, and relevant scripts already supplied.
+- If the objective is a failing validation command, run the narrow validation command before reading files unless the working set already contains the exact error.
+- If the narrow validation command exits 0, treat the reported failure as resolved or unreproduced. Do not claim pending type errors, mismatches, or failures without a nonzero command result or exact diagnostic text.
+- Inspect files only when the working set, graph context, diffs, or command output identifies a concrete unresolved question.
+- Prefer Repo Intelligence Graph tools over grep or broad file listing when selecting any additional files.
 
 Git status:
 ${gitStatus || "(clean)"}
@@ -1657,7 +1687,7 @@ Repo Intelligence Graph:
 ${repoGraphSummary}
 
 You are running in an agent loop, not a single reply.
-First, use the workspace metadata, git status, file list, prompt-linked matches, and conversation history already provided here.
+First, use the working set, workspace metadata, git status, prompt-linked matches, and conversation history already provided here.
 Before broad file search, use Repo Intelligence Graph APIs for entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
