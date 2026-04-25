@@ -53,6 +53,7 @@ const MAX_FILE_BYTES = 600_000;
 const SERVICE_CALL_PATTERN =
   /\b([A-Za-z0-9_$]+(?:Service)?)\.([A-Za-z0-9_$]+)\s*\(/g;
 const DIRECT_CALL_PATTERN = /\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+const FAN_OUT_LIMIT = 12;
 
 export class RepoGraphService {
   private watchers = new Map<string, FSWatcher>();
@@ -128,22 +129,30 @@ export class RepoGraphService {
       }
       seen.set(current.file, current);
 
-      const dependents = reverseImports.get(current.file) ?? [];
+      const dependents = prioritizeImpactTargets(reverseImports.get(current.file) ?? []);
       for (const dependent of dependents) {
         queue.push({
           file: dependent,
           distance: current.distance + 1,
-          reason: `imports ${current.file}`,
+          reason: describeImpactReason(dependent, `imports ${current.file}`),
         });
       }
+      addFanOutSummary(queue, current, reverseImports.get(current.file) ?? [], `imports ${current.file}`);
 
-      for (const target of runtimeTargets.get(current.file) ?? []) {
+      const runtimeDelegates = prioritizeImpactTargets(runtimeTargets.get(current.file) ?? []);
+      for (const target of runtimeDelegates) {
         queue.push({
           file: target,
           distance: current.distance + 1,
-          reason: `runtime delegate from ${current.file}`,
+          reason: describeImpactReason(target, `runtime delegate from ${current.file}`),
         });
       }
+      addFanOutSummary(
+        queue,
+        current,
+        runtimeTargets.get(current.file) ?? [],
+        `runtime delegate from ${current.file}`,
+      );
 
       for (const test of testsByFile.get(current.file) ?? []) {
         queue.push({
@@ -155,7 +164,7 @@ export class RepoGraphService {
     }
 
     return [...seen.values()]
-      .filter((entry) => nodesById.has(fileNodeByKey.get(entry.file)?.id ?? ''))
+      .filter((entry) => entry.group || nodesById.has(fileNodeByKey.get(entry.file)?.id ?? ''))
       .sort((a, b) => a.distance - b.distance || a.file.localeCompare(b.file));
   }
 
@@ -882,6 +891,64 @@ function normalizeRelativePath(filePath: string) {
 
 function uniqueSorted(values: string[]) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function prioritizeImpactTargets(files: string[]) {
+  const uniqueFiles = uniqueSorted(files);
+  if (uniqueFiles.length <= FAN_OUT_LIMIT) {
+    return uniqueFiles;
+  }
+
+  const highSignal = uniqueFiles.filter((file) => !isFanOutLeaf(file));
+  const lowSignal = uniqueFiles.filter(isFanOutLeaf);
+  return [...highSignal, ...lowSignal].slice(0, FAN_OUT_LIMIT);
+}
+
+function addFanOutSummary(
+  queue: RepoGraphImpactedFile[],
+  current: RepoGraphImpactedFile,
+  files: string[],
+  reason: string,
+) {
+  const uniqueFiles = uniqueSorted(files);
+  if (uniqueFiles.length <= FAN_OUT_LIMIT) {
+    return;
+  }
+  const shown = prioritizeImpactTargets(uniqueFiles);
+  const hiddenCount = uniqueFiles.length - shown.length;
+  if (hiddenCount <= 0) {
+    return;
+  }
+
+  queue.push({
+    file: `${current.file}#fanout:${hashKey(reason)}`,
+    distance: current.distance + 1,
+    reason: `${reason}; ${hiddenCount} lower-signal files grouped`,
+    group: inferImpactGroup(uniqueFiles),
+    hiddenCount,
+  });
+}
+
+function describeImpactReason(file: string, reason: string) {
+  const group = inferImpactGroup([file]);
+  return group ? `${reason}; ${group}` : reason;
+}
+
+function inferImpactGroup(files: string[]) {
+  if (files.every((file) => file.startsWith('src/electron/tools/'))) {
+    return 'tool ecosystem';
+  }
+  if (files.every((file) => file.includes('/tools/'))) {
+    return 'tool ecosystem';
+  }
+  if (files.every((file) => file.endsWith('.test.ts') || file.endsWith('.test.tsx'))) {
+    return 'tests';
+  }
+  return undefined;
+}
+
+function isFanOutLeaf(file: string) {
+  return file.startsWith('src/electron/tools/') || file.includes('/tools/');
 }
 
 function hashKey(input: string) {
