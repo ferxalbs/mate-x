@@ -11,6 +11,7 @@ import type {
   ResolvePolicyStopRequest,
 } from "./policy";
 import type { RainyModelCatalogEntry } from "./rainy";
+import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
 import type {
   SearchMatch,
@@ -72,6 +73,7 @@ export interface RepoInspectorApi {
   openWorkspacePath: (
     target: "folder" | "vscode" | "terminal",
   ) => Promise<void>;
+  graph: RepoGraphApi;
 }
 
 export interface GitApi {
