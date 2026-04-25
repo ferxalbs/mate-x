@@ -696,6 +696,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             execution.message.content.trim().slice(0, 600) ??
             "Assistant completed without final synthesis text.",
           evidencePack: execution.message.evidencePack,
+          workingSet: execution.message.workingSet?.metadata,
         },
       });
 

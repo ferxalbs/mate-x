@@ -1,4 +1,5 @@
 import type { ToolPolicyClassification } from "./tool-policy";
+import type { WorkingSet, WorkingSetMetadata } from "./working-set";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
@@ -150,6 +151,7 @@ export interface ReproducibleRunResult {
   status: "completed" | "failed";
   summary: string;
   evidencePack?: EvidencePack;
+  workingSet?: WorkingSetMetadata;
 }
 
 export interface ReproducibleRunIntegrity {
@@ -187,6 +189,7 @@ export interface ChatMessage {
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
   evidencePack?: EvidencePack;
+  workingSet?: WorkingSet;
 }
 
 export interface Conversation {
