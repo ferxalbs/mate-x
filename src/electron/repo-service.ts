@@ -36,7 +36,6 @@ import type {
   WorkspaceMemoryBootstrapContext,
   WorkspaceMemoryProposedUpdate,
   WorkspaceEntry,
-  WorkspaceHealthProfile,
   WorkspaceSnapshot,
   WorkspaceSummary,
   WorkspaceTrustContract,
@@ -734,12 +733,6 @@ async function buildWorkspaceSummary(
       },
     ],
   };
-}
-
-function normalizePersistedValue(value: string) {
-  return value.startsWith("unknown") || value === "not configured"
-    ? undefined
-    : value;
 }
 
 async function listWorkspaceFiles(
