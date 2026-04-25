@@ -63,6 +63,8 @@ export interface RepoGraphImpactedFile {
   file: string;
   reason: string;
   distance: number;
+  group?: string;
+  hiddenCount?: number;
 }
 
 export interface RepoGraphImportChain {
