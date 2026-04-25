@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.25 (1) [Repo Intelligence Graph and Change Impact]
+
+- Added a persistent per-workspace Repo Intelligence Graph in the Electron main process, stored in Turso/libSQL with graph nodes, edges, and refresh snapshots.
+- Indexed repository files, imports, exports, tests, package scripts, command purpose, entrypoints, IPC channels, environment variable usage, config files, dependency manifests, and dependency usage.
+- Exposed graph APIs for entrypoints, impacted files, tests for file, import chains, IPC surface, environment usage, and dependency surface through IPC, preload, and the `repo_graph` agent tool.
+- Wired the agent runtime to use RepoGraph context before broad file search, improving structural reasoning and reducing blind exploration.
+- Added incremental refresh hooks for filesystem changes, workspace switches, and git status reads.
+- Expanded IPC intelligence with handler delegation edges so IPC channels map to service functions and runtime-dependent service files.
+- Improved impacted-file output by grouping noisy high fan-out tool ecosystems while preserving concrete high-signal files.
+- Replaced the debug graph UI with a user-facing Change Impact panel that analyzes current git changes, risk level, affected files, service blast radius, tool fan-out, and suggested tests.
+- Moved Change Impact access into the topbar `Analyze` action and removed the confusing standalone theme shortcut button from the visible topbar.
+- Verified with `bun run typecheck` and `bun run lint`; lint still reports existing unrelated unused `settings` warnings in legacy tool modules.
+
 ## Unreleased - 2026.04.24 (2) [Advanced Offensive Security Arsenal]
 
 - Expanded MaTE X agent capabilities with 14 new highly specialized, enterprise-grade offensive security tools.

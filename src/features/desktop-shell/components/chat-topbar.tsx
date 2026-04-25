@@ -4,6 +4,7 @@ import {
   ExternalLinkIcon,
   GitBranchIcon,
   PlusIcon,
+  ShieldCheckIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -17,7 +18,6 @@ import { openWorkspacePath } from '../../../services/repo-client';
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
   conversation: Conversation | null;
-  theme: Theme;
   resolvedTheme: 'light' | 'dark';
   runStatus: RunStatus;
   onCreateThread: () => void;
@@ -47,7 +47,6 @@ function TitlebarButton({
 export function ChatTopbar({
   workspace,
   conversation,
-  theme,
   runStatus,
   onCreateThread,
   onImportWorkspace,
@@ -56,6 +55,9 @@ export function ChatTopbar({
   const [openTarget, setOpenTarget] = useState('folder');
   const [gitAction, setGitAction] = useState('commit-push');
   const title = conversation?.title ?? 'No active thread';
+  const openImpactPanel = () => {
+    window.dispatchEvent(new CustomEvent('mate:open-impact-panel'));
+  };
 
   return (
     <header className="drag-region flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] bg-[var(--titlebar)] px-4">
@@ -146,15 +148,14 @@ export function ChatTopbar({
           <PlusIcon className="size-3.5" />
         </Button>
         <Button
-          aria-label="Toggle theme"
-          size="icon-xs"
+          aria-label="Analyze change impact"
+          size="xs"
           variant="outline"
-          className="size-8 rounded-lg border-border/70 bg-background/65 shadow-none hover:bg-accent"
-          onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
+          className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] font-medium shadow-none hover:bg-accent"
+          onClick={openImpactPanel}
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">
-            {theme === 'dark' ? 'N' : 'D'}
-          </span>
+          <ShieldCheckIcon className="size-3.5" />
+          Analyze
         </Button>
         <Menu>
           <MenuTrigger

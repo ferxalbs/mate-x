@@ -26,7 +26,7 @@ export function HomePage() {
   const createThread = useChatStore((state) => state.createThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
   const undoLastTurn = useChatStore((state) => state.undoLastTurn);
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
 
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
@@ -111,7 +111,6 @@ export function HomePage() {
         onThemeChange={setTheme}
         resolvedTheme={resolvedTheme}
         runStatus={runStatus}
-        theme={theme}
         workspace={workspace}
       />
       <MessageStream
