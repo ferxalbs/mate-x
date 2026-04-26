@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { initializeUpdater } from './electron/updater';
 
 import { registerIpcHandlers } from './electron/ipc-handlers';
 
@@ -73,6 +74,7 @@ const createWindow = () => {
 app.on('ready', () => {
   registerIpcHandlers();
   createWindow();
+  initializeUpdater();
 });
 
 app.on('window-all-closed', () => {
