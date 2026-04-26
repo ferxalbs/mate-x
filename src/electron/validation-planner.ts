@@ -199,22 +199,22 @@ export class ValidationPlanner {
 
     const alternatives: ValidationPlanCommand[] = [
       commandFromProfile(input.profile?.buildCommand ?? scriptCommand(input, 'build'), {
-        reason: 'Primary already covers type or test signal; build fallback checks packaging and bundler/runtime integration.',
+        reason: 'Selected build because it provides packaging and bundler/runtime integration signal distinct from the primary command.',
         estimatedCost: 'expensive',
         expectedSignal: 'Bundler, packaging, and entrypoint regressions not caught by the primary command.',
       }),
       commandFromProfile(input.profile?.lintCommand ?? scriptCommand(input, 'lint'), {
-        reason: 'Primary command duplicated fallback; lint gives a different static quality and correctness signal.',
+        reason: 'Selected lint because it provides static quality and correctness signal distinct from the primary command.',
         estimatedCost: 'cheap',
         expectedSignal: 'Import, style, React hook, and static rule violations.',
       }),
       commandFromProfile(input.profile?.typecheckCommand ?? scriptCommand(input, 'typecheck'), {
-        reason: 'Primary command duplicated fallback; typecheck gives a separate contract signal.',
+        reason: 'Selected typecheck because it provides contract and cross-module compile signal distinct from the primary command.',
         estimatedCost: 'cheap',
         expectedSignal: 'Type, contract, and cross-module compile errors.',
       }),
       commandFromProfile(input.profile?.testCommand ?? scriptCommand(input, 'test'), {
-        reason: 'Primary command duplicated fallback; full test command gives broader regression signal.',
+        reason: 'Selected full test command because it provides broader regression signal distinct from the primary command.',
         estimatedCost: estimateCost(input.profile?.testCommand ?? scriptCommand(input, 'test') ?? '', framework),
         expectedSignal: 'Automated test failures outside targeted coverage.',
       }),

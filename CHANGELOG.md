@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.26 (2) [Validation Planner]
+
+- Added a Validation Planner service that selects the smallest useful validation plan from the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous validation failures.
+- Added structured validation plans with primary and fallback commands, reasons, estimated cost, expected signal, risk level, fallback trigger, recommendations, comments, and explicit not-run execution state.
+- Added the `plan_validation` agent tool so agents plan validation before executing commands and avoid ad-hoc command selection when a plan exists.
+- Added runtime-aware workspace capability detection that distinguishes Bun, pnpm, Yarn, and npm from `packageManager` metadata and lockfiles, then rewrites stale generated profile commands to the detected runtime while preserving custom commands.
+- Updated `run_tests` to execute planned primary or fallback commands even when no test script exists, persist the validation plan with each validation run, return the saved validation run ID, and self-report plan/run persistence proof.
+- Added `verify_validation_persistence` to verify latest plan persistence, matching plan IDs on validation runs, required high-risk fallback execution, and complete validation-stage evidence from database records.
+- Improved high-risk behavior so primary validation returns a required fallback action when the fallback is distinct, and the persistence verifier remains incomplete until required fallback evidence exists.
+- Improved fallback diversity and wording so fallback commands prefer a distinct build, lint, typecheck, or test signal and avoid misleading duplicate-command explanations.
+- Updated agent runtime guidance so validation plans are created before validation, planned commands are authoritative, required follow-up actions are executed, and persistence or completion is not claimed without tool evidence.
+- Verified with `bun run typecheck` and `bun run lint`; lint still reports existing unrelated unused `settings` warnings in legacy tool modules.
+
 ## Unreleased - 2026.04.26 (1) [Impact-Aware Patch Engine]
 
 - Added an Impact-Aware Patch Engine for `auto_patch` and `file_editor` that analyzes RepoGraph context before and after patch attempts.
