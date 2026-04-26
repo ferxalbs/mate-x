@@ -53,8 +53,15 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
       }
     };
 
-    // Detect package manager
-    if (await hasFile("bun.lock")) detected.packageManager = "bun";
+    const pkgJson = await readJson("package.json");
+
+    // Detect package manager. packageManager field is the strongest intent;
+    // lockfiles are the fallback runtime signal.
+    const packageManagerField = typeof pkgJson?.packageManager === "string"
+      ? pkgJson.packageManager.split("@")[0]
+      : undefined;
+    if (isNodePackageManager(packageManagerField)) detected.packageManager = packageManagerField;
+    else if (await hasFile("bun.lock")) detected.packageManager = "bun";
     else if (await hasFile("pnpm-lock.yaml")) detected.packageManager = "pnpm";
     else if (await hasFile("yarn.lock")) detected.packageManager = "yarn";
     else if (await hasFile("package-lock.json")) detected.packageManager = "npm";
@@ -63,12 +70,11 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
     else if (await hasFile("go.sum")) detected.packageManager = "go";
 
     // Detect node commands
-    const pkgJson = await readJson("package.json");
     if (pkgJson?.scripts) {
-      if (pkgJson.scripts.test) detected.testCommand = `${detected.packageManager || "npm"} run test`;
-      if (pkgJson.scripts.lint) detected.lintCommand = `${detected.packageManager || "npm"} run lint`;
-      if (pkgJson.scripts.build) detected.buildCommand = `${detected.packageManager || "npm"} run build`;
-      if (pkgJson.scripts.typecheck) detected.typecheckCommand = `${detected.packageManager || "npm"} run typecheck`;
+      if (pkgJson.scripts.test) detected.testCommand = buildNodeScriptCommand(detected.packageManager, "test");
+      if (pkgJson.scripts.lint) detected.lintCommand = buildNodeScriptCommand(detected.packageManager, "lint");
+      if (pkgJson.scripts.build) detected.buildCommand = buildNodeScriptCommand(detected.packageManager, "build");
+      if (pkgJson.scripts.typecheck) detected.typecheckCommand = buildNodeScriptCommand(detected.packageManager, "typecheck");
 
       // Attempt framework detection from dependencies
       const deps = { ...pkgJson.dependencies, ...pkgJson.devDependencies };
@@ -111,11 +117,7 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
     }
 
     // 3. Merge: existing profile values (user overrides) take precedence
-    const merged: Partial<WorkspaceProfile> = {
-      ...detected,
-      ...(existingProfile || {}),
-      workspaceId: activeWorkspaceId,
-    };
+    const merged: Partial<WorkspaceProfile> = mergeWorkspaceProfile(existingProfile, detected, activeWorkspaceId);
 
     // 4. Upsert the merged profile
     await tursoService.upsertWorkspaceProfile(merged as any);
@@ -123,6 +125,51 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
     return JSON.stringify(merged, null, 2);
   },
 };
+
+function isNodePackageManager(value: unknown): value is "bun" | "pnpm" | "yarn" | "npm" {
+  return value === "bun" || value === "pnpm" || value === "yarn" || value === "npm";
+}
+
+function buildNodeScriptCommand(packageManager: string | undefined, script: string) {
+  const manager = isNodePackageManager(packageManager) ? packageManager : "npm";
+  return `${manager} run ${script}`;
+}
+
+function isGeneratedNodeScriptCommand(command: string | undefined, script: string) {
+  return Boolean(command?.match(new RegExp(`^(bun|npm|pnpm|yarn) run ${script}$`)));
+}
+
+function mergeCommand(
+  existingCommand: string | undefined,
+  detectedCommand: string | undefined,
+  script: string,
+) {
+  if (!detectedCommand) {
+    return existingCommand;
+  }
+  if (!existingCommand || isGeneratedNodeScriptCommand(existingCommand, script)) {
+    return detectedCommand;
+  }
+  return existingCommand;
+}
+
+function mergeWorkspaceProfile(
+  existingProfile: WorkspaceProfile | null,
+  detected: Partial<WorkspaceProfile>,
+  workspaceId: string,
+): Partial<WorkspaceProfile> {
+  return {
+    ...detected,
+    ...(existingProfile || {}),
+    workspaceId,
+    packageManager: detected.packageManager ?? existingProfile?.packageManager,
+    testFramework: detected.testFramework ?? existingProfile?.testFramework,
+    testCommand: mergeCommand(existingProfile?.testCommand, detected.testCommand, "test"),
+    lintCommand: mergeCommand(existingProfile?.lintCommand, detected.lintCommand, "lint"),
+    buildCommand: mergeCommand(existingProfile?.buildCommand, detected.buildCommand, "build"),
+    typecheckCommand: mergeCommand(existingProfile?.typecheckCommand, detected.typecheckCommand, "typecheck"),
+  };
+}
 
 export function impactAwarePatchSmokeTest(): { ok: boolean; message: string; exports: string[] } {
   return {
