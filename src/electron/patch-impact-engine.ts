@@ -16,8 +16,17 @@ type SurfaceDiff = {
   unknown: boolean;
 };
 
+type PatchImpactRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
+
 export type PatchImpactSummary = {
   targetFile: string;
+  risk: {
+    level: PatchImpactRiskLevel;
+    score: number | null;
+    requiresConfirmation: boolean;
+    reasons: string[];
+    userMessage: string;
+  };
   before: {
     importingFiles: string[];
     importedFiles: string[];
@@ -47,6 +56,10 @@ type PatchImpactBefore = {
   targetFile: string;
   graph: GraphState | null;
   summary: PatchImpactSummary['before'];
+};
+
+type PatchImpactDecision = PatchImpactSummary['risk'] & {
+  validationCommands: string[];
 };
 
 const CONFIG_OR_MANIFEST = new Set(['config', 'manifest']);
@@ -133,16 +146,92 @@ export async function analyzePatchAfter(before: PatchImpactBefore): Promise<Patc
     unknown,
   };
 
+  const validationCommands = chooseValidationCommands(before, after);
   return {
     targetFile: before.targetFile,
+    risk: assessPatchRisk(before, after, validationCommands),
     before: before.summary,
     after,
-    validationCommands: chooseValidationCommands(before, after),
+    validationCommands,
   };
 }
 
+export function assessPatchBeforeWrite(before: PatchImpactBefore): PatchImpactDecision {
+  const validationCommands = chooseValidationCommands(before, {
+    impactedNodes: [],
+    imports: { added: [], removed: [], unknown: !before.graph },
+    exports: { added: [], removed: [], unknown: !before.graph },
+    ipcApiEnvDependencySurface: { added: [], removed: [], unknown: !before.graph },
+    unknown: [],
+  });
+  return {
+    ...assessPatchRisk(before, {
+      impactedNodes: [],
+      imports: { added: [], removed: [], unknown: !before.graph },
+      exports: { added: [], removed: [], unknown: !before.graph },
+      ipcApiEnvDependencySurface: { added: [], removed: [], unknown: !before.graph },
+      unknown: [],
+    }, validationCommands),
+    validationCommands,
+  };
+}
+
+export function formatPatchImpactBlocked(
+  targetFile: string,
+  decision: PatchImpactDecision,
+  before: PatchImpactSummary['before'],
+) {
+  return [
+    `Patch not applied to ${targetFile}.`,
+    'PATCH_IMPACT_DECISION',
+    `Risk: ${decision.level.toUpperCase()}`,
+    `Confirmation required: ${decision.requiresConfirmation ? 'yes' : 'no'}`,
+    decision.userMessage,
+    `Reasons: ${decision.reasons.join(' ')}`,
+    `Validation: ${decision.validationCommands.join(', ')}`,
+    decision.requiresConfirmation
+      ? 'To apply anyway, call the patch tool again with allowHighImpact: true after user confirmation.'
+      : 'No file was changed.',
+    'PATCH_IMPACT_BEFORE_JSON',
+    '```json',
+    JSON.stringify({ targetFile, risk: decision, before }, null, 2),
+    '```',
+  ].join('\n');
+}
+
+export function formatPatchImpactSkipped(
+  targetFile: string,
+  decision: PatchImpactDecision,
+  before: PatchImpactSummary['before'],
+) {
+  return [
+    `Edit skipped for ${targetFile}. Replacement would not change the file.`,
+    'PATCH_IMPACT_DECISION',
+    `Risk: ${decision.level.toUpperCase()}`,
+    `Confirmation required: ${decision.requiresConfirmation ? 'yes' : 'no'}`,
+    decision.userMessage,
+    `Reasons: ${decision.reasons.join(' ')}`,
+    `Validation: ${decision.validationCommands.join(', ')}`,
+    'No file was changed.',
+    'PATCH_IMPACT_BEFORE_JSON',
+    '```json',
+    JSON.stringify({ targetFile, risk: decision, before }, null, 2),
+    '```',
+  ].join('\n');
+}
+
 export function formatPatchImpactSummary(summary: PatchImpactSummary) {
-  return `PATCH_IMPACT_SUMMARY_JSON\n\`\`\`json\n${JSON.stringify(summary, null, 2)}\n\`\`\``;
+  return [
+    'PATCH_IMPACT_DECISION',
+    `Risk: ${summary.risk.level.toUpperCase()}`,
+    `Confirmation required: ${summary.risk.requiresConfirmation ? 'yes' : 'no'}`,
+    summary.risk.userMessage,
+    `Validation: ${summary.validationCommands.join(', ')}`,
+    'PATCH_IMPACT_SUMMARY_JSON',
+    '```json',
+    JSON.stringify(summary, null, 2),
+    '```',
+  ].join('\n');
 }
 
 async function resolveWorkspaceByPath(workspacePath: string): Promise<PatchImpactWorkspace> {
@@ -343,7 +432,8 @@ function chooseValidationCommands(
     after.imports.removed.length ||
     after.exports.added.length ||
     after.exports.removed.length ||
-    before.summary.affectedContractsTypes.length
+    before.summary.affectedContractsTypes.length ||
+    isTypeScriptSourceFile(before.targetFile)
   ) {
     commands.add('bun run typecheck');
   }
@@ -357,12 +447,128 @@ function chooseValidationCommands(
   return [...commands];
 }
 
+function assessPatchRisk(
+  before: PatchImpactBefore,
+  after: PatchImpactSummary['after'],
+  validationCommands: string[],
+): PatchImpactSummary['risk'] {
+  const reasons: string[] = [];
+  const unknownCount = before.summary.unknown.length + after.unknown.length;
+  if (
+    unknownCount > 0 ||
+    after.imports.unknown ||
+    after.exports.unknown ||
+    after.ipcApiEnvDependencySurface.unknown
+  ) {
+    return {
+      level: 'unknown',
+      score: null,
+      requiresConfirmation: true,
+      reasons: [
+        ...before.summary.unknown,
+        ...after.unknown,
+        'RepoGraph could not fully determine the patch impact.',
+      ],
+      userMessage:
+        'Impact could not be fully determined. Ask for confirmation and run broad validation before trusting this patch.',
+    };
+  }
+
+  let score = 0;
+  const importingCount = before.summary.importingFiles.length;
+  const impactedCount = after.impactedNodes.filter((entry) => !entry.group).length;
+  const exportChanges = after.exports.added.length + after.exports.removed.length;
+  const importChanges = after.imports.added.length + after.imports.removed.length;
+  const surfaceChanges =
+    after.ipcApiEnvDependencySurface.added.length +
+    after.ipcApiEnvDependencySurface.removed.length;
+
+  if (importingCount >= 10) {
+    score += 35;
+    reasons.push(`${importingCount} files import ${before.targetFile}.`);
+  } else if (importingCount >= 3) {
+    score += 18;
+    reasons.push(`${importingCount} files import ${before.targetFile}.`);
+  } else if (importingCount > 0) {
+    score += 8;
+    reasons.push(`${importingCount} file imports ${before.targetFile}.`);
+  }
+
+  if (impactedCount >= 15) {
+    score += 30;
+    reasons.push(`${impactedCount} RepoGraph nodes are impacted after the patch.`);
+  } else if (impactedCount >= 5) {
+    score += 16;
+    reasons.push(`${impactedCount} RepoGraph nodes are impacted after the patch.`);
+  }
+
+  if (exportChanges > 0) {
+    score += 22;
+    reasons.push(`${exportChanges} exported symbol change(s) detected.`);
+  }
+  if (importChanges > 0) {
+    score += 12;
+    reasons.push(`${importChanges} import change(s) detected.`);
+  }
+  if (surfaceChanges > 0) {
+    score += 25;
+    reasons.push(`${surfaceChanges} IPC/API/env/dependency surface change(s) detected.`);
+  }
+  if (before.summary.affectedContractsTypes.length > 0) {
+    score += 25;
+    reasons.push('Shared contracts or type surfaces are affected.');
+  }
+  if (before.summary.affectedPackageScripts.length > 0) {
+    score += 18;
+    reasons.push('Package scripts may be affected by a config or manifest change.');
+  }
+  if (before.summary.relatedTests.length === 0) {
+    score += 8;
+    reasons.push('No related tests were detected.');
+  }
+  if (validationCommands.includes('unknown')) {
+    score += 10;
+    reasons.push('No precise validation command could be selected.');
+  }
+
+  const level: PatchImpactRiskLevel = score >= 55 ? 'high' : score >= 25 ? 'medium' : 'low';
+  const requiresConfirmation =
+    level === 'high' ||
+    surfaceChanges > 0 ||
+    before.summary.affectedContractsTypes.length > 0 ||
+    before.summary.affectedPackageScripts.length > 0;
+
+  return {
+    level,
+    score,
+    requiresConfirmation,
+    reasons: reasons.length > 0 ? reasons : ['Patch impact is narrow and structurally unchanged.'],
+    userMessage: describeRiskForUser(level, requiresConfirmation),
+  };
+}
+
+function describeRiskForUser(level: PatchImpactRiskLevel, requiresConfirmation: boolean) {
+  if (level === 'high') {
+    return 'High blast radius. Confirm with the user before applying similar patches and run the recommended validation commands.';
+  }
+  if (level === 'medium') {
+    return requiresConfirmation
+      ? 'Moderate blast radius with sensitive surface changes. Confirm before continuing.'
+      : 'Moderate blast radius. Run the recommended validation commands before trusting the patch.';
+  }
+  return 'Low blast radius. Run the recommended validation command when available.';
+}
+
 function normalizeRelativePath(value: string) {
   return value.split(path.sep).join('/').replace(/^\.\/+/, '');
 }
 
 function isContractOrTypeFile(file: string) {
   return file.startsWith('src/contracts/') || /\.(types?|d)\.tsx?$/.test(file);
+}
+
+function isTypeScriptSourceFile(file: string) {
+  return /\.(ts|tsx|mts|cts)$/.test(file) && !/\.d\.ts$/.test(file);
 }
 
 function uniqSorted(values: string[]) {
