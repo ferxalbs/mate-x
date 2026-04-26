@@ -1,11 +1,12 @@
-import { readFile, writeFile, copyFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import type { Tool } from "../tool-service";
+import { analyzePatchAfter, analyzePatchBefore, formatPatchImpactSummary } from "../patch-impact-engine";
 import { resolveWorkspacePath } from "./tool-utils";
 
 export const fileEditorTool: Tool = {
   name: "file_editor",
-  description: "Surgically patch a file by replacing a specific line range with new content. Extremely stable for multi-line edits.",
+  description: "Surgically patch a file by replacing a specific line range with new content. Returns PATCH_IMPACT_SUMMARY_JSON and does not create backup files.",
   parameters: {
     type: "object",
     properties: {
@@ -33,17 +34,14 @@ export const fileEditorTool: Tool = {
     if (startLine < 1 || endLine < startLine) return "Invalid line numbers.";
     
     const targetFile = resolveWorkspacePath(workspacePath, path);
-    const backupFile = `${targetFile}.bak`;
 
     try {
       const content = await readFile(targetFile, "utf8");
+      const impactBefore = await analyzePatchBefore(workspacePath, String(path));
       const lines = content.split('\n');
       
       if (startLine > lines.length) return `startLine is beyond file length (${lines.length} lines).`;
       
-      // Create backup
-      await copyFile(targetFile, backupFile).catch(() => {});
-
       const zeroStart = startLine - 1;
       const zeroEnd = endLine; // exclusive when slicing
       
@@ -54,9 +52,10 @@ export const fileEditorTool: Tool = {
       const finalContent = [...before, ...newLines, ...after].join('\n');
 
       await writeFile(targetFile, finalContent, "utf8");
+      const impactSummary = await analyzePatchAfter(impactBefore);
 
       const rel = relative(workspacePath, targetFile);
-      return `File ${rel} successfully edited lines ${startLine}-${endLine}.\nBackup created at ${rel}.bak`;
+      return `File ${rel} successfully edited lines ${startLine}-${endLine}.\nNo backup file was created.\n${formatPatchImpactSummary(impactSummary)}`;
     } catch (error) {
       return `Error editing file: ${(error as Error).message}`;
     }

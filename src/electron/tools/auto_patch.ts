@@ -1,12 +1,13 @@
-import { readFile, writeFile, copyFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import type { Tool } from "../tool-service";
+import { analyzePatchAfter, analyzePatchBefore, formatPatchImpactSummary } from "../patch-impact-engine";
 import { resolveWorkspacePath } from "./tool-utils";
 
 export const autoPatchTool: Tool = {
   name: "auto_patch",
   description:
-    "An Active Remediation tool that replaces a vulnerable block of code with a secure patch. Automatically creates a .bak backup before writing.",
+    "An Active Remediation tool that replaces a vulnerable block of code with a secure patch and returns PATCH_IMPACT_SUMMARY_JSON. Does not create backup files.",
   parameters: {
     type: "object",
     properties: {
@@ -30,20 +31,17 @@ export const autoPatchTool: Tool = {
     },
     required: ["path", "searchString", "replacementString"],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath }) {
     const { path, searchString, replacementString, replaceAll = false } = args;
     const targetFile = resolveWorkspacePath(workspacePath, path);
-    const backupFile = `${targetFile}.bak`;
 
     try {
       const content = await readFile(targetFile, "utf8");
+      const impactBefore = await analyzePatchBefore(workspacePath, String(path));
 
       if (!content.includes(searchString)) {
         return `Patch failed: The exact searchString was not found in ${path}.`;
       }
-
-      // Create backup
-      await copyFile(targetFile, backupFile);
 
       const replacementCount = content.split(searchString).length - 1;
       const newContent = replaceAll
@@ -51,11 +49,12 @@ export const autoPatchTool: Tool = {
         : content.replace(searchString, replacementString);
 
       await writeFile(targetFile, newContent, "utf8");
+      const impactSummary = await analyzePatchAfter(impactBefore);
 
       const rel = relative(workspacePath, targetFile);
       return `Patch applied successfully to ${rel}. Replaced ${
         replaceAll ? replacementCount : 1
-      } occurrence(s).\nBackup created at ${rel}.bak`;
+      } occurrence(s).\nNo backup file was created.\n${formatPatchImpactSummary(impactSummary)}`;
     } catch (error) {
       return `Error applying patch: ${(error as Error).message}`;
     }

@@ -46,7 +46,7 @@ export function ComposerPanel({
   onScrollToBottom,
   onResolvePolicyStop,
   workspace,
-  resolvedTheme: _resolvedTheme,
+  resolvedTheme,
   onSubmit,
   onUndoLastTurn,
   showScrollButton,
@@ -191,19 +191,36 @@ export function ComposerPanel({
   }
 
   return (
-    <div className={cn(
-      "transition-all duration-300",
-      settings.floatingInput 
-        ? "fixed bottom-0 inset-x-0 z-40 bg-gradient-to-t from-background via-background/95 to-transparent pt-20 pb-8 px-4 pointer-events-none" 
-        : "pt-2 pb-6 px-8"
-    )}>
-      <div className={cn(
-        "relative mx-auto w-full transition-all duration-300",
-        settings.floatingInput ? "pointer-events-auto" : "",
-        settings.compactMode ? "max-w-[680px]" : "max-w-[820px]"
-      )}>
+    <div
+      className={cn(
+        'transition-all duration-300',
+        settings.floatingInput
+          // Truly float: exit flex flow, sit above message content.
+          // pointer-events-none on wrapper so transparent area is click-through.
+          ? 'pointer-events-none absolute bottom-0 inset-x-0 z-40 pb-4'
+          : 'pt-2 pb-6 px-8',
+      )}
+    >
+      {/* Soft gradient fade above the panel */}
+      {settings.floatingInput ? (
+        <div className="pointer-events-none absolute inset-x-0 top-[-64px] h-[64px] bg-gradient-to-t from-background/60 to-transparent" />
+      ) : null}
+
+      <div
+        className={cn(
+          'mx-auto w-full transition-all duration-300',
+          // Re-enable pointer events only on the actual panel area.
+          settings.floatingInput ? 'pointer-events-auto px-4' : 'relative',
+          settings.compactMode ? 'max-w-[680px]' : 'max-w-[820px]',
+        )}
+      >
         {showScrollButton ? (
-          <div className={cn("pointer-events-none absolute inset-x-0 z-10 flex justify-center transition-all", settings.floatingInput ? "-top-12" : "-top-11")}>
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-0 z-10 flex justify-center transition-all',
+              settings.floatingInput ? '-top-12' : '-top-11',
+            )}
+          >
             <Button
               className="pointer-events-auto h-8 rounded-full border-border/60 bg-background/88 px-3 text-[11px] text-muted-foreground shadow-[0_10px_30px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md hover:bg-accent"
               onClick={onScrollToBottom}
@@ -215,10 +232,26 @@ export function ComposerPanel({
             </Button>
           </div>
         ) : null}
-        <div className={cn(
-          "rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-300",
-          settings.floatingInput ? "bg-[var(--panel)]/60" : "bg-[var(--panel)]/92"
-        )}>
+        <div
+          className={cn(
+            'rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] transition-all duration-300',
+            // Floating: ultra-transparent glass (30% dark / 75% light).
+            // Compact: same premium dark-glass aesthetic at higher opacity.
+            settings.floatingInput
+              ? cn(
+                  'backdrop-blur-3xl',
+                  resolvedTheme === 'dark'
+                    ? 'bg-[var(--panel)]/30'
+                    : 'bg-[var(--panel)]/75',
+                )
+              : cn(
+                  'backdrop-blur-2xl',
+                  resolvedTheme === 'dark'
+                    ? 'bg-[var(--panel)]/30'
+                    : 'bg-[var(--panel)]/75',
+                ),
+          )}
+        >
           {pendingPolicyStop ? (
             <PermissionPrompt
               disabled={isResolvingPolicyStop}
@@ -325,14 +358,17 @@ export function ComposerPanel({
             </div>
           </div>
         </div>
-        <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
-          <span className="truncate">
-            Scope {trustContract?.allowedPaths.slice(0, 3).join(', ') ?? 'loading'}
-          </span>
-          <span className="max-w-[42%] truncate text-right">
-            {workspace?.branch ?? 'main'} / blocked {trustContract?.blockedActions.slice(0, 2).join(', ') ?? 'loading'}
-          </span>
-        </div>
+        {!settings.floatingInput ? (
+          <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
+            <span className="truncate">
+              Scope {trustContract?.allowedPaths.slice(0, 3).join(', ') ?? 'loading'}
+            </span>
+            <span className="max-w-[42%] truncate text-right">
+              {workspace?.branch ?? 'main'} / blocked{' '}
+              {trustContract?.blockedActions.slice(0, 2).join(', ') ?? 'loading'}
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

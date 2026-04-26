@@ -99,6 +99,19 @@
   --success-foreground: var(--color-emerald-700);
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-700);
+
+  /* Code Syntax Highlighting (Light) */
+  --code-bg: #f8f9fa;
+  --code-header-bg: #f1f3f5;
+  --code-keyword: #d73a49;
+  --code-string: #22863a;
+  --code-function: #6f42c1;
+  --code-comment: #6a737d;
+  --code-variable: #e36209;
+  --code-operator: #d73a49;
+  --code-constant: #e36209;
+  --code-tag: #22863a;
+  --code-class: #005cc5;
   --app-chrome-background: var(--background);
   --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
   --sidebar: color-mix(in srgb, var(--background) 97%, #f4f4f6);
@@ -139,6 +152,18 @@
     --success-foreground: var(--color-emerald-400);
     --warning: var(--color-amber-500);
     --warning-foreground: var(--color-amber-400);
+
+    /* Refined Code Highlighting (Dark) - Matched to Screenshot */
+    --code-bg: #0d0e11; /* Much darker background */
+    --code-keyword: #ff6188; /* Pink/Red for export, function, return */
+    --code-string: #a9dc76; /* Green for strings */
+    --code-function: #ab9df2; /* Purple for function names */
+    --code-comment: #727072; /* Gray for comments */
+    --code-variable: #fc9867; /* Orange for variables and params */
+    --code-operator: #ff6188; /* Pink for operators */
+    --code-constant: #fc9867; /* Orange for numbers, null, booleans */
+    --code-tag: #ff6188;
+    --code-class: #78dce8; /* Cyan for JSON, Promise, types */
     --app-chrome-background: #0f1011;
     --app-frame-border: color-mix(in srgb, white 6%, transparent);
     --sidebar: color-mix(in srgb, #141517 97%, black 3%);
@@ -380,30 +405,69 @@ label:has(> select#reasoning-effort) select {
   font-size: 0.75rem;
 }
 
-.chat-markdown pre {
-  max-width: 100%;
-  overflow-x: auto;
+.chat-markdown .chat-markdown-codeblock {
+  position: relative;
+  margin: 0.75rem 0;
   border: 1px solid var(--border);
-  border-radius: 0.9rem;
-  background: color-mix(in srgb, var(--surface-soft) 82%, black 18%);
-  padding: 0.9rem 1rem;
+  border-radius: 0.55rem;
+  background: var(--code-bg);
+  overflow: clip;
 }
 
-.chat-markdown pre code {
+.chat-markdown pre.chat-markdown-pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border: none;
+  background: transparent;
+  padding: 0.75rem;
+  margin: 0;
+}
+
+.chat-markdown pre.chat-markdown-pre code {
   border: none;
   background: transparent;
   padding: 0;
   line-height: 1.5;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--foreground);
 }
 
-.chat-markdown .chat-markdown-codeblock {
-  position: relative;
-  margin: 0.65rem 0;
+.chat-markdown .chat-markdown-codeblock-label {
+  position: absolute;
+  top: 0.45rem;
+  left: 0.75rem;
+  z-index: 2;
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  pointer-events: none;
 }
 
-.chat-markdown .chat-markdown-codeblock pre {
-  margin: 0;
+.chat-markdown .chat-markdown-copy-button {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.35rem;
+  width: 1.35rem;
+  border-radius: 0.3rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: all 150ms ease;
+}
+
+.chat-markdown .chat-markdown-codeblock:hover .chat-markdown-copy-button {
+  opacity: 1;
+  background: color-mix(in srgb, var(--background) 45%, transparent);
+  border-color: var(--border);
 }
 
 .chat-markdown .chat-markdown-copy-button {

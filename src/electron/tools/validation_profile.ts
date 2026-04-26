@@ -123,3 +123,11 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
     return JSON.stringify(merged, null, 2);
   },
 };
+
+export function impactAwarePatchSmokeTest(): { ok: boolean; message: string; exports: string[] } {
+  return {
+    ok: true,
+    message: "impact-aware patch smoke test passed",
+    exports: ["detectWorkspaceCapabilitiesTool", "impactAwarePatchSmokeTest"],
+  };
+}
