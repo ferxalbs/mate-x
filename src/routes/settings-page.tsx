@@ -262,6 +262,8 @@ export function SettingsPage() {
         agentTraceV2InlineEvents: DEFAULT_APP_SETTINGS.agentTraceV2InlineEvents,
         diffLineWrapping: DEFAULT_APP_SETTINGS.diffLineWrapping,
         assistantOutput: DEFAULT_APP_SETTINGS.assistantOutput,
+        compactMode: DEFAULT_APP_SETTINGS.compactMode,
+        floatingInput: DEFAULT_APP_SETTINGS.floatingInput,
       }));
       setTheme('system');
     } else if (section === 'archive') {
@@ -303,6 +305,8 @@ export function SettingsPage() {
         : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
+      ...(appSettings.compactMode !== savedAppSettings.compactMode ? ['Compact UI'] : []),
+      ...(appSettings.floatingInput !== savedAppSettings.floatingInput ? ['Floating input'] : []),
       ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
       ...(appSettings.deleteConfirmation !== savedAppSettings.deleteConfirmation ? ['Delete confirmation'] : []),
       ...(appSettings.supermemoryApiKey !== savedAppSettings.supermemoryApiKey ? ['Supermemory API key'] : []),
@@ -482,6 +486,36 @@ export function SettingsPage() {
                         checked={appSettings.assistantOutput}
                         onCheckedChange={(value) => {
                           setAppSettings((current) => ({ ...current, assistantOutput: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Compact UI"
+                    description="Reduce the interface width for a more focused auditing experience."
+                    control={
+                      <Switch
+                        checked={appSettings.compactMode}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, compactMode: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Floating input"
+                    description="The chat composer floats with a premium semi-transparent backdrop blur."
+                    control={
+                      <Switch
+                        checked={appSettings.floatingInput}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, floatingInput: value }));
                           if (saveState === 'saved') {
                             setSaveState('idle');
                           }
