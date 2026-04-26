@@ -59,4 +59,3 @@ export function clampNumber(
 
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
-
