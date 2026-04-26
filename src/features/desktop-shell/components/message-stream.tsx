@@ -87,10 +87,7 @@ export function MessageStream({
   }, [messages, isRunning]);
 
   return (
-    <div ref={scrollerRef} className={cn(
-      "flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 transition-all duration-300",
-      settings.floatingInput ? "pb-[200px]" : "pb-8"
-    )}>
+    <div ref={scrollerRef} className="flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 pb-8 transition-all duration-300">
       <div className={cn(
         "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
         settings.compactMode ? "max-w-[680px]" : "max-w-[980px]"
@@ -722,13 +719,13 @@ function ActionEventCard({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] leading-5 text-muted-foreground/95 backdrop-blur-sm",
+        "min-w-0 rounded-xl border border-border/55 bg-[var(--surface-soft)]/35 px-3 py-2 text-[12px] leading-5 text-muted-foreground/95 backdrop-blur-sm transition-all hover:bg-[var(--surface-soft)]/60",
         className,
       )}
     >
       <div className="flex min-w-0 items-start gap-2">
-        <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/70">{prefix}</span>
-        <span className="min-w-0 flex-1 break-words">{row}</span>
+        <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">{prefix}</span>
+        <span className="min-w-0 flex-1 break-words text-foreground/90">{row}</span>
       </div>
       {event.policy ? <ToolPolicyBadges event={event} /> : null}
     </div>
@@ -856,14 +853,14 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
 
 function InlineTraceStatusDot({ status }: { status: ToolEvent['status'] }) {
   if (status === 'active') {
-    return <LoaderCircle className="size-3 shrink-0 animate-spin text-muted-foreground/70" />;
+    return <LoaderCircle className="size-3 shrink-0 animate-spin text-primary/70" />;
   }
 
   if (status === 'error') {
-    return <span className="size-1.5 shrink-0 rounded-full bg-amber-300/90" />;
+    return <span className="size-1.5 shrink-0 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.4)]" />;
   }
 
-  return <span className="size-1.5 shrink-0 rounded-full bg-emerald-300/80" />;
+  return <span className="size-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" />;
 }
 
 function summarizeInlineTraceEvent(event: ToolEvent) {
@@ -1099,14 +1096,14 @@ function ThinkingRow({ thought = '', isStreaming = true }: { thought?: string; i
   }, [isStreaming]);
 
   return (
-    <div className="space-y-2 rounded-2xl border border-border/40 bg-[var(--surface-soft)]/45 p-3 text-xs text-muted-foreground/85 transition-all hover:bg-[var(--surface-soft)]/65">
+    <div className="group space-y-2 rounded-2xl border border-border/45 bg-[var(--surface-soft)]/40 p-3 text-xs text-muted-foreground/85 transition-all hover:bg-[var(--surface-soft)]/60">
       <button
-        className="inline-flex items-center gap-2 font-medium text-foreground/75 hover:text-foreground"
+        className="inline-flex items-center gap-2 font-medium text-foreground/70 transition-colors hover:text-foreground"
         onClick={() => setExpanded(!expanded)}
         type="button"
       >
         {isStreaming ? (
-          <LoaderCircle className="size-3.5 animate-spin text-foreground/60" />
+          <LoaderCircle className="size-3.5 animate-spin text-primary/60" />
         ) : expanded ? (
           <ChevronDownIcon className="size-3.5" />
         ) : (

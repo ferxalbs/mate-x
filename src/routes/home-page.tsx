@@ -26,6 +26,7 @@ export function HomePage() {
   const createThread = useChatStore((state) => state.createThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
   const undoLastTurn = useChatStore((state) => state.undoLastTurn);
+  const settings = useChatStore((state) => state.settings);
   const { resolvedTheme, setTheme } = useTheme();
 
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
@@ -103,7 +104,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-background">
+    <section className="relative flex min-w-0 flex-1 flex-col bg-background">
       <ChatTopbar
         conversation={selectedThread}
         onCreateThread={createThread}
@@ -113,18 +114,32 @@ export function HomePage() {
         runStatus={runStatus}
         workspace={workspace}
       />
-      <MessageStream
-        canUndoLastTurn={canUndoLastTurn}
-        hasActiveThread={selectedThread !== null}
-        isRunning={runStatus === 'running'}
-        messages={selectedThread?.messages ?? []}
-        onUndoLastTurn={undoLastTurn}
-        onVisibilityChange={setShowScrollButton}
-        scrollerRef={messageScrollerRef}
-        traceVersion={traceVersion}
-        traceV2InlineEvents={traceV2InlineEvents}
-        workspace={workspace}
-      />
+      {/*
+        padding-bottom (border-box) shrinks the flex content area by the panel
+        height — MessageStream fills only the reduced area so content never
+        falls behind the floating panel. The gradient overlay in the padding
+        zone gives the glass panel real colors to blur against.
+      */}
+      <div
+        className="relative flex min-h-0 flex-1 flex-col"
+        style={{ paddingBottom: settings.floatingInput ? 152 : 0 }}
+      >
+        <MessageStream
+          canUndoLastTurn={canUndoLastTurn}
+          hasActiveThread={selectedThread !== null}
+          isRunning={runStatus === 'running'}
+          messages={selectedThread?.messages ?? []}
+          onUndoLastTurn={undoLastTurn}
+          onVisibilityChange={setShowScrollButton}
+          scrollerRef={messageScrollerRef}
+          traceVersion={traceVersion}
+          traceV2InlineEvents={traceV2InlineEvents}
+          workspace={workspace}
+        />
+        {settings.floatingInput ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[152px] bg-gradient-to-t from-background via-background/60 to-transparent" />
+        ) : null}
+      </div>
       <ComposerPanel
         canUndoLastTurn={canUndoLastTurn}
         isRunning={runStatus === 'running'}
