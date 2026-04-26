@@ -150,6 +150,8 @@ export class ValidationPlanner {
       scriptCommand(input, 'typecheck') ??
       input.profile?.buildCommand ??
       scriptCommand(input, 'build') ??
+      input.profile?.lintCommand ??
+      scriptCommand(input, 'lint') ??
       'echo "No validation command detected"';
 
     return {
