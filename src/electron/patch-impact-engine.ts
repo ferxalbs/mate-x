@@ -142,7 +142,7 @@ export async function analyzePatchAfter(before: PatchImpactBefore): Promise<Patc
 }
 
 export function formatPatchImpactSummary(summary: PatchImpactSummary) {
-  return `PATCH_IMPACT_SUMMARY_JSON\n${JSON.stringify(summary, null, 2)}`;
+  return `PATCH_IMPACT_SUMMARY_JSON\n\`\`\`json\n${JSON.stringify(summary, null, 2)}\n\`\`\``;
 }
 
 async function resolveWorkspaceByPath(workspacePath: string): Promise<PatchImpactWorkspace> {
