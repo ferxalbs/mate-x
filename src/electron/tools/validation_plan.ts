@@ -35,15 +35,13 @@ export const validationPlanTool: Tool = {
     },
     required: ["objective", "changedFiles", "impactedFiles", "packageScripts"],
   },
-  execute: async (
-    args: {
-      objective: string;
-      changedFiles: string[];
-      impactedFiles: string[];
-      packageScripts: Record<string, string>;
-      detectedFramework?: string;
-    },
-  ) => {
+  execute: async (args: {
+    objective: string;
+    changedFiles: string[];
+    impactedFiles: string[];
+    packageScripts: Record<string, string>;
+    detectedFramework?: string;
+  }) => {
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     if (!activeWorkspaceId) {
       return JSON.stringify({ error: "No active workspace ID found." });
@@ -57,7 +55,9 @@ export const validationPlanTool: Tool = {
     const plan = validationPlanner.createPlan({
       objective: args.objective,
       changedFiles: Array.isArray(args.changedFiles) ? args.changedFiles : [],
-      impactedFiles: Array.isArray(args.impactedFiles) ? args.impactedFiles : [],
+      impactedFiles: Array.isArray(args.impactedFiles)
+        ? args.impactedFiles
+        : [],
       packageScripts: args.packageScripts ?? {},
       detectedFramework: args.detectedFramework,
       previousFailures,

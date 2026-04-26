@@ -9,15 +9,18 @@ export const trafficPoisonerTool: Tool = {
     properties: {
       url: {
         type: "string",
-        description: "The local endpoint to poison (e.g., 'http://127.0.0.1:4000/api/users').",
+        description:
+          "The local endpoint to poison (e.g., 'http://127.0.0.1:4000/api/users').",
       },
       attackType: {
         type: "string",
-        description: "The attack vector to simulate: 'PARAMETER_POLLUTION', 'MASS_ASSIGNMENT', 'NOSQL_INJECTION', 'SSRF'.",
+        description:
+          "The attack vector to simulate: 'PARAMETER_POLLUTION', 'MASS_ASSIGNMENT', 'NOSQL_INJECTION', 'SSRF'.",
       },
       basePayload: {
         type: "string",
-        description: "A valid expected JSON payload (as a string) to mutate (e.g. '{\"username\":\"admin\"}').",
+        description:
+          'A valid expected JSON payload (as a string) to mutate (e.g. \'{"username":"admin"}\').',
       },
     },
     required: ["url", "attackType"],
@@ -45,7 +48,7 @@ export const trafficPoisonerTool: Tool = {
     switch (attackType) {
       case "PARAMETER_POLLUTION":
         // e.g., ?id=1&id=2&id=SELECT
-        maliciousUrl = url.includes("?") 
+        maliciousUrl = url.includes("?")
           ? `${url}&id=1&id=2&id=injection`
           : `${url}?id=1&id=2&id=injection`;
         break;
@@ -60,7 +63,7 @@ export const trafficPoisonerTool: Tool = {
       case "NOSQL_INJECTION":
         // e.g. {"username": {"$gt": ""}}
         for (const key in maliciousBody) {
-          maliciousBody[key] = { "$gt": "" };
+          maliciousBody[key] = { $gt: "" };
         }
         break;
       case "SSRF":
@@ -86,13 +89,13 @@ export const trafficPoisonerTool: Tool = {
       });
 
       clearTimeout(timeout);
-      
+
       const respText = await response.text();
 
       let result = `Traffic Poisoner [${attackType}] Report\\n=========================================\\n`;
       result += `Target: POST ${maliciousUrl}\\n`;
       result += `Mutated Body Sent: ${JSON.stringify(maliciousBody)}\\n\\n`;
-      
+
       if (response.status >= 500) {
         result += `[SUCCESS/CRASH] Target returned ${response.status}. The attack successfully crashed or disrupted the application!\\n`;
       } else if (response.status === 200 || response.status === 201) {
@@ -103,7 +106,6 @@ export const trafficPoisonerTool: Tool = {
 
       result += `\\nResponse snippet: ${respText.slice(0, 300)}`;
       return result;
-
     } catch (error) {
       return `Traffic Poisoner connection failed: ${(error as Error).message}. (Is the sandbox_run actually running?)`;
     }

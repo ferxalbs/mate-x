@@ -10,7 +10,8 @@ export const validationPersistenceTool: Tool = {
     properties: {
       runId: {
         type: "string",
-        description: "Optional validation run ID returned by run_tests. If omitted, checks the most recent validation run.",
+        description:
+          "Optional validation run ID returned by run_tests. If omitted, checks the most recent validation run.",
       },
     },
   },
@@ -20,29 +21,39 @@ export const validationPersistenceTool: Tool = {
       return JSON.stringify({ error: "No active workspace ID found." });
     }
 
-    const latestPlan = await tursoService.getLatestValidationPlan(activeWorkspaceId);
+    const latestPlan =
+      await tursoService.getLatestValidationPlan(activeWorkspaceId);
     const run = args.runId
       ? await tursoService.getValidationRun(args.runId)
-      : (await tursoService.getRecentValidationRuns(activeWorkspaceId, 1))[0] ?? null;
-    const recentRuns = await tursoService.getRecentValidationRuns(activeWorkspaceId, 20);
+      : ((
+          await tursoService.getRecentValidationRuns(activeWorkspaceId, 1)
+        )[0] ?? null);
+    const recentRuns = await tursoService.getRecentValidationRuns(
+      activeWorkspaceId,
+      20,
+    );
 
     const runPlan = run?.validationPlan;
     const planPersisted = Boolean(latestPlan);
     const runPersisted = Boolean(run);
     const runIncludesPlan = Boolean(runPlan);
     const planMatchesRun = Boolean(
-      latestPlan &&
-      runPlan &&
-      latestPlan.id === runPlan.id,
+      latestPlan && runPlan && latestPlan.id === runPlan.id,
     );
     const runsForLatestPlan = latestPlan
-      ? recentRuns.filter((recentRun) => recentRun.validationPlan?.id === latestPlan.id)
+      ? recentRuns.filter(
+          (recentRun) => recentRun.validationPlan?.id === latestPlan.id,
+        )
       : [];
     const primaryRun = latestPlan
-      ? runsForLatestPlan.find((recentRun) => recentRun.command === latestPlan.primary.command)
+      ? runsForLatestPlan.find(
+          (recentRun) => recentRun.command === latestPlan.primary.command,
+        )
       : undefined;
     const fallbackRun = latestPlan
-      ? runsForLatestPlan.find((recentRun) => recentRun.command === latestPlan.fallback.command)
+      ? runsForLatestPlan.find(
+          (recentRun) => recentRun.command === latestPlan.fallback.command,
+        )
       : undefined;
     const fallbackRequired = Boolean(
       latestPlan &&
@@ -58,26 +69,28 @@ export const validationPersistenceTool: Tool = {
       Boolean(primaryRun) &&
       requiredFallbackSatisfied;
 
-    return JSON.stringify({
-      planPersisted,
-      runPersisted,
-      runIncludesPlan,
-      planMatchesRun,
-      fallbackRequired,
-      requiredFallbackSatisfied,
-      latestPlanId: latestPlan?.id,
-      runId: run?.id,
-      runCommand: run?.command,
-      runStatus: run?.status,
-      runPlanId: runPlan?.id,
-      primaryRunId: primaryRun?.id,
-      fallbackRunId: fallbackRun?.id,
-      verdict: verified
-        ? "verified"
-        : "incomplete",
-      recommendation: verified
-        ? "Persistence and required validation stages verified from database records."
-        : "Do not claim validation complete until the latest plan, primary run, and required fallback run are all present with matching plan IDs.",
-    }, null, 2);
+    return JSON.stringify(
+      {
+        planPersisted,
+        runPersisted,
+        runIncludesPlan,
+        planMatchesRun,
+        fallbackRequired,
+        requiredFallbackSatisfied,
+        latestPlanId: latestPlan?.id,
+        runId: run?.id,
+        runCommand: run?.command,
+        runStatus: run?.status,
+        runPlanId: runPlan?.id,
+        primaryRunId: primaryRun?.id,
+        fallbackRunId: fallbackRun?.id,
+        verdict: verified ? "verified" : "incomplete",
+        recommendation: verified
+          ? "Persistence and required validation stages verified from database records."
+          : "Do not claim validation complete until the latest plan, primary run, and required fallback run are all present with matching plan IDs.",
+      },
+      null,
+      2,
+    );
   },
 };
