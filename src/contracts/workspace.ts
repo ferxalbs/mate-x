@@ -81,6 +81,12 @@ export interface ValidationPlan {
   fallbackTrigger: string;
   recommendations: string[];
   comments: string[];
+  executionState: {
+    primary: "not_run";
+    fallback: "not_run";
+    persistence: "not_verified";
+    blockingInstruction: string;
+  };
   createdAt: string;
 }
 

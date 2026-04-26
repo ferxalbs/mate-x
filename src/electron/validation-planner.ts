@@ -58,6 +58,13 @@ export class ValidationPlanner {
       fallbackTrigger: buildFallbackTrigger(riskLevel, primary, fallback),
       recommendations: buildRecommendations(input, changedFiles, impactedFiles, riskLevel),
       comments: buildComments(changedFiles, impactedFiles, fullSuiteRequired),
+      executionState: {
+        primary: "not_run",
+        fallback: "not_run",
+        persistence: "not_verified",
+        blockingInstruction:
+          "This plan has not executed validation. Do not report primaryRun, fallbackRun, persistence, PROVEN, GO, or production-ready until run_tests and verify_validation_persistence provide matching evidence.",
+      },
       createdAt: new Date().toISOString(),
     };
   }
