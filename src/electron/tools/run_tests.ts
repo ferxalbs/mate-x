@@ -36,15 +36,17 @@ export const runTestsTool: Tool = {
       });
     }
 
-    let command = profile.testCommand;
+    const validationPlan = await tursoService.getLatestValidationPlan(activeWorkspaceId);
+    let command = validationPlan?.primary.command ?? profile.testCommand;
+    const plannedCommandReason = validationPlan?.primary.reason;
 
-    // Minimal heuristic appending of scope paths/flags
-    if (args.scope === "specific-path" && args.specificPath) {
+    // If a validation plan exists, it is authoritative for command selection.
+    if (!validationPlan && args.scope === "specific-path" && args.specificPath) {
       if (/[\n|&;<>`$()]/.test(args.specificPath)) {
         return JSON.stringify({ error: "Invalid characters in specificPath. Shell operators are not allowed." });
       }
       command += ` "${args.specificPath.replace(/"/g, '\\"')}"`;
-    } else if (args.scope === "rerun-failed") {
+    } else if (!validationPlan && args.scope === "rerun-failed") {
       // Get the last validation run's failing tests if available
       const runs = await tursoService.getRecentValidationRuns(activeWorkspaceId, 1);
       const failingTests = runs[0]?.failingTests;
@@ -61,7 +63,7 @@ export const runTestsTool: Tool = {
         }
       }
       // If we don't know how to pass failing tests specifically, just run the command.
-    } else if (args.scope === "changed-files") {
+    } else if (!validationPlan && args.scope === "changed-files") {
       if (profile.testFramework === "jest") {
         command += " --onlyChanged";
       } else if (profile.testFramework === "vitest") {
@@ -70,7 +72,7 @@ export const runTestsTool: Tool = {
     }
 
     // Include flags
-    if (profile.flags) {
+    if (!validationPlan && profile.flags) {
       command += ` ${profile.flags}`;
     }
 
@@ -88,6 +90,9 @@ export const runTestsTool: Tool = {
     };
 
     broadcastStream(`\n--- Starting tests: ${command} ---\n`);
+    if (plannedCommandReason) {
+      broadcastStream(`Validation plan: ${plannedCommandReason}\n`);
+    }
 
     return new Promise((resolve) => {
       let outputSummary = "";
@@ -135,7 +140,8 @@ export const runTestsTool: Tool = {
           exitCode: code ?? undefined,
           status: code === 0 ? "success" : "failed",
           outputSummary: outputSummary.slice(0, 5000), // Summarize if too long
-          failingTests: failingTests.slice(0, 20) // Limit to avoid large db entries
+          failingTests: failingTests.slice(0, 20), // Limit to avoid large db entries
+          validationPlan: validationPlan ?? undefined,
         };
 
         const savedRun = await tursoService.addValidationRun(runResult);
@@ -144,6 +150,7 @@ export const runTestsTool: Tool = {
           status: runResult.status,
           exitCode: runResult.exitCode,
           summary: `Test run finished with code ${code}. Saved to run ID ${savedRun.id}.`,
+          validationPlan: validationPlan ?? undefined,
           failingTests: runResult.failingTests,
         }, null, 2));
       });

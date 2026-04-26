@@ -60,6 +60,26 @@ export interface WorkspaceProfile {
   updatedAt: string;
 }
 
+export type ValidationCost = "cheap" | "medium" | "expensive";
+
+export interface ValidationPlanCommand {
+  command: string;
+  reason: string;
+  estimatedCost: ValidationCost;
+  expectedSignal: string;
+}
+
+export interface ValidationPlan {
+  id: string;
+  objective: string;
+  changedFiles: string[];
+  impactedFiles: string[];
+  detectedFramework?: string;
+  primary: ValidationPlanCommand;
+  fallback: ValidationPlanCommand;
+  createdAt: string;
+}
+
 export interface ValidationRun {
   id: string;
   workspaceId: string;
@@ -69,6 +89,7 @@ export interface ValidationRun {
   status?: string;
   outputSummary?: string;
   failingTests?: string[];
+  validationPlan?: ValidationPlan;
   ranAt: string;
 }
 

@@ -31,6 +31,7 @@ import { mockPoisonerTool } from "./tools/mock_poison";
 import { readManyTool } from "./tools/read_many";
 import { jsonProbeTool } from "./tools/json_probe";
 import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
+import { validationPlanTool } from "./tools/validation_plan";
 import { runTestsTool } from "./tools/run_tests";
 import { supermemoryTool } from "./tools/supermemory";
 import { pdfReportTool } from "./tools/pdf_report";
@@ -110,6 +111,7 @@ export class ToolService {
     this.registerTool(readManyTool);
     this.registerTool(jsonProbeTool);
     this.registerTool(detectWorkspaceCapabilitiesTool);
+    this.registerTool(validationPlanTool);
     this.registerTool(runTestsTool);
     this.registerTool(supermemoryTool);
     this.registerTool(pdfReportTool);

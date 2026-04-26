@@ -14,6 +14,7 @@ import type {
   WorkspaceProfile,
   WorkspaceTrustContract,
   ValidationRun,
+  ValidationPlan,
 } from '../contracts/workspace';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
 import { createId } from '../lib/id';
@@ -102,6 +103,7 @@ export class TursoService {
           status TEXT,
           output_summary TEXT,
           failing_tests TEXT,
+          validation_plan_json TEXT,
           ran_at TEXT NOT NULL,
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
@@ -149,6 +151,8 @@ export class TursoService {
       ],
       'write',
     );
+
+    await this.ensureValidationPlanColumn();
 
     this.initialized = true;
   }
@@ -364,6 +368,29 @@ export class TursoService {
 
   // ── Workspace Profiles & Validation Runs ─────────────────────────────────
 
+  async setLatestValidationPlan(workspaceId: string, plan: ValidationPlan) {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: [`latest_validation_plan:${workspaceId}`, JSON.stringify(plan)],
+    });
+  }
+
+  async getLatestValidationPlan(workspaceId: string): Promise<ValidationPlan | null> {
+    await this.initialize();
+    const raw = await this.getAppStateValue(`latest_validation_plan:${workspaceId}`);
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw) as ValidationPlan;
+    } catch {
+      return null;
+    }
+  }
+
   async getWorkspaceProfile(workspaceId: string): Promise<WorkspaceProfile | null> {
     await this.initialize();
     const result = await this.getClient().execute({
@@ -431,10 +458,11 @@ export class TursoService {
     const now = new Date().toISOString();
     const id = createId('val');
     const failingTestsStr = run.failingTests ? JSON.stringify(run.failingTests) : null;
+    const validationPlanJson = run.validationPlan ? JSON.stringify(run.validationPlan) : null;
 
     await this.getClient().execute({
-      sql: `INSERT INTO validation_runs (id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, ran_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO validation_runs (id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, validation_plan_json, ran_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         run.workspaceId,
@@ -444,6 +472,7 @@ export class TursoService {
         run.status ?? null,
         run.outputSummary ?? null,
         failingTestsStr,
+        validationPlanJson,
         now
       ],
     });
@@ -458,7 +487,7 @@ export class TursoService {
   async getRecentValidationRuns(workspaceId: string, limit = 10): Promise<ValidationRun[]> {
     await this.initialize();
     const result = await this.getClient().execute({
-      sql: `SELECT id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, ran_at
+      sql: `SELECT id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, validation_plan_json, ran_at
             FROM validation_runs
             WHERE workspace_id = ?
             ORDER BY datetime(ran_at) DESC LIMIT ?`,
@@ -474,6 +503,7 @@ export class TursoService {
       status: row.status ? String(row.status) : undefined,
       outputSummary: row.output_summary ? String(row.output_summary) : undefined,
       failingTests: row.failing_tests ? safeParseFailingTests(String(row.failing_tests)) : undefined,
+      validationPlan: row.validation_plan_json ? safeParseValidationPlan(String(row.validation_plan_json)) : undefined,
       ranAt: String(row.ran_at),
     }));
   }
@@ -705,6 +735,19 @@ export class TursoService {
     const raw = result.rows[0]?.value;
     return raw ? String(raw) : null;
   }
+
+  private async ensureValidationPlanColumn() {
+    try {
+      await this.getClient().execute(
+        `ALTER TABLE validation_runs ADD COLUMN validation_plan_json TEXT`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/duplicate column|already exists/i.test(message)) {
+        throw error;
+      }
+    }
+  }
 }
 
 function safeParseThreads(raw: string): Conversation[] {
@@ -722,6 +765,15 @@ function safeParseFailingTests(raw: string): string[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function safeParseValidationPlan(raw: string): ValidationPlan | undefined {
+  try {
+    const parsed = JSON.parse(raw) as ValidationPlan;
+    return parsed && typeof parsed === 'object' ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 
