@@ -9,6 +9,8 @@ export interface AppSettings {
   agentTraceV2InlineEvents: boolean;
   diffLineWrapping: boolean;
   assistantOutput: boolean;
+  compactMode: boolean;
+  floatingInput: boolean;
   archiveConfirmation: boolean;
   deleteConfirmation: boolean;
   supermemoryApiKey?: string;
@@ -21,6 +23,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   agentTraceV2InlineEvents: false,
   diffLineWrapping: false,
   assistantOutput: false,
+  compactMode: true,
+  floatingInput: true,
   archiveConfirmation: false,
   deleteConfirmation: true,
   supermemoryApiKey: '',

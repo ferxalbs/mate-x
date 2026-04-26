@@ -24,6 +24,7 @@ import type {
 } from '../../../contracts/workspace';
 import { cn } from '../../../lib/utils';
 import { getModel, listModels, setModel } from '../../../services/settings-client';
+import { useChatStore } from '../../../store/chat-store';
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
@@ -63,6 +64,7 @@ export function ComposerPanel({
   const [runbookValue, setRunbookValue] =
     useState<AssistantRunOptions['runbookId']>('patch_test_verify');
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
+  const settings = useChatStore((state) => state.settings);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,10 +191,19 @@ export function ComposerPanel({
   }
 
   return (
-    <div className="px-8 pb-6 pt-2">
-      <div className="relative mx-auto w-full max-w-[820px]">
+    <div className={cn(
+      "transition-all duration-300",
+      settings.floatingInput 
+        ? "fixed bottom-0 inset-x-0 z-40 bg-gradient-to-t from-background via-background/95 to-transparent pt-20 pb-8 px-4 pointer-events-none" 
+        : "pt-2 pb-6 px-8"
+    )}>
+      <div className={cn(
+        "relative mx-auto w-full transition-all duration-300",
+        settings.floatingInput ? "pointer-events-auto" : "",
+        settings.compactMode ? "max-w-[680px]" : "max-w-[820px]"
+      )}>
         {showScrollButton ? (
-          <div className="pointer-events-none absolute inset-x-0 -top-11 z-10 flex justify-center">
+          <div className={cn("pointer-events-none absolute inset-x-0 z-10 flex justify-center transition-all", settings.floatingInput ? "-top-12" : "-top-11")}>
             <Button
               className="pointer-events-auto h-8 rounded-full border-border/60 bg-background/88 px-3 text-[11px] text-muted-foreground shadow-[0_10px_30px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md hover:bg-accent"
               onClick={onScrollToBottom}
@@ -204,7 +215,10 @@ export function ComposerPanel({
             </Button>
           </div>
         ) : null}
-        <div className="rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)]/92 shadow-[0_22px_80px_-42px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+        <div className={cn(
+          "rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-300",
+          settings.floatingInput ? "bg-[var(--panel)]/60" : "bg-[var(--panel)]/92"
+        )}>
           {pendingPolicyStop ? (
             <PermissionPrompt
               disabled={isResolvingPolicyStop}

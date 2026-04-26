@@ -787,6 +787,14 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.supermemoryApiKey === 'string'
         ? input.supermemoryApiKey
         : DEFAULT_APP_SETTINGS.supermemoryApiKey,
+    compactMode:
+      typeof input.compactMode === 'boolean'
+        ? input.compactMode
+        : DEFAULT_APP_SETTINGS.compactMode,
+    floatingInput:
+      typeof input.floatingInput === 'boolean'
+        ? input.floatingInput
+        : DEFAULT_APP_SETTINGS.floatingInput,
   };
 }
 

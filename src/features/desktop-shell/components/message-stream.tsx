@@ -16,6 +16,7 @@ import { formatTimestamp } from '../../../lib/time';
 import { cn } from '../../../lib/utils';
 import { ChatMarkdown } from './chat-markdown';
 import { EvidencePackCard } from './evidence-pack-card';
+import { useChatStore } from '../../../store/chat-store';
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -42,6 +43,7 @@ export function MessageStream({
   onVisibilityChange,
   scrollerRef,
 }: MessageStreamProps) {
+  const settings = useChatStore((state) => state.settings);
   const shouldStickToBottomRef = useRef(true);
   const hasStreamingAssistantMessage =
     isRunning && messages.at(-1)?.role === 'assistant';
@@ -85,8 +87,14 @@ export function MessageStream({
   }, [messages, isRunning]);
 
   return (
-    <div ref={scrollerRef} className="flex min-h-0 flex-1 overflow-y-auto px-9 pb-8 pt-7">
-      <div className="mx-auto flex w-full max-w-[980px] flex-1 flex-col">
+    <div ref={scrollerRef} className={cn(
+      "flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 transition-all duration-300",
+      settings.floatingInput ? "pb-[200px]" : "pb-8"
+    )}>
+      <div className={cn(
+        "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
+        settings.compactMode ? "max-w-[680px]" : "max-w-[980px]"
+      )}>
         <div className="flex flex-1 flex-col gap-7">
           {messages.length === 0 ? (
             <EmptyState hasActiveThread={hasActiveThread} workspace={workspace} />
@@ -167,8 +175,12 @@ function MessageEntry({
   }
 
   if (isUser) {
+    const settings = useChatStore.getState().settings;
     return (
-      <article className="ml-auto flex w-full max-w-[610px] justify-end">
+      <article className={cn(
+        "ml-auto flex w-full justify-end transition-all duration-300",
+        settings.compactMode ? "max-w-[540px]" : "max-w-[610px]"
+      )}>
         <div className="group rounded-[20px] border border-border/65 bg-[var(--surface)] px-5 py-4 text-left shadow-none">
           <p className="whitespace-pre-wrap text-[14px] leading-6 text-foreground">
             {message.content}
