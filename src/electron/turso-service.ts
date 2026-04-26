@@ -508,6 +508,35 @@ export class TursoService {
     }));
   }
 
+  async getValidationRun(runId: string): Promise<ValidationRun | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT id, workspace_id, command, scope, exit_code, status, output_summary, failing_tests, validation_plan_json, ran_at
+            FROM validation_runs
+            WHERE id = ?
+            LIMIT 1`,
+      args: [runId],
+    });
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: String(row.id),
+      workspaceId: String(row.workspace_id),
+      command: String(row.command),
+      scope: row.scope ? String(row.scope) : undefined,
+      exitCode: row.exit_code !== null ? Number(row.exit_code) : undefined,
+      status: row.status ? String(row.status) : undefined,
+      outputSummary: row.output_summary ? String(row.output_summary) : undefined,
+      failingTests: row.failing_tests ? safeParseFailingTests(String(row.failing_tests)) : undefined,
+      validationPlan: row.validation_plan_json ? safeParseValidationPlan(String(row.validation_plan_json)) : undefined,
+      ranAt: String(row.ran_at),
+    };
+  }
+
   // ── Repo Graph ──────────────────────────────────────────────────────────
 
   async replaceRepoGraph(
