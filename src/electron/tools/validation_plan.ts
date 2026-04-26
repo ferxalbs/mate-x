@@ -5,7 +5,7 @@ import { validationPlanner } from "../validation-planner";
 export const validationPlanTool: Tool = {
   name: "plan_validation",
   description:
-    "Creates and persists the smallest useful validation plan for a task using changed files, RepoGraph impact, package scripts, detected framework, and previous failures. Use this before choosing validation commands.",
+    "Creates and persists the smallest useful validation plan for a task using changed files, RepoGraph impact, package scripts, detected framework, and previous failures. This tool only plans; it never executes validation. Use run_tests and verify_validation_persistence before claiming proof.",
   parameters: {
     type: "object",
     properties: {
