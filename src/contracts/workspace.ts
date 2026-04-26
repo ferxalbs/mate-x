@@ -103,6 +103,24 @@ export interface ValidationRun {
   ranAt: string;
 }
 
+export interface FailureMemory {
+  id: string;
+  workspaceId: string;
+  command: string;
+  exitCode?: number;
+  framework?: string;
+  failingTests: string[];
+  errorSignature: string;
+  stackTraceExcerpt?: string;
+  affectedFiles: string[];
+  attemptedFix?: string;
+  retryFixed?: boolean;
+  occurrenceCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  resolvedAt?: string;
+}
+
 export type WorkspaceTrustAutonomy =
   | "plan-only"
   | "approval-required"

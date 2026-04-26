@@ -17,6 +17,7 @@ import {
 } from "./rainy-service";
 import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
+import { failureMemoryEngine } from "./failure-memory-engine";
 import { repoGraphService } from "./repo-graph-service";
 import {
   renderWorkingSetForPrompt,
@@ -1640,6 +1641,12 @@ async function requestRainyAgenticResponse({
     .join("\n");
   const gitStatus = snapshot.statusLines.slice(0, 40).join("\n");
   const repoGraphSummary = await repoGraphService.getPromptSummary(snapshot.workspace);
+  const similarFailures = await failureMemoryEngine.findSimilarFailures({
+    workspaceId: snapshot.workspace.id,
+    output: prompt,
+    limit: 1,
+  });
+  const failureMemoryContext = failureMemoryEngine.renderPromptSection(similarFailures);
 
   const systemPrompt = `${MATE_AGENT_SYSTEM_PROMPT}
 
@@ -1683,6 +1690,8 @@ ${matches || "(none)"}
 Workspace memory:
 ${snapshot.memoryContext?.context || "(none)"}
 
+${failureMemoryContext}
+
 Repo Intelligence Graph:
 ${repoGraphSummary}
 
@@ -1690,6 +1699,7 @@ You are running in an agent loop, not a single reply.
 First, use the working set, workspace metadata, git status, prompt-linked matches, and conversation history already provided here.
 Before broad file search, use Repo Intelligence Graph APIs for entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
 Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
+Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.

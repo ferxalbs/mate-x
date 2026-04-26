@@ -11,6 +11,7 @@ import type {
 } from '../contracts/repo-graph';
 import type {
   WorkspaceEntry,
+  FailureMemory,
   WorkspaceProfile,
   WorkspaceTrustContract,
   ValidationRun,
@@ -107,6 +108,25 @@ export class TursoService {
           ran_at TEXT NOT NULL,
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
+        `CREATE TABLE IF NOT EXISTS failure_memory (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          command TEXT NOT NULL,
+          exit_code INTEGER,
+          framework TEXT,
+          failing_tests TEXT NOT NULL DEFAULT '[]',
+          error_signature TEXT NOT NULL,
+          stack_trace_excerpt TEXT,
+          affected_files TEXT NOT NULL DEFAULT '[]',
+          attempted_fix TEXT,
+          retry_fixed INTEGER,
+          occurrence_count INTEGER NOT NULL DEFAULT 1,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          resolved_at TEXT,
+          UNIQUE(workspace_id, command, error_signature),
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
         `CREATE TABLE IF NOT EXISTS workspace_trust_contracts (
           workspace_id TEXT PRIMARY KEY,
           contract_json TEXT NOT NULL,
@@ -148,6 +168,8 @@ export class TursoService {
           ON repo_graph_nodes(workspace_id, kind)`,
         `CREATE INDEX IF NOT EXISTS idx_repo_graph_edges_workspace_kind
           ON repo_graph_edges(workspace_id, kind)`,
+        `CREATE INDEX IF NOT EXISTS idx_failure_memory_workspace_signature
+          ON failure_memory(workspace_id, error_signature)`,
       ],
       'write',
     );
@@ -537,6 +559,149 @@ export class TursoService {
     };
   }
 
+  async upsertFailureMemory(
+    failure: Omit<FailureMemory, 'id' | 'occurrenceCount' | 'firstSeenAt' | 'lastSeenAt' | 'resolvedAt'>,
+  ): Promise<FailureMemory> {
+    await this.initialize();
+
+    const now = new Date().toISOString();
+    const existing = await this.getClient().execute({
+      sql: `SELECT id, occurrence_count, first_seen_at
+            FROM failure_memory
+            WHERE workspace_id = ? AND command = ? AND error_signature = ?
+            LIMIT 1`,
+      args: [failure.workspaceId, failure.command, failure.errorSignature],
+    });
+
+    const existingRow = existing.rows[0];
+    if (existingRow) {
+      const id = String(existingRow.id);
+      await this.getClient().execute({
+        sql: `UPDATE failure_memory
+              SET exit_code = ?, framework = ?, failing_tests = ?, stack_trace_excerpt = ?,
+                  affected_files = ?, attempted_fix = COALESCE(?, attempted_fix),
+                  retry_fixed = COALESCE(?, retry_fixed),
+                  occurrence_count = occurrence_count + 1, last_seen_at = ?, resolved_at = NULL
+              WHERE id = ?`,
+        args: [
+          failure.exitCode ?? null,
+          failure.framework ?? null,
+          JSON.stringify(failure.failingTests),
+          failure.stackTraceExcerpt ?? null,
+          JSON.stringify(failure.affectedFiles),
+          failure.attemptedFix ?? null,
+          failure.retryFixed === undefined ? null : failure.retryFixed ? 1 : 0,
+          now,
+          id,
+        ],
+      });
+      const updated = await this.getFailureMemory(id);
+      if (updated) {
+        return updated;
+      }
+    }
+
+    const id = createId('failure');
+    await this.getClient().execute({
+      sql: `INSERT INTO failure_memory
+            (id, workspace_id, command, exit_code, framework, failing_tests, error_signature,
+             stack_trace_excerpt, affected_files, attempted_fix, retry_fixed, occurrence_count,
+             first_seen_at, last_seen_at, resolved_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NULL)`,
+      args: [
+        id,
+        failure.workspaceId,
+        failure.command,
+        failure.exitCode ?? null,
+        failure.framework ?? null,
+        JSON.stringify(failure.failingTests),
+        failure.errorSignature,
+        failure.stackTraceExcerpt ?? null,
+        JSON.stringify(failure.affectedFiles),
+        failure.attemptedFix ?? null,
+        failure.retryFixed === undefined ? null : failure.retryFixed ? 1 : 0,
+        now,
+        now,
+      ],
+    });
+
+    const created = await this.getFailureMemory(id);
+    if (!created) {
+      throw new Error('Failed to persist failure memory.');
+    }
+    return created;
+  }
+
+  async getFailureMemories(workspaceId: string, limit = 50): Promise<FailureMemory[]> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT id, workspace_id, command, exit_code, framework, failing_tests, error_signature,
+                   stack_trace_excerpt, affected_files, attempted_fix, retry_fixed, occurrence_count,
+                   first_seen_at, last_seen_at, resolved_at
+            FROM failure_memory
+            WHERE workspace_id = ?
+            ORDER BY datetime(last_seen_at) DESC
+            LIMIT ?`,
+      args: [workspaceId, limit],
+    });
+
+    return result.rows.map(rowToFailureMemory);
+  }
+
+  async getFailureMemory(id: string): Promise<FailureMemory | null> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT id, workspace_id, command, exit_code, framework, failing_tests, error_signature,
+                   stack_trace_excerpt, affected_files, attempted_fix, retry_fixed, occurrence_count,
+                   first_seen_at, last_seen_at, resolved_at
+            FROM failure_memory
+            WHERE id = ?
+            LIMIT 1`,
+      args: [id],
+    });
+
+    const row = result.rows[0];
+    return row ? rowToFailureMemory(row) : null;
+  }
+
+  async resolveFailureMemory(input: {
+    workspaceId: string;
+    failureId?: string;
+    errorSignature?: string;
+    command?: string;
+    attemptedFix?: string;
+    retryFixed: boolean;
+  }): Promise<FailureMemory | null> {
+    await this.initialize();
+
+    const now = new Date().toISOString();
+    const target = input.failureId
+      ? await this.getFailureMemory(input.failureId)
+      : (await this.getFailureMemories(input.workspaceId, 80)).find((failure) =>
+          failure.errorSignature === input.errorSignature &&
+          (!input.command || failure.command === input.command),
+        );
+
+    if (!target || target.workspaceId !== input.workspaceId) {
+      return null;
+    }
+
+    await this.getClient().execute({
+      sql: `UPDATE failure_memory
+            SET attempted_fix = COALESCE(?, attempted_fix), retry_fixed = ?, resolved_at = ?, last_seen_at = ?
+            WHERE id = ?`,
+      args: [
+        input.attemptedFix ?? null,
+        input.retryFixed ? 1 : 0,
+        input.retryFixed ? now : null,
+        now,
+        target.id,
+      ],
+    });
+
+    return this.getFailureMemory(target.id);
+  }
+
   // ── Repo Graph ──────────────────────────────────────────────────────────
 
   async replaceRepoGraph(
@@ -804,6 +969,28 @@ function safeParseValidationPlan(raw: string): ValidationPlan | undefined {
   } catch {
     return undefined;
   }
+}
+
+function rowToFailureMemory(row: Record<string, unknown>): FailureMemory {
+  return {
+    id: String(row.id),
+    workspaceId: String(row.workspace_id),
+    command: String(row.command),
+    exitCode: row.exit_code !== null ? Number(row.exit_code) : undefined,
+    framework: row.framework ? String(row.framework) : undefined,
+    failingTests: row.failing_tests ? safeParseFailingTests(String(row.failing_tests)) : [],
+    errorSignature: String(row.error_signature),
+    stackTraceExcerpt: row.stack_trace_excerpt ? String(row.stack_trace_excerpt) : undefined,
+    affectedFiles: row.affected_files ? safeParseFailingTests(String(row.affected_files)) : [],
+    attemptedFix: row.attempted_fix ? String(row.attempted_fix) : undefined,
+    retryFixed: row.retry_fixed === null || row.retry_fixed === undefined
+      ? undefined
+      : Number(row.retry_fixed) === 1,
+    occurrenceCount: Number(row.occurrence_count ?? 1),
+    firstSeenAt: String(row.first_seen_at),
+    lastSeenAt: String(row.last_seen_at),
+    resolvedAt: row.resolved_at ? String(row.resolved_at) : undefined,
+  };
 }
 
 function safeParseRecord(raw: string): Record<string, unknown> | undefined {
