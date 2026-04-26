@@ -35,18 +35,21 @@ export const runTestsTool: Tool = {
     }
 
     const profile = await tursoService.getWorkspaceProfile(activeWorkspaceId);
-    if (!profile || !profile.testCommand) {
+    const validationPlan = await tursoService.getLatestValidationPlan(activeWorkspaceId);
+    if (!validationPlan && (!profile || !profile.testCommand)) {
       return JSON.stringify({
-        error: "Validation profile or test command not found. Run detect_workspace_capabilities first."
+        error: "Validation profile, test command, or validation plan not found. Run detect_workspace_capabilities and plan_validation first."
       });
     }
 
-    const validationPlan = await tursoService.getLatestValidationPlan(activeWorkspaceId);
     const selectedPlanCommand = args.plannedCommand === "fallback"
       ? validationPlan?.fallback
       : validationPlan?.primary;
-    let command = selectedPlanCommand?.command ?? profile.testCommand;
+    let command = selectedPlanCommand?.command ?? profile?.testCommand;
     const plannedCommandReason = selectedPlanCommand?.reason;
+    if (!command) {
+      return JSON.stringify({ error: "No validation command available." });
+    }
 
     // If a validation plan exists, it is authoritative for command selection.
     if (!validationPlan && args.scope === "specific-path" && args.specificPath) {
@@ -62,25 +65,25 @@ export const runTestsTool: Tool = {
         // Sanitize failing tests for shell injection (avoid command substitutions)
         const sanitizedTests = failingTests.filter(test => !/[`$]/.test(test));
         if (sanitizedTests.length > 0) {
-          if (profile.testFramework === "vitest" || profile.testFramework === "jest") {
+          if (profile?.testFramework === "vitest" || profile?.testFramework === "jest") {
               // Quote and escape appropriately for safety
               command += ` -t "${sanitizedTests.join('|').replace(/"/g, '\\"')}"`;
-          } else if (profile.testFramework === "pytest") {
+          } else if (profile?.testFramework === "pytest") {
               command += ` ${sanitizedTests.map(test => `"${test.replace(/"/g, '\\"')}"`).join(' ')}`;
           }
         }
       }
       // If we don't know how to pass failing tests specifically, just run the command.
     } else if (!validationPlan && args.scope === "changed-files") {
-      if (profile.testFramework === "jest") {
+      if (profile?.testFramework === "jest") {
         command += " --onlyChanged";
-      } else if (profile.testFramework === "vitest") {
+      } else if (profile?.testFramework === "vitest") {
         command += " changed";
       }
     }
 
     // Include flags
-    if (!validationPlan && profile.flags) {
+    if (!validationPlan && profile?.flags) {
       command += ` ${profile.flags}`;
     }
 
@@ -107,7 +110,7 @@ export const runTestsTool: Tool = {
 
       // Determine shell based on profile or platform defaults
       const isWindows = process.platform === "win32";
-      const shellToUse = profile.shell || (isWindows ? "cmd.exe" : "/bin/sh");
+      const shellToUse = profile?.shell || (isWindows ? "cmd.exe" : "/bin/sh");
 
       const child = spawn(command, {
         cwd: context.workspacePath,
@@ -153,10 +156,22 @@ export const runTestsTool: Tool = {
         };
 
         const savedRun = await tursoService.addValidationRun(runResult);
+        const persistedRun = await tursoService.getValidationRun(savedRun.id);
+        const validationPersistence = {
+          validationRunId: savedRun.id,
+          planPersistedWithRun: Boolean(
+            validationPlan &&
+            persistedRun?.validationPlan?.id === validationPlan.id,
+          ),
+          planId: validationPlan?.id,
+          persistedPlanId: persistedRun?.validationPlan?.id,
+        };
 
         resolve(JSON.stringify({
           status: runResult.status,
           exitCode: runResult.exitCode,
+          validationRunId: savedRun.id,
+          validationPersistence,
           summary: `Test run finished with code ${code}. Saved to run ID ${savedRun.id}.`,
           validationPlan: validationPlan ?? undefined,
           plannedCommand: validationPlan ? args.plannedCommand ?? "primary" : undefined,
