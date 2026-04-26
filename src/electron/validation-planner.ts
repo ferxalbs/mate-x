@@ -22,6 +22,8 @@ const CONFIG_FILE_PATTERN =
 const CONTRACT_PATTERN = /(^|\/)src\/contracts\//;
 const ENTRYPOINT_PATTERN = /(^|\/)(src\/main\.ts|src\/preload\.ts|src\/renderer\.tsx|src\/electron\/ipc-handlers\.ts)$/;
 const TEST_FILE_PATTERN = /(\.test|\.spec)\.[tj]sx?$/;
+const UI_FILE_PATTERN = /(^|\/)(src\/features|src\/components)\/.*\.tsx$/;
+const SECURITY_FILE_PATTERN = /(^|\/)(src\/electron|src\/preload\.ts|src\/contracts)\/|auth|token|secret|credential|ipc/i;
 
 export class ValidationPlanner {
   createPlan(input: ValidationPlannerInput): ValidationPlan {
@@ -34,6 +36,7 @@ export class ValidationPlanner {
       ENTRYPOINT_PATTERN.test(file),
     );
 
+    const riskLevel = estimateRisk(changedFiles, impactedFiles, fullSuiteRequired);
     const primary = fullSuiteRequired
       ? this.fullSuiteCommand(input, framework)
       : this.targetedCommand(input, changedFiles, impactedFiles, framework);
@@ -48,8 +51,12 @@ export class ValidationPlanner {
       changedFiles,
       impactedFiles,
       detectedFramework: framework,
+      riskLevel,
       primary,
       fallback,
+      fallbackTrigger: buildFallbackTrigger(riskLevel, primary, fallback),
+      recommendations: buildRecommendations(input, changedFiles, impactedFiles, riskLevel),
+      comments: buildComments(changedFiles, impactedFiles, fullSuiteRequired),
       createdAt: new Date().toISOString(),
     };
   }
@@ -99,6 +106,16 @@ export class ValidationPlanner {
         reason: 'No precise test target was identified, but TypeScript changes can be validated cheaply with type checking.',
         estimatedCost: 'medium',
         expectedSignal: 'Compile-time contract, import, and type-safety regressions.',
+      };
+    }
+
+    const lintCommand = input.profile?.lintCommand ?? scriptCommand(input, 'lint');
+    if (lintCommand && changedFiles.some((file) => UI_FILE_PATTERN.test(file))) {
+      return {
+        command: lintCommand,
+        reason: 'UI changes have no precise test target; lint is the cheapest useful check for React and accessibility mistakes before broader fallback.',
+        estimatedCost: 'cheap',
+        expectedSignal: 'Fast static signal for component, hook, import, and JSX issues.',
       };
     }
 
@@ -173,7 +190,17 @@ function scriptCommand(input: ValidationPlannerInput, script: string) {
 }
 
 function findLikelyTestPath(changedFiles: string[], impactedFiles: string[]) {
-  return [...changedFiles, ...impactedFiles].find((file) => TEST_FILE_PATTERN.test(file));
+  const allFiles = [...changedFiles, ...impactedFiles];
+  const directTest = allFiles.find((file) => TEST_FILE_PATTERN.test(file));
+  if (directTest) return directTest;
+
+  const sourceNames = changedFiles.map((file) =>
+    file.replace(/\.[tj]sx?$/, '').replace(/\/index$/, ''),
+  );
+  return allFiles.find((file) =>
+    TEST_FILE_PATTERN.test(file) &&
+    sourceNames.some((sourceName) => file.startsWith(sourceName) || file.includes(`${sourceName.split('/').pop()}.`)),
+  );
 }
 
 function isTypeScriptFramework(framework: string | undefined, files: string[]) {
@@ -189,4 +216,65 @@ function estimateCost(command: string, framework?: string): ValidationCost {
 
 function quotePath(file: string) {
   return `"${file.replace(/"/g, '\\"')}"`;
+}
+
+function estimateRisk(changedFiles: string[], impactedFiles: string[], fullSuiteRequired: boolean) {
+  if (fullSuiteRequired || impactedFiles.length > 20 || changedFiles.some((file) => SECURITY_FILE_PATTERN.test(file))) {
+    return 'high';
+  }
+  if (impactedFiles.length > 5 || changedFiles.length > 3) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function buildFallbackTrigger(
+  riskLevel: ValidationPlan['riskLevel'],
+  primary: ValidationPlanCommand,
+  fallback: ValidationPlanCommand,
+) {
+  if (primary.command === fallback.command) {
+    return 'No distinct fallback exists; inspect primary output and create a manual follow-up command if signal is weak.';
+  }
+  if (riskLevel === 'high') {
+    return 'Run fallback after primary passes, because touched surface is broad or security-sensitive.';
+  }
+  return 'Run fallback only if primary fails, is inconclusive, or user-facing behavior still changed outside targeted coverage.';
+}
+
+function buildRecommendations(
+  input: ValidationPlannerInput,
+  changedFiles: string[],
+  impactedFiles: string[],
+  riskLevel: ValidationPlan['riskLevel'],
+) {
+  const recommendations: string[] = [];
+  if (riskLevel === 'high') {
+    recommendations.push('Treat fallback as required before final confidence.');
+  }
+  if (changedFiles.some((file) => UI_FILE_PATTERN.test(file))) {
+    recommendations.push('After command validation, inspect UI manually or with browser QA if visual behavior changed.');
+  }
+  if (changedFiles.some((file) => SECURITY_FILE_PATTERN.test(file))) {
+    recommendations.push('Add security-oriented evidence: IPC/input validation, secret handling, or trust-boundary checks.');
+  }
+  if (impactedFiles.length === 0) {
+    recommendations.push('RepoGraph returned no impacted files; mention lower confidence and rely on static validation.');
+  }
+  if (!input.profile?.testCommand && !input.packageScripts.test) {
+    recommendations.push('No test script detected; prefer typecheck/lint and call out missing automated test coverage.');
+  }
+  return recommendations;
+}
+
+function buildComments(changedFiles: string[], impactedFiles: string[], fullSuiteRequired: boolean) {
+  const comments = [
+    `${changedFiles.length} changed file(s), ${impactedFiles.length} impacted file(s).`,
+  ];
+  comments.push(
+    fullSuiteRequired
+      ? 'Full-suite trigger matched config, dependency, shared contract, or entrypoint surface.'
+      : 'No full-suite trigger matched; planner prefers narrowest useful validation.',
+  );
+  return comments;
 }

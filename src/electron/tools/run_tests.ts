@@ -19,11 +19,16 @@ export const runTestsTool: Tool = {
       specificPath: {
         type: "string",
         description: "The specific file or directory to test, if scope is specific-path."
+      },
+      plannedCommand: {
+        type: "string",
+        enum: ["primary", "fallback"],
+        description: "When a validation plan exists, choose the primary or fallback command from that plan."
       }
     },
     required: ["scope"],
   },
-  execute: async (args: { scope: string; specificPath?: string }, context: { workspacePath: string }) => {
+  execute: async (args: { scope: string; specificPath?: string; plannedCommand?: "primary" | "fallback" }, context: { workspacePath: string }) => {
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     if (!activeWorkspaceId) {
       return JSON.stringify({ error: "No active workspace ID found." });
@@ -37,8 +42,11 @@ export const runTestsTool: Tool = {
     }
 
     const validationPlan = await tursoService.getLatestValidationPlan(activeWorkspaceId);
-    let command = validationPlan?.primary.command ?? profile.testCommand;
-    const plannedCommandReason = validationPlan?.primary.reason;
+    const selectedPlanCommand = args.plannedCommand === "fallback"
+      ? validationPlan?.fallback
+      : validationPlan?.primary;
+    let command = selectedPlanCommand?.command ?? profile.testCommand;
+    const plannedCommandReason = selectedPlanCommand?.reason;
 
     // If a validation plan exists, it is authoritative for command selection.
     if (!validationPlan && args.scope === "specific-path" && args.specificPath) {
@@ -151,6 +159,7 @@ export const runTestsTool: Tool = {
           exitCode: runResult.exitCode,
           summary: `Test run finished with code ${code}. Saved to run ID ${savedRun.id}.`,
           validationPlan: validationPlan ?? undefined,
+          plannedCommand: validationPlan ? args.plannedCommand ?? "primary" : undefined,
           failingTests: runResult.failingTests,
         }, null, 2));
       });
