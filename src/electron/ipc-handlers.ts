@@ -27,6 +27,7 @@ import {
 } from "./repo-graph-service";
 import { tursoService } from "./turso-service";
 import { workspaceMemoryService } from "./workspace-memory-service";
+import { checkForUpdates } from "./updater";
 
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
@@ -77,6 +78,8 @@ async function resolveGitService() {
 }
 
 export function registerIpcHandlers() {
+  ipcMain.handle("app:check-updates", async () => checkForUpdates(true));
+
   ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());
   ipcMain.handle("repo:get-workspace-summary", async () =>
