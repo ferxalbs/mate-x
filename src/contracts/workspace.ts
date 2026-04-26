@@ -75,8 +75,12 @@ export interface ValidationPlan {
   changedFiles: string[];
   impactedFiles: string[];
   detectedFramework?: string;
+  riskLevel: "low" | "medium" | "high";
   primary: ValidationPlanCommand;
   fallback: ValidationPlanCommand;
+  fallbackTrigger: string;
+  recommendations: string[];
+  comments: string[];
   createdAt: string;
 }
 
