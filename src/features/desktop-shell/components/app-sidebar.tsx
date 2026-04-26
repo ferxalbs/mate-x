@@ -155,7 +155,6 @@ export function AppSidebar({
       side="left"
       collapsible="offcanvas"
       className="drag-region border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
-      style={{ minWidth: "220px" }}
     >
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
         <div className="flex min-w-0 items-center gap-2">

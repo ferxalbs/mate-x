@@ -10,9 +10,11 @@ import { useState, type ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from '../../../components/ui/menu';
+import { SidebarTrigger, useSidebar } from '../../../components/ui/sidebar';
 import type { Conversation, RunStatus } from '../../../contracts/chat';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 import type { Theme } from '../../../hooks/use-theme';
+import { cn } from '../../../lib/utils';
 import { openWorkspacePath } from '../../../services/repo-client';
 
 interface ChatTopbarProps {
@@ -52,6 +54,7 @@ export function ChatTopbar({
   onImportWorkspace,
   onThemeChange,
 }: ChatTopbarProps) {
+  const { state } = useSidebar();
   const [openTarget, setOpenTarget] = useState('folder');
   const [gitAction, setGitAction] = useState('commit-push');
   const title = conversation?.title ?? 'No active thread';
@@ -60,8 +63,14 @@ export function ChatTopbar({
   };
 
   return (
-    <header className="drag-region flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] bg-[var(--titlebar)] px-4">
+    <header
+      className={cn(
+        'drag-region flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] bg-[var(--titlebar)] px-4 transition-[padding-left] duration-200 ease-linear',
+        state === 'collapsed' && 'pl-[88px]',
+      )}
+    >
       <div className="flex min-w-0 items-center gap-3">
+        <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
         <h2 className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">
           {title}
         </h2>
