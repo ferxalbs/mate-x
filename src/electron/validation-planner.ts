@@ -41,9 +41,10 @@ export class ValidationPlanner {
       ? this.fullSuiteCommand(input, framework)
       : this.targetedCommand(input, changedFiles, impactedFiles, framework);
 
-    const fallback = fullSuiteRequired
+    const fallbackCandidate = fullSuiteRequired
       ? this.fallbackAfterFullSuite(input)
       : this.fullSuiteCommand(input, framework, 'Fallback covers transitive regressions if targeted validation misses an integration boundary.');
+    const fallback = this.ensureDistinctFallback(input, primary, fallbackCandidate, framework);
 
     return {
       id: createId('vplan'),
@@ -176,6 +177,49 @@ export class ValidationPlanner {
       expectedSignal: 'Build, type, or lint failures that a test runner may not expose.',
     };
   }
+
+  private ensureDistinctFallback(
+    input: ValidationPlannerInput,
+    primary: ValidationPlanCommand,
+    fallback: ValidationPlanCommand,
+    framework?: string,
+  ): ValidationPlanCommand {
+    if (primary.command !== fallback.command) {
+      return fallback;
+    }
+
+    const alternatives: ValidationPlanCommand[] = [
+      commandFromProfile(input.profile?.buildCommand ?? scriptCommand(input, 'build'), {
+        reason: 'Primary already covers type or test signal; build fallback checks packaging and bundler/runtime integration.',
+        estimatedCost: 'expensive',
+        expectedSignal: 'Bundler, packaging, and entrypoint regressions not caught by the primary command.',
+      }),
+      commandFromProfile(input.profile?.lintCommand ?? scriptCommand(input, 'lint'), {
+        reason: 'Primary command duplicated fallback; lint gives a different static quality and correctness signal.',
+        estimatedCost: 'cheap',
+        expectedSignal: 'Import, style, React hook, and static rule violations.',
+      }),
+      commandFromProfile(input.profile?.typecheckCommand ?? scriptCommand(input, 'typecheck'), {
+        reason: 'Primary command duplicated fallback; typecheck gives a separate contract signal.',
+        estimatedCost: 'cheap',
+        expectedSignal: 'Type, contract, and cross-module compile errors.',
+      }),
+      commandFromProfile(input.profile?.testCommand ?? scriptCommand(input, 'test'), {
+        reason: 'Primary command duplicated fallback; full test command gives broader regression signal.',
+        estimatedCost: estimateCost(input.profile?.testCommand ?? scriptCommand(input, 'test') ?? '', framework),
+        expectedSignal: 'Automated test failures outside targeted coverage.',
+      }),
+    ].filter((candidate): candidate is ValidationPlanCommand =>
+      Boolean(candidate && candidate.command !== primary.command),
+    );
+
+    return alternatives[0] ?? {
+      command: fallback.command,
+      reason: `${fallback.reason} No distinct fallback command was detected from available workspace scripts.`,
+      estimatedCost: fallback.estimatedCost,
+      expectedSignal: `${fallback.expectedSignal} Warning: duplicate command, no additional signal.`,
+    };
+  }
 }
 
 export const validationPlanner = new ValidationPlanner();
@@ -216,6 +260,13 @@ function estimateCost(command: string, framework?: string): ValidationCost {
 
 function quotePath(file: string) {
   return `"${file.replace(/"/g, '\\"')}"`;
+}
+
+function commandFromProfile(
+  command: string | undefined,
+  metadata: Omit<ValidationPlanCommand, 'command'>,
+) {
+  return command ? { command, ...metadata } : undefined;
 }
 
 function estimateRisk(changedFiles: string[], impactedFiles: string[], fullSuiteRequired: boolean) {
