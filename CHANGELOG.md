@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.26 (1) [Impact-Aware Patch Engine]
+
+- Added an Impact-Aware Patch Engine for `auto_patch` and `file_editor` that analyzes RepoGraph context before and after patch attempts.
+- Pre-patch impact now identifies the target file, importing files, imported files and dependencies, related tests, affected contract/type files, and affected package scripts for config or manifest edits.
+- Post-patch impact now reports recomputed impacted RepoGraph nodes, added/removed imports, changed exported symbols, and changed IPC/API/environment/dependency surface when detectable.
+- Added structured patch risk decisions with `low`, `medium`, `high`, and `unknown` levels, numeric scores, confirmation requirements, user-facing reasons, and validation command recommendations.
+- Added a pre-write impact gate so high-risk or unknown-impact patches are blocked before file mutation unless the tool call explicitly includes `allowHighImpact: true` after user confirmation.
+- Added `expectedContent` support to `file_editor` so line-range edits are rejected when the current file content does not exactly match the intended range, preventing wrong-range edits from corrupting shared helpers.
+- Added no-op detection for patch tools so identical replacements are skipped without writing files while still returning a readable `PATCH_IMPACT_DECISION` and fenced impact JSON.
+- Removed automatic `.bak` backup creation from patch tools to avoid generating stray backup files in user repositories.
+- Improved validation selection so TypeScript/TSX source edits recommend `bun run typecheck` instead of falling back to `unknown`.
+- Verified with `bun run typecheck`; `bun run lint` is currently blocked by an unrelated existing `import/first` error in `src/main.ts` plus legacy unused `settings` warnings in tool modules.
+
 ## Unreleased - 2026.04.25 (2) [Working Set Compiler]
 
 - Added a Working Set Compiler that builds a budgeted, structured context pack before each agent run from the Repo Intelligence Graph, current objective, git state, prompt-linked files, recent validation failures, package scripts, and workspace memory notes.

@@ -1,7 +1,14 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import type { Tool } from "../tool-service";
-import { analyzePatchAfter, analyzePatchBefore, formatPatchImpactSummary } from "../patch-impact-engine";
+import {
+  analyzePatchAfter,
+  analyzePatchBefore,
+  assessPatchBeforeWrite,
+  formatPatchImpactBlocked,
+  formatPatchImpactSkipped,
+  formatPatchImpactSummary,
+} from "../patch-impact-engine";
 import { resolveWorkspacePath } from "./tool-utils";
 
 export const autoPatchTool: Tool = {
@@ -28,16 +35,22 @@ export const autoPatchTool: Tool = {
         description:
           "Replace every occurrence when true. Defaults to false (single replacement).",
       },
+      allowHighImpact: {
+        type: "boolean",
+        description:
+          "Set true only after explicit user confirmation when PATCH_IMPACT_DECISION requires confirmation.",
+      },
     },
     required: ["path", "searchString", "replacementString"],
   },
   async execute(args, { workspacePath }) {
-    const { path, searchString, replacementString, replaceAll = false } = args;
+    const { path, searchString, replacementString, replaceAll = false, allowHighImpact = false } = args;
     const targetFile = resolveWorkspacePath(workspacePath, path);
 
     try {
       const content = await readFile(targetFile, "utf8");
       const impactBefore = await analyzePatchBefore(workspacePath, String(path));
+      const decision = assessPatchBeforeWrite(impactBefore);
 
       if (!content.includes(searchString)) {
         return `Patch failed: The exact searchString was not found in ${path}.`;
@@ -47,6 +60,12 @@ export const autoPatchTool: Tool = {
       const newContent = replaceAll
         ? content.split(searchString).join(replacementString)
         : content.replace(searchString, replacementString);
+      if (newContent === content) {
+        return formatPatchImpactSkipped(impactBefore.targetFile, decision, impactBefore.summary);
+      }
+      if (decision.requiresConfirmation && allowHighImpact !== true) {
+        return formatPatchImpactBlocked(impactBefore.targetFile, decision, impactBefore.summary);
+      }
 
       await writeFile(targetFile, newContent, "utf8");
       const impactSummary = await analyzePatchAfter(impactBefore);
