@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { BrowserWindow } from "electron";
 
+import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 
@@ -105,6 +106,18 @@ export const runTestsTool: Tool = {
       broadcastStream(`Validation plan: ${plannedCommandReason}\n`);
     }
 
+    const priorMatches = await failureMemoryEngine.findSimilarFailures({
+      workspaceId: activeWorkspaceId,
+      command,
+      framework: validationPlan?.detectedFramework ?? profile?.testFramework,
+      limit: 1,
+    });
+    if (priorMatches[0]) {
+      broadcastStream(
+        `Known similar failure from this workspace: ${priorMatches[0].failure.errorSignature} (${priorMatches[0].failure.occurrenceCount} repeat(s)). Change approach if it repeats.\n`,
+      );
+    }
+
     return new Promise((resolve) => {
       let outputSummary = "";
 
@@ -156,6 +169,24 @@ export const runTestsTool: Tool = {
         };
 
         const savedRun = await tursoService.addValidationRun(runResult);
+        const failureMemory = code !== 0
+          ? await failureMemoryEngine.recordFailure({
+              workspaceId: activeWorkspaceId,
+              command,
+              exitCode: code ?? undefined,
+              framework: validationPlan?.detectedFramework ?? profile?.testFramework,
+              failingTests: runResult.failingTests,
+              output: outputSummary,
+              affectedFiles: validationPlan?.changedFiles,
+            })
+          : priorMatches[0]
+            ? await failureMemoryEngine.recordResolution({
+                workspaceId: activeWorkspaceId,
+                failureId: priorMatches[0].failure.id,
+                retryFixed: true,
+                attemptedFix: "Validation retry exited 0.",
+              })
+            : undefined;
         const persistedRun = await tursoService.getValidationRun(savedRun.id);
         const plannedCommand = validationPlan ? args.plannedCommand ?? "primary" : undefined;
         const fallbackRequired = Boolean(
@@ -193,6 +224,10 @@ export const runTestsTool: Tool = {
           validationPlan: validationPlan ?? undefined,
           plannedCommand,
           failingTests: runResult.failingTests,
+          failureMemory,
+          warning: failureMemory && failureMemory.occurrenceCount > 1 && code !== 0
+            ? "Same failure repeated in this workspace. Warn user and change approach before retrying."
+            : undefined,
         }, null, 2));
       });
 

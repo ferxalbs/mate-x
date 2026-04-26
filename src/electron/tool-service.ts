@@ -34,6 +34,11 @@ import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
 import { validationPlanTool } from "./tools/validation_plan";
 import { validationPersistenceTool } from "./tools/validation_persistence";
 import { runTestsTool } from "./tools/run_tests";
+import {
+  findSimilarFailuresTool,
+  recordFailureTool,
+  recordResolutionTool,
+} from "./tools/failure_memory";
 import { supermemoryTool } from "./tools/supermemory";
 import { pdfReportTool } from "./tools/pdf_report";
 import { globTool } from "./tools/glob";
@@ -115,6 +120,9 @@ export class ToolService {
     this.registerTool(validationPlanTool);
     this.registerTool(validationPersistenceTool);
     this.registerTool(runTestsTool);
+    this.registerTool(findSimilarFailuresTool);
+    this.registerTool(recordFailureTool);
+    this.registerTool(recordResolutionTool);
     this.registerTool(supermemoryTool);
     this.registerTool(pdfReportTool);
     this.registerTool(globTool);
