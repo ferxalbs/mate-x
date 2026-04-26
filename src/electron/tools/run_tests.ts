@@ -157,6 +157,13 @@ export const runTestsTool: Tool = {
 
         const savedRun = await tursoService.addValidationRun(runResult);
         const persistedRun = await tursoService.getValidationRun(savedRun.id);
+        const plannedCommand = validationPlan ? args.plannedCommand ?? "primary" : undefined;
+        const fallbackRequired = Boolean(
+          validationPlan &&
+          plannedCommand === "primary" &&
+          validationPlan.riskLevel === "high" &&
+          validationPlan.primary.command !== validationPlan.fallback.command,
+        );
         const validationPersistence = {
           validationRunId: savedRun.id,
           planPersistedWithRun: Boolean(
@@ -172,9 +179,19 @@ export const runTestsTool: Tool = {
           exitCode: runResult.exitCode,
           validationRunId: savedRun.id,
           validationPersistence,
+          nextRequiredAction: fallbackRequired
+            ? {
+                tool: "run_tests",
+                arguments: {
+                  scope: args.scope,
+                  plannedCommand: "fallback",
+                },
+                reason: validationPlan?.fallbackTrigger,
+              }
+            : undefined,
           summary: `Test run finished with code ${code}. Saved to run ID ${savedRun.id}.`,
           validationPlan: validationPlan ?? undefined,
-          plannedCommand: validationPlan ? args.plannedCommand ?? "primary" : undefined,
+          plannedCommand,
           failingTests: runResult.failingTests,
         }, null, 2));
       });
