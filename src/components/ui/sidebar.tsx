@@ -302,24 +302,31 @@ function Sidebar({
 }
 
 function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar, openMobile } = useSidebar();
+  const { toggleSidebar, open, isMobile, openMobile } = useSidebar();
+  const showSidebarIcon = isMobile ? openMobile : open;
 
   return (
-    <Button
-      className={cn("size-7", className)}
-      data-sidebar="trigger"
-      data-slot="sidebar-trigger"
-      onClick={(event) => {
-        onClick?.(event);
-        toggleSidebar();
-      }}
-      size="icon"
-      variant="ghost"
-      {...props}
-    >
-      {openMobile ? <PanelLeftCloseIcon /> : <PanelLeftIcon />}
-      <span className="sr-only">Toggle Sidebar</span>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        className={cn("size-7", className)}
+        data-sidebar="trigger"
+        data-slot="sidebar-trigger"
+        onClick={(event) => {
+          onClick?.(event);
+          toggleSidebar();
+        }}
+        size="icon"
+        variant="ghost"
+        render={<Button />}
+        {...props}
+      >
+        {showSidebarIcon ? <PanelLeftCloseIcon className="size-3.5" /> : <PanelLeftIcon className="size-3.5" />}
+        <span className="sr-only">Toggle Sidebar</span>
+      </TooltipTrigger>
+      <TooltipPopup side="bottom" align="center" className="text-[10px]">
+        {showSidebarIcon ? "Hide sidebar" : "Show sidebar"}
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 
