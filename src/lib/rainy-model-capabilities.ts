@@ -20,7 +20,12 @@ export function getReasoningEffortValues(model: CapabilitySource) {
   const controls = capabilities?.reasoning?.controls;
   const profileValues = capabilities?.reasoning?.profiles
     ?.filter((profile) => profile.parameter_path === "reasoning.effort")
-    .flatMap((profile) => profile.values ?? [])
+    .flatMap((profile) => [
+      ...(profile.values ?? []),
+      ...stringArrayFromUnknown((profile as Record<string, unknown>).options),
+      ...stringArrayFromUnknown((profile as Record<string, unknown>).enum),
+      ...stringArrayFromUnknown((profile as Record<string, unknown>).allowed_values),
+    ])
     .filter(isNonEmptyString);
 
   if (profileValues && profileValues.length > 0) {
@@ -91,4 +96,8 @@ function getCapabilities(model: CapabilitySource): RainyModelCapabilities | unde
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function stringArrayFromUnknown(value: unknown) {
+  return Array.isArray(value) ? value.filter(isNonEmptyString) : [];
 }

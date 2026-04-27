@@ -18,6 +18,9 @@ export interface RainyModelCapabilities {
       label?: string;
       parameter_path?: string;
       values?: string[];
+      options?: string[];
+      enum?: string[];
+      allowed_values?: string[];
     }>;
     toggle?: boolean;
   };

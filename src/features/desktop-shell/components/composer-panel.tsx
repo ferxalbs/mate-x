@@ -132,10 +132,15 @@ export function ComposerPanel({
   const toolCallingSupported = supportsTools(selectedModel);
   const structuredOutputSupported = supportsStructuredOutput(selectedModel);
   const effortOptions = useMemo(
-    () => getReasoningEffortValues(selectedModel).filter(isAssistantReasoningLevel),
+    () => getReasoningEffortValues(selectedModel),
     [selectedModel],
   );
   const supportsReasoningEffort = reasoningSupported && effortOptions.length > 0;
+  const reasoningToggleLabel = reasoningEnabled
+    ? supportsReasoningEffort
+      ? 'Reasoning'
+      : 'Reasoning on'
+    : 'Reasoning off';
   const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue = trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval';
 
@@ -358,7 +363,7 @@ export function ComposerPanel({
                   onClick={() => setReasoningEnabled((value) => !value)}
                 >
                   <BrainIcon className="size-3.5" />
-                  {reasoningEnabled ? 'Reasoning on' : 'Reasoning off'}
+                  {reasoningToggleLabel}
                 </button>
               ) : null}
               <div
@@ -375,6 +380,7 @@ export function ComposerPanel({
                     onValueChange={(value) =>
                       setReasoningValue(value as AssistantRunOptions['reasoning'])
                     }
+                    label={`Effort: ${formatReasoningEffort(reasoningValue)}`}
                   >
                     {effortOptions.map((effort) => (
                       <SelectItem key={effort} value={effort}>
@@ -581,14 +587,16 @@ function InlineSelect({
   );
 }
 
-function isAssistantReasoningLevel(
-  value: string,
-): value is AssistantRunOptions['reasoning'] {
-  return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh';
-}
-
 function formatReasoningEffort(effort: AssistantRunOptions['reasoning']) {
-  return effort === 'xhigh' ? 'X High' : effort[0].toUpperCase() + effort.slice(1);
+  if (effort === 'xhigh') {
+    return 'X High';
+  }
+
+  return effort
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function resolveModelValue(

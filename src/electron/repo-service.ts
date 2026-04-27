@@ -903,9 +903,7 @@ function resolveAssistantRunOptions(
   return {
     reasoningEnabled: options?.reasoningEnabled !== false,
     reasoning:
-      options?.reasoning === "low" ||
-      options?.reasoning === "medium" ||
-      options?.reasoning === "xhigh"
+      typeof options?.reasoning === "string" && options.reasoning.trim()
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     mode:
