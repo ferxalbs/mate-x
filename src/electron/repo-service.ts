@@ -440,18 +440,17 @@ export async function collectRepoSnapshot(
     status,
     promptMatches,
     memoryContext,
-  ] =
-    await Promise.all([
-      buildWorkspaceSummary(workspace),
-      tursoService.getWorkspaceTrustContract(workspace.id),
-      listWorkspaceFiles(workspace.path, 200),
-      readFileMaybe(workspace.path, "package.json"),
-      new GitService(workspace.path).getStatus(),
-      promptPattern
-        ? searchWorkspaceFiles(workspace.path, promptPattern, 16)
-        : Promise.resolve([]),
-      workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path),
-    ]);
+  ] = await Promise.all([
+    buildWorkspaceSummary(workspace),
+    tursoService.getWorkspaceTrustContract(workspace.id),
+    listWorkspaceFiles(workspace.path, 200),
+    readFileMaybe(workspace.path, "package.json"),
+    new GitService(workspace.path).getStatus(),
+    promptPattern
+      ? searchWorkspaceFiles(workspace.path, promptPattern, 16)
+      : Promise.resolve([]),
+    workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path),
+  ]);
 
   return {
     workspace: summary,
@@ -1672,13 +1671,16 @@ async function requestRainyAgenticResponse({
     .map((match) => `${match.file}:${match.line} ${match.text}`)
     .join("\n");
   const gitStatus = snapshot.statusLines.slice(0, 40).join("\n");
-  const repoGraphSummary = await repoGraphService.getPromptSummary(snapshot.workspace);
+  const repoGraphSummary = await repoGraphService.getPromptSummary(
+    snapshot.workspace,
+  );
   const similarFailures = await failureMemoryEngine.findSimilarFailures({
     workspaceId: snapshot.workspace.id,
     output: prompt,
     limit: 1,
   });
-  const failureMemoryContext = failureMemoryEngine.renderPromptSection(similarFailures);
+  const failureMemoryContext =
+    failureMemoryEngine.renderPromptSection(similarFailures);
 
   const systemPrompt = `${MATE_AGENT_SYSTEM_PROMPT}
 
@@ -1740,6 +1742,12 @@ Reproduction harness contract:
 - For runtime repros, record whether the check existed before patch, pre-patch outcome, and post-patch outcome after remediation.
 - If runtime repro is impossible, provide a static proof with exact code/config references and mark pre/post outcomes blocked or unknown.
 - Do not claim root cause unless reproduction failed before patch and passed after patch, or strong static proof exists.
+Reproduction evidence integrity:
+- If no runtime tool call actually executed, do not report "Type: minimal script", "unit test", "integration test", "HTTP request", or "browser scenario"; use "static proof" and explain why runtime was unavailable.
+- Do not invent temp paths, commands, exit codes, timings, or pre/post outcomes. Only report a command as executed when a tool result exists for that exact command.
+- If sandbox_run executed, final answer must not say runtime execution was blocked. If runtime was blocked, name the blocker and avoid fabricated runtime evidence.
+Sandbox timeout facts:
+- sandbox_run accepts timeoutSeconds 30, 45, 60, 120, or 240. The orchestration wrapper allows the requested sandbox timeout plus grace; do not claim a fixed 20s wrapper kills sandbox_run without current code evidence.
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
@@ -1906,20 +1914,18 @@ async function requestRainyChatAgenticResponse({
         events.push({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
-          detail:
-            runtime.executionIntent
-              ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
-              : "Model tried to conclude early. Requesting another tool-backed pass.",
+          detail: runtime.executionIntent
+            ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
+            : "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
         emitProgress();
 
         messages.push({
           role: "user",
-          content:
-            runtime.executionIntent
-              ? "The user asked you to perform an action. Do not answer with only text. Call the smallest appropriate tool now, then continue from the result."
-              : "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
+          content: runtime.executionIntent
+            ? "The user asked you to perform an action. Do not answer with only text. Call the smallest appropriate tool now, then continue from the result."
+            : "Continue investigating with repository tools before answering. Gather more evidence, then conclude.",
         });
         continue;
       }
@@ -2176,10 +2182,9 @@ async function requestRainyResponsesAgenticResponse({
         events.push({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
-          detail:
-            runtime.executionIntent
-              ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
-              : "Model tried to conclude early. Requesting another tool-backed pass.",
+          detail: runtime.executionIntent
+            ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
+            : "Model tried to conclude early. Requesting another tool-backed pass.",
           status: "done",
         });
         emitProgress();
