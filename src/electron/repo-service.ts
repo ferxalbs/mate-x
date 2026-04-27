@@ -35,7 +35,11 @@ import type {
   MessageArtifact,
   ToolEvent,
 } from "../contracts/chat";
-import type { RainyApiMode, RainyModelCapabilities } from "../contracts/rainy";
+import type {
+  RainyApiMode,
+  RainyModelCapabilities,
+  RainyModelCatalogEntry,
+} from "../contracts/rainy";
 import {
   getAcceptedParameters,
   getReasoningEffortValues,
@@ -587,6 +591,7 @@ export async function runAssistant(
         model: configuredModel,
         apiMode: runtimeConfig?.apiMode ?? "chat_completions",
         capabilities: runtimeConfig?.capabilities,
+        modelCatalogEntry: runtimeConfig?.modelCatalogEntry,
         prompt,
         snapshot,
         workingSet,
@@ -1652,6 +1657,7 @@ async function requestRainyAgenticResponse({
   model,
   apiMode,
   capabilities,
+  modelCatalogEntry,
   prompt,
   snapshot,
   workingSet,
@@ -1667,6 +1673,7 @@ async function requestRainyAgenticResponse({
   model: string;
   apiMode: RainyApiMode;
   capabilities?: RainyModelCapabilities;
+  modelCatalogEntry?: RainyModelCatalogEntry;
   prompt: string;
   snapshot: RepoSnapshot;
   workingSet: import("../contracts/working-set").WorkingSet;
@@ -1793,6 +1800,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     apiKey,
     model,
     capabilities,
+    modelCatalogEntry,
     prompt,
     history,
     runtime,
@@ -1811,6 +1819,7 @@ async function requestRainyChatAgenticResponse({
   history,
   model,
   capabilities,
+  modelCatalogEntry,
   prompt,
   runtime,
   options,
@@ -1825,6 +1834,7 @@ async function requestRainyChatAgenticResponse({
   history: string[];
   model: string;
   capabilities?: RainyModelCapabilities;
+  modelCatalogEntry?: RainyModelCatalogEntry;
   prompt: string;
   runtime: AgentRuntimeConfig;
   options: AssistantRunOptions;
@@ -1875,6 +1885,11 @@ async function requestRainyChatAgenticResponse({
       emitProgress,
     );
 
+    const maxTokens = resolveRainyMaxTokensForMessages(
+      modelCatalogEntry,
+      messages,
+      tokenEstimator,
+    );
     let streamedPassText = "";
     const responseMessage = await requestRainyChatCompletionStream({
       apiKey,
@@ -1890,6 +1905,7 @@ async function requestRainyChatAgenticResponse({
       reasoning: rainyReasoning.reasoning,
       includeReasoning: rainyReasoning.includeReasoning,
       capabilities,
+      maxTokens,
       onContentDelta: (delta) => {
         streamedPassText += delta;
         emitProgress(
@@ -2382,6 +2398,7 @@ async function resolveDefaultRainyRuntimeConfig(
   model: string;
   apiMode: "chat_completions" | "responses";
   capabilities?: RainyModelCapabilities;
+  modelCatalogEntry?: RainyModelCatalogEntry;
 } | null> {
   const preferredModels = [
     "openai/gpt-5.4",
@@ -2407,6 +2424,7 @@ async function resolveDefaultRainyRuntimeConfig(
       model: modelId,
       apiMode: pickApiMode(modelId),
       capabilities: findEntry(modelId)?.capabilities,
+      modelCatalogEntry: findEntry(modelId),
     });
 
     if (
@@ -2431,6 +2449,56 @@ async function resolveDefaultRainyRuntimeConfig(
   } catch {
     return null;
   }
+}
+
+function resolveRainyMaxTokensForMessages(
+  modelCatalogEntry: RainyModelCatalogEntry | undefined,
+  messages: Array<{ content?: unknown }>,
+  tokenEstimator: { estimateTokens: (text: string) => number },
+) {
+  if (!modelCatalogEntry) {
+    return undefined;
+  }
+
+  const explicitOutputLimit = firstFiniteNumber(
+    modelCatalogEntry.perRequestLimits?.max_completion_tokens,
+    modelCatalogEntry.perRequestLimits?.max_output_tokens,
+    modelCatalogEntry.perRequestLimits?.completion_tokens,
+    modelCatalogEntry.perRequestLimits?.output_tokens,
+    modelCatalogEntry.topProvider?.max_completion_tokens,
+    modelCatalogEntry.topProvider?.max_tokens,
+  );
+  const contextLength = modelCatalogEntry.contextLength;
+  const promptTokens = estimateChatMessagesTokens(messages, tokenEstimator);
+  const remainingContext =
+    typeof contextLength === "number" && Number.isFinite(contextLength)
+      ? Math.max(1, Math.floor(contextLength - promptTokens))
+      : undefined;
+
+  if (explicitOutputLimit === undefined) {
+    return undefined;
+  }
+
+  return remainingContext === undefined
+    ? explicitOutputLimit
+    : Math.min(explicitOutputLimit, remainingContext);
+}
+
+function estimateChatMessagesTokens(
+  messages: Array<{ content?: unknown }>,
+  tokenEstimator: { estimateTokens: (text: string) => number },
+) {
+  return messages.reduce((total, message) => {
+    const content =
+      typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content ?? "");
+    return total + tokenEstimator.estimateTokens(content);
+  }, 0);
+}
+
+function firstFiniteNumber(...values: Array<number | undefined>) {
+  return values.find((value) => typeof value === "number" && Number.isFinite(value));
 }
 
 function resolveRainyReasoningPayload(

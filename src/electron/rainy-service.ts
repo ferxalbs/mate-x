@@ -90,6 +90,7 @@ export function buildChatCompletionRequest(params: {
   modalities?: string[];
   imageConfig?: Record<string, unknown>;
   responseFormat?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
+  maxTokens?: number;
 }) {
   if (
     params.capabilities &&
@@ -111,6 +112,8 @@ export function buildChatCompletionRequest(params: {
     modalities?: string[];
     image_config?: Record<string, unknown>;
     response_format?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
+    max_tokens?: number;
+    max_completion_tokens?: number;
   } = {
     model: params.model,
     messages: params.messages,
@@ -147,6 +150,15 @@ export function buildChatCompletionRequest(params: {
 
   if (params.responseFormat && acceptsParameter("response_format")) {
     request.response_format = params.responseFormat;
+  }
+
+  if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
+    const maxTokens = Math.max(1, Math.floor(params.maxTokens));
+    if (acceptsParameter("max_tokens")) {
+      request.max_tokens = maxTokens;
+    } else if (acceptsParameter("max_completion_tokens")) {
+      request.max_completion_tokens = maxTokens;
+    }
   }
 
   return request;
@@ -364,11 +376,14 @@ function mergeRainyModels(
       label: existing.label === existing.id ? model.label : existing.label,
       description: existing.description ?? model.description,
       ownedBy: existing.ownedBy ?? model.ownedBy,
+      contextLength: existing.contextLength ?? model.contextLength,
       supportedApiModes: Array.from(
         new Set([...existing.supportedApiModes, ...model.supportedApiModes]),
       ),
       preferredApiMode: existing.preferredApiMode ?? model.preferredApiMode,
       architecture: existing.architecture ?? model.architecture,
+      topProvider: existing.topProvider ?? model.topProvider,
+      perRequestLimits: existing.perRequestLimits ?? model.perRequestLimits,
       supportedParameters:
         existing.supportedParameters ?? model.supportedParameters,
       capabilities: model.capabilities ?? existing.capabilities,
@@ -483,6 +498,7 @@ export async function requestRainyChatCompletionStream(params: {
   reasoning?: { exclude?: true; effort?: string };
   includeReasoning?: boolean;
   capabilities?: RainyModelCatalogEntry["capabilities"];
+  maxTokens?: number;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = createRainyClient(params.apiKey);
   const request = buildChatCompletionRequest({
@@ -493,6 +509,7 @@ export async function requestRainyChatCompletionStream(params: {
     reasoning: params.reasoning,
     includeReasoning: params.includeReasoning,
     capabilities: params.capabilities,
+    maxTokens: params.maxTokens,
   });
   const contentChunks: string[] = [];
   const toolCalls: Array<{
@@ -521,6 +538,7 @@ export async function requestRainyChatCompletionStream(params: {
           reasoning: params.reasoning,
           includeReasoning: params.includeReasoning,
           capabilities: params.capabilities,
+          maxTokens: params.maxTokens,
         }),
         stream: true,
       } as any,
@@ -749,9 +767,12 @@ function normalizeRainyModelItem(item: unknown): RainyModelCatalogEntry | null {
     label: firstString(item.display_name, item.name, item.label, id) ?? id,
     description: firstString(item.description, item.summary),
     ownedBy: firstString(item.owned_by, item.owner, item.provider, item.vendor),
+    contextLength: firstNumber(item.context_length, item.contextLength),
     supportedApiModes,
     preferredApiMode: extractPreferredApiMode(item, supportedApiModes),
     architecture: extractArchitecture(item),
+    topProvider: extractTopProvider(item),
+    perRequestLimits: extractPerRequestLimits(item),
     supportedParameters: stringArray(item.supported_parameters),
     capabilities: extractModelCapabilities(item),
   };
@@ -767,6 +788,34 @@ function extractArchitecture(
   return {
     input_modalities: stringArray(item.architecture.input_modalities),
     output_modalities: stringArray(item.architecture.output_modalities),
+  };
+}
+
+function extractTopProvider(
+  item: Record<string, unknown>,
+): RainyModelCatalogEntry["topProvider"] {
+  if (!isRecord(item.top_provider)) {
+    return undefined;
+  }
+
+  return {
+    max_completion_tokens: firstNumber(item.top_provider.max_completion_tokens),
+    max_tokens: firstNumber(item.top_provider.max_tokens),
+  };
+}
+
+function extractPerRequestLimits(
+  item: Record<string, unknown>,
+): RainyModelCatalogEntry["perRequestLimits"] {
+  if (!isRecord(item.per_request_limits)) {
+    return undefined;
+  }
+
+  return {
+    max_completion_tokens: firstNumber(item.per_request_limits.max_completion_tokens),
+    max_output_tokens: firstNumber(item.per_request_limits.max_output_tokens),
+    completion_tokens: firstNumber(item.per_request_limits.completion_tokens),
+    output_tokens: firstNumber(item.per_request_limits.output_tokens),
   };
 }
 
@@ -918,6 +967,23 @@ function firstString(...values: unknown[]): string | null {
   }
 
   return null;
+}
+
+function firstNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function stringArray(value: unknown): string[] | undefined {
