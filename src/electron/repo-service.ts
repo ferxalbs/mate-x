@@ -3,6 +3,13 @@ import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
+import {
+  appendVerificationWarnings,
+  buildCriticReviewPrompt,
+  buildCriticRevisionPrompt,
+  criticFoundMajorIssue,
+  verifyCriticLoop,
+} from "./critic-loop";
 import { GitService } from "./git-service";
 import { policyService } from "./policy-service";
 import {
@@ -907,7 +914,9 @@ function resolveAssistantRunOptions(
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     mode:
-      options?.mode === "plan" ? options.mode : DEFAULT_ASSISTANT_OPTIONS.mode,
+      options?.mode === "plan" || options?.mode === "critic_loop"
+        ? options.mode
+        : DEFAULT_ASSISTANT_OPTIONS.mode,
     access:
       options?.access === "approval"
         ? options.access
@@ -970,14 +979,16 @@ function buildAgentRuntimeConfig(
   prompt = "",
 ): AgentRuntimeConfig {
   const executionIntent =
-    options.mode === "build" && isExecutionIntentPrompt(prompt);
+    (options.mode === "build" || options.mode === "critic_loop") &&
+    isExecutionIntentPrompt(prompt);
   const requireToolingFirst = executionIntent;
   const minToolRounds = executionIntent ? 1 : 0;
+  const planLikeMode = options.mode === "plan";
 
   switch (options.reasoning) {
     case "low":
       return {
-        maxIterations: options.mode === "plan" ? 5 : 6,
+        maxIterations: planLikeMode ? 5 : 6,
         minToolRounds,
         maxToolCalls: 20,
         requireToolingFirst,
@@ -985,7 +996,7 @@ function buildAgentRuntimeConfig(
       };
     case "xhigh":
       return {
-        maxIterations: options.mode === "plan" ? 10 : 12,
+        maxIterations: planLikeMode ? 10 : 12,
         minToolRounds,
         maxToolCalls: 200,
         requireToolingFirst,
@@ -993,7 +1004,7 @@ function buildAgentRuntimeConfig(
       };
     default:
       return {
-        maxIterations: options.mode === "plan" ? 8 : 9,
+        maxIterations: planLikeMode ? 8 : 9,
         minToolRounds,
         maxToolCalls: 100,
         requireToolingFirst,
@@ -1790,6 +1801,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       prompt: promptWithAttachments,
       history,
       runtime,
+      options,
       systemPrompt,
       snapshot,
       events,
@@ -1869,6 +1881,116 @@ function buildChatUserContent(
   ];
 }
 
+async function finalizeCriticLoop({
+  apiKey,
+  model,
+  options,
+  snapshot,
+  events,
+  toolExecutions,
+  finalContent,
+  emitProgress,
+}: {
+  apiKey: string;
+  model: string;
+  options: AssistantRunOptions;
+  snapshot: RepoSnapshot;
+  events: ToolEvent[];
+  toolExecutions: ToolExecutionRecord[];
+  finalContent: string;
+  emitProgress: (content?: string, thought?: string) => void;
+}) {
+  if (options.mode !== "critic_loop") {
+    return finalContent;
+  }
+
+  events.push({
+    id: "step-critic-review",
+    label: "Critic review",
+    detail: "Reviewing final draft against existing evidence without tools.",
+    status: "active",
+  });
+  emitProgress(finalContent);
+
+  const criticInput = {
+    workspacePath: snapshot.workspace.path,
+    finalContent,
+    statusLines: snapshot.statusLines,
+    events,
+    toolExecutions,
+  };
+  const criticResponse = await requestRainyChatCompletion({
+    apiKey,
+    model,
+    messages: [
+      { role: "system", content: "You are a strict internal critic. Do not call tools." },
+      { role: "user", content: buildCriticReviewPrompt(criticInput) },
+    ],
+  });
+  const criticNotes = normalizeAssistantText(
+    criticResponse.choices[0]?.message?.content,
+  );
+  const criticEvent = events.find((event) => event.id === "step-critic-review");
+  if (criticEvent) {
+    criticEvent.status = "done";
+    criticEvent.detail = criticFoundMajorIssue(criticNotes)
+      ? "Major issue found; forcing revision before final response."
+      : "No major issue found.";
+  }
+  emitProgress(finalContent);
+
+  let reviewedContent = finalContent;
+  if (criticFoundMajorIssue(criticNotes)) {
+    events.push({
+      id: "step-critic-revision",
+      label: "Critic revision",
+      detail: "Revising final answer to remove unsupported or risky claims.",
+      status: "active",
+    });
+    emitProgress(finalContent);
+
+    const revisionResponse = await requestRainyChatCompletion({
+      apiKey,
+      model,
+      messages: [
+        { role: "system", content: "You revise final answers using only supplied evidence." },
+        { role: "user", content: buildCriticRevisionPrompt(finalContent, criticNotes) },
+      ],
+    });
+    reviewedContent =
+      normalizeAssistantText(revisionResponse.choices[0]?.message?.content).trim() ||
+      finalContent;
+    const revisionEvent = events.find((event) => event.id === "step-critic-revision");
+    if (revisionEvent) {
+      revisionEvent.status = "done";
+      revisionEvent.detail = "Revision completed.";
+    }
+  }
+
+  events.push({
+    id: "step-critic-verifier",
+    label: "Verifier check",
+    detail: "Checking validation state, modified files, claimed files, and executed commands.",
+    status: "active",
+  });
+  emitProgress(reviewedContent);
+
+  const verification = await verifyCriticLoop({
+    ...criticInput,
+    finalContent: reviewedContent,
+  });
+  const verifierEvent = events.find((event) => event.id === "step-critic-verifier");
+  if (verifierEvent) {
+    verifierEvent.status = verification.warnings.length > 0 ? "error" : "done";
+    verifierEvent.detail =
+      verification.warnings.length > 0
+        ? verification.warnings.join(" ")
+        : "Verifier checks passed.";
+  }
+
+  return appendVerificationWarnings(reviewedContent, verification);
+}
+
 async function requestRainyChatAgenticResponse({
   apiKey,
   history,
@@ -1916,6 +2038,18 @@ async function requestRainyChatAgenticResponse({
   const toolExecutions: ToolExecutionRecord[] = [];
 
   const { applyContextCompressionChat } = await import("./context-compression");
+
+  const finalizeContent = (finalContent: string) =>
+    finalizeCriticLoop({
+      apiKey,
+      model,
+      options,
+      snapshot,
+      events,
+      toolExecutions,
+      finalContent,
+      emitProgress,
+    });
 
   while (iterations < runtime.maxIterations) {
     iterations++;
@@ -2064,14 +2198,15 @@ async function requestRainyChatAgenticResponse({
 
       return {
         toolExecutions,
-        content:
+        content: await finalizeContent(
           finalContentText ||
-          buildNoContentFinalResponse({
-            iterations,
-            toolRounds,
-            totalToolCalls,
-            events,
-          }),
+            buildNoContentFinalResponse({
+              iterations,
+              toolRounds,
+              totalToolCalls,
+              events,
+            }),
+        ),
       };
     }
 
@@ -2169,14 +2304,15 @@ async function requestRainyChatAgenticResponse({
 
   return {
     toolExecutions,
-    content:
+    content: await finalizeContent(
       finalContentText ||
-      buildNoContentFinalResponse({
-        iterations,
-        toolRounds,
-        totalToolCalls,
-        events,
-      }),
+        buildNoContentFinalResponse({
+          iterations,
+          toolRounds,
+          totalToolCalls,
+          events,
+        }),
+    ),
   };
 }
 
@@ -2186,6 +2322,7 @@ async function requestRainyResponsesAgenticResponse({
   model,
   prompt,
   runtime,
+  options,
   systemPrompt,
   snapshot,
   events,
@@ -2198,6 +2335,7 @@ async function requestRainyResponsesAgenticResponse({
   model: string;
   prompt: string;
   runtime: AgentRuntimeConfig;
+  options: AssistantRunOptions;
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
@@ -2218,6 +2356,17 @@ async function requestRainyResponsesAgenticResponse({
   let lastContent = "";
   let lastThought = "";
   const toolExecutions: ToolExecutionRecord[] = [];
+  const finalizeContent = (finalContent: string) =>
+    finalizeCriticLoop({
+      apiKey,
+      model,
+      options,
+      snapshot,
+      events,
+      toolExecutions,
+      finalContent,
+      emitProgress,
+    });
 
   while (iterations < runtime.maxIterations) {
     iterations++;
@@ -2341,9 +2490,10 @@ async function requestRainyResponsesAgenticResponse({
       return {
         thought: lastThought,
         toolExecutions,
-        content:
+        content: await finalizeContent(
           finalContentText ||
-          "The model completed the tool loop without returning text.",
+            "The model completed the tool loop without returning text.",
+        ),
       };
     }
 
@@ -2451,9 +2601,10 @@ async function requestRainyResponsesAgenticResponse({
   return {
     thought: lastThought,
     toolExecutions,
-    content:
+    content: await finalizeContent(
       finalContentText ||
-      "Maximum agent iterations reached without a final response.",
+        "Maximum agent iterations reached without a final response.",
+    ),
   };
 }
 

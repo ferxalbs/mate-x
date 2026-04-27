@@ -14,7 +14,7 @@ export type AssistantReasoningLevel =
   | "high"
   | "xhigh"
   | (string & {});
-export type AssistantMode = "build" | "plan";
+export type AssistantMode = "build" | "plan" | "critic_loop";
 export type AssistantAccess = "full" | "approval";
 export type AssistantRunbookId =
   | "patch_test_verify"
