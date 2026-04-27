@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.27 (1) [Failure Memory Engine]
+
+- Added a workspace-scoped Failure Memory Engine that persists structured command and validation failures with command, exit code, framework metadata, failing tests, stable error signatures, stack excerpts, affected files, attempted fixes, retry outcomes, occurrence counts, and timestamps.
+- Added signature normalization for paths, timestamps, line numbers, random IDs, ANSI output, and optional metadata differences so repeated failures resolve to a canonical workspace history entry.
+- Added `find_similar_failures`, `record_failure`, and `record_resolution` agent tools so agents can check known failures before retrying, record failed validation or patch attempts, and mark resolved failures after successful retries.
+- Wired failure memory into `run_tests` and `sandbox_run` so failed validation and diagnostic commands are recorded automatically, repeated failures increment counts, successful retries can resolve prior failures, and tool output warns before likely repeated loops.
+- Injected a `Known similar failure from this workspace` context section into agent runs so diagnostics can reuse prior failure knowledge instead of rediscovering recurring repository issues.
+- Added migration and repair behavior for malformed or duplicate historical failure signatures, merging duplicate records while preserving earliest first-seen time, latest last-seen time, and total occurrence count.
+- Verified with `bun run typecheck` and `bun run lint`; lint still reports existing unrelated unused `settings` warnings in legacy tool modules.
+
 ## Unreleased - 2026.04.26 (2) [Validation Planner]
 
 - Added a Validation Planner service that selects the smallest useful validation plan from the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous validation failures.

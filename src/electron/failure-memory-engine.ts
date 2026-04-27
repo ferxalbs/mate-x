@@ -50,14 +50,13 @@ const FILE_LINE_GLOBAL_RE = /\b([\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|rs|go|py|java|
 export class FailureMemoryEngine {
   buildRecord(input: FailureMemoryInput): Omit<FailureMemory, 'id' | 'occurrenceCount' | 'firstSeenAt' | 'lastSeenAt' | 'resolvedAt'> {
     const stackTraceExcerpt = input.stackTraceExcerpt ?? extractStackTraceExcerpt(input.output ?? '');
-    const errorSignature =
-      input.errorSignature ??
-      computeErrorSignature({
+    const errorSignature = isStableSignature(input.errorSignature)
+      ? input.errorSignature.toLowerCase()
+      : computeErrorSignature({
         command: input.command,
         exitCode: input.exitCode,
-        framework: input.framework,
         failingTests: input.failingTests,
-        output: input.output,
+        output: input.output ?? input.errorSignature,
         stackTraceExcerpt,
       });
 
@@ -96,22 +95,51 @@ export class FailureMemoryEngine {
       (query.output || query.stackTraceExcerpt
         ? computeErrorSignature({
             command: query.command ?? '',
-            framework: query.framework,
             failingTests: query.failingTests,
             output: query.output,
             stackTraceExcerpt: query.stackTraceExcerpt,
           })
         : undefined);
 
-    const failures = await tursoService.getFailureMemories(query.workspaceId, 80);
+    const failures = await this.normalizeStoredSignatures(
+      await tursoService.getFailureMemories(query.workspaceId, 80),
+    );
+    const hasSpecificFailureEvidence = Boolean(
+      query.errorSignature ||
+      query.output ||
+      query.stackTraceExcerpt ||
+      (query.failingTests && query.failingTests.length > 0),
+    );
+
     return failures
       .map((failure) => scoreFailure(failure, {
         ...query,
         errorSignature: signature,
-      }))
-      .filter((match) => match.score >= 0.45)
+      }, hasSpecificFailureEvidence))
+      .filter((match) => match.score >= (hasSpecificFailureEvidence ? 0.45 : 0.3))
       .sort((a, b) => b.score - a.score || b.failure.lastSeenAt.localeCompare(a.failure.lastSeenAt))
       .slice(0, query.limit ?? 5);
+  }
+
+  private async normalizeStoredSignatures(failures: FailureMemory[]): Promise<FailureMemory[]> {
+    return Promise.all(failures.map(async (failure) => {
+      const errorSignature = computeErrorSignature({
+        command: failure.command,
+        exitCode: failure.exitCode,
+        failingTests: failure.failingTests,
+        output: failure.stackTraceExcerpt ?? failure.errorSignature,
+        stackTraceExcerpt: failure.stackTraceExcerpt,
+      });
+      if (failure.errorSignature === errorSignature) {
+        return failure;
+      }
+
+      await tursoService.updateFailureMemorySignature(failure.id, errorSignature);
+      return {
+        ...failure,
+        errorSignature,
+      };
+    }));
   }
 
   renderPromptSection(matches: SimilarFailureMatch[]): string {
@@ -145,13 +173,11 @@ export class FailureMemoryEngine {
 export function computeErrorSignature(input: {
   command?: string;
   exitCode?: number;
-  framework?: string;
   failingTests?: string[];
   output?: string;
   stackTraceExcerpt?: string;
 }): string {
   const source = [
-    input.framework ?? '',
     input.exitCode === undefined ? '' : `exit:${input.exitCode}`,
     normalizeCommand(input.command ?? ''),
     ...(input.failingTests ?? []).slice(0, 8).map(normalizeText),
@@ -193,7 +219,11 @@ export function extractAffectedFiles(output: string): string[] {
   return dedupe(matches.map((match) => match.replace(LINE_COL_RE, ''))).slice(0, 30);
 }
 
-function scoreFailure(failure: FailureMemory, query: SimilarFailureQuery): SimilarFailureMatch {
+function scoreFailure(
+  failure: FailureMemory,
+  query: SimilarFailureQuery,
+  hasSpecificFailureEvidence: boolean,
+): SimilarFailureMatch {
   let score = 0;
   const reasons: string[] = [];
 
@@ -203,8 +233,8 @@ function scoreFailure(failure: FailureMemory, query: SimilarFailureQuery): Simil
   }
 
   if (query.command && normalizeCommand(query.command) === normalizeCommand(failure.command)) {
-    score += 0.18;
-    reasons.push('same command');
+    score += hasSpecificFailureEvidence ? 0.18 : 0.45;
+    reasons.push(hasSpecificFailureEvidence ? 'same command' : 'same command history');
   }
 
   if (query.framework && query.framework === failure.framework) {
@@ -295,6 +325,10 @@ function tokenSimilarity(left: string, right: string): number {
 
 function indent(value: string): string {
   return value.split('\n').map((line) => `  ${line}`).join('\n');
+}
+
+function isStableSignature(value?: string): value is string {
+  return Boolean(value && /^[a-f0-9]{24}$/i.test(value));
 }
 
 export const failureMemoryEngine = new FailureMemoryEngine();
