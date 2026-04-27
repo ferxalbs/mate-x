@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.27 (3) [Repro Harness and Configurable Sandbox]
+
+- Added a required Reproduce stage to patch-focused agent workflows so suspicious behavior is reproduced, validated, or statically proven before remediation.
+- Added structured reproduction evidence to Evidence Packs, including reproduction type, pre/post patch outcome, location, command, and whether the repro existed before patch.
+- Added support for unit tests, integration tests, minimal scripts, HTTP requests, browser scenarios, validation runs, and static proofs as reproduction types.
+- Hardened reproduction parsing for markdown-bold labels, duplicate `Reproduction:` sections, final-block precedence, `validation_run`, and `not_applicable` outcomes.
+- Added configurable `sandbox_run` timeouts of 30, 45, 60, 120, and 240 seconds with matching orchestration timeout grace so long validations are not cut off by the default tool wrapper.
+- Added `sandbox_run` controls for `maxOutputChars`, `port`, `nodeEnv`, `keepAwake`, and Electron `powerSaveBlockerType`, using `powerSaveBlocker` for long or interactive runs.
+- Improved sandbox command parsing so quoted arguments such as `node -e '...'` work while shell operators outside quotes remain blocked.
+- Tightened agent evidence integrity guidance so runtime evidence, validation-run classification, and multi-command reporting must match executed tool calls.
+- Verified with `bun run typecheck` and `bun run lint`; lint still reports existing unrelated unused `settings` warnings in legacy tool modules.
+
 ## Unreleased - 2026.04.27 (2) [Live Reasoning Stream]
 
 - Added real-time reasoning token streaming to the agentic loop so the model's internal thinking is forwarded to the UI as it arrives, not only after the turn completes.

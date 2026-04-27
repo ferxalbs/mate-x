@@ -142,7 +142,7 @@ const RUNBOOK_DEFINITIONS: Record<
       },
     ],
     requiredChecks: [
-      "Record reproduction type: unit test, integration test, minimal script, HTTP request, browser scenario, or static proof.",
+      "Record reproduction type: unit test, integration test, minimal script, HTTP request, browser scenario, validation run, or static proof.",
       "Track whether reproduction existed before patch and whether it fails before patch and passes after patch.",
       "Show exactly what changed.",
       "Run at least one relevant validation command or explain blockage.",
@@ -1756,14 +1756,17 @@ Before running validation for code changes, create a validation plan with plan_v
 Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.
 Reproduction harness contract:
 - Before patching suspicious behavior or a bug, attempt the smallest useful reproduction first.
-- Prefer non-invasive checks in this order when practical: existing unit/integration test, new temporary or repo-local minimal test/script, HTTP request, browser scenario, static proof.
+- Prefer non-invasive checks in this order when practical: existing unit/integration test, validation run, new temporary or repo-local minimal test/script, HTTP request, browser scenario, static proof.
 - Use repo-local locations only when they match project conventions; otherwise use a temporary workspace-safe path and record it.
 - For runtime repros, record whether the check existed before patch, pre-patch outcome, and post-patch outcome after remediation.
 - If runtime repro is impossible, provide a static proof with exact code/config references and mark pre/post outcomes blocked or unknown.
 - Do not claim root cause unless reproduction failed before patch and passed after patch, or strong static proof exists.
 Reproduction evidence integrity:
-- If no runtime tool call actually executed, do not report "Type: minimal script", "unit test", "integration test", "HTTP request", or "browser scenario"; use "static proof" and explain why runtime was unavailable.
+- If no runtime tool call actually executed, do not report "Type: minimal script", "unit test", "integration test", "HTTP request", "browser scenario", or "validation run"; use "static proof" and explain why runtime was unavailable.
+- If the runtime evidence is a validation command such as typecheck, lint, test, build, package, or make, report "Type: validation run" rather than "minimal script".
 - Do not invent temp paths, commands, exit codes, timings, or pre/post outcomes. Only report a command as executed when a tool result exists for that exact command.
+- If multiple tool calls executed separate commands, list each command separately. Do not combine them into a shell-looking command with ;, &&, ||, or pipes unless that exact command string was accepted and executed by a tool.
+- When multiple commands are part of one reproduction, format the Command field as separate lines: "Command:\n- first command\n- second command". Never compress separate tool calls into one semicolon-separated command.
 - If sandbox_run executed, final answer must not say runtime execution was blocked. If runtime was blocked, name the blocker and avoid fabricated runtime evidence.
 Sandbox timeout facts:
 - sandbox_run accepts timeoutSeconds 30, 45, 60, 120, or 240. The orchestration wrapper allows the requested sandbox timeout plus grace; do not claim a fixed 20s wrapper kills sandbox_run without current code evidence.
