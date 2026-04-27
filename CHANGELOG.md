@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.27 (2) [Live Reasoning Stream]
+
+- Added real-time reasoning token streaming to the agentic loop so the model's internal thinking is forwarded to the UI as it arrives, not only after the turn completes.
+- Added `onReasoningDelta` optional callback to `requestRainyChatCompletionStream` in `rainy-service.ts`, dispatched on every `delta.reasoning` chunk received from the Rainy API stream.
+- Wired `onReasoningDelta` in the agentic loop inside `repo-service.ts` to accumulate reasoning tokens into `streamedThought` and call `emitProgress` with the live thought on every chunk.
+- Updated `onContentDelta` to also forward the accumulated `streamedThought` so the thought field stays populated once content starts arriving.
+- The `thought` field already propagated through `AssistantProgressReporter → IPC → chat-store → message.thought`, so the 🧠 Thinking block in the UI now updates in real time with no renderer changes required.
+
 ## Unreleased - 2026.04.27 (1) [Failure Memory Engine]
 
 - Added a workspace-scoped Failure Memory Engine that persists structured command and validation failures with command, exit code, framework metadata, failing tests, stable error signatures, stack excerpts, affected files, attempted fixes, retry outcomes, occurrence counts, and timestamps.

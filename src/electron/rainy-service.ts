@@ -493,6 +493,7 @@ export async function requestRainyChatCompletionStream(params: {
   messages: any[];
   model: string;
   onContentDelta: (delta: string) => void;
+  onReasoningDelta?: (delta: string) => void;
   tools?: any[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
   reasoning?: { exclude?: true; effort?: string };
@@ -550,6 +551,10 @@ export async function requestRainyChatCompletionStream(params: {
     const delta = chunk.choices?.[0]?.delta;
     if (!delta) {
       continue;
+    }
+
+    if (delta.reasoning && params.onReasoningDelta) {
+      params.onReasoningDelta(delta.reasoning);
     }
 
     if (delta.content) {
