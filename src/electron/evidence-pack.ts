@@ -190,6 +190,7 @@ export async function buildEvidencePack(params: {
       count,
     })),
     testsRun,
+    reproduction: finalization.reproduction,
     stages: finalization.stages?.length ? finalization.stages : undefined,
     checks: finalization.checks?.length
       ? finalization.checks

@@ -94,6 +94,33 @@ export interface EvidencePackTestRun {
   summary?: string;
 }
 
+export type EvidencePackReproductionType =
+  | "unit_test"
+  | "integration_test"
+  | "minimal_script"
+  | "http_request"
+  | "browser_scenario"
+  | "static_proof";
+
+export type EvidencePackReproductionStatus =
+  | "created"
+  | "existing"
+  | "described"
+  | "blocked"
+  | "not_applicable"
+  | "unknown";
+
+export interface EvidencePackReproduction {
+  type: EvidencePackReproductionType;
+  status: EvidencePackReproductionStatus;
+  existedBeforePatch?: boolean;
+  prePatchOutcome?: "failed" | "passed" | "blocked" | "unknown";
+  postPatchOutcome?: "failed" | "passed" | "blocked" | "unknown";
+  location?: string;
+  command?: string;
+  summary?: string;
+}
+
 export interface EvidencePackStageResult {
   id: string;
   name: string;
@@ -114,6 +141,7 @@ export interface EvidencePack {
   commandsExecuted?: EvidencePackCommand[];
   toolsUsed?: EvidencePackToolUsage[];
   testsRun?: EvidencePackTestRun[];
+  reproduction?: EvidencePackReproduction;
   stages?: EvidencePackStageResult[];
   checks?: EvidencePackCheckResult[];
   stopConditionTriggered?: string;

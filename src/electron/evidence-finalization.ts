@@ -1,4 +1,9 @@
-import type { EvidencePackConfidence } from "../contracts/chat";
+import { extractReproductionEvidence } from "./reproduction-evidence";
+
+import type {
+  EvidencePackConfidence,
+  EvidencePackReproduction,
+} from "../contracts/chat";
 
 export interface EvidenceFinalization {
   verdictLabel?: string;
@@ -15,6 +20,7 @@ export interface EvidenceFinalization {
     status: "passed" | "failed" | "unknown";
     summary?: string;
   }>;
+  reproduction?: EvidencePackReproduction;
   stopConditionTriggered?: string;
   warnings?: string[];
   unresolvedRisks?: string[];
@@ -124,6 +130,7 @@ export function extractEvidenceFinalization(
   }
 
   result.confidence = parseConfidence(content);
+  result.reproduction = extractReproductionEvidence(content);
 
   const stagesSection = parseSection(content, "Stages");
   if (stagesSection) {

@@ -55,6 +55,35 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
         </div>
       ) : null}
 
+      {evidencePack.reproduction ? (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] font-medium text-foreground/85">Reproduction</p>
+          <div className="rounded-lg border border-border/45 bg-background/35 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            <span className="text-foreground/85">{evidencePack.reproduction.type.replaceAll("_", " ")}</span>
+            <span className="ml-2 uppercase">{evidencePack.reproduction.status}</span>
+            {typeof evidencePack.reproduction.existedBeforePatch === "boolean" ? (
+              <span className="ml-2">
+                {evidencePack.reproduction.existedBeforePatch ? "pre-existing" : "new"}
+              </span>
+            ) : null}
+            {evidencePack.reproduction.prePatchOutcome || evidencePack.reproduction.postPatchOutcome ? (
+              <p className="mt-1 text-[10px] text-muted-foreground/90">
+                before: {evidencePack.reproduction.prePatchOutcome ?? "unknown"} · after: {evidencePack.reproduction.postPatchOutcome ?? "unknown"}
+              </p>
+            ) : null}
+            {evidencePack.reproduction.location ? (
+              <p className="mt-1 font-mono text-[10px] text-foreground/75">{evidencePack.reproduction.location}</p>
+            ) : null}
+            {evidencePack.reproduction.command ? (
+              <p className="mt-1 font-mono text-[10px] text-foreground/75">{evidencePack.reproduction.command}</p>
+            ) : null}
+            {evidencePack.reproduction.summary ? (
+              <p className="mt-1 text-[10px] text-muted-foreground/90">{evidencePack.reproduction.summary}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {evidencePack.stages && evidencePack.stages.length > 0 ? (
         <div className="mt-2 space-y-1">
           <p className="text-[11px] font-medium text-foreground/85">Stages</p>

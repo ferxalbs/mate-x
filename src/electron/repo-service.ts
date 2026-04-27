@@ -98,10 +98,17 @@ const RUNBOOK_DEFINITIONS: Record<
 > = {
   patch_test_verify: {
     id: "patch_test_verify",
-    name: "Patch -> Test -> Verify",
+    name: "Reproduce -> Patch -> Test -> Verify",
     objective:
-      "Deliver safe code change with explicit patch, test outcome, and verification evidence.",
+      "Reproduce or statically prove the issue before patching, then deliver safe code change with test and verification evidence.",
     mandatoryStages: [
+      {
+        id: "reproduce",
+        name: "Reproduce",
+        required: true,
+        description:
+          "Create, find, or describe the smallest non-invasive reproducible check before patching.",
+      },
       {
         id: "patch",
         name: "Patch",
@@ -125,11 +132,14 @@ const RUNBOOK_DEFINITIONS: Record<
       },
     ],
     requiredChecks: [
+      "Record reproduction type: unit test, integration test, minimal script, HTTP request, browser scenario, or static proof.",
+      "Track whether reproduction existed before patch and whether it fails before patch and passes after patch.",
       "Show exactly what changed.",
       "Run at least one relevant validation command or explain blockage.",
       "State whether requested behavior is now satisfied.",
     ],
     successCriteria: [
+      "Reproduce stage has command, location, or static proof summary.",
       "Patch stage complete with touched files listed.",
       "Test stage complete with command and outcome.",
       "Verify stage complete with confidence and unresolved risks.",
@@ -141,6 +151,7 @@ const RUNBOOK_DEFINITIONS: Record<
     ],
     finalEvidenceFormat: [
       "Objective:",
+      "Reproduction:",
       "Stages:",
       "Checks:",
       "Success criteria:",
@@ -166,7 +177,7 @@ const RUNBOOK_DEFINITIONS: Record<
         name: "Reproduce",
         required: true,
         description:
-          "Provide deterministic reproduction steps and expected/actual behavior.",
+          "Create, find, or describe the smallest non-invasive reproducible check with expected/actual behavior.",
       },
       {
         id: "remediate",
@@ -178,7 +189,8 @@ const RUNBOOK_DEFINITIONS: Record<
     ],
     requiredChecks: [
       "List impacted component or file boundaries.",
-      "Include exact reproduction command or procedure.",
+      "Include exact reproduction command or procedure, or static proof when runtime repro is impossible.",
+      "Track whether reproduction existed before patch and whether it fails before patch and passes after patch.",
       "State remediation scope and potential regressions.",
     ],
     successCriteria: [
@@ -193,6 +205,7 @@ const RUNBOOK_DEFINITIONS: Record<
     ],
     finalEvidenceFormat: [
       "Objective:",
+      "Reproduction:",
       "Stages:",
       "Checks:",
       "Success criteria:",
@@ -1700,12 +1713,20 @@ First, use the working set, workspace metadata, git status, prompt-linked matche
 Before broad file search, use Repo Intelligence Graph APIs for entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
 Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
 Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.
+Reproduction harness contract:
+- Before patching suspicious behavior or a bug, attempt the smallest useful reproduction first.
+- Prefer non-invasive checks in this order when practical: existing unit/integration test, new temporary or repo-local minimal test/script, HTTP request, browser scenario, static proof.
+- Use repo-local locations only when they match project conventions; otherwise use a temporary workspace-safe path and record it.
+- For runtime repros, record whether the check existed before patch, pre-patch outcome, and post-patch outcome after remediation.
+- If runtime repro is impossible, provide a static proof with exact code/config references and mark pre/post outcomes blocked or unknown.
+- Do not claim root cause unless reproduction failed before patch and passed after patch, or strong static proof exists.
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
 Stop investigating once you can give a grounded answer. Do not continue until the tool budget unless the user explicitly asks for exhaustive analysis.
 If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
 In your final answer, include these explicit headings when applicable: "Verdict:", "Verdict summary:", "Confidence:", "Warnings:", "Unresolved risks:", and "Final recommendation:".
+When a bug, suspicious behavior, or code patch is involved, include "Reproduction:" with lines: "Type:", "Status:", "Existed before patch:", "Pre-patch outcome:", "Post-patch outcome:", "Location:", "Command:", and "Summary:".
 When you need to search for something, use the 'rg' tool first.
 
 Structured runbook contract (must follow):
