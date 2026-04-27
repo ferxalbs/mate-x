@@ -18,6 +18,7 @@ export function supportsReasoningEffort(model: CapabilitySource) {
 export function getReasoningEffortValues(model: CapabilitySource) {
   const capabilities = getCapabilities(model);
   const controls = capabilities?.reasoning?.controls;
+  const accepted = getAcceptedParameters(model);
   const profileValues = capabilities?.reasoning?.profiles
     ?.filter((profile) => profile.parameter_path === "reasoning.effort")
     .flatMap((profile) => [
@@ -37,15 +38,31 @@ export function getReasoningEffortValues(model: CapabilitySource) {
     return Array.from(new Set(controlValues));
   }
 
-  return controls?.reasoning_effort === true ? [...DEFAULT_REASONING_EFFORTS] : [];
+  return controls?.reasoning_effort === true || accepted.includes("reasoning_effort")
+    ? [...DEFAULT_REASONING_EFFORTS]
+    : [];
 }
 
 export function supportsImageInput(model: CapabilitySource) {
+  return supportsInputModality(model, "image");
+}
+
+export function supportsVideoInput(model: CapabilitySource) {
+  return supportsInputModality(model, "video");
+}
+
+export function supportsFileInput(model: CapabilitySource) {
+  return supportsInputModality(model, "file");
+}
+
+export function getInputModalities(model: CapabilitySource) {
   const catalogEntry = getCatalogEntry(model);
   const capabilities = getCapabilities(model);
-  return (
-    capabilities?.multimodal?.input?.includes("image") === true ||
-    catalogEntry?.architecture?.input_modalities?.includes("image") === true
+  return Array.from(
+    new Set([
+      ...(capabilities?.multimodal?.input ?? []),
+      ...(catalogEntry?.architecture?.input_modalities ?? []),
+    ].filter(isNonEmptyString)),
   );
 }
 
@@ -56,6 +73,10 @@ export function supportsImageOutput(model: CapabilitySource) {
     capabilities?.multimodal?.output?.includes("image") === true ||
     catalogEntry?.architecture?.output_modalities?.includes("image") === true
   );
+}
+
+function supportsInputModality(model: CapabilitySource, modality: string) {
+  return getInputModalities(model).includes(modality);
 }
 
 export function supportsTools(model: CapabilitySource) {
