@@ -46,6 +46,19 @@ export interface AssistantRunOptions {
   mode: AssistantMode;
   access: AssistantAccess;
   runbookId?: AssistantRunbookId;
+  attachments?: AssistantAttachment[];
+}
+
+export type AssistantAttachmentKind = "image" | "video" | "file";
+
+export interface AssistantAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  kind: AssistantAttachmentKind;
+  dataUrl?: string;
+  text?: string;
 }
 
 export interface AssistantRunProgress {

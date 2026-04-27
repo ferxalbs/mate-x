@@ -560,9 +560,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   async submitPrompt(prompt: string, options: AssistantRunOptions) {
     const trimmedPrompt = prompt.trim();
+    const attachmentNames = options.attachments?.map((attachment) => attachment.name) ?? [];
+    const displayedPrompt =
+      trimmedPrompt ||
+      (attachmentNames.length > 0
+        ? `Attached ${attachmentNames.join(", ")}`
+        : "");
     const workspaceId = get().activeWorkspaceId;
 
-    if (!trimmedPrompt || get().runStatus === "running" || !workspaceId) {
+    if (!displayedPrompt || get().runStatus === "running" || !workspaceId) {
       return;
     }
 
@@ -581,7 +587,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const userMessage: ChatMessage = {
       id: createId("user"),
       role: "user",
-      content: trimmedPrompt,
+      content: displayedPrompt,
       createdAt: new Date().toISOString(),
     };
     const runId = createId("run");
@@ -598,8 +604,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       threadId: activeThreadId,
       userMessageId: userMessage.id,
       assistantMessageId: assistantPlaceholder.id,
-      title: buildThreadTitle(trimmedPrompt),
-      userIntent: trimmedPrompt,
+      title: buildThreadTitle(displayedPrompt),
+      userIntent: displayedPrompt,
       status: "running",
       startedAt: userMessage.createdAt,
       initialState: {
@@ -643,7 +649,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   title:
                     thread.messages.length === 0 ||
                     thread.title === "New thread"
-                      ? buildThreadTitle(trimmedPrompt)
+                      ? buildThreadTitle(displayedPrompt)
                       : thread.title,
                   lastUpdatedAt: assistantPlaceholder.createdAt,
                   messages: [
@@ -677,7 +683,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const execution = await runAssistant(
-        trimmedPrompt,
+        displayedPrompt,
         historyBeforePrompt,
         options,
         runId,

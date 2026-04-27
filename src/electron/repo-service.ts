@@ -913,6 +913,7 @@ function resolveAssistantRunOptions(
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
     runbookId: resolveRunbookId(options?.runbookId),
+    attachments: options?.attachments?.map((attachment) => ({ ...attachment })) ?? [],
   };
 }
 
@@ -1777,12 +1778,13 @@ When you need to search for something, use the 'rg' tool first.
 
 Structured runbook contract (must follow):
 ${renderRunbookForPrompt(runbookDefinition)}`;
+  const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
 
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({
       apiKey,
       model,
-      prompt,
+      prompt: promptWithAttachments,
       history,
       runtime,
       systemPrompt,
@@ -1810,6 +1812,58 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     appSettings,
     runId,
   });
+}
+
+function appendAttachmentContext(
+  prompt: string,
+  attachments?: AssistantRunOptions["attachments"],
+) {
+  if (!attachments || attachments.length === 0) {
+    return prompt;
+  }
+
+  const renderedAttachments = attachments.map((attachment, index) => {
+    const header = `Attachment ${index + 1}: ${attachment.name} (${attachment.mimeType}, ${attachment.size} bytes, ${attachment.kind})`;
+
+    if (attachment.text) {
+      return `${header}\nContent:\n\`\`\`\n${attachment.text}\n\`\`\``;
+    }
+
+    if (attachment.dataUrl) {
+      return `${header}\nData URL:\n${attachment.dataUrl}`;
+    }
+
+    return header;
+  });
+
+  return `${prompt}\n\nUser attachments:\n${renderedAttachments.join("\n\n")}`;
+}
+
+function buildChatUserContent(
+  prompt: string,
+  attachments?: AssistantRunOptions["attachments"],
+) {
+  const imageAttachments =
+    attachments?.filter(
+      (attachment) => attachment.kind === "image" && attachment.dataUrl,
+    ) ?? [];
+
+  if (imageAttachments.length === 0) {
+    return appendAttachmentContext(prompt, attachments);
+  }
+
+  const nonImageAttachments = attachments?.filter(
+    (attachment) => attachment.kind !== "image" || !attachment.dataUrl,
+  );
+  const text = appendAttachmentContext(prompt, nonImageAttachments);
+
+  return [
+    { type: "text", text },
+    ...imageAttachments.map((attachment) => ({
+      type: "image_url",
+      image_url: { url: attachment.dataUrl },
+    })),
+  ];
 }
 
 async function requestRainyChatAgenticResponse({
@@ -1848,7 +1902,7 @@ async function requestRainyChatAgenticResponse({
   let messages: any[] = [
     { role: "system", content: systemPrompt },
     ...historyMessages,
-    { role: "user", content: prompt },
+    { role: "user", content: buildChatUserContent(prompt, options.attachments) },
   ];
   const chatTools = toolService.getChatToolDefinitions();
   const tokenEstimator = createTokenEstimator(model);

@@ -2,12 +2,25 @@ import {
   ArrowUpIcon,
   BrainIcon,
   ChevronDownIcon,
+  FileIcon,
   ImageIcon,
   LoaderCircle,
+  PaperclipIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
+  VideoIcon,
+  WrenchIcon,
+  XIcon,
 } from 'lucide-react';
-import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
 
 import { Button } from '../../../components/ui/button';
 import {
@@ -17,7 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select';
-import type { AssistantRunOptions } from '../../../contracts/chat';
+import type {
+  AssistantAttachment,
+  AssistantAttachmentKind,
+  AssistantRunOptions,
+} from '../../../contracts/chat';
 import type { PolicyStop, PolicyStopAction } from '../../../contracts/policy';
 import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
 import type {
@@ -26,10 +43,11 @@ import type {
 } from '../../../contracts/workspace';
 import {
   getReasoningEffortValues,
+  supportsFileInput as modelSupportsFileInput,
   supportsImageInput as modelSupportsImageInput,
   supportsReasoning as modelSupportsReasoning,
-  supportsStructuredOutput,
   supportsTools,
+  supportsVideoInput as modelSupportsVideoInput,
 } from '../../../lib/rainy-model-capabilities';
 import { cn } from '../../../lib/utils';
 import { getModel, listModels, setModel } from '../../../services/settings-client';
@@ -72,10 +90,10 @@ export function ComposerPanel({
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions['reasoning']>('high');
   const [capabilityNotice, setCapabilityNotice] = useState('');
-  const [modeValue, setModeValue] = useState('build');
-  const [runbookValue, setRunbookValue] =
-    useState<AssistantRunOptions['runbookId']>('patch_test_verify');
+  const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const settings = useChatStore((state) => state.settings);
 
   useEffect(() => {
@@ -128,9 +146,10 @@ export function ComposerPanel({
   );
   const modelLabel = selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
   const supportsImageInput = modelSupportsImageInput(selectedModel);
+  const supportsVideoInput = modelSupportsVideoInput(selectedModel);
+  const supportsFileInput = modelSupportsFileInput(selectedModel);
   const reasoningSupported = modelSupportsReasoning(selectedModel);
   const toolCallingSupported = supportsTools(selectedModel);
-  const structuredOutputSupported = supportsStructuredOutput(selectedModel);
   const effortOptions = useMemo(
     () => getReasoningEffortValues(selectedModel),
     [selectedModel],
@@ -143,42 +162,73 @@ export function ComposerPanel({
     : 'Reasoning off';
   const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue = trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval';
+  const unsupportedAttachmentKinds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          attachments
+            .filter((attachment) => !isAttachmentSupported(attachment.kind, {
+              image: supportsImageInput,
+              video: supportsVideoInput,
+              file: supportsFileInput,
+            }))
+            .map((attachment) => attachment.kind),
+        ),
+      ),
+    [attachments, supportsFileInput, supportsImageInput, supportsVideoInput],
+  );
 
   useEffect(() => {
     if (!selectedModel) {
       return;
     }
 
+    const attachmentNotice =
+      unsupportedAttachmentKinds.length > 0
+        ? `This model does not support ${formatUnsupportedKinds(unsupportedAttachmentKinds)}. Remove unsupported attachments or choose another model.`
+        : '';
+
     if (!reasoningSupported && reasoningEnabled) {
       setReasoningEnabled(false);
-      setCapabilityNotice('Razonamiento desactivado: este modelo no lo soporta.');
+      setCapabilityNotice(attachmentNotice);
       return;
     }
 
     if (reasoningSupported && supportsReasoningEffort && !effortOptions.includes(reasoningValue)) {
       setReasoningValue(effortOptions[0]);
-      setCapabilityNotice(`Esfuerzo ajustado para ${selectedModel.label}.`);
+      setCapabilityNotice(attachmentNotice);
       return;
     }
 
     if (reasoningSupported && !supportsReasoningEffort && reasoningEnabled) {
-      setCapabilityNotice('Este modelo usa razonamiento ON/OFF sin nivel de esfuerzo.');
+      setCapabilityNotice(attachmentNotice);
       return;
     }
 
-    setCapabilityNotice('');
+    setCapabilityNotice(attachmentNotice);
   }, [
     effortOptions,
     reasoningEnabled,
     reasoningSupported,
     reasoningValue,
     selectedModel,
+    supportsFileInput,
+    supportsImageInput,
     supportsReasoningEffort,
+    supportsVideoInput,
+    unsupportedAttachmentKinds,
   ]);
 
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
-    if (!nextPrompt || isRunning || isModelSaving) {
+    if ((!nextPrompt && attachments.length === 0) || isRunning || isModelSaving) {
+      return;
+    }
+
+    if (unsupportedAttachmentKinds.length > 0) {
+      setCapabilityNotice(
+        `This model does not support ${formatUnsupportedKinds(unsupportedAttachmentKinds)}. Remove unsupported attachments or choose another model.`,
+      );
       return;
     }
 
@@ -200,13 +250,31 @@ export function ComposerPanel({
     }
 
     setPrompt('');
+    setAttachments([]);
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
-      mode: modeValue as AssistantRunOptions['mode'],
+      mode: 'build',
       access: accessValue as AssistantRunOptions['access'],
-      runbookId: runbookValue,
+      runbookId: 'patch_test_verify',
+      attachments,
     });
+  }
+
+  async function addFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList);
+    if (files.length === 0) {
+      return;
+    }
+
+    const nextAttachments = await Promise.all(files.map(readAttachment));
+    setAttachments((current) => [...current, ...nextAttachments]);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingFile(false);
+    void addFiles(event.dataTransfer.files);
   }
 
   async function handleModelChange(nextModel: string) {
@@ -294,6 +362,7 @@ export function ComposerPanel({
         <div
           className={cn(
             'rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] transition-all duration-300',
+            isDraggingFile ? 'ring-2 ring-[#2454ff]/70' : '',
             // Floating: ultra-transparent glass (30% dark / 75% light).
             // Compact: same premium dark-glass aesthetic at higher opacity.
             settings.floatingInput
@@ -308,8 +377,23 @@ export function ComposerPanel({
                   resolvedTheme === 'dark'
                     ? 'bg-[var(--panel)]/30'
                     : 'bg-[var(--panel)]/75',
-                ),
+            ),
           )}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (event.dataTransfer.types.includes('Files')) {
+              setIsDraggingFile(true);
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setIsDraggingFile(false);
+            }
+          }}
+          onDrop={handleDrop}
         >
           {pendingPolicyStop ? (
             <PermissionPrompt
@@ -317,6 +401,11 @@ export function ComposerPanel({
               onAction={handlePolicyAction}
               stop={pendingPolicyStop}
             />
+          ) : null}
+          {capabilityNotice ? (
+            <div className="border-b border-border/35 px-5 py-2 text-[11px] leading-5 text-amber-600 dark:text-amber-300/90">
+              {capabilityNotice}
+            </div>
           ) : null}
           <div className="px-5 py-4">
             <textarea
@@ -331,6 +420,26 @@ export function ComposerPanel({
               placeholder="Ask anything, @tag files/folders, or use / to show available commands"
               value={prompt}
             />
+            {attachments.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {attachments.map((attachment) => (
+                  <AttachmentChip
+                    attachment={attachment}
+                    key={attachment.id}
+                    unsupported={!isAttachmentSupported(attachment.kind, {
+                      image: supportsImageInput,
+                      video: supportsVideoInput,
+                      file: supportsFileInput,
+                    })}
+                    onRemove={() =>
+                      setAttachments((current) =>
+                        current.filter((item) => item.id !== attachment.id),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
           {catalogError ? (
             <div className="px-5 pb-1 text-[11px] text-amber-300/90">{catalogError}</div>
@@ -338,6 +447,27 @@ export function ComposerPanel({
 
           <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-0.5">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
+              <input
+                className="hidden"
+                multiple
+                onChange={(event) => {
+                  if (event.target.files) {
+                    void addFiles(event.target.files);
+                  }
+                  event.currentTarget.value = '';
+                }}
+                ref={fileInputRef}
+                type="file"
+              />
+              <button
+                aria-label="Attach files"
+                className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent"
+                onClick={() => fileInputRef.current?.click()}
+                title="Attach files"
+                type="button"
+              >
+                <PaperclipIcon className="size-3.5" />
+              </button>
               <InlineSelect
                 value={modelValue}
                 onValueChange={handleModelChange}
@@ -357,13 +487,13 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className={cn(
-                    'flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:bg-accent',
+                    'flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent',
                     reasoningEnabled ? 'text-foreground' : 'text-muted-foreground/60',
                   )}
                   onClick={() => setReasoningEnabled((value) => !value)}
+                  title={reasoningToggleLabel}
                 >
                   <BrainIcon className="size-3.5" />
-                  {reasoningToggleLabel}
                 </button>
               ) : null}
               <div
@@ -380,7 +510,8 @@ export function ComposerPanel({
                     onValueChange={(value) =>
                       setReasoningValue(value as AssistantRunOptions['reasoning'])
                     }
-                    label={`Effort: ${formatReasoningEffort(reasoningValue)}`}
+                    label={formatReasoningEffort(reasoningValue)}
+                    title={`Reasoning effort: ${formatReasoningEffort(reasoningValue)}`}
                   >
                     {effortOptions.map((effort) => (
                       <SelectItem key={effort} value={effort}>
@@ -395,50 +526,52 @@ export function ComposerPanel({
                   aria-label="Images unavailable"
                   className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
                   disabled
-                  title="Este modelo no procesa imágenes."
+                  title="This model does not process images."
                   type="button"
                 >
                   <ImageIcon className="size-3.5" />
                 </button>
               ) : null}
+              {!supportsVideoInput ? (
+                <button
+                  aria-label="Video unavailable"
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
+                  disabled
+                  title="This model does not process video."
+                  type="button"
+                >
+                  <VideoIcon className="size-3.5" />
+                </button>
+              ) : null}
+              {!supportsFileInput ? (
+                <button
+                  aria-label="Files unavailable"
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
+                  disabled
+                  title="This model does not process files."
+                  type="button"
+                >
+                  <FileIcon className="size-3.5" />
+                </button>
+              ) : null}
               {toolCallingSupported ? (
-                <div className="flex h-6 shrink-0 items-center rounded-md px-2 text-[11px] text-muted-foreground">
-                  Tools
+                <div
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+                  title="Supports tools"
+                >
+                  <WrenchIcon className="size-3.5" />
                 </div>
               ) : null}
-              {structuredOutputSupported ? (
-                <div className="flex h-6 shrink-0 items-center rounded-md px-2 text-[11px] text-muted-foreground">
-                  Structured
-                </div>
-              ) : null}
-              <InlineSelect value={modeValue} onValueChange={setModeValue}>
-                <SelectItem value="build">Build</SelectItem>
-                <SelectItem value="plan">Plan</SelectItem>
-              </InlineSelect>
-              <InlineSelect
-                value={runbookValue ?? 'patch_test_verify'}
-                onValueChange={(value) =>
-                  setRunbookValue(value as AssistantRunOptions['runbookId'])
+              <div
+                className="flex size-6 shrink-0 items-center justify-center rounded-md text-emerald-600 dark:text-emerald-300/90"
+                title={
+                  trustContract
+                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}`
+                    : 'Contract pending'
                 }
               >
-                <SelectItem value="patch_test_verify">Patch - Test - Verify</SelectItem>
-                <SelectItem value="audit_reproduce_remediate">Audit - Reproduce - Remediate</SelectItem>
-                <SelectItem value="review_classify_summarize">Review - Classify - Summarize</SelectItem>
-                <SelectItem value="scan_contain_report">Scan - Contain - Report</SelectItem>
-              </InlineSelect>
-              <div className="flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-emerald-600 dark:text-emerald-300/90">
                 <ShieldCheckIcon className="size-3.5" />
-                <span>
-                  {trustContract
-                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}`
-                    : 'Contract pending'}
-                </span>
               </div>
-              {capabilityNotice ? (
-                <div className="h-6 shrink-0 rounded-md px-2 text-[11px] leading-6 text-amber-600 dark:text-amber-300/90">
-                  {capabilityNotice}
-                </div>
-              ) : null}
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
@@ -489,6 +622,120 @@ export function ComposerPanel({
       </div>
     </div>
   );
+}
+
+function AttachmentChip({
+  attachment,
+  onRemove,
+  unsupported,
+}: {
+  attachment: AssistantAttachment;
+  onRemove: () => void;
+  unsupported: boolean;
+}) {
+  const Icon =
+    attachment.kind === 'image'
+      ? ImageIcon
+      : attachment.kind === 'video'
+        ? VideoIcon
+        : FileIcon;
+
+  return (
+    <div
+      className={cn(
+        'flex h-7 max-w-[180px] items-center gap-1.5 rounded-md border px-2 text-[11px]',
+        unsupported
+          ? 'border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-300'
+          : 'border-border/55 bg-background/35 text-muted-foreground',
+      )}
+      title={`${attachment.name} (${formatBytes(attachment.size)})`}
+    >
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate">{attachment.name}</span>
+      <button
+        aria-label={`Remove ${attachment.name}`}
+        className="ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-accent"
+        onClick={onRemove}
+        type="button"
+      >
+        <XIcon className="size-3" />
+      </button>
+    </div>
+  );
+}
+
+async function readAttachment(file: File): Promise<AssistantAttachment> {
+  const kind = getAttachmentKind(file);
+  const base = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    size: file.size,
+    kind,
+  };
+
+  if (kind === 'image' || kind === 'video') {
+    return { ...base, dataUrl: await readFileAsDataUrl(file) };
+  }
+
+  if (isTextLikeFile(file)) {
+    return { ...base, text: await file.text() };
+  }
+
+  return { ...base, dataUrl: await readFileAsDataUrl(file) };
+}
+
+function getAttachmentKind(file: File): AssistantAttachmentKind {
+  if (file.type.startsWith('image/')) {
+    return 'image';
+  }
+
+  if (file.type.startsWith('video/')) {
+    return 'video';
+  }
+
+  return 'file';
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function isTextLikeFile(file: File) {
+  return (
+    file.type.startsWith('text/') ||
+    /\.(csv|json|md|txt|xml|yaml|yml)$/i.test(file.name)
+  );
+}
+
+function isAttachmentSupported(
+  kind: AssistantAttachmentKind,
+  support: { image: boolean; video: boolean; file: boolean },
+) {
+  return support[kind];
+}
+
+function formatUnsupportedKinds(kinds: AssistantAttachmentKind[]) {
+  return kinds
+    .map((kind) => (kind === 'image' ? 'images' : kind === 'video' ? 'video' : 'files'))
+    .join(', ');
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function PermissionPrompt({
@@ -557,12 +804,14 @@ function InlineSelect({
   onValueChange,
   disabled = false,
   label,
+  title,
   children,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   disabled?: boolean;
   label?: string;
+  title?: string;
   children: ReactNode;
 }) {
   return (
@@ -579,6 +828,7 @@ function InlineSelect({
         size="xs"
         variant="ghost"
         className="h-6 min-w-fit shrink-0 rounded-md border-0 px-2 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
+        title={title}
       >
         <SelectValue>{label}</SelectValue>
       </SelectTrigger>
