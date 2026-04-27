@@ -321,6 +321,8 @@ const RUNBOOK_DEFINITIONS: Record<
 const TOOL_BATCH_MAX_CONCURRENCY = 6;
 const TOOL_EXECUTION_TIMEOUT_MS = 20_000;
 const MAX_TOOL_OUTPUT_CHARS = 80_000;
+const SANDBOX_RUN_ALLOWED_TIMEOUT_SECONDS = new Set([30, 45, 60, 120, 240]);
+const TOOL_TIMEOUT_GRACE_MS = 5_000;
 
 export async function bootstrapWorkspaceState(): Promise<WorkspaceSnapshot> {
   await tursoService.ensureSeedWorkspace(process.cwd());
@@ -1412,6 +1414,22 @@ function withTimeout<T>(
   });
 }
 
+function resolveToolExecutionTimeoutMs(
+  toolName: string,
+  args: Record<string, unknown>,
+) {
+  if (toolName !== "sandbox_run") {
+    return TOOL_EXECUTION_TIMEOUT_MS;
+  }
+
+  const timeoutSeconds = Number(args.timeoutSeconds);
+  if (!SANDBOX_RUN_ALLOWED_TIMEOUT_SECONDS.has(timeoutSeconds)) {
+    return 30_000 + TOOL_TIMEOUT_GRACE_MS;
+  }
+
+  return timeoutSeconds * 1000 + TOOL_TIMEOUT_GRACE_MS;
+}
+
 async function mapWithConcurrency<T, R>(
   values: T[],
   concurrency: number,
@@ -1561,14 +1579,15 @@ async function executeAgentToolCall({
   }
 
   try {
+    const toolTimeoutMs = resolveToolExecutionTimeoutMs(toolName, toolArgs);
     const result = await withTimeout(
       toolService.callTool(toolName, toolArgs, {
         workspacePath: snapshot.workspace.path,
         trustContract: snapshot.trustContract,
         settings: appSettings,
       }),
-      TOOL_EXECUTION_TIMEOUT_MS,
-      `Tool ${toolName} timed out after ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
+      toolTimeoutMs,
+      `Tool ${toolName} timed out after ${Math.round(toolTimeoutMs / 1000)}s.`,
     );
 
     const normalizedResult = truncateToolOutput(String(result ?? ""));
@@ -1677,7 +1696,8 @@ ${renderTrustContractForPrompt(snapshot.trustContract)}
 Runtime truth and permissions:
 - Current workspace path is the real project root: ${snapshot.workspace.path}
 - Treat package-manager mutations, generated files, lockfiles, git operations, and source edits as real workspace effects when a tool is allowed to run them.
-- The sandbox_run tool time-limits a child process and pins test-like env vars; it does not create a disposable copy of the repository and must not be described as changing only a fake project.
+- The sandbox_run tool time-limits a child process and defaults to test-like env vars; it does not create a disposable copy of the repository and must not be described as changing only a fake project.
+- For sandbox_run, choose timeoutSeconds from 30, 45, 60, 120, or 240 based on expected duration. Use longer timeouts for slow tests/builds instead of letting checks freeze or reporting runtime blocked. You may also set port, nodeEnv, and maxOutputChars when needed.
 - If a tool returns a Workspace Trust Contract block, the product can surface approval. State what was blocked and continue with permitted alternatives if approval is declined.
 - When contract autonomy is ${snapshot.trustContract.autonomy}, allowed actions are: ${snapshot.trustContract.allowedActions.join(", ") || "none"}.
 - Blocked actions are: ${snapshot.trustContract.blockedActions.join(", ") || "none"}.
@@ -1963,7 +1983,7 @@ async function requestRainyChatAgenticResponse({
     events.push({
       id: `step-tool-batch-${iterations}`,
       label: `Tool batch ${toolRounds}`,
-      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent, with a ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s timeout each.`,
+      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. sandbox_run may request 30/45/60/120/240s; other tools use ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
       status: "done",
     });
     // Insert markers for the current batch of tool calls
@@ -2243,7 +2263,7 @@ async function requestRainyResponsesAgenticResponse({
     events.push({
       id: `step-tool-batch-${iterations}`,
       label: `Tool batch ${toolRounds}`,
-      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent, with a ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s timeout each.`,
+      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. sandbox_run may request 30/45/60/120/240s; other tools use ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
       status: "done",
     });
     // Insert markers for the current batch of tool calls
