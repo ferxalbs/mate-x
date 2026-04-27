@@ -10,6 +10,7 @@ const TYPE_ALIASES: Array<[RegExp, EvidencePackReproductionType]> = [
   [/\bminimal(?:\s|-)?script\b/i, "minimal_script"],
   [/\bhttp(?:\s|-)?request\b/i, "http_request"],
   [/\bbrowser(?:\s|-)?scenario\b/i, "browser_scenario"],
+  [/\bvalidation(?:\s|-)?run\b/i, "validation_run"],
   [/\bstatic(?:\s|-)?proof\b/i, "static_proof"],
 ];
 
@@ -72,6 +73,9 @@ function parseOutcome(value?: string) {
   if (/\b(pass|passed|success|ok)\b/i.test(value)) return "passed" as const;
   if (/\b(fail|failed|error|reproduced)\b/i.test(value)) return "failed" as const;
   if (/\b(block|blocked|cannot|unavailable)\b/i.test(value)) return "blocked" as const;
+  if (/\b(not(?:\s|-|_)?applicable|n\/a)\b/i.test(value)) {
+    return "not_applicable" as const;
+  }
   return "unknown" as const;
 }
 

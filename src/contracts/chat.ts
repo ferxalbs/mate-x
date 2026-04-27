@@ -120,6 +120,7 @@ export type EvidencePackReproductionType =
   | "minimal_script"
   | "http_request"
   | "browser_scenario"
+  | "validation_run"
   | "static_proof";
 
 export type EvidencePackReproductionStatus =
@@ -134,8 +135,8 @@ export interface EvidencePackReproduction {
   type: EvidencePackReproductionType;
   status: EvidencePackReproductionStatus;
   existedBeforePatch?: boolean;
-  prePatchOutcome?: "failed" | "passed" | "blocked" | "unknown";
-  postPatchOutcome?: "failed" | "passed" | "blocked" | "unknown";
+  prePatchOutcome?: "failed" | "passed" | "blocked" | "not_applicable" | "unknown";
+  postPatchOutcome?: "failed" | "passed" | "blocked" | "not_applicable" | "unknown";
   location?: string;
   command?: string;
   summary?: string;
