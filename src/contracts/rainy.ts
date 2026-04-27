@@ -31,11 +31,22 @@ export interface RainyModelCatalogEntry {
   label: string;
   description: string | null;
   ownedBy: string | null;
+  contextLength?: number;
   supportedApiModes: RainyApiMode[];
   preferredApiMode: RainyApiMode | null;
   architecture?: {
     input_modalities?: string[];
     output_modalities?: string[];
+  };
+  topProvider?: {
+    max_completion_tokens?: number;
+    max_tokens?: number;
+  };
+  perRequestLimits?: {
+    max_completion_tokens?: number;
+    max_output_tokens?: number;
+    completion_tokens?: number;
+    output_tokens?: number;
   };
   supportedParameters?: string[];
   capabilities?: RainyModelCapabilities;
