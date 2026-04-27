@@ -7,7 +7,7 @@ export type ToolEventStatus = "done" | "active" | "error";
 export type MessageArtifactTone = "default" | "success" | "warning";
 export type EvidencePackStatus = "complete" | "partial" | "blocked" | "failed";
 export type EvidencePackConfidence = "low" | "medium" | "high";
-export type AssistantReasoningLevel = "low" | "high" | "max";
+export type AssistantReasoningLevel = "low" | "medium" | "high" | "xhigh";
 export type AssistantMode = "build" | "plan";
 export type AssistantAccess = "full" | "approval";
 export type AssistantRunbookId =
@@ -35,6 +35,7 @@ export interface AssistantRunbookDefinition {
 }
 
 export interface AssistantRunOptions {
+  reasoningEnabled: boolean;
   reasoning: AssistantReasoningLevel;
   mode: AssistantMode;
   access: AssistantAccess;
@@ -160,6 +161,7 @@ export interface ReproducibleRunInitialState {
   threadId: string;
   activeMessageCount: number;
   settings: {
+    reasoningEnabled: boolean;
     reasoning: AssistantReasoningLevel;
     mode: AssistantMode;
     access: AssistantAccess;

@@ -13,6 +13,12 @@ import {
   normalizeRainyApiMode,
 } from "../config/rainy";
 import type { RainyApiMode, RainyModelCatalogEntry } from "../contracts/rainy";
+import {
+  getAcceptedParameters,
+  supportsImageInput,
+  supportsImageOutput,
+  supportsTools,
+} from "../lib/rainy-model-capabilities";
 
 const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, "");
 const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith("/api/v1")
@@ -73,31 +79,96 @@ export function buildResponsesMessageInput(
   }));
 }
 
-function buildChatCompletionRequest(params: {
+export function buildChatCompletionRequest(params: {
   model: string;
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
   tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+  reasoning?: { exclude?: true; effort?: string };
+  includeReasoning?: boolean;
+  capabilities?: RainyModelCatalogEntry["capabilities"];
+  modalities?: string[];
+  imageConfig?: Record<string, unknown>;
+  responseFormat?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
 }) {
+  if (
+    params.capabilities &&
+    !supportsImageInput(params.capabilities) &&
+    messagesContainImageInput(params.messages)
+  ) {
+    throw new Error("Selected Rainy model does not support image input.");
+  }
+
+  const accepted = getAcceptedParameters(params.capabilities);
+  const acceptsParameter = (parameter: string) => accepted.includes(parameter);
   const request: {
     model: string;
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
     tool_choice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+    reasoning?: { exclude?: true; effort?: string };
+    include_reasoning?: boolean;
+    modalities?: string[];
+    image_config?: Record<string, unknown>;
+    response_format?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
   } = {
     model: params.model,
     messages: params.messages,
   };
 
-  if (params.tools && params.tools.length > 0) {
+  if (params.tools && params.tools.length > 0 && supportsTools(params.capabilities)) {
     request.tools = params.tools;
   }
 
-  if (params.toolChoice) {
+  if (params.toolChoice && request.tools && acceptsParameter("tool_choice")) {
     request.tool_choice = params.toolChoice;
   }
 
+  if (params.reasoning && acceptsParameter("reasoning")) {
+    request.reasoning = params.reasoning;
+  }
+
+  if (params.includeReasoning && acceptsParameter("include_reasoning")) {
+    request.include_reasoning = true;
+  }
+
+  if (
+    params.modalities &&
+    params.modalities.includes("image") &&
+    supportsImageOutput(params.capabilities) &&
+    acceptsParameter("modalities")
+  ) {
+    request.modalities = Array.from(new Set(params.modalities));
+  }
+
+  if (params.imageConfig && request.modalities?.includes("image") && acceptsParameter("image_config")) {
+    request.image_config = params.imageConfig;
+  }
+
+  if (params.responseFormat && acceptsParameter("response_format")) {
+    request.response_format = params.responseFormat;
+  }
+
   return request;
+}
+
+function messagesContainImageInput(
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+) {
+  return messages.some((message) => {
+    const content = "content" in message ? message.content : null;
+    if (!Array.isArray(content)) {
+      return false;
+    }
+
+    return content.some(
+      (part) =>
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        part.type === "image_url",
+    );
+  });
 }
 
 function extractRainyErrorMessage(error: unknown) {
@@ -297,6 +368,10 @@ function mergeRainyModels(
         new Set([...existing.supportedApiModes, ...model.supportedApiModes]),
       ),
       preferredApiMode: existing.preferredApiMode ?? model.preferredApiMode,
+      architecture: existing.architecture ?? model.architecture,
+      supportedParameters:
+        existing.supportedParameters ?? model.supportedParameters,
+      capabilities: model.capabilities ?? existing.capabilities,
     });
   }
 
@@ -338,7 +413,7 @@ export async function requestRainyTextResponse(params: {
   let response: OpenAI.Chat.Completions.ChatCompletion;
 
   try {
-    response = await client.chat.completions.create(request, {
+    response = await client.chat.completions.create(request as any, {
       timeout: RAINY_REQUEST_TIMEOUT_MS,
     });
   } catch (error) {
@@ -348,7 +423,7 @@ export async function requestRainyTextResponse(params: {
           model: params.model,
           messages: buildChatCompletionsInput(params.userContext),
           tools: params.tools,
-        }),
+        }) as any,
         { timeout: RAINY_REQUEST_TIMEOUT_MS },
       );
     } else {
@@ -379,7 +454,7 @@ export async function requestRainyChatCompletion(params: {
   });
 
   try {
-    return await client.chat.completions.create(request, {
+    return await client.chat.completions.create(request as any, {
       timeout: RAINY_REQUEST_TIMEOUT_MS,
     });
   } catch (error) {
@@ -389,7 +464,7 @@ export async function requestRainyChatCompletion(params: {
           model: params.model,
           messages: params.messages,
           tools: params.tools,
-        }),
+        }) as any,
         { timeout: RAINY_REQUEST_TIMEOUT_MS },
       );
     }
@@ -405,6 +480,9 @@ export async function requestRainyChatCompletionStream(params: {
   onContentDelta: (delta: string) => void;
   tools?: any[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+  reasoning?: { exclude?: true; effort?: string };
+  includeReasoning?: boolean;
+  capabilities?: RainyModelCatalogEntry["capabilities"];
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = createRainyClient(params.apiKey);
   const request = buildChatCompletionRequest({
@@ -412,6 +490,9 @@ export async function requestRainyChatCompletionStream(params: {
     messages: params.messages,
     tools: params.tools,
     toolChoice: params.toolChoice,
+    reasoning: params.reasoning,
+    includeReasoning: params.includeReasoning,
+    capabilities: params.capabilities,
   });
   const contentChunks: string[] = [];
   const toolCalls: Array<{
@@ -420,28 +501,31 @@ export async function requestRainyChatCompletionStream(params: {
     function: { name?: string; arguments: string };
   }> = [];
 
-  let stream;
+  let stream: AsyncIterable<any>;
   try {
-    stream = await client.chat.completions.create(
-      { ...request, stream: true },
+    stream = (await client.chat.completions.create(
+      { ...request, stream: true } as any,
       { timeout: RAINY_REQUEST_TIMEOUT_MS },
-    );
+    )) as unknown as AsyncIterable<any>;
   } catch (error) {
     if (!params.toolChoice || !isUnsupportedToolChoiceError(error)) {
       throw error;
     }
 
-    stream = await client.chat.completions.create(
+    stream = (await client.chat.completions.create(
       {
         ...buildChatCompletionRequest({
           model: params.model,
           messages: params.messages,
           tools: params.tools,
+          reasoning: params.reasoning,
+          includeReasoning: params.includeReasoning,
+          capabilities: params.capabilities,
         }),
         stream: true,
-      },
+      } as any,
       { timeout: RAINY_REQUEST_TIMEOUT_MS },
-    );
+    )) as unknown as AsyncIterable<any>;
   }
 
   for await (const chunk of stream) {
@@ -667,7 +751,39 @@ function normalizeRainyModelItem(item: unknown): RainyModelCatalogEntry | null {
     ownedBy: firstString(item.owned_by, item.owner, item.provider, item.vendor),
     supportedApiModes,
     preferredApiMode: extractPreferredApiMode(item, supportedApiModes),
+    architecture: extractArchitecture(item),
+    supportedParameters: stringArray(item.supported_parameters),
+    capabilities: extractModelCapabilities(item),
   };
+}
+
+function extractArchitecture(
+  item: Record<string, unknown>,
+): RainyModelCatalogEntry["architecture"] {
+  if (!isRecord(item.architecture)) {
+    return undefined;
+  }
+
+  return {
+    input_modalities: stringArray(item.architecture.input_modalities),
+    output_modalities: stringArray(item.architecture.output_modalities),
+  };
+}
+
+function extractModelCapabilities(
+  item: Record<string, unknown>,
+): RainyModelCatalogEntry["capabilities"] {
+  const rawCapabilities = isRecord(item.capabilities)
+    ? item.capabilities
+    : isRecord(item.rainy_capabilities_v2)
+      ? item.rainy_capabilities_v2
+      : null;
+
+  if (!rawCapabilities) {
+    return undefined;
+  }
+
+  return rawCapabilities as RainyModelCatalogEntry["capabilities"];
 }
 
 function extractSupportedApiModes(
@@ -802,6 +918,18 @@ function firstString(...values: unknown[]): string | null {
   }
 
   return null;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const values = value.filter(
+    (item): item is string => typeof item === "string" && item.trim().length > 0,
+  );
+
+  return values.length > 0 ? values : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

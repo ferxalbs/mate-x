@@ -1,10 +1,22 @@
 import { assert, describe, it } from "vitest";
 
 import {
+  buildChatCompletionRequest,
   isOpenAIGpt5OrNewerModel,
   listRainyModels,
   resolvePreferredRainyApiMode,
 } from "./rainy-service";
+import {
+  getAcceptedParameters,
+  getReasoningEffortValues,
+  supportsImageInput,
+  supportsImageOutput,
+  supportsReasoning,
+  supportsReasoningEffort,
+  supportsStructuredOutput,
+  supportsTools,
+} from "../lib/rainy-model-capabilities";
+import type { RainyModelCapabilities } from "../contracts/rainy";
 
 describe("listRainyModels", () => {
   it("keeps providers returned by /models even when catalog is partial", async () => {
@@ -161,5 +173,211 @@ describe("listRainyModels", () => {
       }),
       "chat_completions",
     );
+  });
+});
+
+describe("Rainy model capabilities", () => {
+  const reasoningWithEffort: RainyModelCapabilities = {
+    reasoning: {
+      supported: true,
+      controls: { reasoning_effort: true },
+    },
+    parameters: { accepted: ["reasoning", "include_reasoning", "tools"] },
+  };
+
+  it("resolves reasoning efforts from controls and accepted parameters", () => {
+    assert.equal(supportsReasoning(reasoningWithEffort), true);
+    assert.equal(supportsReasoningEffort(reasoningWithEffort), true);
+    assert.deepEqual(getReasoningEffortValues(reasoningWithEffort), [
+      "low",
+      "medium",
+      "high",
+    ]);
+    assert.deepEqual(getAcceptedParameters(reasoningWithEffort), [
+      "reasoning",
+      "include_reasoning",
+      "tools",
+    ]);
+    assert.equal(supportsTools(reasoningWithEffort), true);
+  });
+
+  it("resolves reasoning efforts from profile metadata", () => {
+    assert.deepEqual(
+      getReasoningEffortValues({
+        reasoning: {
+          supported: true,
+          profiles: [
+            {
+              parameter_path: "reasoning.effort",
+              values: ["low", "medium"],
+            },
+          ],
+        },
+      }),
+      ["low", "medium"],
+    );
+  });
+
+  it("keeps unknown capabilities conservative", () => {
+    assert.equal(supportsReasoning(undefined), false);
+    assert.equal(supportsImageInput(undefined), false);
+    assert.equal(supportsImageOutput(undefined), false);
+    assert.equal(supportsTools(undefined), false);
+    assert.equal(supportsStructuredOutput(undefined), false);
+  });
+});
+
+describe("buildChatCompletionRequest", () => {
+  const textMessage = [{ role: "user", content: "hello" }] as any[];
+  const imageMessage = [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "inspect" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,abc" } },
+      ],
+    },
+  ] as any[];
+
+  it("sends reasoning effort when model supports reasoning plus effort", () => {
+    const request = buildChatCompletionRequest({
+      model: "reasoning-effort",
+      messages: textMessage,
+      reasoning: { effort: "medium" },
+      capabilities: {
+        reasoning: {
+          supported: true,
+          controls: { reasoning_effort: true },
+        },
+        parameters: { accepted: ["reasoning"] },
+      },
+    });
+
+    assert.deepEqual(request.reasoning, { effort: "medium" });
+  });
+
+  it("sends empty reasoning object when model supports reasoning without effort", () => {
+    const request = buildChatCompletionRequest({
+      model: "reasoning-toggle",
+      messages: textMessage,
+      reasoning: {},
+      capabilities: {
+        reasoning: { supported: true },
+        parameters: { accepted: ["reasoning"] },
+      },
+    });
+
+    assert.deepEqual(request.reasoning, {});
+  });
+
+  it("omits reasoning when model does not accept reasoning", () => {
+    const request = buildChatCompletionRequest({
+      model: "plain",
+      messages: textMessage,
+      reasoning: { effort: "medium" },
+      capabilities: {
+        reasoning: { supported: false },
+        parameters: { accepted: [] },
+      },
+    });
+
+    assert.equal("reasoning" in request, false);
+  });
+
+  it("does not send reasoning false when reasoning is disabled", () => {
+    const request = buildChatCompletionRequest({
+      model: "reasoning-disabled",
+      messages: textMessage,
+      capabilities: {
+        reasoning: { supported: true },
+        parameters: { accepted: ["reasoning"] },
+      },
+    });
+
+    assert.equal("reasoning" in request, false);
+    assert.equal((request as any).reasoning === false, false);
+  });
+
+  it("allows image_url content when model supports image input", () => {
+    const request = buildChatCompletionRequest({
+      model: "vision",
+      messages: imageMessage,
+      capabilities: {
+        multimodal: { input: ["text", "image"] },
+        parameters: { accepted: [] },
+      },
+    });
+
+    assert.equal(request.messages, imageMessage);
+  });
+
+  it("rejects image_url content when model lacks image input", () => {
+    let didThrow = false;
+    try {
+      buildChatCompletionRequest({
+        model: "text-only",
+        messages: imageMessage,
+        capabilities: {
+          multimodal: { input: ["text"] },
+          parameters: { accepted: [] },
+        },
+      });
+    } catch {
+      didThrow = true;
+    }
+
+    assert.equal(didThrow, true);
+  });
+
+  it("allows image output modalities when model supports image output", () => {
+    const request = buildChatCompletionRequest({
+      model: "image-output",
+      messages: textMessage,
+      modalities: ["image", "text"],
+      imageConfig: { size: "1024x1024" },
+      capabilities: {
+        multimodal: { output: ["text", "image"] },
+        parameters: { accepted: ["modalities", "image_config"] },
+      },
+    });
+
+    assert.deepEqual(request.modalities, ["image", "text"]);
+    assert.deepEqual(request.image_config, { size: "1024x1024" });
+  });
+
+  it("drops image output modalities when model lacks image output", () => {
+    const request = buildChatCompletionRequest({
+      model: "text-output",
+      messages: textMessage,
+      modalities: ["image", "text"],
+      imageConfig: { size: "1024x1024" },
+      capabilities: {
+        multimodal: { output: ["text"] },
+        parameters: { accepted: ["modalities", "image_config"] },
+      },
+    });
+
+    assert.equal("modalities" in request, false);
+    assert.equal("image_config" in request, false);
+  });
+
+  it("drops incompatible advanced parameters after model capability changes", () => {
+    const request = buildChatCompletionRequest({
+      model: "limited",
+      messages: textMessage,
+      tools: [{ type: "function", function: { name: "scan", parameters: {} } }],
+      reasoning: { effort: "medium" },
+      includeReasoning: true,
+      modalities: ["image", "text"],
+      capabilities: {
+        multimodal: { output: ["text"] },
+        parameters: { accepted: [] },
+      },
+    } as any);
+
+    assert.equal("tools" in request, false);
+    assert.equal("reasoning" in request, false);
+    assert.equal("include_reasoning" in request, false);
+    assert.equal("modalities" in request, false);
   });
 });
