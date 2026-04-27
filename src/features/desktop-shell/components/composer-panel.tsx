@@ -89,6 +89,7 @@ export function ComposerPanel({
   const [reasoningEnabled, setReasoningEnabled] = useState(true);
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions['reasoning']>('high');
+  const [modeValue, setModeValue] = useState<AssistantRunOptions['mode']>('build');
   const [capabilityNotice, setCapabilityNotice] = useState('');
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -254,7 +255,7 @@ export function ComposerPanel({
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
-      mode: 'build',
+      mode: modeValue,
       access: accessValue as AssistantRunOptions['access'],
       runbookId: 'patch_test_verify',
       attachments,
@@ -521,6 +522,18 @@ export function ComposerPanel({
                   </InlineSelect>
                 </div>
               </div>
+              <InlineSelect
+                value={modeValue}
+                onValueChange={(value) =>
+                  setModeValue(value as AssistantRunOptions['mode'])
+                }
+                label={formatAssistantMode(modeValue)}
+                title={`Execution mode: ${formatAssistantMode(modeValue)}`}
+              >
+                <SelectItem value="build">Build</SelectItem>
+                <SelectItem value="plan">Plan</SelectItem>
+                <SelectItem value="critic_loop">Critic Loop</SelectItem>
+              </InlineSelect>
               {!supportsImageInput ? (
                 <button
                   aria-label="Images unavailable"
@@ -847,6 +860,17 @@ function formatReasoningEffort(effort: AssistantRunOptions['reasoning']) {
     .filter(Boolean)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function formatAssistantMode(mode: AssistantRunOptions['mode']) {
+  switch (mode) {
+    case 'critic_loop':
+      return 'Critic Loop';
+    case 'plan':
+      return 'Plan';
+    default:
+      return 'Build';
+  }
 }
 
 function resolveModelValue(
