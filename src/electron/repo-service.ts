@@ -1943,6 +1943,7 @@ async function requestRainyChatAgenticResponse({
       tokenEstimator,
     );
     let streamedPassText = "";
+    let streamedThought = "";
     const responseMessage = await requestRainyChatCompletionStream({
       apiKey,
       messages,
@@ -1958,12 +1959,22 @@ async function requestRainyChatAgenticResponse({
       includeReasoning: rainyReasoning.includeReasoning,
       capabilities,
       maxTokens,
+      onReasoningDelta: (delta) => {
+        streamedThought += delta;
+        emitProgress(
+          lastNonEmptyAssistantText
+            ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
+            : streamedPassText || undefined,
+          streamedThought,
+        );
+      },
       onContentDelta: (delta) => {
         streamedPassText += delta;
         emitProgress(
           lastNonEmptyAssistantText
             ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
             : streamedPassText,
+          streamedThought || undefined,
         );
       },
     });
