@@ -8,16 +8,45 @@ const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
 
 function parseCommand(command: string) {
-  if (/[|&;<>`$()]/.test(command)) {
-    throw new Error(
-      "Shell operators are not supported. Provide a direct command and arguments only.",
-    );
+  const tokens: string[] = [];
+  let current = "";
+  let quote: "'" | "\"" | null = null;
+
+  for (const char of command) {
+    if ((char === "'" || char === "\"") && !quote) {
+      quote = char;
+      continue;
+    }
+
+    if (char === quote) {
+      quote = null;
+      continue;
+    }
+
+    if (!quote && /[|&;<>`$]/.test(char)) {
+      throw new Error(
+        "Shell operators are not supported. Provide a direct command and arguments only.",
+      );
+    }
+
+    if (!quote && /\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += char;
   }
 
-  const tokens =
-    command.match(/"[^"]*"|'[^']*'|[^\s]+/g)?.map((token) =>
-      token.replace(/^['"]|['"]$/g, ""),
-    ) ?? [];
+  if (quote) {
+    throw new Error("Unclosed quote in command.");
+  }
+
+  if (current) {
+    tokens.push(current);
+  }
 
   if (tokens.length === 0) {
     throw new Error("Command is required.");
