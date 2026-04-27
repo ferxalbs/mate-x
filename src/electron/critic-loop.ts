@@ -110,6 +110,33 @@ export async function verifyCriticLoop(
     }
   }
 
+  if (claimsProductionReady(input.finalContent)) {
+    const missingChecks = requiredProductionChecks(commandsRan);
+    if (missingChecks.length > 0) {
+      warnings.push(
+        `Production-ready claim is not fully supported; missing validation: ${missingChecks.join(", ")}.`,
+      );
+    }
+  }
+
+  if (claimsNoUnresolvedRisk(input.finalContent) && validationStatus !== "passed") {
+    warnings.push(
+      `No-risk claim is not supported because validation status is ${validationStatus}.`,
+    );
+  }
+
+  const claimedChangedFiles = extractClaimedChangedFiles(input.finalContent);
+  if (claimedChangedFiles.length > 0) {
+    const missingChangedFiles = claimedChangedFiles.filter(
+      (path) => !modifiedFiles.includes(path),
+    );
+    if (missingChangedFiles.length > 0) {
+      warnings.push(
+        `Claimed changed file(s) not present in current git status: ${missingChangedFiles.join(", ")}.`,
+      );
+    }
+  }
+
   return {
     validationStatus,
     modifiedFiles,
@@ -167,6 +194,42 @@ function extractCommandsRan(toolExecutions: ToolExecutionRecord[]) {
       return typeof command === "string" ? command : null;
     })
     .filter((command): command is string => Boolean(command));
+}
+
+function extractClaimedChangedFiles(content: string) {
+  const changedSection = content.match(
+    /(?:files changed|changed files|modified files)\s*:\s*([\s\S]*?)(?:\n\s*\n|$)/i,
+  );
+  if (!changedSection) {
+    return [];
+  }
+
+  return Array.from(extractClaimedFiles(changedSection[1]));
+}
+
+function claimsProductionReady(content: string) {
+  return /\b(production-ready|ready for deployment|stable and ready|all tests passed)\b/i.test(
+    content,
+  );
+}
+
+function claimsNoUnresolvedRisk(content: string) {
+  return /\b(unresolved risks?:\s*none|no unresolved risks|none identified)\b/i.test(
+    content,
+  );
+}
+
+function requiredProductionChecks(commandsRan: string[]) {
+  const normalizedCommands = commandsRan.join("\n").toLowerCase();
+  const required = [
+    { label: "typecheck", pattern: /\b(typecheck|tsc)\b/ },
+    { label: "lint", pattern: /\blint\b/ },
+    { label: "tests or build", pattern: /\b(test|build|package|make)\b/ },
+  ];
+
+  return required
+    .filter((check) => !check.pattern.test(normalizedCommands))
+    .map((check) => check.label);
 }
 
 function resolveValidationStatus(
