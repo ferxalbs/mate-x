@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { powerSaveBlocker } from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
@@ -6,6 +7,8 @@ import type { Tool } from "../tool-service";
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
+const LONG_RUNNING_TIMEOUT_SECONDS = 60;
+type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
 
 function parseCommand(command: string) {
   const tokens: string[] = [];
@@ -86,10 +89,51 @@ function appendOutput(current: string, next: string, maxOutputChars: number) {
   return `${current}${next}`.slice(0, maxOutputChars);
 }
 
+function resolveKeepAwake(value: unknown, timeoutSeconds: number) {
+  return typeof value === "boolean"
+    ? value
+    : timeoutSeconds >= LONG_RUNNING_TIMEOUT_SECONDS;
+}
+
+function resolvePowerSaveBlockerType(value: unknown): PowerSaveBlockerType {
+  return value === "prevent-display-sleep"
+    ? "prevent-display-sleep"
+    : "prevent-app-suspension";
+}
+
+function startPowerSaveBlocker(
+  keepAwake: boolean,
+  type: PowerSaveBlockerType,
+) {
+  if (!keepAwake) {
+    return undefined;
+  }
+
+  try {
+    return powerSaveBlocker.start(type);
+  } catch {
+    return undefined;
+  }
+}
+
+function stopPowerSaveBlocker(id: number | undefined) {
+  if (typeof id !== "number") {
+    return;
+  }
+
+  try {
+    if (powerSaveBlocker.isStarted(id)) {
+      powerSaveBlocker.stop(id);
+    }
+  } catch {
+    // Best-effort only. Sandbox result should not fail because power blocker cleanup failed.
+  }
+}
+
 export const sandboxRunnerTool: Tool = {
   name: "sandbox_run",
   description:
-    "Runs a direct command in the real workspace as a configurable, time-bounded child process for validation or diagnostics. The agent may choose timeoutSeconds from 30, 45, 60, 120, or 240. It sets test-like environment variables by default, but it is not a disposable filesystem sandbox: file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project when policy allows the command.",
+    "Runs a direct command in the real workspace as a configurable, time-bounded child process for validation or diagnostics. The agent may choose timeoutSeconds from 30, 45, 60, 120, or 240, and can use Electron powerSaveBlocker keepAwake settings for long or interactive runs. It sets test-like environment variables by default, but it is not a disposable filesystem sandbox: file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project when policy allows the command.",
   parameters: {
     type: "object",
     properties: {
@@ -120,6 +164,17 @@ export const sandboxRunnerTool: Tool = {
         description:
           "NODE_ENV for the child process. Defaults to test for validation isolation.",
       },
+      keepAwake: {
+        type: "boolean",
+        description:
+          "Use Electron powerSaveBlocker during the run. Defaults to true for timeoutSeconds >= 60 and false for shorter runs.",
+      },
+      powerSaveBlockerType: {
+        type: "string",
+        enum: ["prevent-app-suspension", "prevent-display-sleep"],
+        description:
+          "Electron powerSaveBlocker mode when keepAwake is active. Use prevent-app-suspension for normal long tests; prevent-display-sleep for interactive/browser scenarios that must keep the display awake.",
+      },
     },
     required: ["command"],
   },
@@ -149,6 +204,10 @@ export const sandboxRunnerTool: Tool = {
     );
     const port = resolvePort(args.port);
     const nodeEnv = resolveNodeEnv(args.nodeEnv);
+    const keepAwake = resolveKeepAwake(args.keepAwake, timeoutSeconds);
+    const powerSaveBlockerType = resolvePowerSaveBlockerType(
+      args.powerSaveBlockerType,
+    );
 
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     const profile = activeWorkspaceId
@@ -178,6 +237,10 @@ export const sandboxRunnerTool: Tool = {
       let output = "";
       let crashed = false;
       let finished = false;
+      const powerBlockerId = startPowerSaveBlocker(
+        keepAwake,
+        powerSaveBlockerType,
+      );
 
       const child = spawn(cmd, cmdArgs, {
         cwd: workspacePath,
@@ -204,6 +267,7 @@ export const sandboxRunnerTool: Tool = {
 
         finished = true;
         clearTimeout(timer);
+        stopPowerSaveBlocker(powerBlockerId);
         const failureMemory = activeWorkspaceId
           ? await persistSandboxOutcome({
               workspaceId: activeWorkspaceId,
@@ -248,6 +312,8 @@ export const sandboxRunnerTool: Tool = {
             `Timeout seconds: ${timeoutSeconds}`,
             `PORT: ${port}`,
             `NODE_ENV: ${nodeEnv}`,
+            `Keep awake: ${keepAwake}`,
+            `Power save blocker: ${typeof powerBlockerId === "number" ? powerSaveBlockerType : "not_active"}`,
             `Output:\n${output}`,
             "",
             `The sandbox cleanly terminated the process after ${timeoutSeconds} seconds.`,
@@ -264,6 +330,8 @@ export const sandboxRunnerTool: Tool = {
             `Timeout seconds: ${timeoutSeconds}`,
             `PORT: ${port}`,
             `NODE_ENV: ${nodeEnv}`,
+            `Keep awake: ${keepAwake}`,
+            `Power save blocker: ${typeof powerBlockerId === "number" ? powerSaveBlockerType : "not_active"}`,
             `Output:\n${output}`,
           ].join("\\n"),
           code ?? undefined,

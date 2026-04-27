@@ -1699,7 +1699,7 @@ Runtime truth and permissions:
 - Current workspace path is the real project root: ${snapshot.workspace.path}
 - Treat package-manager mutations, generated files, lockfiles, git operations, and source edits as real workspace effects when a tool is allowed to run them.
 - The sandbox_run tool time-limits a child process and defaults to test-like env vars; it does not create a disposable copy of the repository and must not be described as changing only a fake project.
-- For sandbox_run, choose timeoutSeconds from 30, 45, 60, 120, or 240 based on expected duration. Use longer timeouts for slow tests/builds instead of letting checks freeze or reporting runtime blocked. You may also set port, nodeEnv, and maxOutputChars when needed.
+- For sandbox_run, choose timeoutSeconds from 30, 45, 60, 120, or 240 based on expected duration. Use longer timeouts for slow tests/builds instead of letting checks freeze or reporting runtime blocked. You may also set port, nodeEnv, maxOutputChars, keepAwake, and powerSaveBlockerType when needed. For long or interactive Electron/browser checks, use keepAwake with prevent-app-suspension or prevent-display-sleep.
 - If a tool returns a Workspace Trust Contract block, the product can surface approval. State what was blocked and continue with permitted alternatives if approval is declined.
 - When contract autonomy is ${snapshot.trustContract.autonomy}, allowed actions are: ${snapshot.trustContract.allowedActions.join(", ") || "none"}.
 - Blocked actions are: ${snapshot.trustContract.blockedActions.join(", ") || "none"}.
