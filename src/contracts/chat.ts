@@ -7,7 +7,13 @@ export type ToolEventStatus = "done" | "active" | "error";
 export type MessageArtifactTone = "default" | "success" | "warning";
 export type EvidencePackStatus = "complete" | "partial" | "blocked" | "failed";
 export type EvidencePackConfidence = "low" | "medium" | "high";
-export type AssistantReasoningLevel = "low" | "medium" | "high" | "xhigh";
+export type AssistantReasoningLevel =
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | (string & {});
 export type AssistantMode = "build" | "plan";
 export type AssistantAccess = "full" | "approval";
 export type AssistantRunbookId =

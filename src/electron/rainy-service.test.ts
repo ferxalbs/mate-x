@@ -209,12 +209,12 @@ describe("Rainy model capabilities", () => {
           profiles: [
             {
               parameter_path: "reasoning.effort",
-              values: ["low", "medium"],
+              values: ["minimal", "low", "medium", "high", "xhigh"],
             },
           ],
         },
       }),
-      ["low", "medium"],
+      ["minimal", "low", "medium", "high", "xhigh"],
     );
   });
 
