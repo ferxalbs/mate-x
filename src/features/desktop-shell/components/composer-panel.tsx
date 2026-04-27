@@ -1,6 +1,8 @@
 import {
   ArrowUpIcon,
+  BrainIcon,
   ChevronDownIcon,
+  ImageIcon,
   LoaderCircle,
   RotateCcwIcon,
   ShieldCheckIcon,
@@ -22,6 +24,13 @@ import type {
   WorkspaceSummary,
   WorkspaceTrustContract,
 } from '../../../contracts/workspace';
+import {
+  getReasoningEffortValues,
+  supportsImageInput as modelSupportsImageInput,
+  supportsReasoning as modelSupportsReasoning,
+  supportsStructuredOutput,
+  supportsTools,
+} from '../../../lib/rainy-model-capabilities';
 import { cn } from '../../../lib/utils';
 import { getModel, listModels, setModel } from '../../../services/settings-client';
 import { useChatStore } from '../../../store/chat-store';
@@ -59,7 +68,10 @@ export function ComposerPanel({
   const [catalogError, setCatalogError] = useState('');
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [isModelSaving, setIsModelSaving] = useState(false);
-  const [reasoningValue, setReasoningValue] = useState('high');
+  const [reasoningEnabled, setReasoningEnabled] = useState(true);
+  const [reasoningValue, setReasoningValue] =
+    useState<AssistantRunOptions['reasoning']>('high');
+  const [capabilityNotice, setCapabilityNotice] = useState('');
   const [modeValue, setModeValue] = useState('build');
   const [runbookValue, setRunbookValue] =
     useState<AssistantRunOptions['runbookId']>('patch_test_verify');
@@ -115,8 +127,49 @@ export function ComposerPanel({
     [catalog, modelValue],
   );
   const modelLabel = selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
+  const supportsImageInput = modelSupportsImageInput(selectedModel);
+  const reasoningSupported = modelSupportsReasoning(selectedModel);
+  const toolCallingSupported = supportsTools(selectedModel);
+  const structuredOutputSupported = supportsStructuredOutput(selectedModel);
+  const effortOptions = useMemo(
+    () => getReasoningEffortValues(selectedModel).filter(isAssistantReasoningLevel),
+    [selectedModel],
+  );
+  const supportsReasoningEffort = reasoningSupported && effortOptions.length > 0;
   const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue = trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval';
+
+  useEffect(() => {
+    if (!selectedModel) {
+      return;
+    }
+
+    if (!reasoningSupported && reasoningEnabled) {
+      setReasoningEnabled(false);
+      setCapabilityNotice('Razonamiento desactivado: este modelo no lo soporta.');
+      return;
+    }
+
+    if (reasoningSupported && supportsReasoningEffort && !effortOptions.includes(reasoningValue)) {
+      setReasoningValue(effortOptions[0]);
+      setCapabilityNotice(`Esfuerzo ajustado para ${selectedModel.label}.`);
+      return;
+    }
+
+    if (reasoningSupported && !supportsReasoningEffort && reasoningEnabled) {
+      setCapabilityNotice('Este modelo usa razonamiento ON/OFF sin nivel de esfuerzo.');
+      return;
+    }
+
+    setCapabilityNotice('');
+  }, [
+    effortOptions,
+    reasoningEnabled,
+    reasoningSupported,
+    reasoningValue,
+    selectedModel,
+    supportsReasoningEffort,
+  ]);
 
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
@@ -143,7 +196,8 @@ export function ComposerPanel({
 
     setPrompt('');
     await onSubmit(nextPrompt, {
-      reasoning: reasoningValue as AssistantRunOptions['reasoning'],
+      reasoningEnabled: reasoningSupported && reasoningEnabled,
+      reasoning: reasoningValue,
       mode: modeValue as AssistantRunOptions['mode'],
       access: accessValue as AssistantRunOptions['access'],
       runbookId: runbookValue,
@@ -294,11 +348,63 @@ export function ComposerPanel({
                   </SelectItem>
                 ))}
               </InlineSelect>
-              <InlineSelect value={reasoningValue} onValueChange={setReasoningValue}>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="max">Max</SelectItem>
-              </InlineSelect>
+              {reasoningSupported ? (
+                <button
+                  type="button"
+                  className={cn(
+                    'flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:bg-accent',
+                    reasoningEnabled ? 'text-foreground' : 'text-muted-foreground/60',
+                  )}
+                  onClick={() => setReasoningEnabled((value) => !value)}
+                >
+                  <BrainIcon className="size-3.5" />
+                  {reasoningEnabled ? 'Reasoning on' : 'Reasoning off'}
+                </button>
+              ) : null}
+              <div
+                className={cn(
+                  'grid shrink-0 transition-all duration-300 ease-out',
+                  reasoningEnabled && supportsReasoningEffort
+                    ? 'grid-cols-[1fr] opacity-100'
+                    : 'grid-cols-[0fr] opacity-0',
+                )}
+              >
+                <div className="min-w-0 overflow-hidden">
+                  <InlineSelect
+                    value={reasoningValue}
+                    onValueChange={(value) =>
+                      setReasoningValue(value as AssistantRunOptions['reasoning'])
+                    }
+                  >
+                    {effortOptions.map((effort) => (
+                      <SelectItem key={effort} value={effort}>
+                        {formatReasoningEffort(effort)}
+                      </SelectItem>
+                    ))}
+                  </InlineSelect>
+                </div>
+              </div>
+              {!supportsImageInput ? (
+                <button
+                  aria-label="Images unavailable"
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
+                  disabled
+                  title="Este modelo no procesa imágenes."
+                  type="button"
+                >
+                  <ImageIcon className="size-3.5" />
+                </button>
+              ) : null}
+              {toolCallingSupported ? (
+                <div className="flex h-6 shrink-0 items-center rounded-md px-2 text-[11px] text-muted-foreground">
+                  Tools
+                </div>
+              ) : null}
+              {structuredOutputSupported ? (
+                <div className="flex h-6 shrink-0 items-center rounded-md px-2 text-[11px] text-muted-foreground">
+                  Structured
+                </div>
+              ) : null}
               <InlineSelect value={modeValue} onValueChange={setModeValue}>
                 <SelectItem value="build">Build</SelectItem>
                 <SelectItem value="plan">Plan</SelectItem>
@@ -322,6 +428,11 @@ export function ComposerPanel({
                     : 'Contract pending'}
                 </span>
               </div>
+              {capabilityNotice ? (
+                <div className="h-6 shrink-0 rounded-md px-2 text-[11px] leading-6 text-amber-600 dark:text-amber-300/90">
+                  {capabilityNotice}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
@@ -468,6 +579,16 @@ function InlineSelect({
       <SelectPopup>{children}</SelectPopup>
     </Select>
   );
+}
+
+function isAssistantReasoningLevel(
+  value: string,
+): value is AssistantRunOptions['reasoning'] {
+  return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh';
+}
+
+function formatReasoningEffort(effort: AssistantRunOptions['reasoning']) {
+  return effort === 'xhigh' ? 'X High' : effort[0].toUpperCase() + effort.slice(1);
 }
 
 function resolveModelValue(

@@ -35,7 +35,12 @@ import type {
   MessageArtifact,
   ToolEvent,
 } from "../contracts/chat";
-import type { RainyApiMode } from "../contracts/rainy";
+import type { RainyApiMode, RainyModelCapabilities } from "../contracts/rainy";
+import {
+  getAcceptedParameters,
+  getReasoningEffortValues,
+  supportsReasoning,
+} from "../lib/rainy-model-capabilities";
 import type {
   SearchMatch,
   WorkspaceMemoryBootstrapContext,
@@ -87,6 +92,7 @@ interface AgentToolCall {
 }
 
 const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
+  reasoningEnabled: true,
   reasoning: "high",
   mode: "build",
   access: "full",
@@ -580,6 +586,7 @@ export async function runAssistant(
         history,
         model: configuredModel,
         apiMode: runtimeConfig?.apiMode ?? "chat_completions",
+        capabilities: runtimeConfig?.capabilities,
         prompt,
         snapshot,
         workingSet,
@@ -889,8 +896,11 @@ function resolveAssistantRunOptions(
   options?: AssistantRunOptions,
 ): AssistantRunOptions {
   return {
+    reasoningEnabled: options?.reasoningEnabled !== false,
     reasoning:
-      options?.reasoning === "low" || options?.reasoning === "max"
+      options?.reasoning === "low" ||
+      options?.reasoning === "medium" ||
+      options?.reasoning === "xhigh"
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     mode:
@@ -969,7 +979,7 @@ function buildAgentRuntimeConfig(
         requireToolingFirst,
         executionIntent,
       };
-    case "max":
+    case "xhigh":
       return {
         maxIterations: options.mode === "plan" ? 10 : 12,
         minToolRounds,
@@ -1641,6 +1651,7 @@ async function requestRainyAgenticResponse({
   history,
   model,
   apiMode,
+  capabilities,
   prompt,
   snapshot,
   workingSet,
@@ -1655,6 +1666,7 @@ async function requestRainyAgenticResponse({
   history: string[];
   model: string;
   apiMode: RainyApiMode;
+  capabilities?: RainyModelCapabilities;
   prompt: string;
   snapshot: RepoSnapshot;
   workingSet: import("../contracts/working-set").WorkingSet;
@@ -1690,6 +1702,7 @@ Branch: ${snapshot.workspace.branch}
 Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
 Operating mode: ${options.mode}
 Reasoning level: ${options.reasoning}
+Reasoning enabled: ${options.reasoningEnabled ? "yes" : "no"}
 Filesystem access policy: ${options.access}
 Execution intent detected: ${runtime.executionIntent ? "yes - at least one tool-backed pass is required before the final answer" : "no"}
 
@@ -1779,9 +1792,11 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
   return requestRainyChatAgenticResponse({
     apiKey,
     model,
+    capabilities,
     prompt,
     history,
     runtime,
+    options,
     systemPrompt,
     snapshot,
     events,
@@ -1795,8 +1810,10 @@ async function requestRainyChatAgenticResponse({
   apiKey,
   history,
   model,
+  capabilities,
   prompt,
   runtime,
+  options,
   systemPrompt,
   snapshot,
   events,
@@ -1807,8 +1824,10 @@ async function requestRainyChatAgenticResponse({
   apiKey: string;
   history: string[];
   model: string;
+  capabilities?: RainyModelCapabilities;
   prompt: string;
   runtime: AgentRuntimeConfig;
+  options: AssistantRunOptions;
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
@@ -1817,6 +1836,7 @@ async function requestRainyChatAgenticResponse({
   runId: string;
 }) {
   const historyMessages = buildHistoryMessages(history);
+  const rainyReasoning = resolveRainyReasoningPayload(options, capabilities);
   let messages: any[] = [
     { role: "system", content: systemPrompt },
     ...historyMessages,
@@ -1867,6 +1887,9 @@ async function requestRainyChatAgenticResponse({
         totalToolCalls < runtime.maxToolCalls
           ? "required"
           : undefined,
+      reasoning: rainyReasoning.reasoning,
+      includeReasoning: rainyReasoning.includeReasoning,
+      capabilities,
       onContentDelta: (delta) => {
         streamedPassText += delta;
         emitProgress(
@@ -2358,6 +2381,7 @@ async function resolveDefaultRainyRuntimeConfig(
 ): Promise<{
   model: string;
   apiMode: "chat_completions" | "responses";
+  capabilities?: RainyModelCapabilities;
 } | null> {
   const preferredModels = [
     "openai/gpt-5.4",
@@ -2375,28 +2399,26 @@ async function resolveDefaultRainyRuntimeConfig(
     }
 
     const normalizedStoredModel = preferredStoredModel?.trim() ?? "";
+    const findEntry = (modelId: string) =>
+      catalog.find((item) => item.id === modelId);
     const pickApiMode = (modelId: string): "chat_completions" | "responses" =>
-      resolvePreferredRainyApiMode(
-        modelId,
-        catalog.find((item) => item.id === modelId),
-      );
+      resolvePreferredRainyApiMode(modelId, findEntry(modelId));
+    const resolveConfig = (modelId: string) => ({
+      model: modelId,
+      apiMode: pickApiMode(modelId),
+      capabilities: findEntry(modelId)?.capabilities,
+    });
 
     if (
       normalizedStoredModel &&
       catalog.some((entry) => entry.id === normalizedStoredModel)
     ) {
-      return {
-        model: normalizedStoredModel,
-        apiMode: pickApiMode(normalizedStoredModel),
-      };
+      return resolveConfig(normalizedStoredModel);
     }
 
     for (const preferredModel of preferredModels) {
       if (catalog.some((entry) => entry.id === preferredModel)) {
-        return {
-          model: preferredModel,
-          apiMode: pickApiMode(preferredModel),
-        };
+        return resolveConfig(preferredModel);
       }
     }
 
@@ -2405,11 +2427,35 @@ async function resolveDefaultRainyRuntimeConfig(
       return null;
     }
 
-    return {
-      model: fallbackModel,
-      apiMode: pickApiMode(fallbackModel),
-    };
+    return resolveConfig(fallbackModel);
   } catch {
     return null;
   }
+}
+
+function resolveRainyReasoningPayload(
+  options: AssistantRunOptions,
+  capabilities?: RainyModelCapabilities,
+): {
+  reasoning?: { exclude?: true; effort?: string };
+  includeReasoning?: boolean;
+} {
+  if (!options.reasoningEnabled || !supportsReasoning(capabilities)) {
+    return {};
+  }
+
+  const accepted = getAcceptedParameters(capabilities);
+  const canSendReasoning = accepted.includes("reasoning");
+  const canIncludeReasoning = accepted.includes("include_reasoning");
+  const effortValues = getReasoningEffortValues(capabilities);
+  const canSendEffort = effortValues.includes(options.reasoning);
+
+  return {
+    reasoning: canSendReasoning
+      ? canSendEffort
+        ? { effort: options.reasoning }
+        : {}
+      : undefined,
+    includeReasoning: canIncludeReasoning,
+  };
 }

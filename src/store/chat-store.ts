@@ -610,6 +610,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         threadId: activeThreadId,
         activeMessageCount: currentThread.messages.length,
         settings: {
+          reasoningEnabled: options.reasoningEnabled,
           reasoning: options.reasoning,
           mode: options.mode,
           access: options.access,
