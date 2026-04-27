@@ -43,9 +43,9 @@ function parseSection(content: string, heading: string) {
   ].join("|");
   const pattern = new RegExp(
     `${heading}\\s*:\\s*([\\s\\S]*?)(?:\\n\\s*(?:${nextHeadings})\\s*:|$)`,
-    "i",
+    "gi",
   );
-  return content.match(pattern)?.[1]?.trim() ?? "";
+  return Array.from(content.matchAll(pattern)).at(-1)?.[1]?.trim() ?? "";
 }
 
 function parseField(section: string, name: string) {
