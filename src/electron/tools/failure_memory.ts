@@ -41,8 +41,8 @@ export const findSimilarFailuresTool: Tool = {
     });
 
     return JSON.stringify({
-      warning: matches.some((match) => match.failure.occurrenceCount > 1)
-        ? 'Same or similar failure repeated in this workspace. Warn user and change approach before retrying.'
+      warning: matches.length > 0
+        ? 'Similar failure exists in this workspace. Warn user before retrying; if repeated, change approach instead of looping.'
         : undefined,
       matches,
     }, null, 2);

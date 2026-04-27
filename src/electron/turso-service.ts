@@ -702,6 +702,63 @@ export class TursoService {
     return this.getFailureMemory(target.id);
   }
 
+  async updateFailureMemorySignature(id: string, errorSignature: string): Promise<void> {
+    await this.initialize();
+    const source = await this.getFailureMemory(id);
+    if (!source || source.errorSignature === errorSignature) {
+      return;
+    }
+
+    const duplicate = (await this.getFailureMemories(source.workspaceId, 100)).find(
+      (failure) =>
+        failure.id !== id &&
+        failure.command === source.command &&
+        failure.errorSignature === errorSignature,
+    );
+
+    if (duplicate) {
+      await this.getClient().batch([
+        {
+          sql: `UPDATE failure_memory
+                SET occurrence_count = occurrence_count + ?,
+                    last_seen_at = CASE
+                      WHEN datetime(last_seen_at) > datetime(?) THEN last_seen_at
+                      ELSE ?
+                    END,
+                    first_seen_at = CASE
+                      WHEN datetime(first_seen_at) < datetime(?) THEN first_seen_at
+                      ELSE ?
+                    END,
+                    stack_trace_excerpt = COALESCE(stack_trace_excerpt, ?),
+                    attempted_fix = COALESCE(attempted_fix, ?),
+                    retry_fixed = COALESCE(retry_fixed, ?)
+                WHERE id = ?`,
+          args: [
+            source.occurrenceCount,
+            source.lastSeenAt,
+            source.lastSeenAt,
+            source.firstSeenAt,
+            source.firstSeenAt,
+            source.stackTraceExcerpt ?? null,
+            source.attemptedFix ?? null,
+            source.retryFixed === undefined ? null : source.retryFixed ? 1 : 0,
+            duplicate.id,
+          ],
+        },
+        {
+          sql: `DELETE FROM failure_memory WHERE id = ?`,
+          args: [id],
+        },
+      ], 'write');
+      return;
+    }
+
+    await this.getClient().execute({
+      sql: `UPDATE failure_memory SET error_signature = ? WHERE id = ?`,
+      args: [errorSignature, id],
+    });
+  }
+
   // ── Repo Graph ──────────────────────────────────────────────────────────
 
   async replaceRepoGraph(
