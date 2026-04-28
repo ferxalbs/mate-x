@@ -51,6 +51,7 @@ import {
   getAcceptedParameters,
   getReasoningEffortValues,
   supportsReasoning,
+  supportsTools,
 } from "../lib/rainy-model-capabilities";
 import type {
   SearchMatch,
@@ -1735,6 +1736,24 @@ async function requestRainyAgenticResponse({
   runId: string;
 }) {
   const runtime = buildAgentRuntimeConfig(options, prompt);
+  if (runtime.executionIntent && !supportsTools(capabilities)) {
+    events.push({
+      id: "step-model-tools-unsupported",
+      label: "Model tools unsupported",
+      detail:
+        `Model ${model} does not advertise tool-calling support in the Rainy catalog. ` +
+        "This task requires repository tools for patching or validation, so MaTE X will not treat this run as verified.",
+      status: "error",
+    });
+    emitProgress();
+
+    return {
+      toolExecutions: [],
+      content:
+        `Model ${model} cannot run repository tools for this task. ` +
+        "Choose a model with tool-calling support, then retry patch/validation.",
+    };
+  }
   const matches = snapshot.promptMatches
     .slice(0, 12)
     .map((match) => `${match.file}:${match.line} ${match.text}`)
