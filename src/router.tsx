@@ -12,6 +12,7 @@ import { SettingsPage } from './routes/settings-page';
 
 const rootRoute = createRootRoute({
   component: DesktopShell,
+  notFoundComponent: HomePage,
 });
 
 const indexRoute = createRoute({

@@ -118,6 +118,10 @@ export function GitPanel() {
 
   // Auto-refresh on mount
   useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+
     void refresh();
   }, [activeWorkspaceId, refresh]);
 
