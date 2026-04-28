@@ -37,7 +37,7 @@ export const sqlAuditTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = args.path || ".";
 
     try {

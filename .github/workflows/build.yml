@@ -1,19 +1,51 @@
 name: Build & Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  release:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+  make:
+    needs: verify
     runs-on: ${{ matrix.os }}
-    env:
-      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, macos-15]
+        include:
+          - os: windows-latest
+            arch: x64
+            artifact: mate-x-windows-x64
+          - os: macos-26
+            arch: arm64
+            artifact: mate-x-macos-arm64
+          - os: macos-26-intel
+            arch: x64
+            artifact: mate-x-macos-x64
 
     steps:
       - name: Checkout Code
@@ -25,48 +57,38 @@ jobs:
           bun-version: latest
 
       - name: Install Dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
-      # macOS Code Signing Setup
-      - name: Prepare macOS Keychain
-        if: matrix.os == 'macos-15' && github.event_name != 'pull_request' && env.MACOS_CERTIFICATE != ''
+      - name: Show toolchain
+        if: startsWith(matrix.os, 'macos-26')
         run: |
-          echo "${{ secrets.MACOS_CERTIFICATE }}" | base64 --decode > certificate.p12
-          security create-keychain -p "${{ secrets.MACOS_CERTIFICATE_PWD }}" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "${{ secrets.MACOS_CERTIFICATE_PWD }}" build.keychain
-          security import certificate.p12 -k build.keychain -P "${{ secrets.MACOS_CERTIFICATE_PWD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.MACOS_CERTIFICATE_PWD }}" build.keychain
+          xcodebuild -version
+          xcrun --find actool
 
-      # Windows Code Signing Setup
-      - name: Prepare Windows Certificate
-        if: matrix.os == 'windows-latest' && github.event_name != 'pull_request' && env.WINDOWS_CERTIFICATE != ''
-        run: |
-          echo "${{ secrets.WINDOWS_CERTIFICATE }}" | base64 --decode > certificate.pfx
-        shell: bash
+      - name: Make
+        run: bun run make -- --arch ${{ matrix.arch }}
 
-      - name: Build and Publish (Windows)
-        if: matrix.os == 'windows-latest'
-        run: bun run publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WINDOWS_CERTIFICATE_PATH: certificate.pfx
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            out/make/**/*
+          if-no-files-found: error
 
-      - name: Build and Publish (macOS Intel)
-        if: matrix.os == 'macos-15'
-        run: bun run publish --arch x64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  release:
+    needs: make
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
 
-      - name: Build and Publish (macOS ARM)
-        if: matrix.os == 'macos-15'
-        run: bun run publish --arch arm64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: true
+          files: release-artifacts/**/*

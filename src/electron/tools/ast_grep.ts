@@ -28,7 +28,7 @@ export const astGrepTool: Tool = {
     },
     required: ["query"],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const { query, path = ".", maxResults = 5 } = args;
 
     try {

@@ -23,7 +23,7 @@ export const entropyScannerTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const { path = '.', threshold = 4.5 } = args;
     
     try {

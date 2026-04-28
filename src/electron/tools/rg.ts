@@ -41,7 +41,7 @@ export const rgTool: Tool = {
     },
     required: ['query'],
   },
-  async execute(args, { workspacePath, trustContract, settings }) {
+  async execute(args, { workspacePath, trustContract, settings: _settings }) {
     const { query, isRegex = false, caseSensitive = false, include, exclude, wholeWord = false, path } = args;
     const requestedPaths = path ? [path] : ['.'];
     const scopedPaths =

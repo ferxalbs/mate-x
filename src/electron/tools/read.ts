@@ -24,7 +24,7 @@ export const readTool: Tool = {
     },
     required: ['path'],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const { path, lineStart, lineEnd } = args;
 
     try {

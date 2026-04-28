@@ -30,12 +30,9 @@ export const localNetworkReconTool: Tool = {
     const scanPort = (portObj: { port: number, name: string }) => {
       return new Promise<void>((resolve) => {
         const socket = new Socket();
-        let status = 'closed';
-
         socket.setTimeout(timeoutMs);
 
         socket.on('connect', () => {
-          status = 'open';
           results.push(`[OPEN] Port ${portObj.port} (${portObj.name}) is actively listening.`);
           socket.destroy();
         });
