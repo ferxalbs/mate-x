@@ -12,6 +12,7 @@ import {
   getWorkspaceEntries,
   getWorkspaceSummary,
   getWorkspaceTrustContract,
+  getAgentRoutingRecommendation,
   listFiles,
   removeWorkspace,
   runAssistant,
@@ -182,6 +183,16 @@ export function registerIpcHandlers() {
   );
   ipcMain.handle("repo:search", async (_event, query: string, limit?: number) =>
     searchInFiles(query, limit),
+  );
+  ipcMain.handle(
+    "repo:get-agent-capability-profiles",
+    async (_event, workspaceId?: string) =>
+      tursoService.listAgentCapabilityProfiles(workspaceId),
+  );
+  ipcMain.handle(
+    "repo:get-agent-routing-recommendation",
+    async (_event, task: string, workspaceId?: string) =>
+      getAgentRoutingRecommendation(task, workspaceId),
   );
   ipcMain.handle(
     "repo:run-assistant",

@@ -18,6 +18,16 @@ import type {
   ValidationPlan,
 } from '../contracts/workspace';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
+import type {
+  AgentCapabilityMetricTotals,
+  AgentCapabilityProfile,
+  AgentCapabilityRunMetrics,
+} from '../contracts/agent-capability-profiler';
+import {
+  applyAgentCapabilityRun,
+  buildAgentCapabilityProfile,
+  createEmptyAgentCapabilityTotals,
+} from './agent-capability-profiler';
 import { createId } from '../lib/id';
 import {
   createDefaultWorkspaceTrustContract,
@@ -163,6 +173,14 @@ export class TursoService {
           node_count INTEGER NOT NULL,
           edge_count INTEGER NOT NULL,
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_capability_profiles (
+          scope TEXT NOT NULL,
+          workspace_id TEXT NOT NULL,
+          model TEXT NOT NULL,
+          totals_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY(scope, workspace_id, model)
         )`,
         `CREATE INDEX IF NOT EXISTS idx_repo_graph_nodes_workspace_kind
           ON repo_graph_nodes(workspace_id, kind)`,
@@ -386,6 +404,39 @@ export class TursoService {
       args: ['app_settings', JSON.stringify(normalizedSettings)],
     });
     return normalizedSettings;
+  }
+
+  async recordAgentCapabilityRun(run: AgentCapabilityRunMetrics) {
+    await this.initialize();
+    await Promise.all([
+      this.upsertAgentCapabilityProfile('workspace', run.workspaceId, run),
+      this.upsertAgentCapabilityProfile('global', null, run),
+    ]);
+  }
+
+  async listAgentCapabilityProfiles(
+    workspaceId?: string,
+  ): Promise<AgentCapabilityProfile[]> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT scope, workspace_id, model, totals_json, updated_at
+            FROM agent_capability_profiles
+            WHERE scope = 'global' OR (scope = 'workspace' AND workspace_id = ?)
+            ORDER BY datetime(updated_at) DESC`,
+      args: [workspaceId ?? ''],
+    });
+
+    return result.rows.map((row) =>
+      buildAgentCapabilityProfile({
+        model: String(row.model),
+        workspaceId:
+          String(row.scope) === 'workspace' && row.workspace_id
+            ? String(row.workspace_id)
+            : null,
+        totals: safeParseAgentCapabilityTotals(String(row.totals_json)),
+        updatedAt: String(row.updated_at),
+      }),
+    );
   }
 
   // ── Workspace Profiles & Validation Runs ─────────────────────────────────
@@ -987,6 +1038,38 @@ export class TursoService {
     return raw ? String(raw) : null;
   }
 
+  private async upsertAgentCapabilityProfile(
+    scope: 'workspace' | 'global',
+    workspaceId: string | null,
+    run: AgentCapabilityRunMetrics,
+  ) {
+    const existing = await this.getClient().execute({
+      sql: `SELECT totals_json FROM agent_capability_profiles
+            WHERE scope = ? AND workspace_id = ? AND model = ? LIMIT 1`,
+      args: [scope, workspaceId ?? '', run.model],
+    });
+    const current = existing.rows[0]?.totals_json
+      ? safeParseAgentCapabilityTotals(String(existing.rows[0].totals_json))
+      : createEmptyAgentCapabilityTotals();
+    const totals = applyAgentCapabilityRun(current, run);
+
+    await this.getClient().execute({
+      sql: `INSERT INTO agent_capability_profiles
+              (scope, workspace_id, model, totals_json, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(scope, workspace_id, model) DO UPDATE SET
+              totals_json = excluded.totals_json,
+              updated_at = excluded.updated_at`,
+      args: [
+        scope,
+        workspaceId ?? '',
+        run.model,
+        JSON.stringify(totals),
+        run.completedAt,
+      ],
+    });
+  }
+
   private async ensureValidationPlanColumn() {
     try {
       await this.getClient().execute(
@@ -1108,6 +1191,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.deleteConfirmation === 'boolean'
         ? input.deleteConfirmation
         : DEFAULT_APP_SETTINGS.deleteConfirmation,
+    agentProfilerAutoSwitch:
+      typeof input.agentProfilerAutoSwitch === 'boolean'
+        ? input.agentProfilerAutoSwitch
+        : DEFAULT_APP_SETTINGS.agentProfilerAutoSwitch,
     supermemoryApiKey:
       typeof input.supermemoryApiKey === 'string'
         ? input.supermemoryApiKey
@@ -1121,6 +1208,15 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
         ? input.floatingInput
         : DEFAULT_APP_SETTINGS.floatingInput,
   };
+}
+
+function safeParseAgentCapabilityTotals(raw: string): AgentCapabilityMetricTotals {
+  try {
+    const parsed = JSON.parse(raw) as Partial<AgentCapabilityMetricTotals>;
+    return { ...createEmptyAgentCapabilityTotals(), ...parsed };
+  } catch {
+    return createEmptyAgentCapabilityTotals();
+  }
 }
 
 export const tursoService = new TursoService();

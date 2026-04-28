@@ -66,6 +66,10 @@ const repoApi: RepoInspectorApi = {
   listFiles: (limit) => ipcRenderer.invoke("repo:list-files", limit),
   searchInFiles: (query, limit) =>
     ipcRenderer.invoke("repo:search", query, limit),
+  getAgentCapabilityProfiles: (workspaceId) =>
+    ipcRenderer.invoke("repo:get-agent-capability-profiles", workspaceId),
+  getAgentRoutingRecommendation: (task, workspaceId) =>
+    ipcRenderer.invoke("repo:get-agent-routing-recommendation", task, workspaceId),
   runAssistant: (prompt, history, options, runId) =>
     ipcRenderer.invoke("repo:run-assistant", prompt, history, options, runId),
   onAssistantProgress: (listener) => {

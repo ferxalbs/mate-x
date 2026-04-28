@@ -70,6 +70,11 @@ import {
   renderTrustContractForPrompt,
 } from "./workspace-trust";
 import type { AppSettings } from "../contracts/settings";
+import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
+import {
+  buildAgentCapabilityRunMetrics,
+  recommendAgentModel,
+} from "./agent-capability-profiler";
 
 const execFileAsync = promisify(execFile);
 
@@ -489,6 +494,7 @@ export async function runAssistant(
   options?: AssistantRunOptions,
   progressReporter?: AssistantProgressReporter,
 ): Promise<AssistantExecution> {
+  const startedAt = Date.now();
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
   const workingSet = await workingSetCompiler.compile({
@@ -658,6 +664,21 @@ export async function runAssistant(
     toolExecutions,
     runbookId: resolvedOptions.runbookId,
   });
+  if (configuredModel) {
+    await tursoService.recordAgentCapabilityRun(
+      buildAgentCapabilityRunMetrics({
+        model: configuredModel,
+        workspaceId: snapshot.workspace.id,
+        prompt,
+        content,
+        events,
+        toolExecutions,
+        evidencePack,
+        startedAt,
+        completedAt: createdAt,
+      }),
+    );
+  }
   const memoryProposals = await workspaceMemoryService.summarizeRun(
     snapshot.workspace.id,
     snapshot.workspace.path,
@@ -688,6 +709,25 @@ export async function runAssistant(
       workingSet,
     },
   };
+}
+
+export async function getAgentRoutingRecommendation(
+  task: string,
+  workspaceId?: string,
+): Promise<AgentRoutingRecommendation> {
+  const snapshot = await collectRepoSnapshot(task, workspaceId);
+  const [profiles, currentModel, appSettings] = await Promise.all([
+    tursoService.listAgentCapabilityProfiles(snapshot.workspace.id),
+    tursoService.getModel(),
+    tursoService.getAppSettings(),
+  ]);
+
+  return recommendAgentModel({
+    task,
+    profiles,
+    currentModel,
+    autoSwitchAllowed: appSettings.agentProfilerAutoSwitch,
+  });
 }
 
 async function buildWorkspaceSnapshot(

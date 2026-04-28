@@ -14,6 +14,10 @@ import type { RainyModelCatalogEntry } from "./rainy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
 import type {
+  AgentCapabilityProfile,
+  AgentRoutingRecommendation,
+} from "./agent-capability-profiler";
+import type {
   SearchMatch,
   WorkspaceEntry,
   WorkspaceMemoryBootstrapContext,
@@ -54,6 +58,13 @@ export interface RepoInspectorApi {
   ) => Promise<void>;
   listFiles: (limit?: number) => Promise<string[]>;
   searchInFiles: (query: string, limit?: number) => Promise<SearchMatch[]>;
+  getAgentCapabilityProfiles: (
+    workspaceId?: string,
+  ) => Promise<AgentCapabilityProfile[]>;
+  getAgentRoutingRecommendation: (
+    task: string,
+    workspaceId?: string,
+  ) => Promise<AgentRoutingRecommendation>;
   runAssistant: (
     prompt: string,
     history: string[],
