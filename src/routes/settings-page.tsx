@@ -46,6 +46,7 @@ import {
 } from '../contracts/settings';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
+import { AgentProfilerSettings } from '../features/agent-profiler/agent-profiler-settings';
 import { cn } from '../lib/utils';
 import {
   getWorkspaceTrustContract,
@@ -67,6 +68,7 @@ type SettingsSectionId =
   | 'trust'
   | 'archive'
   | 'integrations'
+  | 'agent-profiler'
   | 'workspace-memory';
 
 function maskKey(key: string) {
@@ -103,7 +105,9 @@ export function SettingsPage() {
             ? 'archive'
             : pathname === '/settings/integrations'
               ? 'integrations'
-              : 'general';
+              : pathname === '/settings/agent-profiler'
+                ? 'agent-profiler'
+                : 'general';
 
   useEffect(() => {
     let cancelled = false;
@@ -177,7 +181,7 @@ export function SettingsPage() {
       return;
     }
 
-    if (section === 'general' || section === 'archive') {
+    if (section === 'general' || section === 'archive' || section === 'agent-profiler') {
       if (!hasAppSettingsDraft) {
         return;
       }
@@ -282,6 +286,11 @@ export function SettingsPage() {
         ...current,
         supermemoryApiKey: DEFAULT_APP_SETTINGS.supermemoryApiKey,
       }));
+    } else if (section === 'agent-profiler') {
+      setAppSettings((current) => ({
+        ...current,
+        agentProfilerAutoSwitch: DEFAULT_APP_SETTINGS.agentProfilerAutoSwitch,
+      }));
     }
     setSaveState('idle');
   }, [section, setTheme, trustContract]);
@@ -310,6 +319,9 @@ export function SettingsPage() {
       ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
       ...(appSettings.deleteConfirmation !== savedAppSettings.deleteConfirmation ? ['Delete confirmation'] : []),
       ...(appSettings.supermemoryApiKey !== savedAppSettings.supermemoryApiKey ? ['Supermemory API key'] : []),
+      ...(appSettings.agentProfilerAutoSwitch !== savedAppSettings.agentProfilerAutoSwitch
+        ? ['Agent profiler auto-switch']
+        : []),
       ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
     [
@@ -321,6 +333,7 @@ export function SettingsPage() {
       appSettings.agentTraceV2InlineEvents,
       appSettings.theme,
       appSettings.timeFormat,
+      appSettings.agentProfilerAutoSwitch,
       hasTrustDraft,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
@@ -330,6 +343,7 @@ export function SettingsPage() {
       savedAppSettings.agentTraceV2InlineEvents,
       savedAppSettings.theme,
       savedAppSettings.timeFormat,
+      savedAppSettings.agentProfilerAutoSwitch,
     ],
   );
 
@@ -715,6 +729,20 @@ export function SettingsPage() {
 
             {section === 'workspace-memory' ? <WorkspaceMemorySettings /> : null}
 
+            {section === 'agent-profiler' ? (
+              <AgentProfilerSettings
+                activeWorkspaceId={activeWorkspaceId}
+                appSettings={appSettings}
+                onSettingsChange={(settings) => {
+                  setAppSettings(settings);
+                  if (saveState === 'saved') {
+                    setSaveState('idle');
+                  }
+                }}
+                isBusy={isBusy}
+              />
+            ) : null}
+
             {section === 'integrations' ? (
               <SettingsSection title="Integrations" icon={<PuzzleIcon className="size-3.5" />}>
                 <>
@@ -810,6 +838,12 @@ export function SettingsPage() {
                         ? `Contract ${trustContract.name} v${trustContract.version} active`
                         : 'No active trust contract'}
                   </span>
+                ) : section === 'agent-profiler' ? (
+                  <span>
+                    {changedSettingLabels.length > 0
+                      ? `Pending: ${changedSettingLabels.join(', ')}`
+                      : 'Profiler recommendations are ready when model runs produce metrics'}
+                  </span>
                 ) : (
                   <span>
                     {changedSettingLabels.length > 0
@@ -838,7 +872,7 @@ export function SettingsPage() {
                     <CheckIcon className="size-4" />
                   ) : section === 'trust' ? (
                     <ShieldCheckIcon className="size-4" />
-                  ) : section === 'general' || section === 'archive' || section === 'integrations' ? (
+                  ) : section === 'general' || section === 'archive' || section === 'integrations' || section === 'agent-profiler' ? (
                     <Settings2Icon className="size-4" />
                   ) : (
                     <KeyRoundIcon className="size-4" />

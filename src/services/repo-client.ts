@@ -88,6 +88,14 @@ export function searchRepoFiles(query: string, limit?: number) {
   return getMateApi().searchInFiles(query, limit);
 }
 
+export function getAgentCapabilityProfiles(workspaceId?: string) {
+  return getMateApi().getAgentCapabilityProfiles(workspaceId);
+}
+
+export function getAgentRoutingRecommendation(task: string, workspaceId?: string) {
+  return getMateApi().getAgentRoutingRecommendation(task, workspaceId);
+}
+
 export function runAssistant(
   prompt: string,
   history: string[],
