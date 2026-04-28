@@ -6,8 +6,9 @@ import { PublisherGithub } from '@electron-forge/publisher-github';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { join } from 'node:path';
 
 const supportsIconComposerIcon = () => {
   if (process.platform !== 'darwin' || !existsSync('./assets/icon.icon')) return false;
@@ -24,10 +25,37 @@ const macIcons = supportsIconComposerIcon()
   ? ['./assets/icon.icns', './assets/icon.icon']
   : './assets/matex';
 
+const libsqlRuntimePackages = [
+  '@libsql/client',
+  '@libsql/core',
+  '@libsql/darwin-arm64',
+  '@libsql/darwin-x64',
+  '@libsql/hrana-client',
+  '@libsql/isomorphic-ws',
+  '@libsql/win32-x64-msvc',
+  '@neon-rs/load',
+  'detect-libc',
+  'js-base64',
+  'libsql',
+  'promise-limit',
+  'ws',
+];
+
+const copyPackageToBuild = (packageName: string, buildPath: string) => {
+  const source = join(process.cwd(), 'node_modules', packageName);
+  if (!existsSync(source)) return;
+
+  const target = join(buildPath, 'node_modules', packageName);
+  mkdirSync(join(target, '..'), { recursive: true });
+  cpSync(source, target, { recursive: true });
+};
+
 const config: ForgeConfig = {
   packagerConfig: {
     icon: process.platform === 'darwin' ? macIcons : './assets/icon',
-    asar: true,
+    asar: {
+      unpack: '**/*.node',
+    },
     executableName: 'mate-x',
     ...(process.env.APPLE_ID && {
       osxSign: {},
@@ -37,6 +65,13 @@ const config: ForgeConfig = {
         teamId: process.env.APPLE_TEAM_ID || '',
       },
     }),
+  },
+  hooks: {
+    packageAfterCopy: async (_config, buildPath) => {
+      for (const packageName of libsqlRuntimePackages) {
+        copyPackageToBuild(packageName, buildPath);
+      }
+    },
   },
   rebuildConfig: {},
   makers: [

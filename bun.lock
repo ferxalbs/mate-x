@@ -71,6 +71,11 @@
         "typescript": "~6.0.3",
         "vite": "^8.0.10",
       },
+      "optionalDependencies": {
+        "@libsql/darwin-arm64": "0.5.29",
+        "@libsql/darwin-x64": "0.5.29",
+        "@libsql/win32-x64-msvc": "0.5.29",
+      },
     },
   },
   "packages": {
