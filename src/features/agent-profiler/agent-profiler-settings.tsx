@@ -190,18 +190,19 @@ function ProfilerTable({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-xs">
+          <table className="w-full min-w-[940px] text-left text-xs">
             <thead className="border-b border-border/60 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Model</th>
                 <th className="px-3 py-3 font-medium">Tasks</th>
                 <th className="px-3 py-3 font-medium">Tools</th>
-                <th className="px-3 py-3 font-medium">Invalid</th>
-                <th className="px-3 py-3 font-medium">Iter</th>
-                <th className="px-3 py-3 font-medium">Patch</th>
-                <th className="px-3 py-3 font-medium">Validation</th>
-                <th className="px-3 py-3 font-medium">Halluc.</th>
-                <th className="px-3 py-3 font-medium">Tokens</th>
+                <th className="px-3 py-3 font-medium">Invalid Calls</th>
+                <th className="px-3 py-3 font-medium">Avg Iter</th>
+                <th className="px-3 py-3 font-medium">Patch Rate</th>
+                <th className="px-3 py-3 font-medium">Patch QA</th>
+                <th className="px-3 py-3 font-medium">Validation Pass</th>
+                <th className="px-3 py-3 font-medium">Hallucinations</th>
+                <th className="px-3 py-3 font-medium">Avg Tokens</th>
                 <th className="px-4 py-3 font-medium">Tags</th>
               </tr>
             </thead>
@@ -230,6 +231,12 @@ function ProfilerTable({
                   </td>
                   <td className="px-3 py-3">
                     {attemptRate(
+                      profile.patchQaPassRate,
+                      profile.totals.patchSuccessCount,
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
+                    {attemptRate(
                       profile.validationPassRate,
                       profile.totals.validationAttemptCount,
                     )}
@@ -238,7 +245,7 @@ function ProfilerTable({
                     {profile.totals.hallucinatedFilePathCount}
                   </td>
                   <td className="px-3 py-3">
-                    {Math.round(profile.averageTokensPerVerifiedTask).toLocaleString()}
+                    {Math.round(profile.averageTokensPerTask).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
