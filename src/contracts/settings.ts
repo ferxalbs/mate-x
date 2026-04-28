@@ -13,6 +13,7 @@ export interface AppSettings {
   floatingInput: boolean;
   archiveConfirmation: boolean;
   deleteConfirmation: boolean;
+  agentProfilerAutoSwitch: boolean;
   supermemoryApiKey?: string;
 }
 
@@ -27,5 +28,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   floatingInput: true,
   archiveConfirmation: false,
   deleteConfirmation: true,
+  agentProfilerAutoSwitch: false,
   supermemoryApiKey: '',
 };
