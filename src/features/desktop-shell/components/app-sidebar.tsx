@@ -414,7 +414,7 @@ export function AppSidebar({
             </SidebarGroup>
             <SidebarSeparator />
 
-            <GitSidebarSection />
+            {activeWorkspaceId ? <GitSidebarSection /> : null}
           </SidebarContent>
 
           <SidebarSeparator className="mt-0" />
