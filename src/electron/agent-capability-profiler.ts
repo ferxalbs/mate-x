@@ -48,7 +48,7 @@ const VALIDATION_FAIL_PATTERN =
 const HALLUCINATED_PATH_PATTERN =
   /\b(no such file|does not exist|file not found|path must remain within the active workspace|outside workspace|invalid path|unknown file|could not read file)\b/i;
 const INVALID_TOOL_PATTERN =
-  /\b(invalid tool|unknown tool|tool .*not found|failed to parse|invalid arguments|schema validation failed)\b/i;
+  /\b(invalid tool|unknown tool|tool .*not found|failed to parse|invalid arguments|schema validation failed|tools unsupported|does not advertise tool-calling support|cannot run repository tools)\b/i;
 const REPEATED_FAILURE_PATTERN =
   /\b(similar failure|repeated failure|same failure|retry loop|rerun-failed|prior failure|error signature)\b/i;
 
@@ -333,13 +333,19 @@ function renderExecutionText(execution: ToolExecutionRecord) {
 function scoreProfile(profile: AgentCapabilityProfile, preferredTag: AgentCapabilityTag) {
   const tagScore = profile.tags.includes(preferredTag) ? 2 : 0;
   const riskPenalty = profile.tags.includes('high_hallucination_risk') ? 1.5 : 0;
+  const noToolPenalty =
+    (preferredTag === 'good_at_patch' || preferredTag === 'good_at_tests') &&
+    profile.totals.toolCallCount === 0
+      ? 3
+      : 0;
   return (
     tagScore +
     profile.validationPassRate +
     profile.toolCallSuccessRate +
     profile.patchSuccessRate -
     profile.invalidToolCallRate -
-    riskPenalty
+    riskPenalty -
+    noToolPenalty
   );
 }
 
