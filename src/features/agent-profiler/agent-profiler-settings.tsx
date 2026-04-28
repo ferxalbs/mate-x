@@ -222,8 +222,18 @@ function ProfilerTable({
                   <td className="px-3 py-3">
                     {profile.averageIterations.toFixed(1)}
                   </td>
-                  <td className="px-3 py-3">{percent(profile.patchSuccessRate)}</td>
-                  <td className="px-3 py-3">{percent(profile.validationPassRate)}</td>
+                  <td className="px-3 py-3">
+                    {attemptRate(
+                      profile.patchSuccessRate,
+                      profile.totals.patchAttemptCount,
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
+                    {attemptRate(
+                      profile.validationPassRate,
+                      profile.totals.validationAttemptCount,
+                    )}
+                  </td>
                   <td className="px-3 py-3">
                     {profile.totals.hallucinatedFilePathCount}
                   </td>
@@ -258,4 +268,8 @@ function ProfilerTable({
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function attemptRate(value: number, attempts: number) {
+  return attempts > 0 ? percent(value) : 'N/A';
 }

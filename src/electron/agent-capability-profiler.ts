@@ -28,6 +28,30 @@ const EMPTY_TOTALS: AgentCapabilityMetricTotals = {
   verifiedElapsedMs: 0,
 };
 
+const PATCH_TOOL_NAMES = new Set(['auto_patch', 'file_editor']);
+const PATCH_EXPERIMENT_TOOL_NAMES = new Set(['mutation']);
+const VALIDATION_TOOL_NAMES = new Set([
+  'run_tests',
+  'sandbox_run',
+  'verify_validation_persistence',
+]);
+const TOOL_FAILURE_PATTERN =
+  /\b(error|failed|failure|invalid|not found|timed out|timeout|permission denied|outside workspace)\b/i;
+const PATCH_SUCCESS_PATTERN =
+  /\b(patch applied successfully|successfully edited|file .* successfully edited|mutation lifecycle complete|restored original)\b/i;
+const PATCH_FAILURE_PATTERN =
+  /\b(patch failed|error applying patch|error editing file|mutation failed|exact searchstring was not found|could not read file)\b/i;
+const VALIDATION_PASS_PATTERN =
+  /\b(status["']?\s*:\s*["']?success|exitCode["']?\s*:\s*0|exit code:?\s*0|tests? passed|passed\b|success\b|validation .*persisted|run persisted)\b/i;
+const VALIDATION_FAIL_PATTERN =
+  /\b(status["']?\s*:\s*["']?failed|exitCode["']?\s*:\s*[1-9]|exit code:?\s*[1-9]|tests? failed|failed\b|error signature|validation .*not.*persisted)\b/i;
+const HALLUCINATED_PATH_PATTERN =
+  /\b(no such file|does not exist|file not found|path must remain within the active workspace|outside workspace|invalid path|unknown file|could not read file)\b/i;
+const INVALID_TOOL_PATTERN =
+  /\b(invalid tool|unknown tool|tool .*not found|failed to parse|invalid arguments|schema validation failed)\b/i;
+const REPEATED_FAILURE_PATTERN =
+  /\b(similar failure|repeated failure|same failure|retry loop|rerun-failed|prior failure|error signature)\b/i;
+
 export function createEmptyAgentCapabilityTotals() {
   return { ...EMPTY_TOTALS };
 }
@@ -44,38 +68,29 @@ export function buildAgentCapabilityRunMetrics(params: {
   completedAt: string;
 }): AgentCapabilityRunMetrics {
   const prompt = params.prompt.toLowerCase();
-  const toolNames = params.toolExecutions.map((tool) => tool.toolName);
-  const validationAttemptCount = toolNames.filter((name) =>
-    ['run_tests', 'sandbox_run', 'verify_validation_persistence'].includes(name),
-  ).length;
-  const patchAttemptCount = toolNames.filter((name) =>
-    ['auto_patch', 'file_editor', 'mutation'].includes(name),
-  ).length;
-  const validationPassCount =
-    validationAttemptCount > 0 && params.evidencePack.status === 'complete'
-      ? 1
-      : 0;
-  const patchSuccessCount =
-    patchAttemptCount > 0 && (params.evidencePack.touchedPaths?.length ?? 0) > 0
-      ? 1
-      : 0;
-  const invalidToolCallCount = params.events.filter((event) =>
-    /invalid tool|unknown tool|tool .*not found|failed to parse/i.test(
-      `${event.label} ${event.detail}`,
-    ),
-  ).length;
-  const hallucinatedFilePathCount = params.events.filter((event) =>
-    /no such file|does not exist|outside workspace|file not found/i.test(
-      event.detail,
-    ),
-  ).length;
-  const repeatedFailureCount = params.events.filter((event) =>
-    /similar failure|repeated failure|same failure|retry/i.test(event.detail),
-  ).length;
+  const patchExecutions = params.toolExecutions.filter(isPatchExecution);
+  const validationExecutions = params.toolExecutions.filter(isValidationExecution);
+  const invalidToolCallCount = countEventMatches(params.events, INVALID_TOOL_PATTERN);
+  const hallucinatedFilePathCount =
+    countEventMatches(params.events, HALLUCINATED_PATH_PATTERN) +
+    countExecutionMatches(params.toolExecutions, HALLUCINATED_PATH_PATTERN);
+  const repeatedFailureCount =
+    countEventMatches(params.events, REPEATED_FAILURE_PATTERN) +
+    countExecutionMatches(params.toolExecutions, REPEATED_FAILURE_PATTERN);
   const toolCallCount = params.toolExecutions.length + invalidToolCallCount;
+  const successfulToolCallCount = params.toolExecutions.filter(
+    isSuccessfulToolExecution,
+  ).length;
+  const validationPassCount = validationExecutions.filter(
+    isSuccessfulValidationExecution,
+  ).length;
+  const patchSuccessCount = patchExecutions.filter((execution) =>
+    isSuccessfulPatchExecution(execution, params.evidencePack.touchedPaths ?? []),
+  ).length;
   const verified =
     params.evidencePack.status === 'complete' &&
-    (validationAttemptCount === 0 || validationPassCount > 0);
+    (validationExecutions.length === 0 ||
+      validationPassCount === validationExecutions.length);
 
   return {
     model: params.model,
@@ -84,18 +99,18 @@ export function buildAgentCapabilityRunMetrics(params: {
       ? 'review'
       : /test|spec|validation/.test(prompt)
         ? 'tests'
-        : patchAttemptCount > 0 || /fix|implement|patch|change/.test(prompt)
+        : patchExecutions.length > 0 || /fix|implement|patch|change/.test(prompt)
           ? 'patch'
           : 'general',
     toolCallCount,
-    successfulToolCallCount: Math.max(toolCallCount - invalidToolCallCount, 0),
+    successfulToolCallCount,
     invalidToolCallCount,
     iterationCount: params.events.filter((event) =>
       event.id.startsWith('step-agent-loop-'),
     ).length,
-    patchAttemptCount,
+    patchAttemptCount: patchExecutions.length,
     patchSuccessCount,
-    validationAttemptCount,
+    validationAttemptCount: validationExecutions.length,
     validationPassCount,
     hallucinatedFilePathCount,
     repeatedFailureCount,
@@ -237,6 +252,82 @@ function deriveTags(profile: Omit<AgentCapabilityProfile, 'tags'>) {
     tags.push('cheap_fast');
   }
   return tags;
+}
+
+function isPatchExecution(execution: ToolExecutionRecord) {
+  return (
+    PATCH_TOOL_NAMES.has(execution.toolName) ||
+    PATCH_EXPERIMENT_TOOL_NAMES.has(execution.toolName)
+  );
+}
+
+function isValidationExecution(execution: ToolExecutionRecord) {
+  return VALIDATION_TOOL_NAMES.has(execution.toolName);
+}
+
+function isSuccessfulToolExecution(execution: ToolExecutionRecord) {
+  if (isValidationExecution(execution)) {
+    return !isFailedValidationExecution(execution);
+  }
+  if (isPatchExecution(execution)) {
+    return !isFailedPatchExecution(execution);
+  }
+  return !TOOL_FAILURE_PATTERN.test(renderExecutionText(execution));
+}
+
+function isSuccessfulPatchExecution(
+  execution: ToolExecutionRecord,
+  touchedPaths: string[],
+) {
+  if (isFailedPatchExecution(execution)) {
+    return false;
+  }
+  if (PATCH_SUCCESS_PATTERN.test(renderExecutionText(execution))) {
+    return true;
+  }
+  const path = typeof execution.args.path === 'string' ? execution.args.path : null;
+  return path !== null && touchedPaths.some((touchedPath) => touchedPath === path);
+}
+
+function isFailedPatchExecution(execution: ToolExecutionRecord) {
+  return PATCH_FAILURE_PATTERN.test(renderExecutionText(execution));
+}
+
+function isSuccessfulValidationExecution(execution: ToolExecutionRecord) {
+  if (isFailedValidationExecution(execution)) {
+    return false;
+  }
+  const status = execution.parsedOutput?.status;
+  const exitCode = execution.parsedOutput?.exitCode;
+  return (
+    status === 'success' ||
+    exitCode === 0 ||
+    VALIDATION_PASS_PATTERN.test(renderExecutionText(execution))
+  );
+}
+
+function isFailedValidationExecution(execution: ToolExecutionRecord) {
+  const status = execution.parsedOutput?.status;
+  const exitCode = execution.parsedOutput?.exitCode;
+  return (
+    status === 'failed' ||
+    (typeof exitCode === 'number' && exitCode !== 0) ||
+    VALIDATION_FAIL_PATTERN.test(renderExecutionText(execution))
+  );
+}
+
+function countEventMatches(events: ToolEvent[], pattern: RegExp) {
+  return events.filter((event) => pattern.test(`${event.label}\n${event.detail}`))
+    .length;
+}
+
+function countExecutionMatches(executions: ToolExecutionRecord[], pattern: RegExp) {
+  return executions.filter((execution) => pattern.test(renderExecutionText(execution)))
+    .length;
+}
+
+function renderExecutionText(execution: ToolExecutionRecord) {
+  return `${execution.toolName}\n${JSON.stringify(execution.args)}\n${execution.output}\n${JSON.stringify(execution.parsedOutput ?? {})}`;
 }
 
 function scoreProfile(profile: AgentCapabilityProfile, preferredTag: AgentCapabilityTag) {
