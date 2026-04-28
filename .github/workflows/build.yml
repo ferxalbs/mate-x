@@ -59,6 +59,15 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install native libsql optional dependency
+        shell: bash
+        run: |
+          case "${{ runner.os }}-${{ matrix.arch }}" in
+            macOS-arm64) bun add --optional --exact @libsql/darwin-arm64@0.5.29 ;;
+            macOS-x64) bun add --optional --exact @libsql/darwin-x64@0.5.29 ;;
+            Windows-x64) bun add --optional --exact @libsql/win32-x64-msvc@0.5.29 ;;
+          esac
+
       - name: Show toolchain
         if: startsWith(matrix.os, 'macos-26')
         run: |
