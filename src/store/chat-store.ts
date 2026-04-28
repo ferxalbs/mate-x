@@ -46,6 +46,7 @@ interface ChatState {
   } | null;
   runStatus: RunStatus;
   isBootstrapped: boolean;
+  lastError: string | null;
   bootstrap: () => Promise<void>;
   importWorkspace: () => Promise<void>;
   activateWorkspace: (workspaceId: string) => Promise<void>;
@@ -276,6 +277,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeRun: null,
   runStatus: "idle",
   isBootstrapped: false,
+  lastError: null,
   settings: DEFAULT_APP_SETTINGS,
   setSettings: (settings) => set({ settings }),
   async bootstrap() {
@@ -283,8 +285,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    const appSettings = await getAppSettings();
-    set({ settings: appSettings });
+    try {
+      const appSettings = await getAppSettings();
+      set({ settings: appSettings, lastError: null });
+    } catch (error) {
+      set({ isBootstrapped: true, lastError: errorToMessage(error, "Unable to load app settings.") });
+      return;
+    }
 
     if (!assistantProgressUnsubscribe) {
       assistantProgressUnsubscribe = onAssistantProgress((progress) => {
@@ -337,7 +344,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
     }
 
-    const snapshot = await bootstrapWorkspaceState();
+    let snapshot: WorkspaceSnapshot;
+    try {
+      snapshot = await bootstrapWorkspaceState();
+    } catch (error) {
+      set({ isBootstrapped: true, lastError: errorToMessage(error, "Unable to restore workspace state.") });
+      return;
+    }
     const { ui } = (window as any).mate;
 
     if (ui) {
@@ -372,10 +385,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         state.activeThreadIds,
       ),
       isBootstrapped: true,
+      lastError: null,
     }));
   },
   async importWorkspace() {
-    const snapshot = await openWorkspacePicker();
+    let snapshot: WorkspaceSnapshot | null;
+    try {
+      snapshot = await openWorkspacePicker();
+    } catch (error) {
+      set({ lastError: errorToMessage(error, "Unable to import folder.") });
+      return;
+    }
     if (!snapshot) {
       return;
     }
@@ -388,10 +408,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ),
       activeRun: null,
       runStatus: "idle",
+      lastError: null,
     }));
   },
   async activateWorkspace(workspaceId) {
-    const snapshot = await setActiveWorkspace(workspaceId);
+    let snapshot: WorkspaceSnapshot;
+    try {
+      snapshot = await setActiveWorkspace(workspaceId);
+    } catch (error) {
+      set({ lastError: errorToMessage(error, "Unable to open workspace.") });
+      return;
+    }
     set((state) => ({
       ...applyWorkspaceSnapshot(
         snapshot,
@@ -400,10 +427,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ),
       activeRun: null,
       runStatus: "idle",
+      lastError: null,
     }));
   },
   async removeWorkspace(workspaceId) {
-    const snapshot = await removeWorkspace(workspaceId);
+    let snapshot: WorkspaceSnapshot;
+    try {
+      snapshot = await removeWorkspace(workspaceId);
+    } catch (error) {
+      set({ lastError: errorToMessage(error, "Unable to remove workspace.") });
+      return;
+    }
 
     set((state) => {
       const nextThreadsByWorkspace = { ...state.threadsByWorkspace };
@@ -419,6 +453,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ),
         activeRun: null,
         runStatus: "idle",
+        lastError: null,
       };
     });
   },
@@ -877,3 +912,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return restoredPrompt;
   },
 }));
+
+function errorToMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}

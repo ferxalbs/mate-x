@@ -22,6 +22,8 @@ export function HomePage() {
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
   const activeThreadIds = useChatStore((state) => state.activeThreadIds);
   const runStatus = useChatStore((state) => state.runStatus);
+  const isBootstrapped = useChatStore((state) => state.isBootstrapped);
+  const lastError = useChatStore((state) => state.lastError);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
   const createThread = useChatStore((state) => state.createThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
@@ -128,7 +130,11 @@ export function HomePage() {
           canUndoLastTurn={canUndoLastTurn}
           hasActiveThread={selectedThread !== null}
           isRunning={runStatus === 'running'}
+          isBootstrapped={isBootstrapped}
+          lastError={lastError}
           messages={selectedThread?.messages ?? []}
+          onCreateThread={createThread}
+          onImportWorkspace={importWorkspace}
           onUndoLastTurn={undoLastTurn}
           onVisibilityChange={setShowScrollButton}
           scrollerRef={messageScrollerRef}

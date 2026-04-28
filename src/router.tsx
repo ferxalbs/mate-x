@@ -44,6 +44,7 @@ const routeTree = rootRoute.addChildren([indexRoute, runsRoute, settingsRoute, s
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  defaultNotFoundComponent: HomePage,
 });
 
 declare module '@tanstack/react-router' {

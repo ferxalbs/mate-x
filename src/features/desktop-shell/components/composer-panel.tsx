@@ -94,6 +94,7 @@ export function ComposerPanel({
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
+  const hasWorkspace = Boolean(workspace);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const settings = useChatStore((state) => state.settings);
 
@@ -223,6 +224,11 @@ export function ComposerPanel({
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
     if ((!nextPrompt && attachments.length === 0) || isRunning || isModelSaving) {
+      return;
+    }
+
+    if (!hasWorkspace) {
+      setCapabilityNotice('Import a folder before starting a review.');
       return;
     }
 
@@ -418,7 +424,11 @@ export function ComposerPanel({
                   void handleSubmit();
                 }
               }}
-              placeholder="Ask anything, @tag files/folders, or use / to show available commands"
+              placeholder={
+                hasWorkspace
+                  ? 'Ask anything, @tag files/folders, or use / to show available commands'
+                  : 'Import a folder to start a repository review'
+              }
               value={prompt}
             />
             {attachments.length > 0 ? (
@@ -463,6 +473,7 @@ export function ComposerPanel({
               <button
                 aria-label="Attach files"
                 className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent"
+                disabled={!hasWorkspace}
                 onClick={() => fileInputRef.current?.click()}
                 title="Attach files"
                 type="button"
@@ -607,7 +618,7 @@ export function ComposerPanel({
                   'size-9 rounded-full border-0 bg-[#2454ff] p-0 text-white shadow-none hover:bg-[#3462ff]',
                   isRunning ? 'opacity-90' : '',
                 )}
-                disabled={isRunning || isModelSaving}
+                disabled={isRunning || isModelSaving || !hasWorkspace}
                 onClick={handleSubmit}
                 size="icon-sm"
                 variant="outline"

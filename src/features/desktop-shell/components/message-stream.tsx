@@ -6,7 +6,9 @@ import {
   ChevronRightIcon,
   CopyIcon,
   FileTextIcon,
+  FolderPlusIcon,
   LoaderCircle,
+  MessageSquarePlusIcon,
 } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
@@ -26,6 +28,10 @@ interface MessageStreamProps {
   traceV2InlineEvents: boolean;
   workspace: WorkspaceSummary | null;
   hasActiveThread: boolean;
+  isBootstrapped: boolean;
+  lastError: string | null;
+  onCreateThread: () => void;
+  onImportWorkspace: () => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   onVisibilityChange: (visible: boolean) => void;
   scrollerRef: RefObject<HTMLDivElement | null>;
@@ -39,6 +45,10 @@ export function MessageStream({
   traceV2InlineEvents,
   workspace,
   hasActiveThread,
+  isBootstrapped,
+  lastError,
+  onCreateThread,
+  onImportWorkspace,
   onUndoLastTurn,
   onVisibilityChange,
   scrollerRef,
@@ -94,7 +104,14 @@ export function MessageStream({
       )}>
         <div className="flex flex-1 flex-col gap-7">
           {messages.length === 0 ? (
-            <EmptyState hasActiveThread={hasActiveThread} workspace={workspace} />
+            <EmptyState
+              hasActiveThread={hasActiveThread}
+              isBootstrapped={isBootstrapped}
+              lastError={lastError}
+              onCreateThread={onCreateThread}
+              onImportWorkspace={onImportWorkspace}
+              workspace={workspace}
+            />
           ) : null}
 
           {messages.map((message, index) => (
@@ -118,21 +135,72 @@ export function MessageStream({
 
 function EmptyState({
   hasActiveThread,
+  isBootstrapped,
+  lastError,
+  onCreateThread,
+  onImportWorkspace,
   workspace,
 }: {
   hasActiveThread: boolean;
+  isBootstrapped: boolean;
+  lastError: string | null;
+  onCreateThread: () => void;
+  onImportWorkspace: () => Promise<void>;
   workspace: WorkspaceSummary | null;
 }) {
-  const title = hasActiveThread ? 'Start a review to continue' : 'Pick a thread to continue';
-  const description = hasActiveThread
-    ? `Ask MaTE X to inspect ${workspace?.name ?? 'your repository'} and stream the results here.`
-    : 'Select an existing thread or create a new one to get started.';
+  const hasWorkspace = Boolean(workspace);
+  const title = lastError
+    ? 'Something needs attention'
+    : !isBootstrapped
+      ? 'Loading workspace'
+      : hasWorkspace
+    ? hasActiveThread
+      ? 'Start a security review'
+      : 'Create a thread to continue'
+    : 'Import a folder to begin';
+  const description = lastError
+    ? lastError
+    : !isBootstrapped
+      ? 'MaTE X is restoring your previous session and checking local workspace state.'
+      : hasWorkspace
+    ? `Ask MaTE X to inspect ${workspace?.name ?? 'your repository'}, explain risk, or review a change.`
+    : 'Choose a local repository. MaTE X will load source control, create a chat thread, and prepare review context.';
+  const steps = hasWorkspace
+    ? ['Ask for a review.', 'Inspect findings.', 'Open Mission Log.']
+    : ['Import a repository.', 'Configure Rainy key.', 'Ask for a review.'];
 
   return (
     <div className="flex flex-1 items-center justify-center px-4">
-      <div className="w-full max-w-[470px] rounded-[28px] border border-border/55 bg-[var(--surface-soft)]/72 px-10 py-11 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+      <div className="w-full max-w-[520px] rounded-lg border border-border/55 bg-[var(--surface-soft)]/72 px-8 py-8 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
         <p className="text-[15px] font-semibold tracking-[-0.02em] text-foreground/94">{title}</p>
         <p className="mt-3 text-[13px] leading-6 text-muted-foreground">{description}</p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void onImportWorkspace()}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <FolderPlusIcon className="size-4" />
+            Import Folder
+          </button>
+          {hasWorkspace ? (
+            <button
+              type="button"
+              onClick={onCreateThread}
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <MessageSquarePlusIcon className="size-4" />
+              New Thread
+            </button>
+          ) : null}
+        </div>
+        <div className="mt-6 grid gap-2 text-[12px] leading-5 text-muted-foreground sm:grid-cols-3">
+          {steps.map((step, index) => (
+            <p key={step} className="rounded-md border border-border/55 bg-background/45 p-3">
+              {index + 1}. {step}
+            </p>
+          ))}
+        </div>
       </div>
     </div>
   );
