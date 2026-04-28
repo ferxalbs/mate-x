@@ -18,6 +18,8 @@ const EMPTY_TOTALS: AgentCapabilityMetricTotals = {
   iterationCount: 0,
   patchAttemptCount: 0,
   patchSuccessCount: 0,
+  patchQaPassCount: 0,
+  patchQaIssueCount: 0,
   validationAttemptCount: 0,
   validationPassCount: 0,
   hallucinatedFilePathCount: 0,
@@ -51,6 +53,8 @@ const INVALID_TOOL_PATTERN =
   /\b(invalid tool|unknown tool|tool .*not found|failed to parse|invalid arguments|schema validation failed|tools unsupported|does not advertise tool-calling support|cannot run repository tools)\b/i;
 const REPEATED_FAILURE_PATTERN =
   /\b(similar failure|repeated failure|same failure|retry loop|rerun-failed|prior failure|error signature)\b/i;
+const PATCH_QA_ISSUE_PATTERN =
+  /\b(content different|exact searchstring was not found|high impact|high blast radius|allowHighImpact|validation executed:\s*estática|static validation|no validation|typecheck only|visual|cosmetic)\b/i;
 
 export function createEmptyAgentCapabilityTotals() {
   return { ...EMPTY_TOTALS };
@@ -87,6 +91,13 @@ export function buildAgentCapabilityRunMetrics(params: {
   const patchSuccessCount = patchExecutions.filter((execution) =>
     isSuccessfulPatchExecution(execution, params.evidencePack.touchedPaths ?? []),
   ).length;
+  const patchQaIssueCount = countPatchQaIssues({
+    content: params.content,
+    patchExecutions,
+    validationExecutions,
+  });
+  const patchQaPassCount =
+    patchSuccessCount > 0 && patchQaIssueCount === 0 ? patchSuccessCount : 0;
   const verified =
     params.evidencePack.status === 'complete' &&
     (validationExecutions.length === 0 ||
@@ -110,6 +121,8 @@ export function buildAgentCapabilityRunMetrics(params: {
     ).length,
     patchAttemptCount: patchExecutions.length,
     patchSuccessCount,
+    patchQaPassCount,
+    patchQaIssueCount,
     validationAttemptCount: validationExecutions.length,
     validationPassCount,
     hallucinatedFilePathCount,
@@ -137,6 +150,8 @@ export function applyAgentCapabilityRun(
     iterationCount: totals.iterationCount + run.iterationCount,
     patchAttemptCount: totals.patchAttemptCount + run.patchAttemptCount,
     patchSuccessCount: totals.patchSuccessCount + run.patchSuccessCount,
+    patchQaPassCount: totals.patchQaPassCount + run.patchQaPassCount,
+    patchQaIssueCount: totals.patchQaIssueCount + run.patchQaIssueCount,
     validationAttemptCount:
       totals.validationAttemptCount + run.validationAttemptCount,
     validationPassCount: totals.validationPassCount + run.validationPassCount,
@@ -167,10 +182,12 @@ export function buildAgentCapabilityProfile(params: {
     invalidToolCallRate: rate(totals.invalidToolCallCount, totals.toolCallCount),
     averageIterations: rate(totals.iterationCount, totals.taskCount),
     patchSuccessRate: rate(totals.patchSuccessCount, totals.patchAttemptCount),
+    patchQaPassRate: rate(totals.patchQaPassCount, totals.patchSuccessCount),
     validationPassRate: rate(
       totals.validationPassCount,
       totals.validationAttemptCount,
     ),
+    averageTokensPerTask: rate(totals.tokenCount, totals.taskCount),
     averageTokensPerVerifiedTask: rate(
       totals.verifiedTokenCount,
       totals.verifiedTaskCount,
@@ -233,7 +250,11 @@ function deriveTags(profile: Omit<AgentCapabilityProfile, 'tags'>) {
   if (profile.toolCallSuccessRate >= 0.9 && profile.totals.taskCount >= 2) {
     tags.push('good_at_review');
   }
-  if (profile.patchSuccessRate >= 0.75 && profile.totals.patchAttemptCount >= 2) {
+  if (
+    profile.patchSuccessRate >= 0.75 &&
+    profile.patchQaPassRate >= 0.75 &&
+    profile.totals.patchAttemptCount >= 2
+  ) {
     tags.push('good_at_patch');
   }
   if (
@@ -245,10 +266,10 @@ function deriveTags(profile: Omit<AgentCapabilityProfile, 'tags'>) {
   if (profile.totals.hallucinatedFilePathCount > profile.totals.taskCount / 3) {
     tags.push('high_hallucination_risk');
   }
-  if (profile.averageTokensPerVerifiedTask > 12000 && profile.validationPassRate >= 0.8) {
+  if (profile.averageTokensPerTask > 12000 && profile.validationPassRate >= 0.8) {
     tags.push('expensive_but_reliable');
   }
-  if (profile.averageTokensPerVerifiedTask > 0 && profile.averageTokensPerVerifiedTask < 6000) {
+  if (profile.averageTokensPerTask > 0 && profile.averageTokensPerTask < 6000) {
     tags.push('cheap_fast');
   }
   return tags;
@@ -316,6 +337,33 @@ function isFailedValidationExecution(execution: ToolExecutionRecord) {
   );
 }
 
+function countPatchQaIssues({
+  content,
+  patchExecutions,
+  validationExecutions,
+}: {
+  content: string;
+  patchExecutions: ToolExecutionRecord[];
+  validationExecutions: ToolExecutionRecord[];
+}) {
+  if (patchExecutions.length === 0) {
+    return 0;
+  }
+
+  const failedPatchAttempts = patchExecutions.filter(isFailedPatchExecution).length;
+  const suspiciousPatchOutputs = countExecutionMatches(
+    patchExecutions,
+    PATCH_QA_ISSUE_PATTERN,
+  );
+  const claimedValidationWithoutValidationTool =
+    validationExecutions.length === 0 &&
+    /\b(validación ejecutada|validation executed|approved|aprobado)\b/i.test(content)
+      ? 1
+      : 0;
+
+  return failedPatchAttempts + suspiciousPatchOutputs + claimedValidationWithoutValidationTool;
+}
+
 function countEventMatches(events: ToolEvent[], pattern: RegExp) {
   return events.filter((event) => pattern.test(`${event.label}\n${event.detail}`))
     .length;
@@ -338,6 +386,7 @@ function scoreProfile(profile: AgentCapabilityProfile, preferredTag: AgentCapabi
     profile.totals.toolCallCount === 0
       ? 3
       : 0;
+  const qaPenalty = profile.totals.patchQaIssueCount > 0 ? 1 : 0;
   return (
     tagScore +
     profile.validationPassRate +
@@ -345,7 +394,8 @@ function scoreProfile(profile: AgentCapabilityProfile, preferredTag: AgentCapabi
     profile.patchSuccessRate -
     profile.invalidToolCallRate -
     riskPenalty -
-    noToolPenalty
+    noToolPenalty -
+    qaPenalty
   );
 }
 

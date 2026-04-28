@@ -15,6 +15,8 @@ export interface AgentCapabilityMetricTotals {
   iterationCount: number;
   patchAttemptCount: number;
   patchSuccessCount: number;
+  patchQaPassCount: number;
+  patchQaIssueCount: number;
   validationAttemptCount: number;
   validationPassCount: number;
   hallucinatedFilePathCount: number;
@@ -33,7 +35,9 @@ export interface AgentCapabilityProfile {
   invalidToolCallRate: number;
   averageIterations: number;
   patchSuccessRate: number;
+  patchQaPassRate: number;
   validationPassRate: number;
+  averageTokensPerTask: number;
   averageTokensPerVerifiedTask: number;
   averageTimePerVerifiedTaskMs: number;
   tags: AgentCapabilityTag[];
@@ -50,6 +54,8 @@ export interface AgentCapabilityRunMetrics {
   iterationCount: number;
   patchAttemptCount: number;
   patchSuccessCount: number;
+  patchQaPassCount: number;
+  patchQaIssueCount: number;
   validationAttemptCount: number;
   validationPassCount: number;
   hallucinatedFilePathCount: number;

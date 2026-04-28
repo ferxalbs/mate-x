@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.28 (1) [Agent Capability Profiler]
+
+- Added a local Agent Capability Profiler that records per-model behavior metrics globally and per workspace after real assistant runs.
+- Added profiler metrics for tool call success rate, invalid tool calls, average iterations, patch success, patch QA pass rate, validation pass rate, hallucinated path count, repeated failures, average tokens per task, and average time per verified task.
+- Added dynamic model capability tags including `good_at_review`, `good_at_patch`, `good_at_tests`, `high_hallucination_risk`, `expensive_but_reliable`, and `cheap_fast`.
+- Added routing recommendations that explain which model is recommended for a task based on observed local evidence, while keeping auto-switch disabled unless the user explicitly enables it.
+- Added `/settings/agent-profiler` with workspace/global model behavior tables, recommendation input, advisory auto-switch toggle, and clearer metric labels.
+- Hardened profiler classification so patch, validation, hallucinated path, repeated failure, and unsupported-tool outcomes are derived from actual tool events and outputs instead of broad final-answer claims.
+- Blocked execution-intent patch or validation runs for models that do not advertise tool-calling support, so chat-only models are not treated as viable patch/test agents.
+- Added Patch QA scoring so models that technically edit files but show suspicious patch behavior, failed edit attempts, static-validation claims, or weak validation evidence are not rewarded as strong patch models.
+- Fixed profiler token display to show average tokens per task instead of only average tokens per verified task, preventing non-verified but real runs from showing `0` tokens.
+- Verified with `bun run typecheck` and `bun run lint`; `bun run build` is not defined in this repository.
+
 ## Unreleased - 2026.04.27 (3) [Repro Harness and Configurable Sandbox]
 
 - Added a required Reproduce stage to patch-focused agent workflows so suspicious behavior is reproduced, validated, or statically proven before remediation.
