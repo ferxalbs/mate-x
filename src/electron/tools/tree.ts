@@ -20,7 +20,7 @@ export const projectTreeTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = args.path || ".";
     const maxDepth = args.depth || 2;
     const startDir = join(workspacePath, relativePath);

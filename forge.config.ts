@@ -6,9 +6,27 @@ import { PublisherGithub } from '@electron-forge/publisher-github';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+
+const supportsIconComposerIcon = () => {
+  if (process.platform !== 'darwin' || !existsSync('./assets/icon.icon')) return false;
+
+  try {
+    const version = execSync('sw_vers -productVersion', { encoding: 'utf8' }).trim();
+    return Number(version.split('.')[0]) >= 26;
+  } catch {
+    return false;
+  }
+};
+
+const macIcons = supportsIconComposerIcon()
+  ? ['./assets/icon.icns', './assets/icon.icon']
+  : './assets/matex';
 
 const config: ForgeConfig = {
   packagerConfig: {
+    icon: process.platform === 'darwin' ? macIcons : './assets/icon',
     asar: true,
     executableName: 'mate-x',
     ...(process.env.APPLE_ID && {
@@ -24,6 +42,7 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       name: 'mate_x',
+      setupIcon: './assets/icon.ico',
       ...(process.env.WINDOWS_CERTIFICATE_PATH && {
         certificateFile: process.env.WINDOWS_CERTIFICATE_PATH,
         certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
@@ -32,6 +51,7 @@ const config: ForgeConfig = {
     new MakerZIP({}, ['darwin']),
     new MakerDMG({
       format: 'ULFO',
+      icon: './assets/icon.icns',
     }),
   ],
   publishers: [

@@ -15,7 +15,7 @@ export const envSafetyTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = args.path || '.';
     const targetDir = join(workspacePath, relativePath);
 

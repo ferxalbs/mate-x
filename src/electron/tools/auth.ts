@@ -19,7 +19,7 @@ export const accessControlAuditTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const { path = '.' } = args;
     
     try {

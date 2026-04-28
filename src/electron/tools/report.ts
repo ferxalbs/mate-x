@@ -17,7 +17,7 @@ export const securityReportTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath, settings }) {
+  async execute(args, { workspacePath, settings: _settings }) {
     const { scope = '.' } = args;
     
     // This tool is complex as it would ideally call other tools.
