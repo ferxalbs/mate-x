@@ -66,7 +66,8 @@ ${configFiles.length > 0 ? `- Detected ${configFiles.length} container configura
 [RECOMMENDED NEXT STEPS]
 1. Use 'secret_scan' for a deep-dive into the identified secret-bearing files.
 2. Use 'sql_audit' to check database interaction logic.
-3. Use 'auth_audit' to verify your route protection middleware is consistent.
+3. Use 'security_path_trace' to connect user-controlled sources to concrete sinks before patching.
+4. Use 'auth_audit' to verify your route protection middleware is consistent.
 `;
     } catch (error) {
       return `Error generating security report: ${(error as Error).message}`;
