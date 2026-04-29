@@ -144,14 +144,14 @@ export interface WorkspaceTrustContract {
 }
 
 export interface WorkspaceSnapshot {
-  activeWorkspaceId: string;
+  activeWorkspaceId: string | null;
   workspaces: WorkspaceEntry[];
-  workspace: WorkspaceSummary;
-  trustContract: WorkspaceTrustContract;
+  workspace: WorkspaceSummary | null;
+  trustContract: WorkspaceTrustContract | null;
   files: string[];
   signals: SearchMatch[];
   threads: Conversation[];
-  activeThreadId: string;
+  activeThreadId: string | null;
 }
 
 export type WorkspaceMemoryFileKind = "memory" | "guardrails" | "workstate";

@@ -343,28 +343,25 @@ const RUNBOOK_DEFINITIONS: Record<
     ],
   },
 };
-const TOOL_BATCH_MAX_CONCURRENCY = 6;
+const TOOL_BATCH_MAX_CONCURRENCY = 8;
 const TOOL_EXECUTION_TIMEOUT_MS = 20_000;
 const MAX_TOOL_OUTPUT_CHARS = 80_000;
 const SANDBOX_RUN_ALLOWED_TIMEOUT_SECONDS = new Set([30, 45, 60, 120, 240]);
 const TOOL_TIMEOUT_GRACE_MS = 5_000;
 
 export async function bootstrapWorkspaceState(): Promise<WorkspaceSnapshot> {
-  await tursoService.ensureSeedWorkspace(process.cwd());
   const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
   return buildWorkspaceSnapshot(activeWorkspaceId);
 }
 
 export async function getWorkspaceEntries(): Promise<WorkspaceEntry[]> {
-  await tursoService.ensureSeedWorkspace(process.cwd());
-  return tursoService.getWorkspaces();
+  return getValidWorkspaces();
 }
 
 export async function setActiveWorkspace(
   workspaceId: string,
 ): Promise<WorkspaceSnapshot> {
-  await tursoService.ensureSeedWorkspace(process.cwd());
-  const workspaces = await tursoService.getWorkspaces();
+  const workspaces = await getValidWorkspaces();
   if (!workspaces.some((workspace) => workspace.id === workspaceId)) {
     throw new Error("Workspace not found.");
   }
@@ -388,16 +385,11 @@ export async function addWorkspace(
 export async function removeWorkspace(
   workspaceId: string,
 ): Promise<WorkspaceSnapshot> {
-  await tursoService.ensureSeedWorkspace(process.cwd());
   await tursoService.removeWorkspace(workspaceId);
-  const remaining = await tursoService.getWorkspaces();
+  const remaining = await getValidWorkspaces();
 
   if (remaining.length === 0) {
-    const seededWorkspaceId = await tursoService.upsertWorkspace(
-      process.cwd(),
-      true,
-    );
-    return buildWorkspaceSnapshot(seededWorkspaceId);
+    return buildEmptyWorkspaceSnapshot();
   }
 
   const activeWorkspaceId =
@@ -736,10 +728,14 @@ export async function getAgentRoutingRecommendation(
 async function buildWorkspaceSnapshot(
   activeWorkspaceId: string | null,
 ): Promise<WorkspaceSnapshot> {
-  await tursoService.ensureSeedWorkspace(process.cwd());
-  const workspaces = await tursoService.getWorkspaces();
+  const workspaces = await getValidWorkspaces();
+  if (workspaces.length === 0) {
+    return buildEmptyWorkspaceSnapshot();
+  }
   const resolvedWorkspaceId =
-    activeWorkspaceId ?? (await tursoService.getActiveWorkspaceId());
+    workspaces.some((workspace) => workspace.id === activeWorkspaceId)
+      ? activeWorkspaceId
+      : workspaces[0].id;
 
   if (!resolvedWorkspaceId) {
     throw new Error("No workspace is available.");
@@ -769,6 +765,48 @@ async function buildWorkspaceSnapshot(
     threads: session.threads,
     activeThreadId: session.activeThreadId,
   };
+}
+
+function buildEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
+  return {
+    activeWorkspaceId: null,
+    workspaces: [],
+    workspace: null,
+    trustContract: null,
+    files: [],
+    signals: [],
+    threads: [],
+    activeThreadId: null,
+  };
+}
+
+async function getValidWorkspaces(): Promise<WorkspaceEntry[]> {
+  const workspaces = await tursoService.getWorkspaces();
+  const valid: WorkspaceEntry[] = [];
+
+  for (const workspace of workspaces) {
+    if (await isValidWorkspacePath(workspace.path)) {
+      valid.push(workspace);
+      continue;
+    }
+
+    await tursoService.removeWorkspace(workspace.id);
+  }
+
+  return valid;
+}
+
+async function isValidWorkspacePath(workspacePath: string) {
+  if (!workspacePath || path.parse(workspacePath).root === workspacePath) {
+    return false;
+  }
+
+  try {
+    await access(workspacePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function resolveWorkspace(
