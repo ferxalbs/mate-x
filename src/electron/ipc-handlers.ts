@@ -44,7 +44,6 @@ function normalizeRainyApiKey(apiKey: string) {
 }
 
 async function resolveActiveWorkspacePath() {
-  await tursoService.ensureSeedWorkspace(process.cwd());
   const workspaces = await tursoService.getWorkspaces();
   const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
   const activeWorkspace =
@@ -59,7 +58,6 @@ async function resolveActiveWorkspacePath() {
 }
 
 async function resolveActiveWorkspace() {
-  await tursoService.ensureSeedWorkspace(process.cwd());
   const workspaces = await tursoService.getWorkspaces();
   const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
   const activeWorkspace =

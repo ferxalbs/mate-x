@@ -81,6 +81,18 @@ function applyWorkspaceSnapshot(
   activeThreadIds: Record<string, string>,
 ) {
   const nextWorkspaceId = snapshot.activeWorkspaceId;
+  if (!nextWorkspaceId) {
+    return {
+      workspaces: snapshot.workspaces,
+      workspace: null,
+      trustContract: null,
+      activeWorkspaceId: null,
+      repoFiles: [],
+      repoSignals: [],
+      threadsByWorkspace,
+      activeThreadIds,
+    };
+  }
   const snapshotThreads =
     snapshot.threads.length > 0
       ? snapshot.threads
