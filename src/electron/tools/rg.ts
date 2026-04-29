@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { ripgrepPath } from '../rg-binary';
 
 const execFileAsync = promisify(execFile);
 
@@ -72,7 +73,7 @@ export const rgTool: Tool = {
     commandArgs.push('--', query, ...scopedPaths);
 
     try {
-      const { stdout } = await execFileAsync('rg', commandArgs, {
+      const { stdout } = await execFileAsync(ripgrepPath, commandArgs, {
         cwd: workspacePath,
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer
       });
