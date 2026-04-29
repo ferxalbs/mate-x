@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
+import path from "node:path";
+import { access, readdir, readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
@@ -26,6 +27,7 @@ import { toolService } from "./tool-service";
 import { tursoService } from "./turso-service";
 import { failureMemoryEngine } from "./failure-memory-engine";
 import { repoGraphService } from "./repo-graph-service";
+import { ripgrepPath } from "./rg-binary";
 import {
   renderWorkingSetForPrompt,
   workingSetCompiler,
@@ -835,15 +837,23 @@ async function listWorkspaceFiles(
   workspacePath: string,
   limit = 120,
 ): Promise<string[]> {
-  const { stdout } = await execFileAsync("rg", ["--files", "."], {
-    cwd: workspacePath,
-  });
+  try {
+    const { stdout } = await execFileAsync(ripgrepPath, ["--files", "."], {
+      cwd: workspacePath,
+    });
 
-  return stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, limit);
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, limit);
+  } catch (error) {
+    if (!isMissingExecutable(error)) {
+      throw error;
+    }
+
+    return listWorkspaceFilesFallback(workspacePath, limit);
+  }
 }
 
 async function searchWorkspaceFiles(
@@ -858,7 +868,7 @@ async function searchWorkspaceFiles(
   const args = ["-n", "--no-heading", "--color", "never", "-S", query, "."];
 
   try {
-    const { stdout } = await execFileAsync("rg", args, { cwd: workspacePath });
+    const { stdout } = await execFileAsync(ripgrepPath, args, { cwd: workspacePath });
 
     return stdout
       .split("\n")
@@ -880,19 +890,97 @@ async function searchWorkspaceFiles(
         .slice(0, limit);
     }
 
-    throw error;
+    if (!isMissingExecutable(error)) {
+      throw error;
+    }
+
+    return searchWorkspaceFilesFallback(workspacePath, query, limit);
   }
 }
 
 async function readFileMaybe(workspacePath: string, relativePath: string) {
   try {
-    const { stdout } = await execFileAsync("cat", [relativePath], {
-      cwd: workspacePath,
-    });
-    return stdout;
+    return await readFile(path.join(workspacePath, relativePath), "utf8");
   } catch {
     return null;
   }
+}
+
+const FALLBACK_IGNORED_DIRS = new Set([
+  ".git",
+  "coverage",
+  "dist",
+  "node_modules",
+  "out",
+  "target",
+]);
+
+async function listWorkspaceFilesFallback(
+  workspacePath: string,
+  limit: number,
+): Promise<string[]> {
+  const files: string[] = [];
+  const queue = ["."];
+
+  while (queue.length > 0 && files.length < limit) {
+    const current = queue.shift()!;
+    const entries = await readdir(path.join(workspacePath, current), {
+      withFileTypes: true,
+    }).catch(() => []);
+
+    for (const entry of entries) {
+      if (files.length >= limit) break;
+      if (entry.isSymbolicLink()) continue;
+
+      const relativePath = current === "." ? entry.name : path.join(current, entry.name);
+
+      if (entry.isDirectory()) {
+        if (!FALLBACK_IGNORED_DIRS.has(entry.name)) {
+          queue.push(relativePath);
+        }
+        continue;
+      }
+
+      if (entry.isFile()) {
+        files.push(relativePath);
+      }
+    }
+  }
+
+  return files;
+}
+
+async function searchWorkspaceFilesFallback(
+  workspacePath: string,
+  query: string,
+  limit: number,
+): Promise<SearchMatch[]> {
+  const matches: SearchMatch[] = [];
+  const files = await listWorkspaceFilesFallback(workspacePath, 500);
+
+  for (const file of files) {
+    if (matches.length >= limit) break;
+    const content = await readFileMaybe(workspacePath, file);
+    if (!content || content.includes("\u0000")) continue;
+
+    content.split(/\r?\n/).some((line, index) => {
+      if (line.includes(query)) {
+        matches.push({ file, line: index + 1, text: line.trim() });
+      }
+      return matches.length >= limit;
+    });
+  }
+
+  return matches;
+}
+
+function isMissingExecutable(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "ENOENT"
+  );
 }
 
 function deriveStack(files: string[], packageJson: string | null) {
