@@ -57,6 +57,7 @@ import { credsValidatorTool } from "./tools/creds_validator";
 import { prototypePollutionFuzzerTool } from "./tools/prototype_pollution_fuzzer";
 import { localNetworkReconTool } from "./tools/local_network_recon";
 import { repoGraphTool } from "./tools/repo_graph";
+import { securityPathTraceTool } from "./tools/security_path_trace";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -141,6 +142,7 @@ export class ToolService {
     this.registerTool(prototypePollutionFuzzerTool);
     this.registerTool(localNetworkReconTool);
     this.registerTool(repoGraphTool);
+    this.registerTool(securityPathTraceTool);
     // Future tools can be registered here or dynamically loaded
   }
 
