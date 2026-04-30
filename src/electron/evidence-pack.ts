@@ -1,5 +1,6 @@
 import { GitService } from "./git-service";
 import { extractEvidenceFinalization } from "./evidence-finalization";
+import { computeVerifiedTaskScore } from "./verified-task-score";
 
 import type { EvidencePack, ToolEvent } from "../contracts/chat";
 
@@ -179,10 +180,29 @@ export async function buildEvidencePack(params: {
       diffSummary: `Git status ${changeCode || "??"}`,
     };
   });
+  const reproduction = finalization.reproduction;
+  const unresolvedRisks =
+    (finalization.unresolvedRisks?.length ?? 0) > 0
+      ? finalization.unresolvedRisks
+      : warnings.length > 0
+        ? [
+            "One or more tool steps failed; review warnings before trusting results.",
+          ]
+        : undefined;
+  const verifiedTaskScore = computeVerifiedTaskScore({
+    workspacePath,
+    evidenceStatus: status,
+    filesModified,
+    toolExecutions,
+    reproduction,
+    warnings,
+    unresolvedRisks,
+  });
 
   return {
     status,
     verdict,
+    verifiedTaskScore,
     filesModified,
     commandsExecuted,
     toolsUsed: Array.from(toolUsageCount.entries()).map(([name, count]) => ({
@@ -190,7 +210,7 @@ export async function buildEvidencePack(params: {
       count,
     })),
     testsRun,
-    reproduction: finalization.reproduction,
+    reproduction,
     stages: finalization.stages?.length ? finalization.stages : undefined,
     checks: finalization.checks?.length
       ? finalization.checks
@@ -205,14 +225,7 @@ export async function buildEvidencePack(params: {
         : undefined,
     stopConditionTriggered: finalization.stopConditionTriggered,
     warnings: warnings.length > 0 ? warnings : undefined,
-    unresolvedRisks:
-      (finalization.unresolvedRisks?.length ?? 0) > 0
-        ? finalization.unresolvedRisks
-        : warnings.length > 0
-          ? [
-              "One or more tool steps failed; review warnings before trusting results.",
-            ]
-          : undefined,
+    unresolvedRisks,
     recommendation: finalization.recommendation,
     touchedPaths: filesModified.map((file) => file.path),
     generatedAt: new Date().toISOString(),
