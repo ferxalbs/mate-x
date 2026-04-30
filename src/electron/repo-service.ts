@@ -565,6 +565,7 @@ export async function runAssistant(
   let thought = "";
   let content = "";
   let toolExecutions: ToolExecutionRecord[] = [];
+  let handledDirectTool = false;
 
   const emitProgress = (nextContent?: string, nextThought?: string) => {
     if (!progressReporter) {
@@ -591,7 +592,38 @@ export async function runAssistant(
 
   emitProgress();
 
-  if (apiKey && configuredModel && rainyHostAllowed) {
+  const directSecurityTraceArgs = parseDirectSecurityPathTraceArgs(prompt);
+  if (directSecurityTraceArgs) {
+    const result = await executeAgentToolCall({
+      toolCall: {
+        id: "direct-security-path-trace",
+        name: "security_path_trace",
+        arguments: JSON.stringify(directSecurityTraceArgs),
+      },
+      toolIndex: 0,
+      iteration: 0,
+      snapshot,
+      events,
+      emitProgress,
+      appSettings,
+      runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+    });
+
+    content = result.content;
+    toolExecutions = [result.toolExecution];
+    events.push({
+      id: "step-direct-security-path-trace",
+      label: "Direct tool response",
+      detail: "Ran security_path_trace locally because the prompt explicitly requested it.",
+      status: "done",
+    });
+    emitProgress(content);
+    handledDirectTool = true;
+  }
+
+  if (handledDirectTool) {
+    // Continue to evidence pack and memory persistence.
+  } else if (apiKey && configuredModel && rainyHostAllowed) {
     try {
       const result = await requestRainyAgenticResponse({
         apiKey,
@@ -1571,6 +1603,22 @@ function buildFallbackResponse(
     "Next move: inspect the matched files and update the active workspace flow before making changes.",
     errorLine,
   ].join("\n");
+}
+
+function parseDirectSecurityPathTraceArgs(prompt: string) {
+  if (!/\bsecurity_path_trace\b/.test(prompt)) {
+    return null;
+  }
+
+  const scope = prompt.match(/\bScope:\s*([^\n]+)/i)?.[1]?.trim() || ".";
+  const maxFiles = Number(prompt.match(/\bMax files:\s*(\d+)/i)?.[1] ?? 250);
+  const maxTraces = Number(prompt.match(/\bMax traces:\s*(\d+)/i)?.[1] ?? 12);
+
+  return {
+    scope,
+    maxFiles: Number.isFinite(maxFiles) ? maxFiles : 250,
+    maxTraces: Number.isFinite(maxTraces) ? maxTraces : 12,
+  };
 }
 
 function truncateToolOutput(content: string) {

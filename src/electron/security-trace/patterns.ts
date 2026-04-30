@@ -14,7 +14,7 @@ export const SOURCE_PATTERNS: SecurityPattern[] = [
   {
     id: 'ipc-renderer',
     label: 'IPC renderer call',
-    regex: /\b(ipcRenderer\.(invoke|send)|window\.[A-Za-z0-9_]+Api\.[A-Za-z0-9_]+\()/,
+    regex: /\b(ipcRenderer\.(invoke|send)|ipcMain\.handle|window\.[A-Za-z0-9_]+Api\.[A-Za-z0-9_]+\()/,
   },
   {
     id: 'http-handler',
@@ -72,10 +72,9 @@ export const SINK_PATTERNS: SecurityPattern[] = [
   {
     id: 'secret-usage',
     label: 'token/secret usage',
-    regex: /\b(Authorization|Bearer|token|secret|apiKey|api_key|accessToken|process\.env\.[A-Z0-9_]+)\b/,
+    regex: /(headers\.Authorization\s*=|["']Authorization["']\s*:|Bearer\s+\$\{|accessToken\s*:\s*[^;,)\n]+|process\.env\.[A-Z0-9_]*(TOKEN|SECRET|KEY)[A-Z0-9_]*)/,
   },
 ];
 
 export const TRANSFORM_REGEX =
   /\b(const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)|([A-Za-z_$][\w$]*)\s*=\s*(.+)|return\s+(.+)/;
-
