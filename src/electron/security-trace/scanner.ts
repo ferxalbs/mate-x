@@ -88,15 +88,37 @@ function extractAssignedName(text: string) {
 }
 
 function extractSecurityArgs(patternId: string, text: string) {
+  if (patternId === 'ipc-renderer' && text.includes('ipcMain.handle')) {
+    const params = text.match(/\(\s*[^,]+,\s*async\s*\(([^)]*)\)/)?.[1] ?? '';
+    return params
+      .split(',')
+      .map((part) => part.trim().match(/^([A-Za-z_$][\w$]*)/)?.[1] ?? '')
+      .filter((part) => part && !part.startsWith('_') && !GENERIC_SYMBOLS.has(part));
+  }
+
   if (patternId === 'file-read') {
     const assigned = extractAssignedName(text);
     return assigned ? [assigned] : [];
+  }
+
+  if (patternId === 'env') {
+    const assigned = extractAssignedName(text);
+    return assigned ? [assigned] : (text.match(/\bprocess\.env\.[A-Z0-9_]+/) ?? []);
+  }
+
+  if (patternId === 'external-api') {
+    const assigned = extractAssignedName(text);
+    return assigned ? [assigned] : extractCallArgs(text);
   }
 
   if (patternId === 'file-write') {
     const match = text.match(/\b(?:writeFile|writeFileSync|appendFile|appendFileSync)\s*\((.*)\)/);
     const args = match?.[1]?.split(',').map((part) => part.trim()) ?? [];
     return (args[1]?.match(/\b[A-Za-z_$][\w$]*\b/g) ?? []).filter((arg) => !GENERIC_SYMBOLS.has(arg));
+  }
+
+  if (patternId === 'secret-usage') {
+    return (text.match(/\b[A-Za-z_$][\w$]*\b/g) ?? []).filter((arg) => !['Authorization', 'Bearer', 'headers'].includes(arg));
   }
 
   return extractCallArgs(text);
@@ -198,7 +220,10 @@ function sharedSymbols(left: string[], right: string[]) {
 function buildNode(kind: TraceNode['kind'], candidate: Candidate): TraceNode {
   return {
     kind,
-    label: candidate.label,
+    label:
+      candidate.patternId === 'ipc-renderer' && candidate.evidence.snippet.includes('ipcMain.handle')
+        ? 'IPC renderer input'
+        : candidate.label,
     evidence: candidate.evidence,
     symbols: candidate.symbols.slice(0, 12),
   };
@@ -227,6 +252,7 @@ function findTransforms(lines: LineRecord[], source: Candidate, sink: Candidate,
 
 function rankTrace(source: Candidate, sink: Candidate, transforms: Candidate[], importLinked: boolean) {
   const shared = sharedDataSymbols(source, sink).length;
+  if (source.channel && source.channel === sink.channel && transforms.length > 0) return 'high';
   if (source.evidence.file === sink.evidence.file && shared > 0 && transforms.length > 0) return 'high';
   if (source.evidence.file === sink.evidence.file && shared > 0) return 'medium';
   if (importLinked && shared > 2 && transforms.length > 0) return 'medium';
@@ -235,22 +261,22 @@ function rankTrace(source: Candidate, sink: Candidate, transforms: Candidate[], 
 }
 
 function patchSuggestion(sink: Candidate) {
-  if (/exec|spawn|shell/.test(sink.label)) {
+  if (sink.patternId === 'shell-exec') {
     return 'Use argument arrays, allowlist commands, reject shell metacharacters, and keep user-controlled data out of command strings.';
   }
-  if (/DOM|HTML/.test(sink.label)) {
+  if (sink.patternId === 'dom-injection') {
     return 'Render text content or sanitize with a vetted HTML sanitizer before this sink.';
   }
-  if (/database/.test(sink.label)) {
+  if (sink.patternId === 'db-query') {
     return 'Use parameterized queries or query builder bindings; never concatenate traced input into SQL.';
   }
-  if (/file write/.test(sink.label)) {
+  if (sink.patternId === 'file-write') {
     return 'Normalize path, enforce workspace allowlist, and reject traversal before writing.';
   }
-  if (/dynamic code/.test(sink.label)) {
+  if (sink.patternId === 'dynamic-code') {
     return 'Remove dynamic code execution; replace with explicit dispatch or sandboxed interpreter with strict inputs.';
   }
-  if (/network/.test(sink.label)) {
+  if (sink.patternId === 'network-request') {
     return 'Validate destination URL against an allowlist and strip attacker-controlled headers or tokens.';
   }
   return 'Validate, narrow, or redact traced data before this security-sensitive sink.';
@@ -331,7 +357,8 @@ function isPlausibleFlow(source: Candidate, sink: Candidate, shared: string[], s
   }
 
   if (source.label === 'external API response' && sink.label === 'network request') {
-    return false;
+    const sourceArgs = source.args.length > 0 ? source.args : source.symbols;
+    return sameFileForward && sourceArgs.some((arg) => new RegExp(`\\b${arg}\\.`).test(sink.evidence.snippet));
   }
 
   if (source.label === 'external API response' && sink.label === 'token/secret usage' && source.evidence.file !== sink.evidence.file) {
@@ -339,27 +366,32 @@ function isPlausibleFlow(source: Candidate, sink: Candidate, shared: string[], s
   }
 
   if (source.label === 'environment variable' && sink.label === 'token/secret usage') {
-    return shared.some((symbol) => symbol.startsWith('process.env.'));
+    const sourceEnv = source.symbols.find((symbol) => symbol.startsWith('process.env.'));
+    const sinkEnv = sink.symbols.find((symbol) => symbol.startsWith('process.env.'));
+    if (sourceEnv && sinkEnv) return sourceEnv === sinkEnv;
+
+    return source.args.some((arg) => sink.args.includes(arg));
   }
 
-  if (source.label === 'IPC renderer call' && source.channel !== sink.channel) {
+  if (source.label === 'IPC renderer input' && source.evidence.file === sink.evidence.file && !source.evidence.snippet.includes('ipcMain.handle')) {
     return false;
   }
 
-  if (source.label === 'IPC renderer call' && source.evidence.file === sink.evidence.file) {
-    return false;
+  if (source.label === 'IPC renderer input') {
+    if (!source.channel || !sink.channel) return false;
+    if (source.channel !== sink.channel) return false;
   }
 
   if (source.channel && sink.channel && source.channel !== sink.channel) {
     return false;
   }
 
-  if (sameFileForward) {
-    return shared.length > 0;
+  if (source.channel && sink.channel && source.channel === sink.channel) {
+    return shared.length > 0 || sink.args.length > 0;
   }
 
-  if (source.channel && source.channel === sink.channel) {
-    return shared.length > 0 || sink.args.length > 0;
+  if (sameFileForward) {
+    return shared.length > 0;
   }
 
   if (importLinked) {
@@ -393,13 +425,16 @@ export async function traceSecurityPaths(workspacePath: string, options: TraceOp
   for (const line of lines) {
     for (const pattern of SOURCE_PATTERNS) {
       if (pattern.regex.test(line.text)) {
+        const args = extractSecurityArgs(pattern.id, line.text);
+        if (pattern.id === 'external-api' && args.length === 0) continue;
+
         sources.push({
           patternId: pattern.id,
           label: pattern.label,
           evidence: evidence(line.file, line.line, line.text),
           symbols: extractSymbols(line.text),
           channel: extractIpcChannel(line.text) ?? line.channel,
-          args: extractSecurityArgs(pattern.id, line.text),
+          args,
           pathArgs: extractPathArgs(pattern.id, line.text),
         });
       }

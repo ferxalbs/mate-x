@@ -13,7 +13,7 @@ export const SOURCE_PATTERNS: SecurityPattern[] = [
   },
   {
     id: 'ipc-renderer',
-    label: 'IPC renderer call',
+    label: 'IPC renderer input',
     regex: /\b(ipcRenderer\.(invoke|send)|ipcMain\.handle|window\.[A-Za-z0-9_]+Api\.[A-Za-z0-9_]+\()/,
   },
   {
