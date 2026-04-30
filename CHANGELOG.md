@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.30 (2) [Verified Task Score]
+
+- Added machine-computed Verified Task Score to Evidence Packs with `score`, `status`, `missingEvidence`, and per-signal evidence rows.
+- Scored task reliability from runtime evidence only, including inspected files, run-scoped changes, patch tools, validation planning/execution/pass state, reproduction evidence, failure context, unresolved risks, claimed file existence, and claimed command execution.
+- Attached Verified Task Score to Mission Log summaries, run metrics, Evidence Cards, and benchmark-exported Evidence Pack payloads.
+- Prevented pre-existing dirty workspace files from being counted as files changed by the current run while preserving actual patch-tool touched paths.
+- Refined Mission Log event labels so read-only runs show scope discovery, file inspection, runbook selection, and agent steps instead of false patch or verification labels.
+- Fixed landing-page lint issues caused by duplicate/body `lucide-react` imports.
+- Verified with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.04.30 (1) [Security Path Trace Precision]
 
 - Added a Security Path Trace engine for TypeScript, JavaScript, and Electron repositories that finds precise source-to-sink flows across user input, IPC, HTTP handlers, environment variables, file reads, external API responses, shell execution, file writes, database queries, DOM injection, dynamic code execution, network requests, and token usage.

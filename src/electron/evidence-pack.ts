@@ -112,8 +112,16 @@ export async function buildEvidencePack(params: {
   content: string;
   toolExecutions: ToolExecutionRecord[];
   runbookId?: string;
+  initialStatusLines?: string[];
 }): Promise<EvidencePack> {
-  const { workspacePath, events, content, toolExecutions, runbookId } = params;
+  const {
+    workspacePath,
+    events,
+    content,
+    toolExecutions,
+    runbookId,
+    initialStatusLines,
+  } = params;
   const status = classifyEvidenceStatus(events);
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
@@ -167,7 +175,16 @@ export async function buildEvidencePack(params: {
     });
 
   const gitStatus = await new GitService(workspacePath).getStatusSafe();
-  const filesModified = (gitStatus?.files ?? []).map((file) => {
+  const initialDirtyPaths = new Set(
+    (initialStatusLines ?? []).map((line) => line.slice(3).trim()),
+  );
+  const toolTouchedPaths = new Set(extractToolTouchedPaths(toolExecutions));
+  const filesModified = (gitStatus?.files ?? [])
+    .filter(
+      (file) =>
+        !initialDirtyPaths.has(file.path) || toolTouchedPaths.has(file.path),
+    )
+    .map((file) => {
     const path = file.path;
     const changeCode = `${file.index}${file.working_dir}`;
     let changeType: "modified" | "created" | "deleted" | "renamed" = "modified";
@@ -230,4 +247,18 @@ export async function buildEvidencePack(params: {
     touchedPaths: filesModified.map((file) => file.path),
     generatedAt: new Date().toISOString(),
   };
+}
+
+function extractToolTouchedPaths(toolExecutions: ToolExecutionRecord[]) {
+  const patchToolNames = new Set(["apply_patch", "str_replace_editor", "edit_file", "write_file"]);
+
+  return [
+    ...new Set(
+      toolExecutions
+        .filter((execution) => patchToolNames.has(execution.toolName))
+        .flatMap((execution) => Object.values(execution.args))
+        .filter((value): value is string => typeof value === "string")
+        .filter((value) => value.startsWith("src/") || value.startsWith("/")),
+    ),
+  ];
 }
