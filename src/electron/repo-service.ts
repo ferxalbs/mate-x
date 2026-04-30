@@ -690,6 +690,7 @@ export async function runAssistant(
     content,
     toolExecutions,
     runbookId: resolvedOptions.runbookId,
+    initialStatusLines: snapshot.statusLines,
   });
   if (configuredModel) {
     await tursoService.recordAgentCapabilityRun(

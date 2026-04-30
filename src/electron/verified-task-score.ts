@@ -48,8 +48,8 @@ const labels: Record<SignalId, string> = {
   claimed_commands_ran: "Claimed commands ran",
 };
 
-const fileInspectionTools = new Set(["read_file", "grep_search", "file_search"]);
-const patchTools = new Set(["apply_patch", "str_replace_editor", "edit_file"]);
+const fileInspectionTools = new Set(["read", "read_file", "grep_search", "file_search"]);
+const patchTools = new Set(["apply_patch", "str_replace_editor", "edit_file", "write_file"]);
 const validationSelectionTools = new Set(["plan_validation", "detect_workspace_capabilities"]);
 const validationExecutionTools = new Set(["run_tests", "sandbox_run"]);
 const failureContextTools = new Set(["find_similar_failures", "record_failure"]);
@@ -83,8 +83,8 @@ export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
   const signals: VerifiedTaskScoreSignal[] = [
     signal(
       "target_files_identified",
-      modifiedPaths.length > 0,
-      summarizeList(modifiedPaths),
+      modifiedPaths.length > 0 || inspectedPaths.length > 0,
+      summarizeList(modifiedPaths.length > 0 ? modifiedPaths : inspectedPaths),
     ),
     signal(
       "relevant_files_inspected",

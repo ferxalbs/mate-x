@@ -117,11 +117,17 @@ function getEventIcon(event: ToolEvent) {
 }
 
 function getSemanticEventLabel(event: ToolEvent) {
+  const label = event.label.toLowerCase();
   const text = `${event.label} ${event.detail}`.toLowerCase();
   if (event.status === "error") return "Policy pause";
+  if (label.includes("resolve runbook")) return "Runbook selected";
+  if (label.includes("agent pass")) return "Agent step";
   if (text.includes("retry")) return "Scoped retry";
-  if (text.includes("patch") || text.includes("diff") || text.includes("file")) return "Patch attempt";
-  if (text.includes("check") || text.includes("test") || text.includes("lint") || text.includes("typecheck")) {
+  if (label.includes("patch") || label.includes("diff")) return "Patch attempt";
+  if (text.includes("working set") || text.includes("inventory") || text.includes("search")) return "Scope discovery";
+  if (label.includes("executing read")) return "File inspection";
+  if (text.includes("file")) return "File inspection";
+  if (label.includes("check") || label.includes("test") || label.includes("lint") || label.includes("typecheck")) {
     return event.status === "done" ? "Verification pass" : "Verification run";
   }
   if (text.includes("tool batch") || text.includes("tool") || text.includes("command")) return "Tool batch";
@@ -306,7 +312,7 @@ export function RunsPage() {
               <Metric label="Status" value={selectedStatus ?? "unknown"} />
               <Metric label="Events" value={String(selectedRun.events.length)} />
               <Metric
-                label="Files"
+                label="Changed"
                 value={String(selectedRun.assistantMessage.evidencePack?.filesModified?.length ?? 0)}
               />
               <Metric
