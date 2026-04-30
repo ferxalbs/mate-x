@@ -155,9 +155,43 @@ export interface EvidencePackCheckResult {
   summary?: string;
 }
 
+export type VerifiedTaskScoreStatus =
+  | "verified"
+  | "partially_verified"
+  | "unverified"
+  | "failed";
+
+export interface VerifiedTaskScoreSignal {
+  id:
+    | "target_files_identified"
+    | "relevant_files_inspected"
+    | "patch_applied"
+    | "validation_command_selected"
+    | "validation_command_executed"
+    | "validation_passed"
+    | "reproduction_exists"
+    | "failure_context_recorded"
+    | "unresolved_risks_absent"
+    | "claimed_files_exist"
+    | "claimed_commands_ran";
+  label: string;
+  satisfied: boolean;
+  weight: number;
+  evidence?: string;
+}
+
+export interface VerifiedTaskScore {
+  score: number;
+  status: VerifiedTaskScoreStatus;
+  missingEvidence: string[];
+  signals: VerifiedTaskScoreSignal[];
+  generatedAt: string;
+}
+
 export interface EvidencePack {
   status: EvidencePackStatus;
   verdict: EvidencePackVerdict;
+  verifiedTaskScore?: VerifiedTaskScore;
   filesModified?: EvidencePackFileChange[];
   commandsExecuted?: EvidencePackCommand[];
   toolsUsed?: EvidencePackToolUsage[];

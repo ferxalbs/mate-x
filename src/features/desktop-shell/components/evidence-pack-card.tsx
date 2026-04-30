@@ -13,11 +13,27 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
         <span className="rounded-md border border-border/60 bg-background/45 px-2 py-1 text-[10px] text-muted-foreground">
           Confidence: {evidencePack.verdict.confidence}
         </span>
+        {evidencePack.verifiedTaskScore ? (
+          <span className="rounded-md border border-border/60 bg-background/45 px-2 py-1 text-[10px] text-muted-foreground">
+            Verified Task Score: {evidencePack.verifiedTaskScore.score}/100 · {evidencePack.verifiedTaskScore.status}
+          </span>
+        ) : null}
       </div>
 
       <p className="text-[12px] text-foreground/90">
         <span className="font-medium">{evidencePack.verdict.label}:</span> {evidencePack.verdict.summary}
       </p>
+
+      {evidencePack.verifiedTaskScore ? (
+        <div className="mt-2 rounded-lg border border-border/45 bg-background/35 px-2.5 py-2 text-[11px] text-muted-foreground">
+          <p className="font-medium text-foreground/85">Missing evidence</p>
+          <p className="mt-1">
+            {evidencePack.verifiedTaskScore.missingEvidence.length > 0
+              ? evidencePack.verifiedTaskScore.missingEvidence.slice(0, 6).join(", ")
+              : "None"}
+          </p>
+        </div>
+      ) : null}
 
       {evidencePack.filesModified && evidencePack.filesModified.length > 0 ? (
         <div className="mt-2 space-y-1">

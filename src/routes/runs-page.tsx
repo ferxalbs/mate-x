@@ -199,6 +199,10 @@ function parseCommandEvidence(run: MissionRun): CommandEvidence[] {
 }
 
 function summarizeResult(message: ChatMessage) {
+  if (message.evidencePack?.verifiedTaskScore) {
+    const score = message.evidencePack.verifiedTaskScore;
+    return `${message.evidencePack.verdict.summary} Verified Task Score: ${score.score}/100 (${score.status}).`;
+  }
   if (message.evidencePack?.verdict.summary) return message.evidencePack.verdict.summary;
   const content = message.content.trim();
   if (content.length === 0) return "Assistant turn completed without final synthesis text.";
@@ -298,7 +302,7 @@ export function RunsPage() {
           </aside>
 
           <main className="min-h-0 overflow-y-auto px-6 py-5">
-            <div className="mb-5 grid grid-cols-4 gap-2">
+            <div className="mb-5 grid grid-cols-5 gap-2">
               <Metric label="Status" value={selectedStatus ?? "unknown"} />
               <Metric label="Events" value={String(selectedRun.events.length)} />
               <Metric
@@ -308,6 +312,14 @@ export function RunsPage() {
               <Metric
                 label="Checks"
                 value={String(selectedRun.assistantMessage.evidencePack?.checks?.length ?? 0)}
+              />
+              <Metric
+                label="Verified Score"
+                value={
+                  selectedRun.assistantMessage.evidencePack?.verifiedTaskScore
+                    ? `${selectedRun.assistantMessage.evidencePack.verifiedTaskScore.score}/100`
+                    : "n/a"
+                }
               />
             </div>
 
