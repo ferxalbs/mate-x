@@ -1,9 +1,13 @@
 import type { SecurityTrace, TraceNode } from './types';
 
+function formatSnippet(snippet: string) {
+  return snippet.replace(/`/g, '\\`');
+}
+
 function formatNode(node: TraceNode) {
-  return `${node.kind}: ${node.label}
-  ${node.evidence.file}:${node.evidence.line}
-  ${node.evidence.snippet}`;
+  return `- ${node.kind}: ${node.label}
+  - ${node.evidence.file}:${node.evidence.line}
+  - \`${formatSnippet(node.evidence.snippet)}\``;
 }
 
 export function formatSecurityTraces(traces: SecurityTrace[]) {
@@ -17,14 +21,14 @@ export function formatSecurityTraces(traces: SecurityTrace[]) {
     ...traces.map((trace) => {
       const path = trace.path.map((node) => node.label).join(' -> ');
       return `
-[${trace.confidence.toUpperCase()}] ${trace.finding.title}
-Path: ${path}
+## [${trace.confidence.toUpperCase()}] ${trace.finding.title}
 
+Path: ${path}
 ${trace.path.map(formatNode).join('\n\n')}
 
 Finding: ${trace.finding.summary}
+
 Patch suggestion: ${trace.patchSuggestion}`;
     }),
   ].join('\n');
 }
-

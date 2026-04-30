@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.04.30 (1) [Security Path Trace Precision]
+
+- Added a Security Path Trace engine for TypeScript, JavaScript, and Electron repositories that finds precise source-to-sink flows across user input, IPC, HTTP handlers, environment variables, file reads, external API responses, shell execution, file writes, database queries, DOM injection, dynamic code execution, network requests, and token usage.
+- Added modular trace scanning, pattern matching, confidence scoring, Markdown report formatting, and patch suggestions under the Electron security trace module.
+- Integrated `security_path_trace` as an agent tool and bypassed remote Rainy orchestration for explicit local trace requests so repository-local analysis does not fail on model/API serialization errors.
+- Hardened precision rules to suppress noisy false positives by requiring matching IPC channels, real shared data symbols, same-path read/write filtering, exact environment variable or assigned-token flow, and response-driven external API cascades.
+- Escaped backticks in reported snippets so template literals render correctly in trace reports.
+- Removed intentional vulnerable trace fixtures after validation so production scans do not report planted test pollution.
+- Verified with targeted ESLint on tracer files and `bun run typecheck`.
+
 ## Unreleased - 2026.04.28 (1) [Agent Capability Profiler]
 
 - Added a local Agent Capability Profiler that records per-model behavior metrics globally and per workspace after real assistant runs.
