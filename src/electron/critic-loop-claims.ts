@@ -20,6 +20,7 @@ export async function evaluateCriticLoopClaims(input: CriticLoopClaimInput) {
     ...evaluatePatchClaims(input),
     ...evaluateToolEvidenceClaims(input),
     ...evaluateConsistencyClaims(input),
+    ...evaluateCompletionClaims(input.finalContent),
   ];
   warnings.push(...(await evaluateFileExistenceClaims(input)));
   return uniqueWarnings(warnings);
@@ -190,6 +191,22 @@ function evaluateConsistencyClaims(input: CriticLoopClaimInput) {
   if (input.validationStatus === "passed" && claimsCommandsNone(content)) {
     warnings.push(
       "Commands cannot be listed as none when verifier recorded passed validation.",
+    );
+  }
+
+  return warnings;
+}
+
+function evaluateCompletionClaims(content: string) {
+  const warnings: string[] = [];
+  const asksForAnotherPass = /\b(next audit pass|re-run|rerun|retry|run another pass|follow-up audit|future audit)\b/i.test(
+    content,
+  );
+  const hasCurrentVerdict = /\b(verdict|severity|confidence)\s*:/i.test(content);
+
+  if (asksForAnotherPass && !hasCurrentVerdict) {
+    warnings.push(
+      "Final answer defers to another audit pass without giving a current verdict.",
     );
   }
 

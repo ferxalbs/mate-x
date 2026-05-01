@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.01 (1) [Critic Loop Verification]
+
+- Added `critic_loop` as an assistant execution mode for high-impact tasks, with primary answer, critic review, forced revision on major issues, and deterministic verifier checks before final output.
+- Added a Critic Loop verifier module that checks validation status, live modified files from `git status --short`, claimed file existence, recorded command execution, and final-answer consistency.
+- Added claim-level verification for inflated security severity, conditional exploitability, unsupported high-confidence claims, missing-file claims, ENOENT claims contradicted by real workspace files, and fix requests that produced no patch.
+- Added consistency guardrails so final answers cannot claim `Warnings: None` while unresolved risks remain, cannot mix blocked/failed validation with passed validation, and cannot say `merge-ready` while CI is still pending.
+- Added completion guardrails for read-only audits that defer to a future audit pass without giving a current verdict.
+- Added a compact execution-mode selector to the composer so users can choose Build, Plan, or Critic Loop instead of always submitting Build mode.
+- Hardened Critic Loop prompts so the critic reviews existing context without tools by default and downgrades unsupported High/Critical claims unless exploitability or full data flow is proven.
+- Verified with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.04.30 (2) [Verified Task Score]
 
 - Added machine-computed Verified Task Score to Evidence Packs with `score`, `status`, `missingEvidence`, and per-signal evidence rows.
