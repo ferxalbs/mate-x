@@ -19,6 +19,7 @@ export async function evaluateCriticLoopClaims(input: CriticLoopClaimInput) {
     ...evaluateSeverityClaims(input.finalContent),
     ...evaluatePatchClaims(input),
     ...evaluateToolEvidenceClaims(input),
+    ...evaluateConsistencyClaims(input),
   ];
   warnings.push(...(await evaluateFileExistenceClaims(input)));
   return uniqueWarnings(warnings);
@@ -68,6 +69,20 @@ function evaluateValidationClaims(input: CriticLoopClaimInput) {
     warnings.push(
       `No-risk claim is not supported because validation status is ${input.validationStatus}.`,
     );
+  }
+
+  if (input.validationStatus !== "passed") {
+    if (claimsSafeToMerge(input.finalContent)) {
+      warnings.push(
+        `Safe-to-merge claim is not supported because validation status is ${input.validationStatus}.`,
+      );
+    }
+
+    if (claimsHighConfidence(input.finalContent) && !claimsStaticProofScope(input.finalContent)) {
+      warnings.push(
+        `High confidence is not supported because validation status is ${input.validationStatus}.`,
+      );
+    }
   }
 
   return warnings;
@@ -147,6 +162,40 @@ function evaluateToolEvidenceClaims(input: CriticLoopClaimInput) {
   return warnings;
 }
 
+function evaluateConsistencyClaims(input: CriticLoopClaimInput) {
+  const warnings: string[] = [];
+  const content = input.finalContent;
+
+  if (claimsWarningsNone(content) && hasNonEmptyUnresolvedRisks(content)) {
+    warnings.push('Warnings cannot be "None" while unresolved risks remain.');
+  }
+
+  if (/\bmerge-ready\b/i.test(content) && /\bpending ci\b/i.test(content)) {
+    warnings.push(
+      'Merge-ready claim is too strong while CI is pending; use "ready for CI review" instead.',
+    );
+  }
+
+  if (
+    /\b(validation status|validation)\s*:\s*(failed|blocked|not_run|not run|unconfirmed)\b/i.test(
+      content,
+    ) &&
+    claimsValidationPassed(content)
+  ) {
+    warnings.push(
+      "Validation result is inconsistent: final answer claims both failed/blocked and passed validation.",
+    );
+  }
+
+  if (input.validationStatus === "passed" && claimsCommandsNone(content)) {
+    warnings.push(
+      "Commands cannot be listed as none when verifier recorded passed validation.",
+    );
+  }
+
+  return warnings;
+}
+
 async function evaluateFileExistenceClaims(input: CriticLoopClaimInput) {
   const warnings: string[] = [];
   const claimedMissingFiles = Array.from(
@@ -177,9 +226,56 @@ function claimsProductionReady(content: string) {
   );
 }
 
+function claimsSafeToMerge(content: string) {
+  return /\b(safe to merge|merge is safe|merge-ready|ready to merge)\b/i.test(
+    content,
+  );
+}
+
+function claimsHighConfidence(content: string) {
+  return /\b(confidence\s*:\s*high|high confidence)\b/i.test(content);
+}
+
+function claimsStaticProofScope(content: string) {
+  return /\b(static proof only|confidence is scoped to static proof|grounded in static proof only)\b/i.test(
+    content,
+  );
+}
+
 function claimsNoUnresolvedRisk(content: string) {
   return /\b(unresolved risks?:\s*none|no unresolved risks|none identified)\b/i.test(
     content,
+  );
+}
+
+function claimsWarningsNone(content: string) {
+  return /\bwarnings\s*:\s*(?:\*\*)?\s*(none|no warnings|n\/a)\b/i.test(
+    content,
+  );
+}
+
+function claimsCommandsNone(content: string) {
+  return /\bcommands run\s*:\s*(?:\*\*)?\s*(none|no commands|n\/a)\b/i.test(
+    content,
+  );
+}
+
+function claimsValidationPassed(content: string) {
+  return /\b(validation (?:passed|complete|confirmed)|status\s*:\s*passed|exit\s*0)\b/i.test(
+    content,
+  );
+}
+
+function hasNonEmptyUnresolvedRisks(content: string) {
+  const match = content.match(
+    /\bunresolved risks?\s*:\s*([\s\S]*?)(?:\n\s*\n|\n\s*\*\*final recommendation|\n\s*final recommendation|$)/i,
+  );
+  if (!match) {
+    return false;
+  }
+
+  return !/^\s*(none|no unresolved risks|n\/a|none identified)\s*\.?\s*$/i.test(
+    match[1].replace(/[*`-]/g, "").trim(),
   );
 }
 
