@@ -154,7 +154,12 @@ export function registerIpcHandlers() {
   });
   ipcMain.handle(
     "repo:open-workspace-path",
-    async (_event, target: "folder" | "vscode" | "terminal") => {
+    async (_event, target: string) => {
+      const validTargets = new Set(["folder", "vscode", "terminal"]);
+      if (!validTargets.has(target)) {
+        throw new Error(`Invalid target: ${target}. Must be one of: folder, vscode, terminal.`);
+      }
+
       const workspacePath = await resolveActiveWorkspacePath();
       const encodedWorkspacePath = encodeURI(workspacePath);
 
