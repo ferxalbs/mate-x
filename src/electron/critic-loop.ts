@@ -5,9 +5,15 @@ import { promisify } from "node:util";
 
 import type { ToolExecutionRecord } from "./evidence-pack";
 import type { ToolEvent } from "../contracts/chat";
+import {
+  evaluateCriticLoopClaims,
+  extractClaimedChangedFiles,
+  extractRepoPaths,
+} from "./critic-loop-claims";
 
 export interface CriticLoopInput {
   workspacePath: string;
+  prompt: string;
   finalContent: string;
   statusLines: string[];
   events: ToolEvent[];
@@ -35,6 +41,9 @@ export function buildCriticReviewPrompt(input: CriticLoopInput) {
     "You are Pass 2 critic in MaTE X critic_loop mode.",
     "Review existing context only. Do not ask for tools. Do not invent evidence.",
     "Check for unsupported claims, risky changes, missing tests, broad edits, and hallucinated evidence.",
+    "Downgrade High/Critical security claims unless concrete exploitability or full data flow is proven.",
+    "Flag any claimed missing file or failed access that is not backed by tool output.",
+    "If user requested a fix but no patch is evidenced, mark major_issue.",
     "Return exact format:",
     "CRITIC_VERDICT: ok | major_issue",
     "CRITIC_NOTES:",
@@ -88,7 +97,15 @@ export async function verifyCriticLoop(
   );
   const commandsRan = extractCommandsRan(input.toolExecutions);
   const validationStatus = resolveValidationStatus(input.events, input.toolExecutions);
-  const warnings: string[] = [];
+  const warnings: string[] = await evaluateCriticLoopClaims({
+    workspacePath: input.workspacePath,
+    prompt: input.prompt,
+    finalContent: input.finalContent,
+    modifiedFiles,
+    commandsRan,
+    validationStatus,
+    toolExecutions: input.toolExecutions,
+  });
 
   if (validationStatus !== "passed") {
     warnings.push(`Validation status: ${validationStatus}.`);
@@ -100,28 +117,6 @@ export async function verifyCriticLoop(
       `Claimed file(s) not found: ${missingClaimedFiles
         .map((file) => file.path)
         .join(", ")}.`,
-    );
-  }
-
-  if (input.finalContent.match(/\b(command|ran|executed|validated|tested)\b/i)) {
-    const hasValidationOrCommand = commandsRan.length > 0 || input.toolExecutions.length > 0;
-    if (!hasValidationOrCommand) {
-      warnings.push("Final answer claims command or validation evidence, but no tool execution is recorded.");
-    }
-  }
-
-  if (claimsProductionReady(input.finalContent)) {
-    const missingChecks = requiredProductionChecks(commandsRan);
-    if (missingChecks.length > 0) {
-      warnings.push(
-        `Production-ready claim is not fully supported; missing validation: ${missingChecks.join(", ")}.`,
-      );
-    }
-  }
-
-  if (claimsNoUnresolvedRisk(input.finalContent) && validationStatus !== "passed") {
-    warnings.push(
-      `No-risk claim is not supported because validation status is ${validationStatus}.`,
     );
   }
 
@@ -183,8 +178,7 @@ function extractModifiedFiles(statusLines: string[]) {
 }
 
 function extractClaimedFiles(content: string) {
-  const matches = content.matchAll(/(?:^|[\s(["'`])((?:src|app|lib|test|tests|packages|electron|contracts)\/[A-Za-z0-9._/@+-]+)(?=$|[\s)"'`,:])/g);
-  return new Set(Array.from(matches, (match) => match[1]));
+  return extractRepoPaths(content);
 }
 
 function extractCommandsRan(toolExecutions: ToolExecutionRecord[]) {
@@ -194,42 +188,6 @@ function extractCommandsRan(toolExecutions: ToolExecutionRecord[]) {
       return typeof command === "string" ? command : null;
     })
     .filter((command): command is string => Boolean(command));
-}
-
-function extractClaimedChangedFiles(content: string) {
-  const changedSection = content.match(
-    /(?:files changed|changed files|modified files)\s*:\s*([\s\S]*?)(?:\n\s*\n|$)/i,
-  );
-  if (!changedSection) {
-    return [];
-  }
-
-  return Array.from(extractClaimedFiles(changedSection[1]));
-}
-
-function claimsProductionReady(content: string) {
-  return /\b(production-ready|ready for deployment|stable and ready|all tests passed)\b/i.test(
-    content,
-  );
-}
-
-function claimsNoUnresolvedRisk(content: string) {
-  return /\b(unresolved risks?:\s*none|no unresolved risks|none identified)\b/i.test(
-    content,
-  );
-}
-
-function requiredProductionChecks(commandsRan: string[]) {
-  const normalizedCommands = commandsRan.join("\n").toLowerCase();
-  const required = [
-    { label: "typecheck", pattern: /\b(typecheck|tsc)\b/ },
-    { label: "lint", pattern: /\blint\b/ },
-    { label: "tests or build", pattern: /\b(test|build|package|make)\b/ },
-  ];
-
-  return required
-    .filter((check) => !check.pattern.test(normalizedCommands))
-    .map((check) => check.label);
 }
 
 function resolveValidationStatus(

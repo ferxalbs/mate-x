@@ -2122,6 +2122,7 @@ async function finalizeCriticLoop({
   snapshot,
   events,
   toolExecutions,
+  prompt,
   finalContent,
   emitProgress,
 }: {
@@ -2131,6 +2132,7 @@ async function finalizeCriticLoop({
   snapshot: RepoSnapshot;
   events: ToolEvent[];
   toolExecutions: ToolExecutionRecord[];
+  prompt: string;
   finalContent: string;
   emitProgress: (content?: string, thought?: string) => void;
 }) {
@@ -2148,6 +2150,7 @@ async function finalizeCriticLoop({
 
   const criticInput = {
     workspacePath: snapshot.workspace.path,
+    prompt,
     finalContent,
     statusLines: snapshot.statusLines,
     events,
@@ -2281,6 +2284,7 @@ async function requestRainyChatAgenticResponse({
       snapshot,
       events,
       toolExecutions,
+      prompt,
       finalContent,
       emitProgress,
     });
@@ -2598,6 +2602,7 @@ async function requestRainyResponsesAgenticResponse({
       snapshot,
       events,
       toolExecutions,
+      prompt,
       finalContent,
       emitProgress,
     });
