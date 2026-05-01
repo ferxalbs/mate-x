@@ -23,6 +23,8 @@ jobs:
 
       - name: Install Dependencies
         run: bun install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
         run: bun run lint
@@ -58,6 +60,8 @@ jobs:
 
       - name: Install Dependencies
         run: bun install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install native libsql optional dependency
         shell: bash
