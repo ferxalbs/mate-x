@@ -506,7 +506,7 @@ export function SettingsPage() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+          <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
             {section === 'general' ? (
               <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
                 <>
