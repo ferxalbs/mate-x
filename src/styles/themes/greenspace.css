@@ -1,0 +1,19 @@
+@variant theme-greenspace {
+  --background: #040d08;
+  --app-chrome-background: #020805;
+  --foreground: #ecfdf5;
+  --card: #081a11;
+  --popover: #081a11;
+  --primary: oklch(0.65 0.18 160);
+  --ring: oklch(0.65 0.18 160);
+  --sidebar: #050f0a;
+  --sidebar-accent: #0f291e;
+  --surface: #0a2418;
+  --panel: #0a2418;
+  --titlebar: #050f0a;
+  --border: color-mix(in srgb, #10b981 12%, transparent);
+  --input: color-mix(in srgb, #10b981 18%, transparent);
+  --muted: color-mix(in srgb, #10b981 6%, transparent);
+  --accent: color-mix(in srgb, #10b981 10%, transparent);
+  --code-bg: #020805;
+}

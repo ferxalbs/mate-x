@@ -1,0 +1,19 @@
+@variant theme-midnight {
+  --background: #020408;
+  --app-chrome-background: #010204;
+  --foreground: #f8fafc;
+  --card: #030712;
+  --popover: #030712;
+  --primary: oklch(0.5 0.15 255);
+  --ring: oklch(0.5 0.15 255);
+  --sidebar: #010204;
+  --sidebar-accent: #0f172a;
+  --surface: #020617;
+  --panel: #020617;
+  --titlebar: #010204;
+  --border: color-mix(in srgb, #38bdf8 8%, transparent);
+  --input: color-mix(in srgb, #38bdf8 12%, transparent);
+  --muted: color-mix(in srgb, #38bdf8 4%, transparent);
+  --accent: color-mix(in srgb, #38bdf8 6%, transparent);
+  --code-bg: #000000;
+}
