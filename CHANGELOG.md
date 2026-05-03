@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.03 (2) [Rainy Embedding Model Selection]
+
+- Added selectable Rainy API v3 embedding models for RepoGraph indexing, defaulting to `qwen/qwen3-embedding-8b` with per-model dimensions and context limits for Gemini, Perplexity, and Qwen embedding providers.
+- Added embedding reindex progress reporting in the composer, including percentage status when model changes trigger a full RepoGraph embedding rebuild.
+- Fixed Privacy settings persistence so Privacy/Security controls save through app settings and show accurate saved/pending state.
+- Hardened Privacy Firewall outbound embedding sanitization so remaining P0 matches are repaired without disabling detection or weakening `blockP0CloudSend`.
+- Verified with `bun run typecheck` and focused ESLint on touched Rainy, RepoGraph, Privacy, settings, preload, and renderer files.
+
 ## Unreleased - 2026.05.03 (1) [Privacy Firewall and RepoGraph Auto-Index]
 
 - Added MaTE X Privacy Firewall as a local outbound security layer for Rainy/cloud model requests, with deterministic P0 scanning, ONNX scanner integration, span postprocessing, placeholder redaction, encrypted local vault storage, and safe scan metadata for UI/evidence without raw secret text.
