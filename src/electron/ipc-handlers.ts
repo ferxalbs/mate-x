@@ -82,6 +82,12 @@ export function registerIpcHandlers() {
   ipcMain.handle("privacy:scan-text", async (_event, text: string) =>
     privacyFirewall.scanTextSafe(String(text ?? "")),
   );
+  ipcMain.handle("privacy:get-model-status", async () =>
+    privacyFirewall.getModelStatus(),
+  );
+  ipcMain.handle("privacy:download-model", async () =>
+    privacyFirewall.downloadModel(),
+  );
 
   ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());

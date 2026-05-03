@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'r
 import { useRouterState } from '@tanstack/react-router';
 import {
   CheckIcon,
+  DownloadIcon,
   FolderArchiveIcon,
   KeyRoundIcon,
   Loader2Icon,
@@ -10,6 +11,7 @@ import {
   RefreshCcwIcon,
   ServerIcon,
   Settings2Icon,
+  ShieldIcon,
   ShieldCheckIcon,
   WaypointsIcon,
 } from 'lucide-react';
@@ -42,8 +44,11 @@ import {
   DEFAULT_APP_SETTINGS,
   type AgentTraceVersion,
   type AppSettings,
+  type PrivacyMode,
+  type PrivacyPlaceholderStyle,
   type TimeFormat,
 } from '../contracts/settings';
+import type { PrivacyModelStatus } from '../contracts/privacy';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
 import { AgentProfilerSettings } from '../features/agent-profiler/agent-profiler-settings';
@@ -66,6 +71,7 @@ type SettingsSectionId =
   | 'general'
   | 'connections'
   | 'trust'
+  | 'privacy'
   | 'archive'
   | 'integrations'
   | 'agent-profiler'
@@ -93,6 +99,8 @@ export function SettingsPage() {
   const [savedAppSettings, setSavedAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
   const [trustContract, setTrustContract] = useState<WorkspaceTrustContract | null>(null);
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
+  const [privacyModelStatus, setPrivacyModelStatus] = useState<PrivacyModelStatus | null>(null);
+  const [isPrivacyModelBusy, setIsPrivacyModelBusy] = useState(false);
 
   const section: SettingsSectionId =
     pathname === '/settings/workspace-memory'
@@ -101,6 +109,8 @@ export function SettingsPage() {
       ? 'connections'
       : pathname === '/settings/trust'
         ? 'trust'
+        : pathname === '/settings/privacy'
+          ? 'privacy'
           : pathname === '/settings/archive'
             ? 'archive'
             : pathname === '/settings/integrations'
@@ -143,6 +153,25 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, [activeWorkspaceId, setTheme]);
+
+  const refreshPrivacyModelStatus = useCallback(async () => {
+    const status = await window.mate.privacy.getModelStatus();
+    setPrivacyModelStatus(status);
+  }, []);
+
+  useEffect(() => {
+    void refreshPrivacyModelStatus();
+  }, [refreshPrivacyModelStatus]);
+
+  const handleDownloadPrivacyModel = useCallback(async () => {
+    setIsPrivacyModelBusy(true);
+    try {
+      const status = await window.mate.privacy.downloadModel();
+      setPrivacyModelStatus(status);
+    } finally {
+      setIsPrivacyModelBusy(false);
+    }
+  }, []);
 
   const hasKeyDraft = inputValue.trim().length > 0 && inputValue.trim() !== (currentKey ?? '');
   const hasAppSettingsDraft =
@@ -291,6 +320,18 @@ export function SettingsPage() {
         ...current,
         agentProfilerAutoSwitch: DEFAULT_APP_SETTINGS.agentProfilerAutoSwitch,
       }));
+    } else if (section === 'privacy') {
+      setAppSettings((current) => ({
+        ...current,
+        privacyFirewallEnabled: DEFAULT_APP_SETTINGS.privacyFirewallEnabled,
+        privacyMode: DEFAULT_APP_SETTINGS.privacyMode,
+        privacyUseOnnxModel: DEFAULT_APP_SETTINGS.privacyUseOnnxModel,
+        privacyUseRegex: DEFAULT_APP_SETTINGS.privacyUseRegex,
+        privacyBlockP0CloudSend: DEFAULT_APP_SETTINGS.privacyBlockP0CloudSend,
+        privacyPlaceholderStyle: DEFAULT_APP_SETTINGS.privacyPlaceholderStyle,
+        privacyMinModelConfidence: DEFAULT_APP_SETTINGS.privacyMinModelConfidence,
+        privacyShowPreviewBeforeCloudSend: DEFAULT_APP_SETTINGS.privacyShowPreviewBeforeCloudSend,
+      }));
     }
     setSaveState('idle');
   }, [section, setTheme, trustContract]);
@@ -322,6 +363,22 @@ export function SettingsPage() {
       ...(appSettings.agentProfilerAutoSwitch !== savedAppSettings.agentProfilerAutoSwitch
         ? ['Agent profiler auto-switch']
         : []),
+      ...(appSettings.privacyFirewallEnabled !== savedAppSettings.privacyFirewallEnabled ? ['Privacy firewall'] : []),
+      ...(appSettings.privacyMode !== savedAppSettings.privacyMode ? ['Privacy mode'] : []),
+      ...(appSettings.privacyUseOnnxModel !== savedAppSettings.privacyUseOnnxModel ? ['Privacy ONNX model'] : []),
+      ...(appSettings.privacyUseRegex !== savedAppSettings.privacyUseRegex ? ['Privacy regex scanner'] : []),
+      ...(appSettings.privacyBlockP0CloudSend !== savedAppSettings.privacyBlockP0CloudSend
+        ? ['Privacy P0 blocking']
+        : []),
+      ...(appSettings.privacyPlaceholderStyle !== savedAppSettings.privacyPlaceholderStyle
+        ? ['Privacy placeholders']
+        : []),
+      ...(appSettings.privacyMinModelConfidence !== savedAppSettings.privacyMinModelConfidence
+        ? ['Privacy model confidence']
+        : []),
+      ...(appSettings.privacyShowPreviewBeforeCloudSend !== savedAppSettings.privacyShowPreviewBeforeCloudSend
+        ? ['Privacy preview']
+        : []),
       ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
     [
@@ -334,6 +391,14 @@ export function SettingsPage() {
       appSettings.theme,
       appSettings.timeFormat,
       appSettings.agentProfilerAutoSwitch,
+      appSettings.privacyBlockP0CloudSend,
+      appSettings.privacyFirewallEnabled,
+      appSettings.privacyMinModelConfidence,
+      appSettings.privacyMode,
+      appSettings.privacyPlaceholderStyle,
+      appSettings.privacyShowPreviewBeforeCloudSend,
+      appSettings.privacyUseOnnxModel,
+      appSettings.privacyUseRegex,
       hasTrustDraft,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
@@ -344,6 +409,14 @@ export function SettingsPage() {
       savedAppSettings.theme,
       savedAppSettings.timeFormat,
       savedAppSettings.agentProfilerAutoSwitch,
+      savedAppSettings.privacyBlockP0CloudSend,
+      savedAppSettings.privacyFirewallEnabled,
+      savedAppSettings.privacyMinModelConfidence,
+      savedAppSettings.privacyMode,
+      savedAppSettings.privacyPlaceholderStyle,
+      savedAppSettings.privacyShowPreviewBeforeCloudSend,
+      savedAppSettings.privacyUseOnnxModel,
+      savedAppSettings.privacyUseRegex,
     ],
   );
 
@@ -724,6 +797,215 @@ export function SettingsPage() {
                     control={null}
                   />
                 )}
+              </SettingsSection>
+            ) : null}
+
+            {section === 'privacy' ? (
+              <SettingsSection title="Privacy Firewall" icon={<ShieldIcon className="size-3.5" />}>
+                <>
+                  <SettingsRow
+                    title="Enable Privacy Firewall"
+                    description="Scan outbound cloud context locally before Rainy/model requests."
+                    control={
+                      <Switch
+                        checked={appSettings.privacyFirewallEnabled}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, privacyFirewallEnabled: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Mode"
+                    description="Strict fails closed on cloud-send paths; review is default."
+                    control={
+                      <Select
+                        value={appSettings.privacyMode}
+                        onValueChange={(value) => {
+                          setAppSettings((current) => ({ ...current, privacyMode: value as PrivacyMode }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="off">Off</SelectItem>
+                          <SelectItem value="warn">Warn</SelectItem>
+                          <SelectItem value="review">Review</SelectItem>
+                          <SelectItem value="strict">Strict</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingsRow
+                    title="ONNX model"
+                    description={
+                      privacyModelStatus
+                        ? `${privacyModelStatus.model}: ${privacyModelStatus.loaded ? 'loaded' : 'missing'} (${privacyModelStatus.presentFiles.length}/${privacyModelStatus.requiredFiles.length})`
+                        : 'Checking local model assets.'
+                    }
+                    status={privacyModelStatus?.error ?? privacyModelStatus?.assetPath}
+                    control={
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
+                            privacyModelStatus?.loaded
+                              ? 'bg-emerald-500/12 text-emerald-500'
+                              : 'bg-amber-500/12 text-amber-500',
+                          )}
+                        >
+                          {privacyModelStatus?.loaded ? 'Loaded' : 'Missing'}
+                        </span>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          onClick={() => void refreshPrivacyModelStatus()}
+                          disabled={isPrivacyModelBusy}
+                        >
+                          <RefreshCcwIcon className="size-3.5" />
+                          Refresh
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          onClick={() => void handleDownloadPrivacyModel()}
+                          disabled={isPrivacyModelBusy || !privacyModelStatus?.downloadUrl}
+                        >
+                          {isPrivacyModelBusy ? (
+                            <Loader2Icon className="size-3.5 animate-spin" />
+                          ) : (
+                            <DownloadIcon className="size-3.5" />
+                          )}
+                          Download
+                        </Button>
+                      </div>
+                    }
+                  />
+                  <SettingsRow
+                    title="Use ONNX scanner"
+                    description="Run MaTE X Privacy v0.15 token classifier when assets are present."
+                    control={
+                      <Switch
+                        checked={appSettings.privacyUseOnnxModel}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, privacyUseOnnxModel: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Use deterministic scanner"
+                    description="Regex and heuristic scanner for known P0 secret patterns."
+                    control={
+                      <Switch
+                        checked={appSettings.privacyUseRegex}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, privacyUseRegex: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Block P0 cloud sends"
+                    description="Stop outbound payloads when redaction assertion fails."
+                    control={
+                      <Switch
+                        checked={appSettings.privacyBlockP0CloudSend}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, privacyBlockP0CloudSend: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Placeholder style"
+                    description="Choose how protected values appear to cloud models."
+                    control={
+                      <Select
+                        value={appSettings.privacyPlaceholderStyle}
+                        onValueChange={(value) => {
+                          setAppSettings((current) => ({
+                            ...current,
+                            privacyPlaceholderStyle: value as PrivacyPlaceholderStyle,
+                          }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="simple">Simple</SelectItem>
+                          <SelectItem value="typed">Typed</SelectItem>
+                          <SelectItem value="stable">Stable</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingsRow
+                    title="Minimum model confidence"
+                    description="Applies to contextual ONNX labels before postprocessing."
+                    control={
+                      <Input
+                        nativeInput
+                        type="number"
+                        min={0}
+                        max={0.99}
+                        step={0.05}
+                        value={appSettings.privacyMinModelConfidence}
+                        onChange={(event) => {
+                          setAppSettings((current) => ({
+                            ...current,
+                            privacyMinModelConfidence: Number(event.target.value),
+                          }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                        className="w-[110px]"
+                        disabled={isBusy}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Preview before cloud send"
+                    description="Keep review-mode redaction preview enabled for user-visible runs."
+                    control={
+                      <Switch
+                        checked={appSettings.privacyShowPreviewBeforeCloudSend}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({
+                            ...current,
+                            privacyShowPreviewBeforeCloudSend: value,
+                          }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                </>
               </SettingsSection>
             ) : null}
 

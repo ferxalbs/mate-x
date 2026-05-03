@@ -152,6 +152,8 @@ const policyApi: PolicyApi = {
 
 const privacyApi: PrivacyApi = {
   scanText: (text) => ipcRenderer.invoke("privacy:scan-text", text),
+  getModelStatus: () => ipcRenderer.invoke("privacy:get-model-status"),
+  downloadModel: () => ipcRenderer.invoke("privacy:download-model"),
 };
 
 contextBridge.exposeInMainWorld("mate", {

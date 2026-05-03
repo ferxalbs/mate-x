@@ -1,5 +1,6 @@
 import type { PrivacySpan } from "./privacy-types";
-import { loadPrivacyModelStatus, type PrivacyModelStatus } from "./privacy-model-loader";
+import type { PrivacyModelStatus } from "../../contracts/privacy";
+import { loadPrivacyModelStatus } from "./privacy-model-loader";
 
 export interface PrivacyOnnxScanResult {
   spans: PrivacySpan[];

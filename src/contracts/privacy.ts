@@ -78,6 +78,20 @@ export interface PrivacySanitizeResult<T> {
   reason?: string;
 }
 
+export interface PrivacyModelStatus {
+  model: "matex-privacy-v0.15";
+  loaded: boolean;
+  missing: boolean;
+  assetPath: string;
+  requiredFiles: string[];
+  presentFiles: string[];
+  missingFiles: string[];
+  downloadUrl?: string;
+  error?: string;
+}
+
 export interface PrivacyApi {
   scanText: (text: string) => Promise<PrivacySafeScanResult>;
+  getModelStatus: () => Promise<PrivacyModelStatus>;
+  downloadModel: () => Promise<PrivacyModelStatus>;
 }

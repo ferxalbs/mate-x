@@ -1337,6 +1337,39 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.agentProfilerAutoSwitch === 'boolean'
         ? input.agentProfilerAutoSwitch
         : DEFAULT_APP_SETTINGS.agentProfilerAutoSwitch,
+    privacyFirewallEnabled:
+      typeof input.privacyFirewallEnabled === 'boolean'
+        ? input.privacyFirewallEnabled
+        : DEFAULT_APP_SETTINGS.privacyFirewallEnabled,
+    privacyMode:
+      input.privacyMode === 'off' || input.privacyMode === 'warn' || input.privacyMode === 'review' || input.privacyMode === 'strict'
+        ? input.privacyMode
+        : DEFAULT_APP_SETTINGS.privacyMode,
+    privacyUseOnnxModel:
+      typeof input.privacyUseOnnxModel === 'boolean'
+        ? input.privacyUseOnnxModel
+        : DEFAULT_APP_SETTINGS.privacyUseOnnxModel,
+    privacyUseRegex:
+      typeof input.privacyUseRegex === 'boolean'
+        ? input.privacyUseRegex
+        : DEFAULT_APP_SETTINGS.privacyUseRegex,
+    privacyBlockP0CloudSend:
+      typeof input.privacyBlockP0CloudSend === 'boolean'
+        ? input.privacyBlockP0CloudSend
+        : DEFAULT_APP_SETTINGS.privacyBlockP0CloudSend,
+    privacyPlaceholderStyle:
+      input.privacyPlaceholderStyle === 'simple' || input.privacyPlaceholderStyle === 'typed' || input.privacyPlaceholderStyle === 'stable'
+        ? input.privacyPlaceholderStyle
+        : DEFAULT_APP_SETTINGS.privacyPlaceholderStyle,
+    privacyMinModelConfidence:
+      typeof input.privacyMinModelConfidence === 'number' &&
+      Number.isFinite(input.privacyMinModelConfidence)
+        ? Math.min(0.99, Math.max(0, input.privacyMinModelConfidence))
+        : DEFAULT_APP_SETTINGS.privacyMinModelConfidence,
+    privacyShowPreviewBeforeCloudSend:
+      typeof input.privacyShowPreviewBeforeCloudSend === 'boolean'
+        ? input.privacyShowPreviewBeforeCloudSend
+        : DEFAULT_APP_SETTINGS.privacyShowPreviewBeforeCloudSend,
     supermemoryApiKey:
       typeof input.supermemoryApiKey === 'string'
         ? input.supermemoryApiKey
