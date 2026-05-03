@@ -101,6 +101,7 @@
     "@libsql/win32-x64-msvc": "0.5.29"
   },
   "trustedDependencies": [
+    "electron",
     "onnxruntime-node"
   ]
 }
