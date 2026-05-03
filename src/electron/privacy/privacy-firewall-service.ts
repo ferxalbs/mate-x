@@ -132,8 +132,8 @@ export class PrivacyFirewallService {
     return loadPrivacyModelStatus();
   }
 
-  downloadModel() {
-    return downloadPrivacyModelAssets();
+  downloadModel(onProgress?: Parameters<typeof downloadPrivacyModelAssets>[0]) {
+    return downloadPrivacyModelAssets(onProgress);
   }
 
   clearVault() {

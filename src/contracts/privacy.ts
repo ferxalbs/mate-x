@@ -100,9 +100,21 @@ export interface PrivacyModelStatus {
   error?: string;
 }
 
+export interface PrivacyModelDownloadProgress {
+  state: "idle" | "downloading" | "verifying" | "ready" | "failed";
+  file?: string;
+  fileIndex: number;
+  fileCount: number;
+  receivedBytes: number;
+  totalBytes?: number;
+  percent?: number;
+  message?: string;
+}
+
 export interface PrivacyApi {
   scanText: (text: string) => Promise<PrivacySafeScanResult>;
   getModelStatus: () => Promise<PrivacyModelStatus>;
   downloadModel: () => Promise<PrivacyModelStatus>;
+  onModelDownloadProgress: (callback: (progress: PrivacyModelDownloadProgress) => void) => () => void;
   clearVault: () => Promise<void>;
 }

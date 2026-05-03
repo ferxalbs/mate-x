@@ -154,6 +154,15 @@ const privacyApi: PrivacyApi = {
   scanText: (text) => ipcRenderer.invoke("privacy:scan-text", text),
   getModelStatus: () => ipcRenderer.invoke("privacy:get-model-status"),
   downloadModel: () => ipcRenderer.invoke("privacy:download-model"),
+  onModelDownloadProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: Parameters<typeof callback>[0]) => {
+      callback(progress);
+    };
+    ipcRenderer.on("privacy:model-download-progress", listener);
+    return () => {
+      ipcRenderer.removeListener("privacy:model-download-progress", listener);
+    };
+  },
   clearVault: () => ipcRenderer.invoke("privacy:clear-vault"),
 };
 
