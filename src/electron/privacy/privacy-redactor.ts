@@ -49,8 +49,15 @@ export function replacementForSpan(
 export function redactText(text: string, spans: PrivacySpan[]) {
   let output = "";
   let cursor = 0;
+  const orderedSpans = [...spans].sort((left, right) => {
+    if (left.start !== right.start) {
+      return left.start - right.start;
+    }
 
-  for (const span of spans) {
+    return right.end - left.end;
+  });
+
+  for (const span of orderedSpans) {
     if (span.start < cursor) {
       continue;
     }
