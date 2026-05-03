@@ -7,11 +7,21 @@
 @custom-variant dark (&:is(.dark, .dark *));
 @custom-variant theme-oled (&:is(.theme-oled, .theme-oled *));
 @custom-variant theme-blue (&:is(.theme-blue, .theme-blue *));
+@custom-variant theme-deepblue (&:is(.theme-deepblue, .theme-deepblue *));
+@custom-variant theme-deeppurple (&:is(.theme-deeppurple, .theme-deeppurple *));
+@custom-variant theme-casimiri (&:is(.theme-casimiri, .theme-casimiri *));
+@custom-variant theme-greenspace (&:is(.theme-greenspace, .theme-greenspace *));
+@custom-variant theme-midnight (&:is(.theme-midnight, .theme-midnight *));
 
 @import "./styles/themes/base.css";
 @import "./styles/themes/dark.css";
 @import "./styles/themes/oled.css";
 @import "./styles/themes/blue.css";
+@import "./styles/themes/deepblue.css";
+@import "./styles/themes/deeppurple.css";
+@import "./styles/themes/casimiri.css";
+@import "./styles/themes/greenspace.css";
+@import "./styles/themes/midnight.css";
 
 @theme inline {
   --animate-skeleton: skeleton 2s -1s infinite linear;

@@ -533,6 +533,11 @@ export function SettingsPage() {
                           <SelectItem value="dark">Dark</SelectItem>
                           <SelectItem value="oled">OLED (Black)</SelectItem>
                           <SelectItem value="blue">Deep Blue</SelectItem>
+                          <SelectItem value="deepblue">Ocean Abyss</SelectItem>
+                          <SelectItem value="deeppurple">Royal Purple</SelectItem>
+                          <SelectItem value="casimiri">Casimiri</SelectItem>
+                          <SelectItem value="greenspace">Green Space</SelectItem>
+                          <SelectItem value="midnight">Midnight Blue</SelectItem>
                         </SelectContent>
                       </Select>
                     }

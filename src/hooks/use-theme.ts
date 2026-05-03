@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
-export type Theme = 'light' | 'dark' | 'oled' | 'blue' | 'system';
+export type Theme = 'light' | 'dark' | 'oled' | 'blue' | 'deepblue' | 'deeppurple' | 'casimiri' | 'greenspace' | 'midnight' | 'system';
 
 type ThemeSnapshot = {
   theme: Theme;
@@ -23,7 +23,18 @@ function getSystemDark() {
 
 function getStoredTheme(): Theme {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === 'light' || raw === 'dark' || raw === 'oled' || raw === 'blue' || raw === 'system') {
+  if (
+    raw === 'light' ||
+    raw === 'dark' ||
+    raw === 'oled' ||
+    raw === 'blue' ||
+    raw === 'deepblue' ||
+    raw === 'deeppurple' ||
+    raw === 'casimiri' ||
+    raw === 'greenspace' ||
+    raw === 'midnight' ||
+    raw === 'system'
+  ) {
     return raw;
   }
   return 'system';
@@ -38,10 +49,20 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
     theme === 'dark' ||
     theme === 'oled' ||
     theme === 'blue' ||
+    theme === 'deepblue' ||
+    theme === 'deeppurple' ||
+    theme === 'casimiri' ||
+    theme === 'greenspace' ||
+    theme === 'midnight' ||
     (theme === 'system' && getSystemDark());
   document.documentElement.classList.toggle('dark', isDark);
   document.documentElement.classList.toggle('theme-oled', theme === 'oled');
   document.documentElement.classList.toggle('theme-blue', theme === 'blue');
+  document.documentElement.classList.toggle('theme-deepblue', theme === 'deepblue');
+  document.documentElement.classList.toggle('theme-deeppurple', theme === 'deeppurple');
+  document.documentElement.classList.toggle('theme-casimiri', theme === 'casimiri');
+  document.documentElement.classList.toggle('theme-greenspace', theme === 'greenspace');
+  document.documentElement.classList.toggle('theme-midnight', theme === 'midnight');
 
   if (suppressTransitions) {
     void document.documentElement.offsetHeight;
@@ -101,7 +122,13 @@ export function useTheme() {
       ? snapshot.systemDark
         ? 'dark'
         : 'light'
-      : theme === 'oled' || theme === 'blue'
+      : theme === 'oled' ||
+        theme === 'blue' ||
+        theme === 'deepblue' ||
+        theme === 'deeppurple' ||
+        theme === 'casimiri' ||
+        theme === 'greenspace' ||
+        theme === 'midnight'
         ? 'dark'
         : theme;
 
