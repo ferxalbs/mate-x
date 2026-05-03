@@ -177,7 +177,7 @@ export class PrivacyFirewallService {
       elapsedMs += scan.stats.elapsedMs;
 
       let redactedText = scan.redactedText;
-      redactedText = await repairP0Redaction(redactedText, scan.spans, context);
+      redactedText = repairP0Redaction(redactedText, scan.spans, context);
 
       for (const span of scan.spans) {
         if (
@@ -216,7 +216,7 @@ export class PrivacyFirewallService {
   }
 }
 
-async function repairP0Redaction(
+function repairP0Redaction(
   text: string,
   spans: PrivacySpan[],
   context: { workspaceId?: string; runId?: string; inputKind?: string },
@@ -228,12 +228,20 @@ async function repairP0Redaction(
     }
   }
 
-  const secondPass = await privacyFirewall.scanText(
+  const secondPassSpans = postprocessPrivacySpans(
     redactedText,
-    { mode: "strict", placeholderStyle: "simple", scanRegex: true, scanModel: false },
-    { ...context, inputKind: context.inputKind ?? "outbound_model_payload", persist: false },
+    scanWithRegex(redactedText, context.workspaceId),
+    {
+      ...DEFAULT_OPTIONS,
+      mode: "strict",
+      placeholderStyle: "simple",
+      scanRegex: true,
+      scanModel: false,
+    },
+    context.workspaceId,
   );
-  for (const span of secondPass.spans) {
+  redactedText = redactText(redactedText, secondPassSpans);
+  for (const span of secondPassSpans) {
     if (isSecretLikeP0(span) && span.text.length >= 8 && redactedText.includes(span.text)) {
       redactedText = redactedText.split(span.text).join("[SECRET]");
     }
