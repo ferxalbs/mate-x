@@ -526,7 +526,56 @@ export async function requestRainyEmbeddings(params: {
     { timeout: RAINY_REQUEST_TIMEOUT_MS },
   );
 
-  return response.data.map((item) => item.embedding);
+  const embeddings = extractEmbeddingVectors(response);
+  if (embeddings.length === 0) {
+    throw new Error(`Rainy embeddings response missing vectors. Keys: ${Object.keys(response as object).join(", ")}`);
+  }
+
+  return embeddings;
+}
+
+function extractEmbeddingVectors(response: unknown): number[][] {
+  if (!response || typeof response !== "object") {
+    return [];
+  }
+
+  const payload = response as {
+    data?: unknown;
+    embeddings?: unknown;
+    results?: unknown;
+    items?: unknown;
+    embedding?: unknown;
+    values?: unknown;
+    vector?: unknown;
+  };
+
+  if (Array.isArray(payload.embedding) && payload.embedding.every((value) => typeof value === "number")) {
+    return [payload.embedding];
+  }
+
+  if (Array.isArray(payload.values) && payload.values.every((value) => typeof value === "number")) {
+    return [payload.values];
+  }
+
+  if (Array.isArray(payload.vector) && payload.vector.every((value) => typeof value === "number")) {
+    return [payload.vector];
+  }
+
+  const list = [payload.data, payload.embeddings, payload.results, payload.items].find(Array.isArray);
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  return list
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const candidate = item as { embedding?: unknown; values?: unknown; vector?: unknown };
+      const vector = candidate.embedding ?? candidate.values ?? candidate.vector;
+      return Array.isArray(vector) && vector.every((value) => typeof value === "number") ? vector : null;
+    })
+    .filter((vector): vector is number[] => Boolean(vector));
 }
 
 export async function requestRainyChatCompletionStream(params: {

@@ -174,16 +174,21 @@ export class PrivacyFirewallService {
         { ...context, inputKind: context.inputKind ?? "outbound_model_payload" },
       );
       aggregateSpans.push(...scan.spans);
-      blocked = blocked || scan.blocked;
-      reason = reason ?? scan.blockReason;
       elapsedMs += scan.stats.elapsedMs;
+
+      let redactedText = scan.redactedText;
+      for (const span of scan.spans) {
+        if (isSecretLikeP0(span) && span.text.length >= 8 && redactedText.includes(span.text)) {
+          redactedText = redactedText.split(span.text).join(span.replacement);
+        }
+      }
 
       for (const span of scan.spans) {
         if (
           outboundOptions.blockP0CloudSend &&
-          span.risk === "p0" &&
-          span.text &&
-          scan.redactedText.includes(span.text)
+          isSecretLikeP0(span) &&
+          span.text.length >= 8 &&
+          redactedText.includes(span.text)
         ) {
           blocked = true;
           reason = "Privacy Firewall outbound assertion failed.";
@@ -191,7 +196,7 @@ export class PrivacyFirewallService {
         }
       }
 
-      return scan.redactedText;
+      return redactedText;
     };
 
     const sanitizedPayload = (await sanitizeValue(payload)) as T;
@@ -213,6 +218,23 @@ export class PrivacyFirewallService {
 
     return { payload: sanitizedPayload, scan, blocked, reason };
   }
+}
+
+function isSecretLikeP0(span: PrivacySpan) {
+  return (
+    span.risk === "p0" &&
+    (
+      span.label === "secret" ||
+      span.label === "api_key" ||
+      span.label === "auth_token" ||
+      span.label === "session_cookie" ||
+      span.label === "database_uri" ||
+      span.label === "cloud_credential" ||
+      span.label === "repo_secret" ||
+      span.label === "payment_token" ||
+      span.label === "personal_document_id"
+    )
+  );
 }
 
 export const privacyFirewall = new PrivacyFirewallService();
