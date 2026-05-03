@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.03 (3) [Settings Layout Hardening]
+
+- Fixed layout overflow in settings pages by adding `break-words` and `break-all` to `SettingsRow` description and status fields.
+- Hardened "Workspace Memory" settings to prevent long storage paths from expanding the interface beyond the container.
+- Verified with `bun run typecheck` and confirmed flex-shrink behavior in `SettingsRow`.
+
 ## Unreleased - 2026.05.03 (2) [Rainy Embedding Model Selection]
 
 - Added selectable Rainy API v3 embedding models for RepoGraph indexing, defaulting to `qwen/qwen3-embedding-8b` with per-model dimensions and context limits for Gemini, Perplexity, and Qwen embedding providers.

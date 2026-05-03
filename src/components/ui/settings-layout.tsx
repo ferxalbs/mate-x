@@ -61,8 +61,8 @@ export function SettingsRow({
               {resetAction}
             </span>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground/80">{description}</p>
-          {status ? <div className="pt-0.5 text-[11px] text-muted-foreground">{status}</div> : null}
+          <p className="break-words text-xs leading-relaxed text-muted-foreground/80">{description}</p>
+          {status ? <div className="pt-0.5 break-all text-[11px] text-muted-foreground">{status}</div> : null}
         </div>
         {control ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
