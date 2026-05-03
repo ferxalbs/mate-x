@@ -37,6 +37,7 @@ import type {
 } from '../../../contracts/chat';
 import type { PolicyStop, PolicyStopAction } from '../../../contracts/policy';
 import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
+import type { RepoGraphEmbeddingProgress } from '../../../contracts/repo-graph';
 import type {
   WorkspaceSummary,
   WorkspaceTrustContract,
@@ -50,7 +51,14 @@ import {
   supportsVideoInput as modelSupportsVideoInput,
 } from '../../../lib/rainy-model-capabilities';
 import { cn } from '../../../lib/utils';
-import { getModel, listModels, setModel } from '../../../services/settings-client';
+import {
+  getEmbeddingModel,
+  getModel,
+  listEmbeddingModels,
+  listModels,
+  setEmbeddingModel,
+  setModel,
+} from '../../../services/settings-client';
 import { useChatStore } from '../../../store/chat-store';
 
 interface ComposerPanelProps {
@@ -82,6 +90,11 @@ export function ComposerPanel({
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [modelValue, setModelValue] = useState('');
+  const [embeddingModelValue, setEmbeddingModelValue] = useState('');
+  const [embeddingCatalog, setEmbeddingCatalog] = useState<
+    Array<{ id: string; label: string; dimensions: number; contextLength: number }>
+  >([]);
+  const [embeddingProgress, setEmbeddingProgress] = useState<RepoGraphEmbeddingProgress | null>(null);
   const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState('');
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
@@ -110,6 +123,10 @@ export function ComposerPanel({
           getModel(),
           listModels(forceRefresh),
         ]);
+        const [storedEmbeddingModel, nextEmbeddingCatalog] = await Promise.all([
+          getEmbeddingModel(),
+          listEmbeddingModels(),
+        ]);
 
         if (cancelled) {
           return;
@@ -118,6 +135,10 @@ export function ComposerPanel({
         startTransition(() => {
           setCatalog(nextCatalog);
           setModelValue(resolveModelValue(storedModel, nextCatalog));
+          setEmbeddingCatalog(nextEmbeddingCatalog);
+          setEmbeddingModelValue(
+            resolveEmbeddingModelValue(storedEmbeddingModel, nextEmbeddingCatalog),
+          );
         });
       } catch (error) {
         if (cancelled) {
@@ -142,11 +163,22 @@ export function ComposerPanel({
     };
   }, []);
 
+  useEffect(
+    () =>
+      window.mate.repo.graph.onEmbeddingProgress((progress: RepoGraphEmbeddingProgress) => {
+        setEmbeddingProgress(progress);
+      }),
+    [],
+  );
+
   const selectedModel = useMemo(
     () => catalog.find((entry) => entry.id === modelValue) ?? null,
     [catalog, modelValue],
   );
   const modelLabel = selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
+  const selectedEmbeddingModel =
+    embeddingCatalog.find((entry) => entry.id === embeddingModelValue) ?? null;
+  const embeddingModelLabel = selectedEmbeddingModel?.label ?? embeddingModelValue ?? 'Select embedding model';
   const supportsImageInput = modelSupportsImageInput(selectedModel);
   const supportsVideoInput = modelSupportsVideoInput(selectedModel);
   const supportsFileInput = modelSupportsFileInput(selectedModel);
@@ -298,6 +330,27 @@ export function ComposerPanel({
     } catch (error) {
       setCatalogError(
         error instanceof Error ? error.message : 'Could not update Rainy model.',
+      );
+    } finally {
+      setIsModelSaving(false);
+    }
+  }
+
+  async function handleEmbeddingModelChange(nextModel: string) {
+    if (!nextModel || nextModel === embeddingModelValue) {
+      return;
+    }
+
+    setCatalogError('');
+    setIsModelSaving(true);
+
+    try {
+      setEmbeddingProgress(null);
+      await setEmbeddingModel(nextModel);
+      setEmbeddingModelValue(nextModel);
+    } catch (error) {
+      setCatalogError(
+        error instanceof Error ? error.message : 'Could not update Rainy embedding model.',
       );
     } finally {
       setIsModelSaving(false);
@@ -495,6 +548,40 @@ export function ComposerPanel({
                   </SelectItem>
                 ))}
               </InlineSelect>
+              <InlineSelect
+                value={embeddingModelValue}
+                onValueChange={handleEmbeddingModelChange}
+                disabled={isCatalogLoading || isModelSaving || embeddingCatalog.length === 0}
+                label={embeddingModelLabel}
+              >
+                {embeddingCatalog.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate">{entry.label}</span>
+                      <span className="truncate text-[10px] text-muted-foreground/75">
+                        {entry.dimensions}d · {Math.round(entry.contextLength / 1024)}k ctx
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </InlineSelect>
+              {embeddingProgress ? (
+                <span
+                  className={cn(
+                    'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
+                    embeddingProgress.state === 'failed'
+                      ? 'bg-destructive/15 text-destructive-foreground'
+                      : embeddingProgress.state === 'ready'
+                        ? 'bg-emerald-500/12 text-emerald-500'
+                        : 'bg-primary/12 text-primary',
+                  )}
+                  title={`${embeddingProgress.indexed}/${embeddingProgress.total} repo graph embeddings`}
+                >
+                  {embeddingProgress.state === 'ready'
+                    ? 'Indexed'
+                    : `Index ${embeddingProgress.percent}%`}
+                </span>
+              ) : null}
               {reasoningSupported ? (
                 <button
                   type="button"
@@ -887,6 +974,17 @@ function formatAssistantMode(mode: AssistantRunOptions['mode']) {
 function resolveModelValue(
   storedModel: string | null,
   catalog: RainyModelCatalogEntry[],
+) {
+  if (storedModel && catalog.some((entry) => entry.id === storedModel)) {
+    return storedModel;
+  }
+
+  return catalog[0]?.id ?? storedModel ?? '';
+}
+
+function resolveEmbeddingModelValue(
+  storedModel: string | null,
+  catalog: Array<{ id: string }>,
 ) {
   if (storedModel && catalog.some((entry) => entry.id === storedModel)) {
     return storedModel;

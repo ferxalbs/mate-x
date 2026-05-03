@@ -423,6 +423,20 @@ export class TursoService {
     });
   }
 
+  async getEmbeddingModel(): Promise<string | null> {
+    return this.getAppStateValue('rainy_embedding_model');
+  }
+
+  async setEmbeddingModel(model: string) {
+    await this.initialize();
+    const normalizedModel = model.trim();
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: ['rainy_embedding_model', normalizedModel],
+    });
+  }
+
   async getAppSettings(): Promise<AppSettings> {
     await this.initialize();
     const raw = await this.getAppStateValue('app_settings');

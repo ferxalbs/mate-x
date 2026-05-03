@@ -105,6 +105,16 @@ export interface SettingsApi {
   listModels: (forceRefresh?: boolean) => Promise<RainyModelCatalogEntry[]>;
   getModel: () => Promise<string | null>;
   setModel: (model: string) => Promise<void>;
+  listEmbeddingModels: () => Promise<
+    Array<{
+      id: string;
+      label: string;
+      dimensions: number;
+      contextLength: number;
+    }>
+  >;
+  getEmbeddingModel: () => Promise<string | null>;
+  setEmbeddingModel: (model: string) => Promise<void>;
   getAppSettings: () => Promise<AppSettings>;
   updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
 }

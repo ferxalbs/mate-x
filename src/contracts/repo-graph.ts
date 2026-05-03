@@ -90,6 +90,15 @@ export interface RepoGraphDependencySurface {
   files: string[];
 }
 
+export interface RepoGraphEmbeddingProgress {
+  workspaceId: string;
+  model: string;
+  indexed: number;
+  total: number;
+  percent: number;
+  state: "indexing" | "ready" | "failed";
+}
+
 export interface RepoGraphApi {
   refresh: () => Promise<RepoGraphSnapshot>;
   getEntrypoints: () => Promise<RepoGraphEntrypoint[]>;
@@ -99,4 +108,5 @@ export interface RepoGraphApi {
   getIpcSurface: () => Promise<RepoGraphIpcSurface[]>;
   getEnvUsage: (variable?: string) => Promise<RepoGraphEnvUsage[]>;
   getDependencySurface: () => Promise<RepoGraphDependencySurface[]>;
+  onEmbeddingProgress: (listener: (progress: RepoGraphEmbeddingProgress) => void) => () => void;
 }
