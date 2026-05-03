@@ -124,7 +124,7 @@ export function WorkspaceMemorySettings() {
 
   return (
     <SettingsSection title="Workspace Memory" icon={<FileTextIcon className="size-3.5" />}>
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <SettingsRow
           title="Storage"
           description={
@@ -147,7 +147,7 @@ export function WorkspaceMemorySettings() {
           }
         />
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 px-4 sm:px-5">
           {FILE_ORDER.map((kind) => {
             const file = filesByKind.get(kind);
             const isActive = kind === activeKind;
@@ -175,7 +175,7 @@ export function WorkspaceMemorySettings() {
           })}
         </div>
 
-        <div className="rounded-md border border-border/70 bg-background">
+        <div className="mx-4 mb-1 rounded-md border border-border/70 bg-background sm:mx-5">
           <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border/70 px-3">
             <div className="min-w-0">
               <div className="truncate text-xs font-medium text-foreground">
@@ -214,7 +214,7 @@ export function WorkspaceMemorySettings() {
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 pb-4 sm:px-5 sm:pb-5">
           <div className="min-h-5 text-xs text-muted-foreground">
             {saveState === 'error' ? (
               <span className="text-destructive-foreground">{errorMessage}</span>
