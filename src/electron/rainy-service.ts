@@ -548,9 +548,12 @@ export async function requestRainyEmbeddings(params: {
   }
 
   const client = createRainyClient(params.apiKey);
-  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
-    input: params.input,
-  });
+  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload(
+    {
+      input: params.input,
+    },
+    { inputKind: "repo_graph_embedding" },
+  );
   if (sanitized.blocked) {
     throw new Error(sanitized.reason ?? "Privacy Firewall blocked outbound Rainy request.");
   }

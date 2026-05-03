@@ -177,11 +177,7 @@ export class PrivacyFirewallService {
       elapsedMs += scan.stats.elapsedMs;
 
       let redactedText = scan.redactedText;
-      for (const span of scan.spans) {
-        if (isSecretLikeP0(span) && span.text.length >= 8 && redactedText.includes(span.text)) {
-          redactedText = redactedText.split(span.text).join(span.replacement);
-        }
-      }
+      redactedText = await repairP0Redaction(redactedText, scan.spans, context);
 
       for (const span of scan.spans) {
         if (
@@ -218,6 +214,32 @@ export class PrivacyFirewallService {
 
     return { payload: sanitizedPayload, scan, blocked, reason };
   }
+}
+
+async function repairP0Redaction(
+  text: string,
+  spans: PrivacySpan[],
+  context: { workspaceId?: string; runId?: string; inputKind?: string },
+) {
+  let redactedText = text;
+  for (const span of spans) {
+    if (isSecretLikeP0(span) && span.text.length >= 8 && redactedText.includes(span.text)) {
+      redactedText = redactedText.split(span.text).join("[SECRET]");
+    }
+  }
+
+  const secondPass = await privacyFirewall.scanText(
+    redactedText,
+    { mode: "strict", placeholderStyle: "simple", scanRegex: true, scanModel: false },
+    { ...context, inputKind: context.inputKind ?? "outbound_model_payload", persist: false },
+  );
+  for (const span of secondPass.spans) {
+    if (isSecretLikeP0(span) && span.text.length >= 8 && redactedText.includes(span.text)) {
+      redactedText = redactedText.split(span.text).join("[SECRET]");
+    }
+  }
+
+  return redactedText;
 }
 
 function isSecretLikeP0(span: PrivacySpan) {
