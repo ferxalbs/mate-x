@@ -85,8 +85,10 @@ export function registerIpcHandlers() {
   ipcMain.handle("privacy:get-model-status", async () =>
     privacyFirewall.getModelStatus(),
   );
-  ipcMain.handle("privacy:download-model", async () =>
-    privacyFirewall.downloadModel(),
+  ipcMain.handle("privacy:download-model", async (event) =>
+    privacyFirewall.downloadModel((progress) => {
+      event.sender.send("privacy:model-download-progress", progress);
+    }),
   );
   ipcMain.handle("privacy:clear-vault", async () =>
     privacyFirewall.clearVault(),

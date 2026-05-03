@@ -12,6 +12,26 @@ const REQUIRED_FILES = [
   "onnx_export_metadata.json",
 ];
 
+const DEFAULT_MODEL_CONFIG: Required<ModelConfig> = {
+  huggingFaceRepo: "enosislabs/matex-privacy-sentinel-v0.15-onnx",
+  revision: "main",
+  downloadUrl: "https://huggingface.co/enosislabs/matex-privacy-sentinel-v0.15-onnx/resolve/main",
+  apiUrl: "https://huggingface.co/api/models/enosislabs/matex-privacy-sentinel-v0.15-onnx",
+  requiredFiles: REQUIRED_FILES,
+  externalDataFiles: ["model.onnx.data"],
+};
+
+type PrivacyModelProgressCallback = (progress: {
+  state: "downloading" | "verifying" | "ready" | "failed";
+  file?: string;
+  fileIndex: number;
+  fileCount: number;
+  receivedBytes: number;
+  totalBytes?: number;
+  percent?: number;
+  message?: string;
+}) => void;
+
 interface ModelConfig {
   huggingFaceRepo?: string;
   revision?: string;
@@ -22,7 +42,9 @@ interface ModelConfig {
 }
 
 function resolveAssetPath() {
-  return path.resolve(process.cwd(), "resources/models/matex-privacy-v0.15");
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "privacy", "models", "matex-privacy-v0.15")
+    : path.resolve(process.cwd(), "resources/models/matex-privacy-v0.15");
 }
 
 function resolveUserDataPath() {
@@ -42,7 +64,7 @@ export async function loadPrivacyModelStatus(): Promise<PrivacyModelStatus> {
   const userDataPath = resolveUserDataPath();
   const bundledConfig = await readModelConfig(bundledPath);
   const userConfig = await readModelConfig(userDataPath);
-  const config = { ...bundledConfig, ...userConfig };
+  const config = { ...DEFAULT_MODEL_CONFIG, ...bundledConfig, ...userConfig };
   const requiredFiles = config.requiredFiles?.length ? config.requiredFiles : REQUIRED_FILES;
   const externalDataFiles = config.externalDataFiles ?? ["model.onnx.data"];
   const userState = await checkFiles(userDataPath, [...requiredFiles, ...externalDataFiles]);
@@ -76,13 +98,15 @@ export async function loadPrivacyModelStatus(): Promise<PrivacyModelStatus> {
   };
 }
 
-export async function downloadPrivacyModelAssets(): Promise<PrivacyModelStatus> {
+export async function downloadPrivacyModelAssets(
+  onProgress?: PrivacyModelProgressCallback,
+): Promise<PrivacyModelStatus> {
   const bundledPath = resolveAssetPath();
   const assetPath = resolveUserDataPath();
   const tempPath = `${assetPath}.download`;
   await rm(tempPath, { recursive: true, force: true });
   await mkdir(tempPath, { recursive: true });
-  const config = await readModelConfig(bundledPath);
+  const config = { ...DEFAULT_MODEL_CONFIG, ...(await readModelConfig(bundledPath)) };
   const revision = config.revision ?? "main";
   const repo = config.huggingFaceRepo ?? "enosislabs/matex-privacy-sentinel-v0.15-onnx";
   const baseUrl = config.downloadUrl ?? `https://huggingface.co/${repo}/resolve/${revision}`;
@@ -101,9 +125,17 @@ export async function downloadPrivacyModelAssets(): Promise<PrivacyModelStatus> 
     };
   }
 
-  for (const file of targetFiles) {
+  for (const [index, file] of targetFiles.entries()) {
     const response = await fetch(`${baseUrl}/${encodeURIComponent(file)}`);
     if (!response.ok) {
+      onProgress?.({
+        state: "failed",
+        file,
+        fileIndex: index + 1,
+        fileCount: targetFiles.length,
+        receivedBytes: 0,
+        message: `Privacy model download failed for ${file} with status ${response.status}.`,
+      });
       return {
         ...(await loadPrivacyModelStatus()),
         remoteFiles,
@@ -111,20 +143,74 @@ export async function downloadPrivacyModelAssets(): Promise<PrivacyModelStatus> 
       };
     }
 
-    const bytes = Buffer.from(await response.arrayBuffer());
+    const bytes = await readResponseBytes(response, (receivedBytes, totalBytes) => {
+      onProgress?.({
+        state: "downloading",
+        file,
+        fileIndex: index + 1,
+        fileCount: targetFiles.length,
+        receivedBytes,
+        totalBytes,
+        percent: totalBytes ? Math.round((receivedBytes / totalBytes) * 100) : undefined,
+      });
+    });
     await writeFile(path.join(tempPath, file), bytes);
   }
 
+  onProgress?.({
+    state: "verifying",
+    fileIndex: targetFiles.length,
+    fileCount: targetFiles.length,
+    receivedBytes: 0,
+    message: "Installing MaTE X Privacy model.",
+  });
   await writeFile(path.join(tempPath, "privacy-model.json"), JSON.stringify(config, null, 2));
   await rm(assetPath, { recursive: true, force: true });
   await mkdir(path.dirname(assetPath), { recursive: true });
   await cp(tempPath, assetPath, { recursive: true });
   await rm(tempPath, { recursive: true, force: true });
 
+  onProgress?.({
+    state: "ready",
+    fileIndex: targetFiles.length,
+    fileCount: targetFiles.length,
+    receivedBytes: 0,
+    percent: 100,
+    message: "MaTE X Privacy model ready.",
+  });
+
   return {
     ...(await loadPrivacyModelStatus()),
     remoteFiles,
   };
+}
+
+async function readResponseBytes(
+  response: Response,
+  onChunk: (receivedBytes: number, totalBytes?: number) => void,
+) {
+  const totalBytes = Number(response.headers.get("content-length")) || undefined;
+  if (!response.body) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    onChunk(bytes.byteLength, totalBytes);
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+    receivedBytes += value.byteLength;
+    onChunk(receivedBytes, totalBytes);
+  }
+
+  return Buffer.concat(chunks);
 }
 
 async function checkFiles(basePath: string, files: string[]) {

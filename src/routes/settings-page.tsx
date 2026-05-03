@@ -48,7 +48,11 @@ import {
   type PrivacyPlaceholderStyle,
   type TimeFormat,
 } from '../contracts/settings';
-import type { PrivacyModelStatus, PrivacySafeScanResult } from '../contracts/privacy';
+import type {
+  PrivacyModelDownloadProgress,
+  PrivacyModelStatus,
+  PrivacySafeScanResult,
+} from '../contracts/privacy';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
 import { AgentProfilerSettings } from '../features/agent-profiler/agent-profiler-settings';
@@ -100,6 +104,7 @@ export function SettingsPage() {
   const [trustContract, setTrustContract] = useState<WorkspaceTrustContract | null>(null);
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
   const [privacyModelStatus, setPrivacyModelStatus] = useState<PrivacyModelStatus | null>(null);
+  const [privacyModelProgress, setPrivacyModelProgress] = useState<PrivacyModelDownloadProgress | null>(null);
   const [isPrivacyModelBusy, setIsPrivacyModelBusy] = useState(false);
   const [privacyDebugResult, setPrivacyDebugResult] = useState<PrivacySafeScanResult | null>(null);
   const [isPrivacyActionBusy, setIsPrivacyActionBusy] = useState(false);
@@ -165,15 +170,43 @@ export function SettingsPage() {
     void refreshPrivacyModelStatus();
   }, [refreshPrivacyModelStatus]);
 
+  useEffect(() => {
+    return window.mate.privacy.onModelDownloadProgress((progress) => {
+      setPrivacyModelProgress(progress);
+      setIsPrivacyModelBusy(progress.state === 'downloading' || progress.state === 'verifying');
+      if (progress.state === 'ready') {
+        void refreshPrivacyModelStatus();
+      }
+    });
+  }, [refreshPrivacyModelStatus]);
+
   const handleDownloadPrivacyModel = useCallback(async () => {
     setIsPrivacyModelBusy(true);
+    setPrivacyModelProgress({
+      state: 'downloading',
+      fileIndex: 0,
+      fileCount: privacyModelStatus
+        ? privacyModelStatus.requiredFiles.length + privacyModelStatus.externalDataFiles.length
+        : 0,
+      receivedBytes: 0,
+      message: 'Starting MaTE X Privacy model download.',
+    });
     try {
       const status = await window.mate.privacy.downloadModel();
       setPrivacyModelStatus(status);
+      if (status.error) {
+        setPrivacyModelProgress({
+          state: 'failed',
+          fileIndex: 0,
+          fileCount: 0,
+          receivedBytes: 0,
+          message: status.error,
+        });
+      }
     } finally {
       setIsPrivacyModelBusy(false);
     }
-  }, []);
+  }, [privacyModelStatus]);
 
   const handlePrivacyCanaryScan = useCallback(async () => {
     setIsPrivacyActionBusy(true);
@@ -876,6 +909,7 @@ export function SettingsPage() {
                     status={
                       privacyModelStatus?.error ??
                       privacyModelStatus?.inferenceError ??
+                      privacyModelProgress?.message ??
                       (privacyModelStatus?.missingFiles.length
                         ? `Missing: ${privacyModelStatus.missingFiles.join(', ')}`
                         : `Active: ${privacyModelStatus?.assetPath}`)
@@ -919,6 +953,35 @@ export function SettingsPage() {
                       </div>
                     }
                   />
+                  {privacyModelProgress &&
+                    privacyModelProgress.state !== 'idle' &&
+                    privacyModelProgress.state !== 'ready' ? (
+                      <div className="border-b border-border/60 px-5 py-3">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="font-medium text-foreground">
+                            {privacyModelProgress.state === 'failed'
+                              ? 'Download failed'
+                              : privacyModelProgress.state === 'verifying'
+                                ? 'Installing model'
+                                : `Downloading ${privacyModelProgress.file ?? 'model assets'}`}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {privacyModelProgress.percent != null
+                              ? `${privacyModelProgress.percent}%`
+                              : `${privacyModelProgress.fileIndex}/${privacyModelProgress.fileCount}`}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              privacyModelProgress.state === 'failed' ? 'bg-destructive' : 'bg-primary',
+                            )}
+                            style={{ width: `${privacyModelProgress.percent ?? 10}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                   <SettingsRow
                     title="Use ONNX scanner"
                     description="Run MaTE X Privacy v0.15 token classifier when assets are present."
