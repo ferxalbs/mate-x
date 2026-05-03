@@ -47,12 +47,14 @@ const CONFIG_FILENAMES = new Set([
 const MANIFEST_FILENAMES = new Set(['package.json']);
 const IGNORED_DIRS = new Set([
   '.git',
+  '.vite',
   'node_modules',
   'dist',
   '.next',
   'out',
   'target',
   'coverage',
+  'resources',
 ]);
 const MAX_FILES = 3500;
 const MAX_FILE_BYTES = 600_000;
@@ -61,11 +63,15 @@ const SERVICE_CALL_PATTERN =
 const DIRECT_CALL_PATTERN = /\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
 const FAN_OUT_LIMIT = 12;
 const EMBEDDING_BATCH_SIZE = 32;
+const AUTO_INDEX_DELAY_MS = 1_500;
+const AUTO_INDEX_BURST_DELAY_MS = 2_500;
+const AUTO_INDEX_BURST_THRESHOLD = 12;
 
 export class RepoGraphService {
   private watchers = new Map<string, FSWatcher>();
   private refreshTimers = new Map<string, NodeJS.Timeout>();
   private inFlightRefreshes = new Map<string, Promise<RepoGraphSnapshot>>();
+  private pendingWatcherChanges = new Map<string, Set<string>>();
 
   async refreshWorkspace(workspace: RepoGraphWorkspace): Promise<RepoGraphSnapshot> {
     const existing = this.inFlightRefreshes.get(workspace.id);
@@ -433,7 +439,7 @@ export class RepoGraphService {
           if (!filename || shouldIgnorePath(String(filename))) {
             return;
           }
-          this.scheduleRefresh(workspace, 1000);
+          this.noteWorkspaceFileChanged(workspace, String(filename));
         },
       );
       this.watchers.set(workspace.id, watcher);
@@ -449,9 +455,28 @@ export class RepoGraphService {
     }
     const timer = setTimeout(() => {
       this.refreshTimers.delete(workspace.id);
+      this.pendingWatcherChanges.delete(workspace.id);
       void this.refreshWorkspace(workspace);
     }, delayMs);
     this.refreshTimers.set(workspace.id, timer);
+  }
+
+  private noteWorkspaceFileChanged(workspace: RepoGraphWorkspace, filename: string) {
+    const relativePath = normalizeRelativePath(filename);
+    if (!relativePath) {
+      return;
+    }
+
+    const pending = this.pendingWatcherChanges.get(workspace.id) ?? new Set<string>();
+    pending.add(relativePath);
+    this.pendingWatcherChanges.set(workspace.id, pending);
+
+    if (isIndexableFile(relativePath) || pending.size >= AUTO_INDEX_BURST_THRESHOLD) {
+      const delay = pending.size >= AUTO_INDEX_BURST_THRESHOLD
+        ? AUTO_INDEX_BURST_DELAY_MS
+        : AUTO_INDEX_DELAY_MS;
+      this.scheduleRefresh(workspace, delay);
+    }
   }
 }
 
@@ -482,10 +507,16 @@ async function indexRepoGraphEmbeddings(
 
   for (let index = 0; index < embeddingTargets.length; index += EMBEDDING_BATCH_SIZE) {
     const batch = embeddingTargets.slice(index, index + EMBEDDING_BATCH_SIZE);
-    const vectors = await requestRainyEmbeddings({
-      apiKey,
-      input: batch.map((target) => target.text),
-    });
+    let vectors: number[][];
+    try {
+      vectors = await requestRainyEmbeddings({
+        apiKey,
+        input: batch.map((target) => target.text),
+      });
+    } catch (error) {
+      console.warn('RepoGraph embedding batch skipped:', sanitizeEmbeddingIndexError(error));
+      break;
+    }
 
     vectors.forEach((embedding, vectorIndex) => {
       const target = batch[vectorIndex];
@@ -503,6 +534,11 @@ async function indexRepoGraphEmbeddings(
   }
 
   await tursoService.replaceRepoEmbeddings(workspaceId, entries);
+}
+
+function sanitizeEmbeddingIndexError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]');
 }
 
 function buildEmbeddingInput(node: RepoGraphNode, content?: string) {

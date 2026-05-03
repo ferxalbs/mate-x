@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.03 (1) [Privacy Firewall and RepoGraph Auto-Index]
+
+- Added MaTE X Privacy Firewall as a local outbound security layer for Rainy/cloud model requests, with deterministic P0 scanning, ONNX scanner integration, span postprocessing, placeholder redaction, encrypted local vault storage, and safe scan metadata for UI/evidence without raw secret text.
+- Added Privacy settings controls for firewall mode, deterministic scanning, ONNX scanning, P0 cloud-send blocking, placeholder style, model confidence, local canary scan, vault clearing, model status, and background model download progress.
+- Moved MaTE X Privacy v0.15 ONNX assets out of repo resources and into Electron userData at `Application Support/MaTE X/privacy/models/matex-privacy-v0.15`, with repo/package resources treated only as immutable fallback metadata when bundled.
+- Added local download support for `enosislabs/matex-privacy-sentinel-v0.15-onnx`, including streamed progress events from the Electron main process to the settings UI.
+- Guarded Rainy chat, responses, streaming, and embeddings payloads with privacy sanitization so outbound prompts, repo context, tool output, traces, memory snippets, and embedding inputs are redacted before cloud transit.
+- Fixed strict-mode privacy behavior so P0 values are redacted first, exact raw secret-like values are scrubbed, sanitized payloads are asserted, and cloud sends are blocked only when sanitization cannot guarantee raw values are gone.
+- Hardened RepoGraph embeddings so Rainy embedding provider errors do not fail graph construction; embeddings are skipped safely while nodes and edges remain usable.
+- Added normalized parsing for multiple Rainy embedding response shapes and safe error reporting when the provider returns `{ error }` instead of vectors.
+- Optimized RepoGraph auto-indexing so source/config/test/env/package changes trigger debounced refreshes, large file bursts trigger delayed refreshes, and noisy generated paths such as `.vite`, `resources`, build output, logs, and maps reuse the existing graph.
+- Verified with `pnpm exec tsc --noEmit`, focused ESLint on touched privacy/Rainy/RepoGraph/settings files, and `bun test src/electron/privacy/privacy-regex-scanner.test.ts`.
+
 ## Unreleased - 2026.05.01 (1) [Critic Loop Verification]
 
 - Added `critic_loop` as an assistant execution mode for high-impact tasks, with primary answer, critic review, forced revision on major issues, and deterministic verifier checks before final output.
