@@ -105,7 +105,7 @@ Always run `bun run lint && bun run typecheck` before opening a PR.
 
 Follow `RULES.md` exactly. Every new entry:
 
-```
+```text
 # Unreleased - YYYY.MM.DD (N) [Entry Name]
 ```
 

@@ -88,6 +88,9 @@ export function registerIpcHandlers() {
   ipcMain.handle("privacy:download-model", async () =>
     privacyFirewall.downloadModel(),
   );
+  ipcMain.handle("privacy:clear-vault", async () =>
+    privacyFirewall.clearVault(),
+  );
 
   ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());

@@ -83,10 +83,17 @@ export interface PrivacyModelStatus {
   loaded: boolean;
   missing: boolean;
   assetPath: string;
+  huggingFaceRepo?: string;
+  revision?: string;
   requiredFiles: string[];
+  externalDataFiles: string[];
   presentFiles: string[];
   missingFiles: string[];
   downloadUrl?: string;
+  apiUrl?: string;
+  remoteFiles?: string[];
+  inferenceReady: boolean;
+  inferenceError?: string;
   error?: string;
 }
 
@@ -94,4 +101,5 @@ export interface PrivacyApi {
   scanText: (text: string) => Promise<PrivacySafeScanResult>;
   getModelStatus: () => Promise<PrivacyModelStatus>;
   downloadModel: () => Promise<PrivacyModelStatus>;
+  clearVault: () => Promise<void>;
 }

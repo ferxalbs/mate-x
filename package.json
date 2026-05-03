@@ -79,7 +79,10 @@
     "clsx": "^2.1.1",
     "effect": "^3.21.2",
     "electron-squirrel-startup": "^1.0.1",
+    "js-tiktoken": "^1.0.21",
     "lucide-react": "^1.14.0",
+    "onnxruntime-node": "1.24.3",
+    "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c",
     "openai": "^6.35.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
@@ -96,5 +99,8 @@
     "@libsql/darwin-arm64": "0.5.29",
     "@libsql/darwin-x64": "0.5.29",
     "@libsql/win32-x64-msvc": "0.5.29"
-  }
+  },
+  "trustedDependencies": [
+    "onnxruntime-node"
+  ]
 }

@@ -48,7 +48,7 @@ import {
   type PrivacyPlaceholderStyle,
   type TimeFormat,
 } from '../contracts/settings';
-import type { PrivacyModelStatus } from '../contracts/privacy';
+import type { PrivacyModelStatus, PrivacySafeScanResult } from '../contracts/privacy';
 import { useTheme, type Theme } from '../hooks/use-theme';
 import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
 import { AgentProfilerSettings } from '../features/agent-profiler/agent-profiler-settings';
@@ -101,6 +101,8 @@ export function SettingsPage() {
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
   const [privacyModelStatus, setPrivacyModelStatus] = useState<PrivacyModelStatus | null>(null);
   const [isPrivacyModelBusy, setIsPrivacyModelBusy] = useState(false);
+  const [privacyDebugResult, setPrivacyDebugResult] = useState<PrivacySafeScanResult | null>(null);
+  const [isPrivacyActionBusy, setIsPrivacyActionBusy] = useState(false);
 
   const section: SettingsSectionId =
     pathname === '/settings/workspace-memory'
@@ -170,6 +172,27 @@ export function SettingsPage() {
       setPrivacyModelStatus(status);
     } finally {
       setIsPrivacyModelBusy(false);
+    }
+  }, []);
+
+  const handlePrivacyCanaryScan = useCallback(async () => {
+    setIsPrivacyActionBusy(true);
+    try {
+      const result = await window.mate.privacy.scanText(
+        'OPENAI_API_KEY=sk-proj-demo-123456789\nDATABASE_URL=postgresql://user:pass@db.internal.invalid:5432/main',
+      );
+      setPrivacyDebugResult(result);
+    } finally {
+      setIsPrivacyActionBusy(false);
+    }
+  }, []);
+
+  const handleClearPrivacyVault = useCallback(async () => {
+    setIsPrivacyActionBusy(true);
+    try {
+      await window.mate.privacy.clearVault();
+    } finally {
+      setIsPrivacyActionBusy(false);
     }
   }, []);
 
@@ -847,10 +870,16 @@ export function SettingsPage() {
                     title="ONNX model"
                     description={
                       privacyModelStatus
-                        ? `${privacyModelStatus.model}: ${privacyModelStatus.loaded ? 'loaded' : 'missing'} (${privacyModelStatus.presentFiles.length}/${privacyModelStatus.requiredFiles.length})`
+                        ? `${privacyModelStatus.huggingFaceRepo ?? privacyModelStatus.model}: ${privacyModelStatus.loaded ? 'loaded' : 'missing'} (${privacyModelStatus.presentFiles.length}/${privacyModelStatus.requiredFiles.length + privacyModelStatus.externalDataFiles.length})`
                         : 'Checking local model assets.'
                     }
-                    status={privacyModelStatus?.error ?? privacyModelStatus?.assetPath}
+                    status={
+                      privacyModelStatus?.error ??
+                      privacyModelStatus?.inferenceError ??
+                      (privacyModelStatus?.missingFiles.length
+                        ? `Missing: ${privacyModelStatus.missingFiles.join(', ')}`
+                        : privacyModelStatus?.assetPath)
+                    }
                     control={
                       <div className="flex items-center gap-2">
                         <span
@@ -988,21 +1017,43 @@ export function SettingsPage() {
                     }
                   />
                   <SettingsRow
-                    title="Preview before cloud send"
-                    description="Keep review-mode redaction preview enabled for user-visible runs."
+                    title="Local scan check"
+                    description={
+                      privacyDebugResult
+                        ? `${privacyDebugResult.stats.totalSpans} spans, ${privacyDebugResult.stats.p0Count} P0, output: ${privacyDebugResult.redactedText.replace(/\n/g, ' ')}`
+                        : 'Run deterministic redaction locally without persisting plaintext.'
+                    }
                     control={
-                      <Switch
-                        checked={appSettings.privacyShowPreviewBeforeCloudSend}
-                        onCheckedChange={(value) => {
-                          setAppSettings((current) => ({
-                            ...current,
-                            privacyShowPreviewBeforeCloudSend: value,
-                          }));
-                          if (saveState === 'saved') {
-                            setSaveState('idle');
-                          }
-                        }}
-                      />
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                        onClick={() => void handlePrivacyCanaryScan()}
+                        disabled={isPrivacyActionBusy}
+                      >
+                        {isPrivacyActionBusy ? (
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                        ) : (
+                          <ShieldIcon className="size-3.5" />
+                        )}
+                        Scan canary
+                      </Button>
+                    }
+                  />
+                  <SettingsRow
+                    title="Clear local privacy vault"
+                    description="Delete encrypted original span values stored for local audit dedupe."
+                    control={
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                        onClick={() => void handleClearPrivacyVault()}
+                        disabled={isPrivacyActionBusy}
+                      >
+                        <RefreshCcwIcon className="size-3.5" />
+                        Clear vault
+                      </Button>
                     }
                   />
                 </>

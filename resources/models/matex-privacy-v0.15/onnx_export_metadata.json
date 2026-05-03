@@ -1,0 +1,17 @@
+{
+  "dtype": "fp32",
+  "dynamic_axes": true,
+  "entrypoint": "model.onnx",
+  "format": "onnx",
+  "inputs": {
+    "attention_mask": "bool[batch, sequence]",
+    "input_ids": "int64[batch, sequence]"
+  },
+  "opset": 18,
+  "outputs": {
+    "logits": "float[batch, sequence, num_labels]"
+  },
+  "postprocessing": "Decode logits with OPF label-space/sequence-labeling logic.",
+  "source_model_repo": "enosislabs/matex-privacy-sentinel-v0.15",
+  "tokenizer": "tiktoken encoding from config.json field `encoding`"
+}

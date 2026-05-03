@@ -136,6 +136,10 @@ export class PrivacyFirewallService {
     return downloadPrivacyModelAssets();
   }
 
+  clearVault() {
+    return tursoService.clearPrivacyVault();
+  }
+
   async sanitizeOutboundModelPayload<T>(
     payload: T,
     context: { workspaceId?: string; runId?: string; inputKind?: string } = {},
@@ -145,6 +149,7 @@ export class PrivacyFirewallService {
     let reason: string | undefined;
     let elapsedMs = 0;
     let originalLength = 0;
+    const outboundOptions = { ...DEFAULT_OPTIONS, ...(await loadSettingsOptions()) };
 
     const sanitizeValue = async (value: unknown): Promise<unknown> => {
       if (typeof value !== "string") {
@@ -174,7 +179,12 @@ export class PrivacyFirewallService {
       elapsedMs += scan.stats.elapsedMs;
 
       for (const span of scan.spans) {
-        if (span.risk === "p0" && span.text && scan.redactedText.includes(span.text)) {
+        if (
+          outboundOptions.blockP0CloudSend &&
+          span.risk === "p0" &&
+          span.text &&
+          scan.redactedText.includes(span.text)
+        ) {
           blocked = true;
           reason = "Privacy Firewall outbound assertion failed.";
           break;
