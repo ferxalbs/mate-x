@@ -86,6 +86,14 @@ bun run make
 
 MaTE X is designed with a "Security-First" philosophy. It enforces strict IPC boundaries between the renderer and the main process to ensure that sensitive operations (like file system access or Git commands) are always validated and executed in a protected context.
 
+## MaTE X Privacy v0.15
+
+MaTE X Privacy v0.15 is a local hybrid privacy firewall for agentic coding workflows.
+
+Before MaTE X sends repo context, tool outputs, traces, workspace memory, or prompts to a cloud model, it scans the payload locally using deterministic secret rules and an ONNX privacy model. Sensitive spans are replaced with typed placeholders, while originals are encrypted in a local vault.
+
+Cloud models receive enough structure to reason over the code, but not the raw secrets.
+
 ## 📄 License
 
 Distributed under the MIT License. See `package.json` for details.
