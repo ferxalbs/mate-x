@@ -1,0 +1,54 @@
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+  --background: var(--color-white);
+  --foreground: oklch(0.28 0.014 260);
+  --card: var(--color-white);
+  --card-foreground: var(--foreground);
+  --popover: var(--color-white);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.488 0.217 264);
+  --primary-foreground: var(--color-white);
+  --secondary: --alpha(var(--color-black) / 4%);
+  --secondary-foreground: var(--foreground);
+  --muted: --alpha(var(--color-black) / 4%);
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
+  --accent: --alpha(var(--color-black) / 4%);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--color-red-500);
+  --border: --alpha(var(--color-black) / 8%);
+  --input: --alpha(var(--color-black) / 10%);
+  --ring: oklch(0.488 0.217 264);
+  --destructive-foreground: var(--color-red-700);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-700);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-700);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-700);
+
+  /* Code Syntax Highlighting (Light) */
+  --code-bg: #f8f9fa;
+  --code-header-bg: #f1f3f5;
+  --code-keyword: #d73a49;
+  --code-string: #22863a;
+  --code-function: #6f42c1;
+  --code-comment: #6a737d;
+  --code-variable: #e36209;
+  --code-operator: #d73a49;
+  --code-constant: #e36209;
+  --code-tag: #22863a;
+  --code-class: #005cc5;
+  --app-chrome-background: var(--background);
+  --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
+  --sidebar: color-mix(in srgb, var(--background) 97%, #f4f4f6);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
+  --sidebar-accent: color-mix(in srgb, var(--accent) 88%, white 12%);
+  --surface: color-mix(in srgb, var(--background) 97%, #f8f8fa);
+  --surface-soft: color-mix(in srgb, var(--muted) 84%, white 16%);
+  --panel: color-mix(in srgb, var(--background) 96%, #f6f6f8);
+  --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --titlebar: color-mix(in srgb, var(--background) 98%, #f7f7f9);
+  --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
+}

@@ -1,5 +1,5 @@
 export type TimeFormat = 'system' | '24h' | '12h';
-export type ThemePreference = 'light' | 'dark' | 'system';
+export type ThemePreference = 'light' | 'dark' | 'oled' | 'blue' | 'system';
 export type AgentTraceVersion = 'v1' | 'v2';
 export type PrivacyMode = 'off' | 'warn' | 'review' | 'strict';
 export type PrivacyPlaceholderStyle = 'simple' | 'typed' | 'stable';
