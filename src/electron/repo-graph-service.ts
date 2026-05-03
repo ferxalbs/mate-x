@@ -15,6 +15,12 @@ import type {
   RepoGraphSnapshot,
 } from '../contracts/repo-graph';
 import type { WorkspaceEntry } from '../contracts/workspace';
+import {
+  RAINY_REPO_EMBEDDING_CONTEXT_LENGTH,
+  RAINY_REPO_EMBEDDING_DIMENSIONS,
+  RAINY_REPO_EMBEDDING_MODEL,
+  requestRainyEmbeddings,
+} from './rainy-service';
 import { tursoService } from './turso-service';
 
 type RepoGraphWorkspace = Pick<WorkspaceEntry, 'id' | 'name' | 'path'>;
@@ -54,6 +60,7 @@ const SERVICE_CALL_PATTERN =
   /\b([A-Za-z0-9_$]+(?:Service)?)\.([A-Za-z0-9_$]+)\s*\(/g;
 const DIRECT_CALL_PATTERN = /\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
 const FAN_OUT_LIMIT = 12;
+const EMBEDDING_BATCH_SIZE = 32;
 
 export class RepoGraphService {
   private watchers = new Map<string, FSWatcher>();
@@ -364,7 +371,13 @@ export class RepoGraphService {
 
     inferEntrypoints(builder, fileContents);
     const { nodes, edges } = builder.snapshot();
-    return tursoService.replaceRepoGraph(workspace.id, nodes, edges);
+    const snapshot = await tursoService.replaceRepoGraph(workspace.id, nodes, edges);
+    try {
+      await indexRepoGraphEmbeddings(workspace.id, nodes, fileContents);
+    } catch (error) {
+      console.warn('RepoGraph embedding index failed:', error);
+    }
+    return snapshot;
   }
 
   private async loadFileGraph(workspaceId: string) {
@@ -440,6 +453,69 @@ export class RepoGraphService {
     }, delayMs);
     this.refreshTimers.set(workspace.id, timer);
   }
+}
+
+async function indexRepoGraphEmbeddings(
+  workspaceId: string,
+  nodes: RepoGraphNode[],
+  fileContents: Map<string, string>,
+) {
+  const apiKey = await tursoService.getApiKey();
+  if (!apiKey) {
+    return;
+  }
+
+  const embeddingTargets = nodes
+    .filter((node) => node.kind === 'file' || node.kind === 'test')
+    .map((node) => ({
+      node,
+      text: buildEmbeddingInput(node, fileContents.get(node.key)),
+    }))
+    .filter((target) => target.text.length > 0);
+  const entries: Array<{
+    nodeId: string;
+    model: string;
+    dimensions: number;
+    contentHash: string;
+    embedding: number[];
+  }> = [];
+
+  for (let index = 0; index < embeddingTargets.length; index += EMBEDDING_BATCH_SIZE) {
+    const batch = embeddingTargets.slice(index, index + EMBEDDING_BATCH_SIZE);
+    const vectors = await requestRainyEmbeddings({
+      apiKey,
+      input: batch.map((target) => target.text),
+    });
+
+    vectors.forEach((embedding, vectorIndex) => {
+      const target = batch[vectorIndex];
+      if (!target) {
+        return;
+      }
+      entries.push({
+        nodeId: target.node.id,
+        model: RAINY_REPO_EMBEDDING_MODEL,
+        dimensions: RAINY_REPO_EMBEDDING_DIMENSIONS,
+        contentHash: hashKey(target.text),
+        embedding,
+      });
+    });
+  }
+
+  await tursoService.replaceRepoEmbeddings(workspaceId, entries);
+}
+
+function buildEmbeddingInput(node: RepoGraphNode, content?: string) {
+  const purpose = typeof node.metadata?.purpose === 'string' ? node.metadata.purpose : '';
+  const text = [
+    `kind: ${node.kind}`,
+    `path: ${node.key}`,
+    `label: ${node.label}`,
+    purpose ? `purpose: ${purpose}` : '',
+    content ? `content:\n${content}` : '',
+  ].filter(Boolean).join('\n');
+
+  return text.slice(0, RAINY_REPO_EMBEDDING_CONTEXT_LENGTH);
 }
 
 class GraphBuilder {

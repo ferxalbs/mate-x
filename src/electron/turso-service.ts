@@ -174,6 +174,18 @@ export class TursoService {
           edge_count INTEGER NOT NULL,
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
+        `CREATE TABLE IF NOT EXISTS repo_embeddings (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          node_id TEXT NOT NULL,
+          model TEXT NOT NULL,
+          dimensions INTEGER NOT NULL,
+          content_hash TEXT NOT NULL,
+          embedding_json TEXT NOT NULL,
+          indexed_at TEXT NOT NULL,
+          UNIQUE(workspace_id, node_id, model),
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
         `CREATE TABLE IF NOT EXISTS agent_capability_profiles (
           scope TEXT NOT NULL,
           workspace_id TEXT NOT NULL,
@@ -186,6 +198,8 @@ export class TursoService {
           ON repo_graph_nodes(workspace_id, kind)`,
         `CREATE INDEX IF NOT EXISTS idx_repo_graph_edges_workspace_kind
           ON repo_graph_edges(workspace_id, kind)`,
+        `CREATE INDEX IF NOT EXISTS idx_repo_embeddings_workspace_model
+          ON repo_embeddings(workspace_id, model)`,
         `CREATE INDEX IF NOT EXISTS idx_failure_memory_workspace_signature
           ON failure_memory(workspace_id, error_signature)`,
       ],
@@ -889,6 +903,39 @@ export class TursoService {
       nodeCount: Number(row.node_count),
       edgeCount: Number(row.edge_count),
     };
+  }
+
+  async replaceRepoEmbeddings(
+    workspaceId: string,
+    embeddings: Array<{
+      nodeId: string;
+      model: string;
+      dimensions: number;
+      contentHash: string;
+      embedding: number[];
+    }>,
+  ): Promise<void> {
+    await this.initialize();
+    const indexedAt = new Date().toISOString();
+    const statements = [
+      { sql: `DELETE FROM repo_embeddings WHERE workspace_id = ?`, args: [workspaceId] },
+      ...embeddings.map((entry) => ({
+        sql: `INSERT INTO repo_embeddings (id, workspace_id, node_id, model, dimensions, content_hash, embedding_json, indexed_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          `${workspaceId}:${entry.model}:${entry.nodeId}`,
+          workspaceId,
+          entry.nodeId,
+          entry.model,
+          entry.dimensions,
+          entry.contentHash,
+          JSON.stringify(entry.embedding),
+          indexedAt,
+        ],
+      })),
+    ];
+
+    await this.getClient().batch(statements, 'write');
   }
 
   async getRepoGraphNodes(workspaceId: string, kinds?: string[]): Promise<RepoGraphNode[]> {
