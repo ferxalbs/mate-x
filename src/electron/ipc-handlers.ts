@@ -29,6 +29,7 @@ import {
 import { tursoService } from "./turso-service";
 import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
+import { privacyFirewall } from "./privacy/privacy-firewall-service";
 
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
@@ -78,6 +79,9 @@ async function resolveGitService() {
 
 export function registerIpcHandlers() {
   ipcMain.handle("app:check-updates", async () => checkForUpdates(true));
+  ipcMain.handle("privacy:scan-text", async (_event, text: string) =>
+    privacyFirewall.scanTextSafe(String(text ?? "")),
+  );
 
   ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());

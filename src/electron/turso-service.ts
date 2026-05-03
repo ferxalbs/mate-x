@@ -194,6 +194,31 @@ export class TursoService {
           updated_at TEXT NOT NULL,
           PRIMARY KEY(scope, workspace_id, model)
         )`,
+        `CREATE TABLE IF NOT EXISTS privacy_secret_vault (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT,
+          run_id TEXT,
+          label TEXT NOT NULL,
+          replacement TEXT NOT NULL,
+          hash TEXT NOT NULL,
+          ciphertext TEXT NOT NULL,
+          iv TEXT NOT NULL,
+          auth_tag TEXT,
+          source TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          expires_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS privacy_scan_events (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT,
+          run_id TEXT,
+          input_kind TEXT NOT NULL,
+          total_spans INTEGER NOT NULL,
+          p0_count INTEGER NOT NULL,
+          blocked INTEGER NOT NULL,
+          elapsed_ms INTEGER NOT NULL,
+          created_at TEXT NOT NULL
+        )`,
         `CREATE INDEX IF NOT EXISTS idx_repo_graph_nodes_workspace_kind
           ON repo_graph_nodes(workspace_id, kind)`,
         `CREATE INDEX IF NOT EXISTS idx_repo_graph_edges_workspace_kind
@@ -202,6 +227,10 @@ export class TursoService {
           ON repo_embeddings(workspace_id, model)`,
         `CREATE INDEX IF NOT EXISTS idx_failure_memory_workspace_signature
           ON failure_memory(workspace_id, error_signature)`,
+        `CREATE INDEX IF NOT EXISTS idx_privacy_vault_workspace_hash
+          ON privacy_secret_vault(workspace_id, hash)`,
+        `CREATE INDEX IF NOT EXISTS idx_privacy_scan_events_workspace
+          ON privacy_scan_events(workspace_id, created_at)`,
       ],
       'write',
     );
@@ -418,6 +447,72 @@ export class TursoService {
       args: ['app_settings', JSON.stringify(normalizedSettings)],
     });
     return normalizedSettings;
+  }
+
+  async storePrivacySecret(secret: {
+    id: string;
+    workspaceId: string;
+    runId: string | null;
+    label: string;
+    replacement: string;
+    hash: string;
+    ciphertext: string;
+    iv: string;
+    authTag: string | null;
+    source: string;
+    createdAt: string;
+    expiresAt?: string | null;
+  }) {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT OR REPLACE INTO privacy_secret_vault
+            (id, workspace_id, run_id, label, replacement, hash, ciphertext, iv, auth_tag, source, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        secret.id,
+        secret.workspaceId,
+        secret.runId,
+        secret.label,
+        secret.replacement,
+        secret.hash,
+        secret.ciphertext,
+        secret.iv,
+        secret.authTag,
+        secret.source,
+        secret.createdAt,
+        secret.expiresAt ?? null,
+      ],
+    });
+  }
+
+  async recordPrivacyScanEvent(event: {
+    id: string;
+    workspaceId: string;
+    runId: string | null;
+    inputKind: string;
+    totalSpans: number;
+    p0Count: number;
+    blocked: boolean;
+    elapsedMs: number;
+    createdAt: string;
+  }) {
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT INTO privacy_scan_events
+            (id, workspace_id, run_id, input_kind, total_spans, p0_count, blocked, elapsed_ms, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        event.id,
+        event.workspaceId,
+        event.runId,
+        event.inputKind,
+        event.totalSpans,
+        event.p0Count,
+        event.blocked ? 1 : 0,
+        event.elapsedMs,
+        event.createdAt,
+      ],
+    });
   }
 
   async recordAgentCapabilityRun(run: AgentCapabilityRunMetrics) {

@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   GitApi,
   PolicyApi,
+  PrivacyApi,
   RepoInspectorApi,
   SettingsApi,
   UiApi,
@@ -149,10 +150,15 @@ const policyApi: PolicyApi = {
   resolveStop: (request) => ipcRenderer.invoke("policy:resolve-stop", request),
 };
 
+const privacyApi: PrivacyApi = {
+  scanText: (text) => ipcRenderer.invoke("privacy:scan-text", text),
+};
+
 contextBridge.exposeInMainWorld("mate", {
   repo: repoApi,
   git: gitApi,
   settings: settingsApi,
   policy: policyApi,
+  privacy: privacyApi,
   ui: uiApi,
 });

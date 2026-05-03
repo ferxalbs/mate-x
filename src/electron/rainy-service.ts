@@ -19,6 +19,7 @@ import {
   supportsImageOutput,
   supportsTools,
 } from "../lib/rainy-model-capabilities";
+import { privacyFirewall } from "./privacy/privacy-firewall-service";
 
 const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, "");
 const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith("/api/v1")
@@ -464,10 +465,17 @@ export async function requestRainyChatCompletion(params: {
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const client = createRainyClient(params.apiKey);
-  const request = buildChatCompletionRequest({
-    model: params.model,
+  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
     messages: params.messages,
     tools: params.tools,
+  });
+  if (sanitized.blocked) {
+    throw new Error(sanitized.reason ?? "Privacy Firewall blocked outbound Rainy request.");
+  }
+  const request = buildChatCompletionRequest({
+    model: params.model,
+    messages: sanitized.payload.messages,
+    tools: sanitized.payload.tools,
     toolChoice: params.toolChoice,
   });
 
@@ -480,8 +488,8 @@ export async function requestRainyChatCompletion(params: {
       return client.chat.completions.create(
         buildChatCompletionRequest({
           model: params.model,
-          messages: params.messages,
-          tools: params.tools,
+          messages: sanitized.payload.messages,
+          tools: sanitized.payload.tools,
         }) as any,
         { timeout: RAINY_REQUEST_TIMEOUT_MS },
       );
@@ -502,10 +510,16 @@ export async function requestRainyEmbeddings(params: {
   }
 
   const client = createRainyClient(params.apiKey);
+  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
+    input: params.input,
+  });
+  if (sanitized.blocked) {
+    throw new Error(sanitized.reason ?? "Privacy Firewall blocked outbound Rainy request.");
+  }
   const response = await client.embeddings.create(
     {
       model: params.model ?? RAINY_REPO_EMBEDDING_MODEL,
-      input: params.input,
+      input: sanitized.payload.input,
       encoding_format: "float",
       dimensions: params.dimensions ?? RAINY_REPO_EMBEDDING_DIMENSIONS,
     },
@@ -529,10 +543,17 @@ export async function requestRainyChatCompletionStream(params: {
   maxTokens?: number;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = createRainyClient(params.apiKey);
-  const request = buildChatCompletionRequest({
-    model: params.model,
+  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
     messages: params.messages,
     tools: params.tools,
+  });
+  if (sanitized.blocked) {
+    throw new Error(sanitized.reason ?? "Privacy Firewall blocked outbound Rainy request.");
+  }
+  const request = buildChatCompletionRequest({
+    model: params.model,
+    messages: sanitized.payload.messages,
+    tools: sanitized.payload.tools,
     toolChoice: params.toolChoice,
     reasoning: params.reasoning,
     includeReasoning: params.includeReasoning,
@@ -561,8 +582,8 @@ export async function requestRainyChatCompletionStream(params: {
       {
         ...buildChatCompletionRequest({
           model: params.model,
-          messages: params.messages,
-          tools: params.tools,
+          messages: sanitized.payload.messages,
+          tools: sanitized.payload.tools,
           reasoning: params.reasoning,
           includeReasoning: params.includeReasoning,
           capabilities: params.capabilities,
@@ -630,14 +651,22 @@ export async function requestRainyResponsesCompletion(params: {
   toolChoice?: "auto" | "required" | "none";
 }): Promise<OpenAIResponse> {
   const client = createRainyClient(params.apiKey);
+  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
+    input: params.input,
+    instructions: params.instructions,
+    tools: params.tools,
+  });
+  if (sanitized.blocked) {
+    throw new Error(sanitized.reason ?? "Privacy Firewall blocked outbound Rainy request.");
+  }
 
   return client.responses.create(
     {
       model: params.model,
-      input: params.input,
-      instructions: params.instructions,
+      input: sanitized.payload.input,
+      instructions: sanitized.payload.instructions,
       previous_response_id: params.previousResponseId,
-      tools: params.tools,
+      tools: sanitized.payload.tools,
       tool_choice: params.toolChoice,
       store: false,
     },
