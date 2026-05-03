@@ -1,0 +1,18 @@
+{
+  "model": "matex-privacy-v0.15",
+  "version": "0.15",
+  "assetDirectory": "resources/models/matex-privacy-v0.15",
+  "requiredFiles": [
+    "model.onnx",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "config.json",
+    "label_space.json",
+    "special_tokens_map.json"
+  ],
+  "downloadUrl": "",
+  "notes": [
+    "Set downloadUrl to an internal signed artifact URL before using the Settings download action.",
+    "Inference stays in Electron main process. Renderer receives only model status."
+  ]
+}

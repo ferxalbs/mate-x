@@ -7,6 +7,7 @@ import type {
 } from "./privacy-types";
 import { scanWithRegex } from "./privacy-regex-scanner";
 import { scanWithOnnx } from "./privacy-onnx-scanner";
+import { downloadPrivacyModelAssets, loadPrivacyModelStatus } from "./privacy-model-loader";
 import { postprocessPrivacySpans } from "./privacy-postprocessor";
 import { redactText } from "./privacy-redactor";
 import { storePrivacySpans } from "./privacy-vault";
@@ -22,40 +23,27 @@ const DEFAULT_OPTIONS: PrivacyFirewallOptions = {
   minModelConfidence: 0.5,
 };
 
+async function loadSettingsOptions(): Promise<Partial<PrivacyFirewallOptions>> {
+  try {
+    const settings = await tursoService.getAppSettings();
+    return {
+      mode: settings.privacyFirewallEnabled ? settings.privacyMode : "off",
+      placeholderStyle: settings.privacyPlaceholderStyle,
+      scanModel: settings.privacyUseOnnxModel,
+      scanRegex: settings.privacyUseRegex,
+      blockP0CloudSend: settings.privacyBlockP0CloudSend,
+      minModelConfidence: settings.privacyMinModelConfidence,
+    };
+  } catch {
+    return {};
+  }
+}
+
 function blankSpanText(result: PrivacyScanResult): PrivacySafeScanResult {
   return {
     ...result,
     spans: result.spans.map(({ text: _text, ...span }) => span),
   };
-}
-
-function collectStrings(value: unknown, output: string[]) {
-  if (typeof value === "string") {
-    output.push(value);
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectStrings(item, output));
-    return;
-  }
-  if (value && typeof value === "object") {
-    Object.values(value).forEach((item) => collectStrings(item, output));
-  }
-}
-
-function replaceStrings(value: unknown, replacements: Map<string, string>): unknown {
-  if (typeof value === "string") {
-    return replacements.get(value) ?? value;
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => replaceStrings(item, replacements));
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, replaceStrings(item, replacements)]),
-    );
-  }
-  return value;
 }
 
 export class PrivacyFirewallService {
@@ -65,7 +53,7 @@ export class PrivacyFirewallService {
     context: { workspaceId?: string; runId?: string; inputKind?: string; persist?: boolean } = {},
   ): Promise<PrivacyScanResult> {
     const startedAt = Date.now();
-    const resolved = { ...DEFAULT_OPTIONS, ...options };
+    const resolved = { ...DEFAULT_OPTIONS, ...(await loadSettingsOptions()), ...options };
 
     if (resolved.mode === "off") {
       return {
@@ -140,43 +128,66 @@ export class PrivacyFirewallService {
     );
   }
 
+  getModelStatus() {
+    return loadPrivacyModelStatus();
+  }
+
+  downloadModel() {
+    return downloadPrivacyModelAssets();
+  }
+
   async sanitizeOutboundModelPayload<T>(
     payload: T,
     context: { workspaceId?: string; runId?: string; inputKind?: string } = {},
   ): Promise<PrivacySanitizeResult<T>> {
-    const strings: string[] = [];
-    collectStrings(payload, strings);
-    const replacements = new Map<string, string>();
     const aggregateSpans: PrivacySpan[] = [];
     let blocked = false;
     let reason: string | undefined;
     let elapsedMs = 0;
+    let originalLength = 0;
 
-    for (const value of strings) {
+    const sanitizeValue = async (value: unknown): Promise<unknown> => {
+      if (typeof value !== "string") {
+        if (Array.isArray(value)) {
+          return Promise.all(value.map((item) => sanitizeValue(item)));
+        }
+
+        if (value && typeof value === "object") {
+          const entries = await Promise.all(
+            Object.entries(value).map(async ([key, item]) => [key, await sanitizeValue(item)] as const),
+          );
+          return Object.fromEntries(entries);
+        }
+
+        return value;
+      }
+
+      originalLength += value.length;
       const scan = await this.scanText(
         value,
         { mode: "strict", placeholderStyle: "typed", scanRegex: true, scanModel: false },
         { ...context, inputKind: context.inputKind ?? "outbound_model_payload" },
       );
-      replacements.set(value, scan.redactedText);
       aggregateSpans.push(...scan.spans);
       blocked = blocked || scan.blocked;
       reason = reason ?? scan.blockReason;
       elapsedMs += scan.stats.elapsedMs;
-    }
 
-    const sanitizedPayload = replaceStrings(payload, replacements) as T;
-    const serialized = JSON.stringify(sanitizedPayload);
-    for (const span of aggregateSpans) {
-      if (span.risk === "p0" && span.text && serialized.includes(span.text)) {
-        blocked = true;
-        reason = "Privacy Firewall outbound assertion failed.";
-        break;
+      for (const span of scan.spans) {
+        if (span.risk === "p0" && span.text && scan.redactedText.includes(span.text)) {
+          blocked = true;
+          reason = "Privacy Firewall outbound assertion failed.";
+          break;
+        }
       }
-    }
+
+      return scan.redactedText;
+    };
+
+    const sanitizedPayload = (await sanitizeValue(payload)) as T;
 
     const scan: PrivacyScanResult = {
-      originalLength: strings.reduce((sum, item) => sum + item.length, 0),
+      originalLength,
       redactedText: "",
       spans: aggregateSpans,
       blocked,
