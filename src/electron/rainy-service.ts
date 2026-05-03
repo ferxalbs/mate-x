@@ -33,6 +33,9 @@ const RAINY_MODELS_ENDPOINTS = [
   `${RAINY_BASE_URL}/models`,
 ];
 const MODEL_CACHE_TTL_MS = 60_000;
+export const RAINY_REPO_EMBEDDING_MODEL = "google/gemini-embedding-2-preview";
+export const RAINY_REPO_EMBEDDING_DIMENSIONS = 3072;
+export const RAINY_REPO_EMBEDDING_CONTEXT_LENGTH = 8092;
 
 let cachedCatalog: {
   cacheKey: string;
@@ -486,6 +489,30 @@ export async function requestRainyChatCompletion(params: {
 
     throw error;
   }
+}
+
+export async function requestRainyEmbeddings(params: {
+  apiKey: string;
+  input: string[];
+  model?: string;
+  dimensions?: number;
+}): Promise<number[][]> {
+  if (params.input.length === 0) {
+    return [];
+  }
+
+  const client = createRainyClient(params.apiKey);
+  const response = await client.embeddings.create(
+    {
+      model: params.model ?? RAINY_REPO_EMBEDDING_MODEL,
+      input: params.input,
+      encoding_format: "float",
+      dimensions: params.dimensions ?? RAINY_REPO_EMBEDDING_DIMENSIONS,
+    },
+    { timeout: RAINY_REQUEST_TIMEOUT_MS },
+  );
+
+  return response.data.map((item) => item.embedding);
 }
 
 export async function requestRainyChatCompletionStream(params: {
