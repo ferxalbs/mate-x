@@ -11,6 +11,7 @@ import type {
   ResolvePolicyStopRequest,
 } from "./policy";
 import type { RainyModelCatalogEntry } from "./rainy";
+import type { PrivacyApi } from "./privacy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
 import type {
@@ -120,3 +121,5 @@ export interface UiApi {
   onArchiveThread: (listener: (threadId: string) => void) => () => void;
   onDeleteThread: (listener: (threadId: string) => void) => () => void;
 }
+
+export type { PrivacyApi };
