@@ -83,6 +83,9 @@ export interface PrivacyModelStatus {
   loaded: boolean;
   missing: boolean;
   assetPath: string;
+  userDataPath: string;
+  bundledPath: string;
+  source: "userData" | "bundled" | "missing";
   huggingFaceRepo?: string;
   revision?: string;
   requiredFiles: string[];
