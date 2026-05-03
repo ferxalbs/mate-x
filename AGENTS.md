@@ -78,6 +78,7 @@ Always run `bun run lint && bun run typecheck` before opening a PR.
 ## Coding Style & Naming Conventions
 
 - **TypeScript** with React 19, Electron 41, Tailwind CSS v4.
+- **Tailwind CSS v4 Themes**: Use pure CSS `@import` to modularize themes in `src/styles/themes/`. Always register custom variants via `@custom-variant` in `index.css` to avoid Vite transformation errors.
 - Renderer files: double quotes, trailing commas.
 - Main-process files: single quotes.
 - `PascalCase` for components | `camelCase` for functions/store actions | `kebab-case` for feature folders.
@@ -136,5 +137,6 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - Security-sensitive logic stays in `src/electron/`.
 - Validate all IPC inputs.
 - Update `src/contracts/` whenever payloads change.
+- **Data Normalization**: When adding new allowed values to settings or contracts (e.g., new themes in `src/contracts/settings.ts`), you MUST update the corresponding normalization logic in `src/electron/turso-service.ts` (e.g., `normalizeAppSettings`) so the database does not reject or overwrite the new valid values.
 - Optimize: security first, then responsiveness and low overhead.
 - Avoid platform regressions on macOS x86/ARM and Windows 10+.

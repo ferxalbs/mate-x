@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
-export type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'oled' | 'blue' | 'system';
 
 type ThemeSnapshot = {
   theme: Theme;
@@ -23,7 +23,7 @@ function getSystemDark() {
 
 function getStoredTheme(): Theme {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === 'light' || raw === 'dark' || raw === 'system') {
+  if (raw === 'light' || raw === 'dark' || raw === 'oled' || raw === 'blue' || raw === 'system') {
     return raw;
   }
   return 'system';
@@ -34,8 +34,14 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
     document.documentElement.classList.add('no-transitions');
   }
 
-  const isDark = theme === 'dark' || (theme === 'system' && getSystemDark());
+  const isDark =
+    theme === 'dark' ||
+    theme === 'oled' ||
+    theme === 'blue' ||
+    (theme === 'system' && getSystemDark());
   document.documentElement.classList.toggle('dark', isDark);
+  document.documentElement.classList.toggle('theme-oled', theme === 'oled');
+  document.documentElement.classList.toggle('theme-blue', theme === 'blue');
 
   if (suppressTransitions) {
     void document.documentElement.offsetHeight;
@@ -91,7 +97,13 @@ export function useTheme() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot);
   const theme = snapshot.theme;
   const resolvedTheme: 'light' | 'dark' =
-    theme === 'system' ? (snapshot.systemDark ? 'dark' : 'light') : theme;
+    theme === 'system'
+      ? snapshot.systemDark
+        ? 'dark'
+        : 'light'
+      : theme === 'oled' || theme === 'blue'
+        ? 'dark'
+        : theme;
 
   const setTheme = useCallback((nextTheme: Theme) => {
     localStorage.setItem(STORAGE_KEY, nextTheme);

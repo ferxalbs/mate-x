@@ -1,0 +1,13 @@
+@variant theme-oled {
+  --background: #000000;
+  --app-chrome-background: #000000;
+  --card: #080808;
+  --popover: #080808;
+  --sidebar: #020202;
+  --surface: #050505;
+  --panel: #050505;
+  --titlebar: #020202;
+  --border: color-mix(in srgb, white 6%, transparent);
+  --input: color-mix(in srgb, white 7%, transparent);
+  --code-bg: #000000;
+}

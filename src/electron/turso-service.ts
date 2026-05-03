@@ -1321,7 +1321,7 @@ function safeParseTrustContract(raw: string, workspaceId: string): WorkspaceTrus
 function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
   return {
     theme:
-      input.theme === 'dark' || input.theme === 'light' || input.theme === 'system'
+      input.theme === 'dark' || input.theme === 'light' || input.theme === 'oled' || input.theme === 'blue' || input.theme === 'system'
         ? input.theme
         : DEFAULT_APP_SETTINGS.theme,
     timeFormat:
