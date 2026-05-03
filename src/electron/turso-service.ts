@@ -515,6 +515,11 @@ export class TursoService {
     });
   }
 
+  async clearPrivacyVault() {
+    await this.initialize();
+    await this.getClient().execute(`DELETE FROM privacy_secret_vault`);
+  }
+
   async recordAgentCapabilityRun(run: AgentCapabilityRunMetrics) {
     await this.initialize();
     await Promise.all([
