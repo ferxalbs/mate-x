@@ -1,5 +1,7 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+
+import { app } from "electron";
 
 import type { PrivacyModelStatus } from "../../contracts/privacy";
 
@@ -23,6 +25,10 @@ function resolveAssetPath() {
   return path.resolve(process.cwd(), "resources/models/matex-privacy-v0.15");
 }
 
+function resolveUserDataPath() {
+  return path.join(app.getPath("userData"), "privacy", "models", "matex-privacy-v0.15");
+}
+
 async function readModelConfig(assetPath: string): Promise<ModelConfig> {
   try {
     return JSON.parse(await readFile(path.join(assetPath, "privacy-model.json"), "utf8")) as ModelConfig;
@@ -32,21 +38,20 @@ async function readModelConfig(assetPath: string): Promise<ModelConfig> {
 }
 
 export async function loadPrivacyModelStatus(): Promise<PrivacyModelStatus> {
-  const assetPath = resolveAssetPath();
-  const config = await readModelConfig(assetPath);
+  const bundledPath = resolveAssetPath();
+  const userDataPath = resolveUserDataPath();
+  const bundledConfig = await readModelConfig(bundledPath);
+  const userConfig = await readModelConfig(userDataPath);
+  const config = { ...bundledConfig, ...userConfig };
   const requiredFiles = config.requiredFiles?.length ? config.requiredFiles : REQUIRED_FILES;
   const externalDataFiles = config.externalDataFiles ?? ["model.onnx.data"];
-  const presentFiles: string[] = [];
-  const missingFiles: string[] = [];
-
-  for (const file of [...requiredFiles, ...externalDataFiles]) {
-    try {
-      await access(path.join(assetPath, file));
-      presentFiles.push(file);
-    } catch {
-      missingFiles.push(file);
-    }
-  }
+  const userState = await checkFiles(userDataPath, [...requiredFiles, ...externalDataFiles]);
+  const bundledState = await checkFiles(bundledPath, [...requiredFiles, ...externalDataFiles]);
+  const loadedFromUserData = userState.missingFiles.length === 0;
+  const loadedFromBundled = bundledState.missingFiles.length === 0;
+  const assetPath = loadedFromUserData ? userDataPath : loadedFromBundled ? bundledPath : userDataPath;
+  const presentFiles = loadedFromUserData ? userState.presentFiles : loadedFromBundled ? bundledState.presentFiles : userState.presentFiles;
+  const missingFiles = loadedFromUserData ? [] : loadedFromBundled ? [] : userState.missingFiles;
 
   const importError = missingFiles.length === 0 ? await detectRuntimeImportError() : undefined;
 
@@ -55,6 +60,9 @@ export async function loadPrivacyModelStatus(): Promise<PrivacyModelStatus> {
     loaded: missingFiles.length === 0,
     missing: missingFiles.length > 0,
     assetPath,
+    userDataPath,
+    bundledPath,
+    source: loadedFromUserData ? "userData" : loadedFromBundled ? "bundled" : "missing",
     huggingFaceRepo: config.huggingFaceRepo,
     revision: config.revision ?? "main",
     requiredFiles,
@@ -69,9 +77,12 @@ export async function loadPrivacyModelStatus(): Promise<PrivacyModelStatus> {
 }
 
 export async function downloadPrivacyModelAssets(): Promise<PrivacyModelStatus> {
-  const assetPath = resolveAssetPath();
-  await mkdir(assetPath, { recursive: true });
-  const config = await readModelConfig(assetPath);
+  const bundledPath = resolveAssetPath();
+  const assetPath = resolveUserDataPath();
+  const tempPath = `${assetPath}.download`;
+  await rm(tempPath, { recursive: true, force: true });
+  await mkdir(tempPath, { recursive: true });
+  const config = await readModelConfig(bundledPath);
   const revision = config.revision ?? "main";
   const repo = config.huggingFaceRepo ?? "enosislabs/matex-privacy-sentinel-v0.15-onnx";
   const baseUrl = config.downloadUrl ?? `https://huggingface.co/${repo}/resolve/${revision}`;
@@ -101,13 +112,35 @@ export async function downloadPrivacyModelAssets(): Promise<PrivacyModelStatus> 
     }
 
     const bytes = Buffer.from(await response.arrayBuffer());
-    await writeFile(path.join(assetPath, file), bytes);
+    await writeFile(path.join(tempPath, file), bytes);
   }
+
+  await writeFile(path.join(tempPath, "privacy-model.json"), JSON.stringify(config, null, 2));
+  await rm(assetPath, { recursive: true, force: true });
+  await mkdir(path.dirname(assetPath), { recursive: true });
+  await cp(tempPath, assetPath, { recursive: true });
+  await rm(tempPath, { recursive: true, force: true });
 
   return {
     ...(await loadPrivacyModelStatus()),
     remoteFiles,
   };
+}
+
+async function checkFiles(basePath: string, files: string[]) {
+  const presentFiles: string[] = [];
+  const missingFiles: string[] = [];
+
+  for (const file of files) {
+    try {
+      await access(path.join(basePath, file));
+      presentFiles.push(file);
+    } catch {
+      missingFiles.push(file);
+    }
+  }
+
+  return { presentFiles, missingFiles };
 }
 
 async function fetchRemoteFiles(apiUrl: string) {

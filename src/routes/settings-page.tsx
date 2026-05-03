@@ -870,7 +870,7 @@ export function SettingsPage() {
                     title="ONNX model"
                     description={
                       privacyModelStatus
-                        ? `${privacyModelStatus.huggingFaceRepo ?? privacyModelStatus.model}: ${privacyModelStatus.loaded ? 'loaded' : 'missing'} (${privacyModelStatus.presentFiles.length}/${privacyModelStatus.requiredFiles.length + privacyModelStatus.externalDataFiles.length})`
+                        ? `${privacyModelStatus.huggingFaceRepo ?? privacyModelStatus.model}: ${privacyModelStatus.loaded ? `loaded from ${privacyModelStatus.source}` : 'missing'} (${privacyModelStatus.presentFiles.length}/${privacyModelStatus.requiredFiles.length + privacyModelStatus.externalDataFiles.length})`
                         : 'Checking local model assets.'
                     }
                     status={
@@ -878,7 +878,7 @@ export function SettingsPage() {
                       privacyModelStatus?.inferenceError ??
                       (privacyModelStatus?.missingFiles.length
                         ? `Missing: ${privacyModelStatus.missingFiles.join(', ')}`
-                        : privacyModelStatus?.assetPath)
+                        : `Active: ${privacyModelStatus?.assetPath}`)
                     }
                     control={
                       <div className="flex items-center gap-2">
