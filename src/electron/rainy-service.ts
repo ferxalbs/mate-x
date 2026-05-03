@@ -528,10 +528,35 @@ export async function requestRainyEmbeddings(params: {
 
   const embeddings = extractEmbeddingVectors(response);
   if (embeddings.length === 0) {
-    throw new Error(`Rainy embeddings response missing vectors. Keys: ${Object.keys(response as object).join(", ")}`);
+    const errorMessage = extractRainyEmbeddingErrorMessage(response);
+    throw new Error(
+      errorMessage
+        ? `Rainy embeddings request failed: ${errorMessage}`
+        : `Rainy embeddings response missing vectors. Keys: ${Object.keys(response as object).join(", ")}`,
+    );
   }
 
   return embeddings;
+}
+
+function extractRainyEmbeddingErrorMessage(response: unknown) {
+  if (!response || typeof response !== "object" || !("error" in response)) {
+    return null;
+  }
+
+  const error = (response as { error?: unknown }).error;
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const payload = error as { message?: unknown; code?: unknown; type?: unknown };
+    return [payload.type, payload.code, payload.message]
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .join(": ");
+  }
+
+  return "Unknown Rainy embedding error.";
 }
 
 function extractEmbeddingVectors(response: unknown): number[][] {
