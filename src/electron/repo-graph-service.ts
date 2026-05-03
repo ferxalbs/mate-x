@@ -16,14 +16,21 @@ import type {
 } from '../contracts/repo-graph';
 import type { WorkspaceEntry } from '../contracts/workspace';
 import {
-  RAINY_REPO_EMBEDDING_CONTEXT_LENGTH,
-  RAINY_REPO_EMBEDDING_DIMENSIONS,
   RAINY_REPO_EMBEDDING_MODEL,
+  getRainyEmbeddingModelConfig,
   requestRainyEmbeddings,
 } from './rainy-service';
 import { tursoService } from './turso-service';
 
 type RepoGraphWorkspace = Pick<WorkspaceEntry, 'id' | 'name' | 'path'>;
+type RepoGraphEmbeddingProgressReporter = (progress: {
+  workspaceId: string;
+  model: string;
+  indexed: number;
+  total: number;
+  percent: number;
+  state: 'indexing' | 'ready' | 'failed';
+}) => void;
 
 const SOURCE_EXTENSIONS = new Set([
   '.ts',
@@ -73,13 +80,17 @@ export class RepoGraphService {
   private inFlightRefreshes = new Map<string, Promise<RepoGraphSnapshot>>();
   private pendingWatcherChanges = new Map<string, Set<string>>();
 
-  async refreshWorkspace(workspace: RepoGraphWorkspace): Promise<RepoGraphSnapshot> {
+  async refreshWorkspace(
+    workspace: RepoGraphWorkspace,
+    onEmbeddingProgress?: RepoGraphEmbeddingProgressReporter,
+    forceRefresh = false,
+  ): Promise<RepoGraphSnapshot> {
     const existing = this.inFlightRefreshes.get(workspace.id);
-    if (existing) {
+    if (existing && !forceRefresh) {
       return existing;
     }
 
-    const refresh = this.buildWorkspaceGraph(workspace).finally(() => {
+    const refresh = this.buildWorkspaceGraph(workspace, onEmbeddingProgress).finally(() => {
       this.inFlightRefreshes.delete(workspace.id);
     });
     this.inFlightRefreshes.set(workspace.id, refresh);
@@ -345,7 +356,10 @@ export class RepoGraphService {
     ].join('\n');
   }
 
-  private async buildWorkspaceGraph(workspace: RepoGraphWorkspace) {
+  private async buildWorkspaceGraph(
+    workspace: RepoGraphWorkspace,
+    onEmbeddingProgress?: RepoGraphEmbeddingProgressReporter,
+  ) {
     const files = await collectIndexableFiles(workspace.path);
     const builder = new GraphBuilder(workspace.id);
     const fileContents = new Map<string, string>();
@@ -379,7 +393,7 @@ export class RepoGraphService {
     const { nodes, edges } = builder.snapshot();
     const snapshot = await tursoService.replaceRepoGraph(workspace.id, nodes, edges);
     try {
-      await indexRepoGraphEmbeddings(workspace.id, nodes, fileContents);
+      await indexRepoGraphEmbeddings(workspace.id, nodes, fileContents, onEmbeddingProgress);
     } catch (error) {
       console.warn('RepoGraph embedding index failed:', error);
     }
@@ -484,17 +498,21 @@ async function indexRepoGraphEmbeddings(
   workspaceId: string,
   nodes: RepoGraphNode[],
   fileContents: Map<string, string>,
+  onProgress?: RepoGraphEmbeddingProgressReporter,
 ) {
   const apiKey = await tursoService.getApiKey();
   if (!apiKey) {
     return;
   }
+  const embeddingModel =
+    (await tursoService.getEmbeddingModel()) ?? RAINY_REPO_EMBEDDING_MODEL;
+  const embeddingConfig = getRainyEmbeddingModelConfig(embeddingModel);
 
   const embeddingTargets = nodes
     .filter((node) => node.kind === 'file' || node.kind === 'test')
     .map((node) => ({
       node,
-      text: buildEmbeddingInput(node, fileContents.get(node.key)),
+      text: buildEmbeddingInput(node, fileContents.get(node.key), embeddingConfig.contextLength),
     }))
     .filter((target) => target.text.length > 0);
   const entries: Array<{
@@ -507,14 +525,36 @@ async function indexRepoGraphEmbeddings(
 
   for (let index = 0; index < embeddingTargets.length; index += EMBEDDING_BATCH_SIZE) {
     const batch = embeddingTargets.slice(index, index + EMBEDDING_BATCH_SIZE);
+    onProgress?.({
+      workspaceId,
+      model: embeddingModel,
+      indexed: entries.length,
+      total: embeddingTargets.length,
+      percent: embeddingTargets.length
+        ? Math.round((entries.length / embeddingTargets.length) * 100)
+        : 100,
+      state: 'indexing',
+    });
     let vectors: number[][];
     try {
       vectors = await requestRainyEmbeddings({
         apiKey,
+        model: embeddingModel,
+        dimensions: embeddingConfig.dimensions,
         input: batch.map((target) => target.text),
       });
     } catch (error) {
       console.warn('RepoGraph embedding batch skipped:', sanitizeEmbeddingIndexError(error));
+      onProgress?.({
+        workspaceId,
+        model: embeddingModel,
+        indexed: entries.length,
+        total: embeddingTargets.length,
+        percent: embeddingTargets.length
+          ? Math.round((entries.length / embeddingTargets.length) * 100)
+          : 0,
+        state: 'failed',
+      });
       break;
     }
 
@@ -525,8 +565,8 @@ async function indexRepoGraphEmbeddings(
       }
       entries.push({
         nodeId: target.node.id,
-        model: RAINY_REPO_EMBEDDING_MODEL,
-        dimensions: RAINY_REPO_EMBEDDING_DIMENSIONS,
+        model: embeddingModel,
+        dimensions: embedding.length,
         contentHash: hashKey(target.text),
         embedding,
       });
@@ -534,6 +574,14 @@ async function indexRepoGraphEmbeddings(
   }
 
   await tursoService.replaceRepoEmbeddings(workspaceId, entries);
+  onProgress?.({
+    workspaceId,
+    model: embeddingModel,
+    indexed: entries.length,
+    total: embeddingTargets.length,
+    percent: 100,
+    state: 'ready',
+  });
 }
 
 function sanitizeEmbeddingIndexError(error: unknown) {
@@ -541,7 +589,7 @@ function sanitizeEmbeddingIndexError(error: unknown) {
   return message.replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]');
 }
 
-function buildEmbeddingInput(node: RepoGraphNode, content?: string) {
+function buildEmbeddingInput(node: RepoGraphNode, content: string | undefined, contextLength: number) {
   const purpose = typeof node.metadata?.purpose === 'string' ? node.metadata.purpose : '';
   const text = [
     `kind: ${node.kind}`,
@@ -551,7 +599,7 @@ function buildEmbeddingInput(node: RepoGraphNode, content?: string) {
     content ? `content:\n${content}` : '',
   ].filter(Boolean).join('\n');
 
-  return text.slice(0, RAINY_REPO_EMBEDDING_CONTEXT_LENGTH);
+  return text.slice(0, contextLength);
 }
 
 class GraphBuilder {

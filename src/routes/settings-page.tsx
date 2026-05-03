@@ -161,6 +161,11 @@ export function SettingsPage() {
     };
   }, [activeWorkspaceId, setTheme]);
 
+  useEffect(() => {
+    setSaveState('idle');
+    setErrorMsg('');
+  }, [section]);
+
   const refreshPrivacyModelStatus = useCallback(async () => {
     const status = await window.mate.privacy.getModelStatus();
     setPrivacyModelStatus(status);
@@ -266,7 +271,7 @@ export function SettingsPage() {
       return;
     }
 
-    if (section === 'general' || section === 'archive' || section === 'agent-profiler') {
+    if (section === 'general' || section === 'archive' || section === 'agent-profiler' || section === 'privacy') {
       if (!hasAppSettingsDraft) {
         return;
       }
@@ -1234,6 +1239,14 @@ export function SettingsPage() {
                         ? `Contract ${trustContract.name} v${trustContract.version} active`
                         : 'No active trust contract'}
                   </span>
+                ) : section === 'privacy' ? (
+                  <span>
+                    {changedSettingLabels.length > 0
+                      ? `Pending: ${changedSettingLabels.join(', ')}`
+                      : saveState === 'saved'
+                        ? 'Privacy settings saved'
+                        : 'Privacy settings active'}
+                  </span>
                 ) : section === 'agent-profiler' ? (
                   <span>
                     {changedSettingLabels.length > 0
@@ -1268,7 +1281,7 @@ export function SettingsPage() {
                     <CheckIcon className="size-4" />
                   ) : section === 'trust' ? (
                     <ShieldCheckIcon className="size-4" />
-                  ) : section === 'general' || section === 'archive' || section === 'integrations' || section === 'agent-profiler' ? (
+                  ) : section === 'general' || section === 'archive' || section === 'integrations' || section === 'agent-profiler' || section === 'privacy' ? (
                     <Settings2Icon className="size-4" />
                   ) : (
                     <KeyRoundIcon className="size-4" />

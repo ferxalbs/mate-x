@@ -118,6 +118,14 @@ const repoApi: RepoInspectorApi = {
       ipcRenderer.invoke("repo-graph:get-env-usage", variable),
     getDependencySurface: () =>
       ipcRenderer.invoke("repo-graph:get-dependency-surface"),
+    onEmbeddingProgress: (listener) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        progress: Parameters<typeof listener>[0],
+      ) => listener(progress);
+      ipcRenderer.on("repo-graph:embedding-progress", handler);
+      return () => ipcRenderer.removeListener("repo-graph:embedding-progress", handler);
+    },
   },
 };
 
@@ -139,6 +147,10 @@ const settingsApi: SettingsApi = {
     ipcRenderer.invoke("settings:list-models", forceRefresh),
   getModel: () => ipcRenderer.invoke("settings:get-model"),
   setModel: (model) => ipcRenderer.invoke("settings:set-model", model),
+  listEmbeddingModels: () => ipcRenderer.invoke("settings:list-embedding-models"),
+  getEmbeddingModel: () => ipcRenderer.invoke("settings:get-embedding-model"),
+  setEmbeddingModel: (model) =>
+    ipcRenderer.invoke("settings:set-embedding-model", model),
   getAppSettings: () => ipcRenderer.invoke("settings:get-app-settings"),
   updateAppSettings: (settings) =>
     ipcRenderer.invoke("settings:update-app-settings", settings),

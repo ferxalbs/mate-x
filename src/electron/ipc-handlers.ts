@@ -21,7 +21,12 @@ import {
   setActiveWorkspace,
   updateWorkspaceTrustContract,
 } from "./repo-service";
-import { listRainyModels, validateRainyModelSelection } from "./rainy-service";
+import {
+  RAINY_REPO_EMBEDDING_MODELS,
+  listRainyModels,
+  validateRainyEmbeddingModelSelection,
+  validateRainyModelSelection,
+} from "./rainy-service";
 import {
   repoGraphService,
   resolveActiveWorkspaceForRepoGraph,
@@ -326,6 +331,30 @@ export function registerIpcHandlers() {
     const apiKey = await tursoService.getApiKey();
     await validateRainyModelSelection({ apiKey, model });
     await tursoService.setModel(model);
+  });
+  ipcMain.handle("settings:list-embedding-models", async () => [
+    ...RAINY_REPO_EMBEDDING_MODELS,
+  ]);
+  ipcMain.handle("settings:get-embedding-model", async () =>
+    tursoService.getEmbeddingModel(),
+  );
+  ipcMain.handle("settings:set-embedding-model", async (_event, model: string) => {
+    validateRainyEmbeddingModelSelection(model);
+    await tursoService.setEmbeddingModel(model);
+    try {
+      const workspace = await resolveActiveWorkspaceForRepoGraph();
+      await repoGraphService.refreshWorkspace(
+        workspace,
+        (progress) => {
+          if (!_event.sender.isDestroyed()) {
+            _event.sender.send("repo-graph:embedding-progress", progress);
+          }
+        },
+        true,
+      );
+    } catch (error) {
+      console.warn("RepoGraph embedding reindex after model change failed:", error);
+    }
   });
   ipcMain.handle("settings:get-app-settings", async () =>
     tursoService.getAppSettings(),

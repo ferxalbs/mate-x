@@ -32,6 +32,18 @@ export function setModel(model: string) {
   return getSettingsApi().setModel(model);
 }
 
+export function listEmbeddingModels() {
+  return getSettingsApi().listEmbeddingModels();
+}
+
+export function getEmbeddingModel() {
+  return getSettingsApi().getEmbeddingModel();
+}
+
+export function setEmbeddingModel(model: string) {
+  return getSettingsApi().setEmbeddingModel(model);
+}
+
 export function getAppSettings() {
   return getSettingsApi().getAppSettings();
 }

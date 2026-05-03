@@ -34,9 +34,33 @@ const RAINY_MODELS_ENDPOINTS = [
   `${RAINY_BASE_URL}/models`,
 ];
 const MODEL_CACHE_TTL_MS = 60_000;
-export const RAINY_REPO_EMBEDDING_MODEL = "google/gemini-embedding-2-preview";
-export const RAINY_REPO_EMBEDDING_DIMENSIONS = 3072;
-export const RAINY_REPO_EMBEDDING_CONTEXT_LENGTH = 8092;
+export const RAINY_REPO_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b";
+export const RAINY_REPO_EMBEDDING_MODELS = [
+  {
+    id: "qwen/qwen3-embedding-8b",
+    label: "Qwen3 Embedding 8B",
+    dimensions: 4096,
+    contextLength: 32_768,
+  },
+  {
+    id: "google/gemini-embedding-2-preview",
+    label: "Gemini Embedding 2 Preview",
+    dimensions: 3072,
+    contextLength: 8_192,
+  },
+  {
+    id: "perplexity/pplx-embed-v1-4b",
+    label: "Perplexity Embed v1 4B",
+    dimensions: 2560,
+    contextLength: 32_768,
+  },
+  {
+    id: "qwen/qwen3-embedding-4b",
+    label: "Qwen3 Embedding 4B",
+    dimensions: 2560,
+    contextLength: 32_768,
+  },
+] as const;
 
 let cachedCatalog: {
   cacheKey: string;
@@ -289,6 +313,20 @@ export async function validateRainyModelSelection(params: {
   }
 }
 
+export function validateRainyEmbeddingModelSelection(model: string) {
+  const trimmedModel = model.trim();
+  if (!RAINY_REPO_EMBEDDING_MODELS.some((entry) => entry.id === trimmedModel)) {
+    throw new Error(`Rainy embedding model "${trimmedModel}" is not supported.`);
+  }
+}
+
+export function getRainyEmbeddingModelConfig(model: string) {
+  return (
+    RAINY_REPO_EMBEDDING_MODELS.find((entry) => entry.id === model.trim()) ??
+    RAINY_REPO_EMBEDDING_MODELS[0]
+  );
+}
+
 function buildModelsRequestHeaders(apiKey: string | null) {
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -521,7 +559,9 @@ export async function requestRainyEmbeddings(params: {
       model: params.model ?? RAINY_REPO_EMBEDDING_MODEL,
       input: sanitized.payload.input,
       encoding_format: "float",
-      dimensions: params.dimensions ?? RAINY_REPO_EMBEDDING_DIMENSIONS,
+      dimensions:
+        params.dimensions ??
+        getRainyEmbeddingModelConfig(params.model ?? RAINY_REPO_EMBEDDING_MODEL).dimensions,
     },
     { timeout: RAINY_REQUEST_TIMEOUT_MS },
   );
