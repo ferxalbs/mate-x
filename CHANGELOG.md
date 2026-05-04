@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.03 (4) [Onboarding Verification Workflow]
+
+- Reworked onboarding into the four-step verification workflow: Welcome, Connect workspace, Set trust boundary, and First verification run.
+- Added capability context for Repo graph, Privacy Sentinel, Security Path Trace, and Evidence Pack so the flow explains what will happen before setup completes.
+- Split onboarding into general setup and functional verification stages, preserving appearance/theme/time controls, Rainy API key setup, and Privacy Sentinel ONNX model download before first verification.
+- Fixed Privacy Sentinel onboarding progress so unknown download totals show a preparing state instead of `NaN%`, with visible runtime, inference, and progress status.
+- Added richer workspace, trust boundary, and evidence pack cards while preserving existing `onboardingCompleted` settings persistence.
+
 ## Unreleased - 2026.05.03 (3) [Settings Layout Hardening]
 
 - Fixed layout overflow in settings pages by adding `break-words` and `break-all` to `SettingsRow` description and status fields.
