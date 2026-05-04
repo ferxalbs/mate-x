@@ -130,6 +130,29 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 
 ***
 
+## User Design & Aesthetic Preferences
+
+**MANDATORY: Follow these rules for all UI-related tasks to maintain a premium, cohesive aesthetic:**
+
+1. **Ultra-Minimalist & Flat**: Avoid heavy box-shadows. Prefer "flat" designs where boundaries are defined by borders (`border-border/70`) or subtle background differences rather than depth.
+2. **Organic Rounding**: Avoid `rounded-md` or `rounded-xl` for main containers. Use "super rounded" shapes:
+    - **Main Input/Panels**: `rounded-[32px]`
+    - **Cards/Popovers/Tooltips**: `rounded-2xl`
+    - **Buttons**: `rounded-full` or `rounded-xl` depending on context.
+    - **NEVER** use full capsule shapes for rectangular inputs unless explicitly asked.
+3. **Transparency & Glassmorphism**:
+    - Use `bg-transparent` for main layout sections (e.g., `home-page.tsx` section) to allow theme backgrounds to flow.
+    - Use semi-transparent backgrounds for panels: `bg-[var(--panel)]/92` combined with `backdrop-blur-xl` and `glass` utility.
+4. **Seamless Integration**:
+    - Eliminate visual "cuts" or solid blocks behind floating elements.
+    - Match `max-width` and `padding` between related components (e.g., Message Stream and Composer) to maintain a unified vertical column.
+    - Composer prefers a "narrow" minimalist look: `max-w-[820px]` in non-compact mode.
+5. **Theme-Aware Contrast**:
+    - Never use hardcoded light/dark inverse colors (like `bg-foreground` for tooltips).
+    - Always use theme variables: `bg-[var(--panel)]`, `text-foreground`, `border-[var(--panel-border)]/40`.
+
+***
+
 ## Security & Configuration
 
 - Never hardcode Rainy credentials. Never commit `.env` data.
