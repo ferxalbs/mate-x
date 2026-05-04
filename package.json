@@ -79,6 +79,7 @@
     "clsx": "^2.1.1",
     "effect": "^3.21.2",
     "electron-squirrel-startup": "^1.0.1",
+    "framer-motion": "^12.38.0",
     "js-tiktoken": "^1.0.21",
     "lucide-react": "^1.14.0",
     "onnxruntime-node": "1.25.1",

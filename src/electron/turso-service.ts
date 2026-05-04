@@ -1413,6 +1413,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.floatingInput === 'boolean'
         ? input.floatingInput
         : DEFAULT_APP_SETTINGS.floatingInput,
+    onboardingCompleted:
+      typeof input.onboardingCompleted === 'boolean'
+        ? input.onboardingCompleted
+        : DEFAULT_APP_SETTINGS.onboardingCompleted,
   };
 }
 

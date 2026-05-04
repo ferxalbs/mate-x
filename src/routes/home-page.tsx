@@ -161,7 +161,6 @@ export function HomePage() {
         pendingPolicyStop={pendingPolicyStop}
         trustContract={trustContract}
         workspace={workspace}
-        resolvedTheme={resolvedTheme}
         showScrollButton={showScrollButton}
       />
     </section>
