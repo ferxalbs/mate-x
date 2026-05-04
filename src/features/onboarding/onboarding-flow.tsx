@@ -16,9 +16,10 @@ import { Input } from "../../components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { getAppSettings, updateAppSettings } from "../../services/settings-client";
-import type { AppSettings, ThemePreference, TimeFormat } from "../../contracts/settings";
+import { getAppSettings, updateAppSettings, getApiKey } from "../../services/settings-client";
+import type { AppSettings, ThemePreference, TimeFormat, AppearancePreference } from "../../contracts/settings";
 import type { PrivacyModelDownloadProgress } from "../../contracts/privacy";
+import { useTheme } from "../../hooks/use-theme";
 
 const steps = [
   { id: "intro", title: "Welcome to MaTE X", description: "Your private AI security agent." },
@@ -32,11 +33,19 @@ export function OnboardingFlow() {
   const [direction, setDirection] = useState(0);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [initialApiKey, setInitialApiKey] = useState<string | null>(null);
   const [privacyProgress, setPrivacyProgress] = useState<PrivacyModelDownloadProgress | null>(null);
   const navigate = useNavigate();
+  const { setAppearance, setTheme, setBlurEnabled } = useTheme();
 
   useEffect(() => {
     void getAppSettings().then(setSettings);
+    void getApiKey().then((key) => {
+      if (key) {
+        setApiKey(key);
+        setInitialApiKey(key);
+      }
+    });
   }, []);
 
   const handleNext = useCallback(() => {
@@ -116,9 +125,13 @@ export function OnboardingFlow() {
               setSettings, 
               apiKey, 
               setApiKey, 
+              initialApiKey,
               privacyProgress, 
               setPrivacyProgress,
-              handleNext 
+              handleNext,
+              setAppearance,
+              setTheme,
+              setBlurEnabled
             })}
           </motion.div>
         </AnimatePresence>
@@ -166,27 +179,32 @@ function renderStep(step: number, props: any) {
 
 function IntroStep() {
   return (
-    <Card className="border-none bg-transparent shadow-none text-center">
-      <CardHeader>
-        <motion.div 
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10"
+    <div className="flex flex-col items-center justify-center text-center py-20 px-4">
+      <motion.div 
+        initial={{ y: 10, opacity: 0, filter: "blur(10px)" }}
+        animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="space-y-8 max-w-2xl"
+      >
+        <div className="space-y-4">
+          <h1 className="text-[6rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-foreground via-foreground/90 to-foreground/30">
+            MaTE X
+          </h1>
+          <p className="text-3xl text-foreground/90 font-semibold tracking-tight">
+            Verify AI-generated code before it ships.
+          </p>
+        </div>
+
+        <motion.p 
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+          className="text-sm text-muted-foreground/80 font-medium tracking-wider uppercase mt-8 mx-auto leading-relaxed border-t border-border/20 pt-8 px-4"
         >
-          <Shield className="h-10 w-10 text-primary" />
-        </motion.div>
-        <CardTitle className="text-3xl font-bold tracking-tight">MaTE X</CardTitle>
-        <CardDescription className="text-lg">
-          Welcome to your local-first AI security partner.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground">
-          MaTE X helps you find and fix security vulnerabilities in your codebase while keeping your sensitive data private.
-        </p>
-      </CardContent>
-    </Card>
+          Local-first security verification for repo changes, secrets, traces, validation, and evidence packs.
+        </motion.p>
+      </motion.div>
+    </div>
   );
 }
 
@@ -266,7 +284,9 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
   );
 }
 
-function ApiKeyStep({ apiKey, setApiKey }: any) {
+function ApiKeyStep({ apiKey, setApiKey, initialApiKey }: any) {
+  const isConfigured = !!initialApiKey || (apiKey && apiKey.length > 5);
+
   return (
     <Card className="border-border/40 bg-card/50 backdrop-blur">
       <CardHeader>
@@ -279,19 +299,33 @@ function ApiKeyStep({ apiKey, setApiKey }: any) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="apiKey">Rainy API Key</Label>
-          <Input 
-            id="apiKey" 
-            type="password" 
-            placeholder="sk-..." 
-            value={apiKey} 
-            onChange={(e) => setApiKey(e.target.value)} 
-          />
+        <div className="rounded-lg border bg-muted/30 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Connection Status</span>
+            {isConfigured ? (
+              <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium">
+                <CheckCircle2 className="h-3 w-3" /> Configured
+              </span>
+            ) : (
+              <span className="text-xs text-amber-500 font-medium">Missing Key</span>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="apiKey" className="text-xs text-muted-foreground">Rainy API Key</Label>
+            <Input 
+              id="apiKey" 
+              type="password" 
+              placeholder="sk-..." 
+              value={apiKey} 
+              onChange={(e) => setApiKey(e.target.value)} 
+              className={isConfigured ? "border-emerald-500/30 focus-visible:ring-emerald-500" : ""}
+            />
+          </div>
         </div>
         <Button 
           variant="link" 
-          className="h-auto p-0 text-xs text-primary" 
+          className="h-auto p-0 text-xs text-muted-foreground hover:text-primary" 
           render={(props) => (
             <a 
               {...props} 
@@ -310,7 +344,7 @@ function ApiKeyStep({ apiKey, setApiKey }: any) {
   );
 }
 
-function ConfigStep({ settings, setSettings }: any) {
+function ConfigStep({ settings, setSettings, setAppearance, setTheme }: any) {
   return (
     <Card className="border-border/40 bg-card/50 backdrop-blur">
       <CardHeader>
@@ -325,10 +359,32 @@ function ConfigStep({ settings, setSettings }: any) {
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
+            <Label>Appearance</Label>
+            <Select 
+              value={settings.appearance} 
+              onValueChange={(v) => {
+                setSettings({ ...settings, appearance: v as AppearancePreference });
+                setAppearance(v as AppearancePreference);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="system">System</SelectItem>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Theme</Label>
             <Select 
               value={settings.theme} 
-              onValueChange={(v) => setSettings({ ...settings, theme: v as ThemePreference })}
+              onValueChange={(v) => {
+                setSettings({ ...settings, theme: v as ThemePreference });
+                setTheme(v as ThemePreference);
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -337,6 +393,11 @@ function ConfigStep({ settings, setSettings }: any) {
                 <SelectItem value="default">Default</SelectItem>
                 <SelectItem value="oled">OLED</SelectItem>
                 <SelectItem value="midnight">Midnight</SelectItem>
+                <SelectItem value="blue">Deep Blue</SelectItem>
+                <SelectItem value="deepblue">Ocean Abyss</SelectItem>
+                <SelectItem value="deeppurple">Royal Purple</SelectItem>
+                <SelectItem value="casimiri">Casimiri</SelectItem>
+                <SelectItem value="greenspace">Green Space</SelectItem>
               </SelectContent>
             </Select>
           </div>
