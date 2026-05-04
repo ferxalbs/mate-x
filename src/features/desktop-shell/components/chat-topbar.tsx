@@ -38,7 +38,7 @@ function TitlebarButton({
     <Button
       size="xs"
       variant="outline"
-      className="h-8 rounded-full border-border/70 bg-background/65 px-3 text-[12px] font-medium text-foreground/90 shadow-none hover:bg-accent"
+      className="h-8 rounded-full border-border/50 bg-background/40 px-3 text-[12px] font-medium text-foreground/80 shadow-none hover:bg-accent hover:text-foreground"
       onClick={onClick}
     >
       {children}
@@ -65,7 +65,7 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        'drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] px-4 transition-[padding-left] duration-200 ease-linear',
+        'drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)]/40 px-4 transition-[padding-left] duration-200 ease-linear',
         state === 'collapsed' && 'pl-[88px]',
       )}
       style={{ '--glass-bg': 'var(--titlebar)' } as any}
