@@ -1,13 +1,16 @@
 import {
   AlertCircleIcon,
+  BrainIcon,
   CheckCircle2Icon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
+  ExternalLinkIcon,
   FileTextIcon,
   FolderPlusIcon,
   LoaderCircle,
+  ShieldCheckIcon,
 } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
@@ -18,7 +21,6 @@ import { cn } from '../../../lib/utils';
 import { ChatMarkdown } from './chat-markdown';
 import { EvidencePackCard } from './evidence-pack-card';
 import { useChatStore } from '../../../store/chat-store';
-import { BrainIcon, ExternalLinkIcon, RotateUndoIcon, ShieldCheckIcon } from './Icons.tsx';
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
