@@ -11,7 +11,7 @@ import {
   VideoIcon,
   WrenchIcon,
   XIcon,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   startTransition,
   useEffect,
@@ -20,28 +20,28 @@ import {
   useState,
   type DragEvent,
   type ReactNode,
-} from 'react';
+} from "react";
 
-import { Button } from '../../../components/ui/button';
+import { Button } from "../../../components/ui/button";
 import {
   Select,
   SelectItem,
   SelectPopup,
   SelectTrigger,
   SelectValue,
-} from '../../../components/ui/select';
+} from "../../../components/ui/select";
 import type {
   AssistantAttachment,
   AssistantAttachmentKind,
   AssistantRunOptions,
-} from '../../../contracts/chat';
-import type { PolicyStop, PolicyStopAction } from '../../../contracts/policy';
-import type { RainyModelCatalogEntry } from '../../../contracts/rainy';
-import type { RepoGraphEmbeddingProgress } from '../../../contracts/repo-graph';
+} from "../../../contracts/chat";
+import type { PolicyStop, PolicyStopAction } from "../../../contracts/policy";
+import type { RainyModelCatalogEntry } from "../../../contracts/rainy";
+import type { RepoGraphEmbeddingProgress } from "../../../contracts/repo-graph";
 import type {
   WorkspaceSummary,
   WorkspaceTrustContract,
-} from '../../../contracts/workspace';
+} from "../../../contracts/workspace";
 import {
   getReasoningEffortValues,
   supportsFileInput as modelSupportsFileInput,
@@ -49,8 +49,8 @@ import {
   supportsReasoning as modelSupportsReasoning,
   supportsTools,
   supportsVideoInput as modelSupportsVideoInput,
-} from '../../../lib/rainy-model-capabilities';
-import { cn } from '../../../lib/utils';
+} from "../../../lib/rainy-model-capabilities";
+import { cn } from "../../../lib/utils";
 import {
   getEmbeddingModel,
   getModel,
@@ -58,14 +58,17 @@ import {
   listModels,
   setEmbeddingModel,
   setModel,
-} from '../../../services/settings-client';
-import { useChatStore } from '../../../store/chat-store';
+} from "../../../services/settings-client";
+import { useChatStore } from "../../../store/chat-store";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
   isRunning: boolean;
   onScrollToBottom: () => void;
-  onResolvePolicyStop: (stop: PolicyStop, action: PolicyStopAction) => Promise<void>;
+  onResolvePolicyStop: (
+    stop: PolicyStop,
+    action: PolicyStopAction,
+  ) => Promise<void>;
   workspace: WorkspaceSummary | null;
   onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
@@ -90,7 +93,7 @@ export function ComposerPanel({
   prompt: externalPrompt,
   onPromptChange,
 }: ComposerPanelProps) {
-  const [prompt, setPrompt] = useState(externalPrompt ?? '');
+  const [prompt, setPrompt] = useState(externalPrompt ?? "");
 
   useEffect(() => {
     if (externalPrompt !== undefined && externalPrompt !== prompt) {
@@ -102,21 +105,28 @@ export function ComposerPanel({
     setPrompt(value);
     onPromptChange?.(value);
   };
-  const [modelValue, setModelValue] = useState('');
-  const [embeddingModelValue, setEmbeddingModelValue] = useState('');
+  const [modelValue, setModelValue] = useState("");
+  const [embeddingModelValue, setEmbeddingModelValue] = useState("");
   const [embeddingCatalog, setEmbeddingCatalog] = useState<
-    Array<{ id: string; label: string; dimensions: number; contextLength: number }>
+    Array<{
+      id: string;
+      label: string;
+      dimensions: number;
+      contextLength: number;
+    }>
   >([]);
-  const [embeddingProgress, setEmbeddingProgress] = useState<RepoGraphEmbeddingProgress | null>(null);
+  const [embeddingProgress, setEmbeddingProgress] =
+    useState<RepoGraphEmbeddingProgress | null>(null);
   const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
-  const [catalogError, setCatalogError] = useState('');
+  const [catalogError, setCatalogError] = useState("");
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [isModelSaving, setIsModelSaving] = useState(false);
   const [reasoningEnabled, setReasoningEnabled] = useState(true);
   const [reasoningValue, setReasoningValue] =
-    useState<AssistantRunOptions['reasoning']>('high');
-  const [modeValue, setModeValue] = useState<AssistantRunOptions['mode']>('build');
-  const [capabilityNotice, setCapabilityNotice] = useState('');
+    useState<AssistantRunOptions["reasoning"]>("high");
+  const [modeValue, setModeValue] =
+    useState<AssistantRunOptions["mode"]>("build");
+  const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
@@ -129,7 +139,7 @@ export function ComposerPanel({
 
     async function loadModelState(forceRefresh = false) {
       setIsCatalogLoading(true);
-      setCatalogError('');
+      setCatalogError("");
 
       try {
         const [storedModel, nextCatalog] = await Promise.all([
@@ -150,7 +160,10 @@ export function ComposerPanel({
           setModelValue(resolveModelValue(storedModel, nextCatalog));
           setEmbeddingCatalog(nextEmbeddingCatalog);
           setEmbeddingModelValue(
-            resolveEmbeddingModelValue(storedEmbeddingModel, nextEmbeddingCatalog),
+            resolveEmbeddingModelValue(
+              storedEmbeddingModel,
+              nextEmbeddingCatalog,
+            ),
           );
         });
       } catch (error) {
@@ -160,7 +173,9 @@ export function ComposerPanel({
 
         setCatalog([]);
         setCatalogError(
-          error instanceof Error ? error.message : 'Could not load Rainy models.',
+          error instanceof Error
+            ? error.message
+            : "Could not load Rainy models.",
         );
       } finally {
         if (!cancelled) {
@@ -178,9 +193,11 @@ export function ComposerPanel({
 
   useEffect(
     () =>
-      window.mate.repo.graph.onEmbeddingProgress((progress: RepoGraphEmbeddingProgress) => {
-        setEmbeddingProgress(progress);
-      }),
+      window.mate.repo.graph.onEmbeddingProgress(
+        (progress: RepoGraphEmbeddingProgress) => {
+          setEmbeddingProgress(progress);
+        },
+      ),
     [],
   );
 
@@ -188,10 +205,14 @@ export function ComposerPanel({
     () => catalog.find((entry) => entry.id === modelValue) ?? null,
     [catalog, modelValue],
   );
-  const modelLabel = selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
+  const modelLabel =
+    selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
   const selectedEmbeddingModel =
     embeddingCatalog.find((entry) => entry.id === embeddingModelValue) ?? null;
-  const embeddingModelLabel = selectedEmbeddingModel?.label ?? embeddingModelValue ?? 'Select embedding model';
+  const embeddingModelLabel =
+    selectedEmbeddingModel?.label ??
+    embeddingModelValue ??
+    "Select embedding model";
   const supportsImageInput = modelSupportsImageInput(selectedModel);
   const supportsVideoInput = modelSupportsVideoInput(selectedModel);
   const supportsFileInput = modelSupportsFileInput(selectedModel);
@@ -201,24 +222,30 @@ export function ComposerPanel({
     () => getReasoningEffortValues(selectedModel),
     [selectedModel],
   );
-  const supportsReasoningEffort = reasoningSupported && effortOptions.length > 0;
+  const supportsReasoningEffort =
+    reasoningSupported && effortOptions.length > 0;
   const reasoningToggleLabel = reasoningEnabled
     ? supportsReasoningEffort
-      ? 'Reasoning'
-      : 'Reasoning on'
-    : 'Reasoning off';
-  const isModelDisabled = isCatalogLoading || isModelSaving || catalog.length === 0;
-  const accessValue = trustContract?.autonomy === 'trusted-patch' ? 'full' : 'approval';
+      ? "Reasoning"
+      : "Reasoning on"
+    : "Reasoning off";
+  const isModelDisabled =
+    isCatalogLoading || isModelSaving || catalog.length === 0;
+  const accessValue =
+    trustContract?.autonomy === "trusted-patch" ? "full" : "approval";
   const unsupportedAttachmentKinds = useMemo(
     () =>
       Array.from(
         new Set(
           attachments
-            .filter((attachment) => !isAttachmentSupported(attachment.kind, {
-              image: supportsImageInput,
-              video: supportsVideoInput,
-              file: supportsFileInput,
-            }))
+            .filter(
+              (attachment) =>
+                !isAttachmentSupported(attachment.kind, {
+                  image: supportsImageInput,
+                  video: supportsVideoInput,
+                  file: supportsFileInput,
+                }),
+            )
             .map((attachment) => attachment.kind),
         ),
       ),
@@ -233,7 +260,7 @@ export function ComposerPanel({
     const attachmentNotice =
       unsupportedAttachmentKinds.length > 0
         ? `This model does not support ${formatUnsupportedKinds(unsupportedAttachmentKinds)}. Remove unsupported attachments or choose another model.`
-        : '';
+        : "";
 
     if (!reasoningSupported && reasoningEnabled) {
       setReasoningEnabled(false);
@@ -241,7 +268,11 @@ export function ComposerPanel({
       return;
     }
 
-    if (reasoningSupported && supportsReasoningEffort && !effortOptions.includes(reasoningValue)) {
+    if (
+      reasoningSupported &&
+      supportsReasoningEffort &&
+      !effortOptions.includes(reasoningValue)
+    ) {
       setReasoningValue(effortOptions[0]);
       setCapabilityNotice(attachmentNotice);
       return;
@@ -268,12 +299,16 @@ export function ComposerPanel({
 
   async function handleSubmit() {
     const nextPrompt = prompt.trim();
-    if ((!nextPrompt && attachments.length === 0) || isRunning || isModelSaving) {
+    if (
+      (!nextPrompt && attachments.length === 0) ||
+      isRunning ||
+      isModelSaving
+    ) {
       return;
     }
 
     if (!hasWorkspace) {
-      setCapabilityNotice('Import a folder before starting a review.');
+      setCapabilityNotice("Import a folder before starting a review.");
       return;
     }
 
@@ -286,13 +321,15 @@ export function ComposerPanel({
 
     if (modelValue) {
       setIsModelSaving(true);
-      setCatalogError('');
+      setCatalogError("");
 
       try {
         await setModel(modelValue);
       } catch (error) {
         setCatalogError(
-          error instanceof Error ? error.message : 'Could not activate Rainy model.',
+          error instanceof Error
+            ? error.message
+            : "Could not activate Rainy model.",
         );
         setIsModelSaving(false);
         return;
@@ -301,14 +338,14 @@ export function ComposerPanel({
       setIsModelSaving(false);
     }
 
-    setPrompt('');
+    setPrompt("");
     setAttachments([]);
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
       mode: modeValue,
-      access: accessValue as AssistantRunOptions['access'],
-      runbookId: 'patch_test_verify',
+      access: accessValue as AssistantRunOptions["access"],
+      runbookId: "patch_test_verify",
       attachments,
     });
   }
@@ -334,7 +371,7 @@ export function ComposerPanel({
       return;
     }
 
-    setCatalogError('');
+    setCatalogError("");
     setIsModelSaving(true);
 
     try {
@@ -342,7 +379,9 @@ export function ComposerPanel({
       setModelValue(nextModel);
     } catch (error) {
       setCatalogError(
-        error instanceof Error ? error.message : 'Could not update Rainy model.',
+        error instanceof Error
+          ? error.message
+          : "Could not update Rainy model.",
       );
     } finally {
       setIsModelSaving(false);
@@ -354,7 +393,7 @@ export function ComposerPanel({
       return;
     }
 
-    setCatalogError('');
+    setCatalogError("");
     setIsModelSaving(true);
 
     try {
@@ -363,7 +402,9 @@ export function ComposerPanel({
       setEmbeddingModelValue(nextModel);
     } catch (error) {
       setCatalogError(
-        error instanceof Error ? error.message : 'Could not update Rainy embedding model.',
+        error instanceof Error
+          ? error.message
+          : "Could not update Rainy embedding model.",
       );
     } finally {
       setIsModelSaving(false);
@@ -393,12 +434,12 @@ export function ComposerPanel({
   return (
     <div
       className={cn(
-        'transition-all duration-300',
+        "transition-all duration-300",
         settings.floatingInput
-          // Truly float: exit flex flow, sit above message content.
-          // pointer-events-none on wrapper so transparent area is click-through.
-          ? 'pointer-events-none absolute bottom-0 inset-x-0 z-40 pb-4'
-          : 'pt-2 pb-6 px-8',
+          ? // Truly float: exit flex flow, sit above message content.
+            // pointer-events-none on wrapper so transparent area is click-through.
+            "pointer-events-none absolute bottom-0 inset-x-0 z-40 pb-4"
+          : "pt-2 pb-6 px-8",
       )}
     >
       {/* Soft gradient fade above the panel */}
@@ -408,17 +449,17 @@ export function ComposerPanel({
 
       <div
         className={cn(
-          'mx-auto w-full transition-all duration-300',
+          "mx-auto w-full transition-all duration-300",
           // Re-enable pointer events only on the actual panel area.
-          settings.floatingInput ? 'pointer-events-auto px-4' : 'relative',
-          settings.compactMode ? 'max-w-[680px]' : 'max-w-[820px]',
+          settings.floatingInput ? "pointer-events-auto px-4" : "relative",
+          settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
         )}
       >
         {showScrollButton ? (
           <div
             className={cn(
-              'pointer-events-none absolute inset-x-0 z-10 flex justify-center transition-all',
-              settings.floatingInput ? '-top-12' : '-top-11',
+              "pointer-events-none absolute inset-x-0 z-10 flex justify-center transition-all",
+              settings.floatingInput ? "-top-12" : "-top-11",
             )}
           >
             <Button
@@ -434,13 +475,13 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            'rounded-[28px] border border-[var(--panel-border)]/50 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.7)] transition-all duration-300 glass',
-            isDraggingFile ? 'ring-2 ring-[#2454ff]/70' : '',
+            "rounded-[28px] border border-[var(--panel-border)]/50 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.7)] transition-all duration-300 glass",
+            isDraggingFile ? "ring-2 ring-[#2454ff]/70" : "",
           )}
-          style={{ '--glass-bg': 'var(--panel)' } as any}
+          style={{ "--glass-bg": "var(--panel)" } as any}
           onDragEnter={(event) => {
             event.preventDefault();
-            if (event.dataTransfer.types.includes('Files')) {
+            if (event.dataTransfer.types.includes("Files")) {
               setIsDraggingFile(true);
             }
           }}
@@ -448,7 +489,9 @@ export function ComposerPanel({
             event.preventDefault();
           }}
           onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            if (
+              !event.currentTarget.contains(event.relatedTarget as Node | null)
+            ) {
               setIsDraggingFile(false);
             }
           }}
@@ -471,15 +514,15 @@ export function ComposerPanel({
               className="min-h-[60px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
               onChange={(event) => handlePromptChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
                   void handleSubmit();
                 }
               }}
               placeholder={
                 hasWorkspace
-                  ? 'Ask anything, @tag files/folders, or use / to show available commands'
-                  : 'Import a folder to start a repository review'
+                  ? "Ask anything, @tag files/folders, or use / to show available commands"
+                  : "Import a folder to start a repository review"
               }
               value={prompt}
             />
@@ -489,11 +532,13 @@ export function ComposerPanel({
                   <AttachmentChip
                     attachment={attachment}
                     key={attachment.id}
-                    unsupported={!isAttachmentSupported(attachment.kind, {
-                      image: supportsImageInput,
-                      video: supportsVideoInput,
-                      file: supportsFileInput,
-                    })}
+                    unsupported={
+                      !isAttachmentSupported(attachment.kind, {
+                        image: supportsImageInput,
+                        video: supportsVideoInput,
+                        file: supportsFileInput,
+                      })
+                    }
                     onRemove={() =>
                       setAttachments((current) =>
                         current.filter((item) => item.id !== attachment.id),
@@ -505,7 +550,9 @@ export function ComposerPanel({
             ) : null}
           </div>
           {catalogError ? (
-            <div className="px-5 pb-1 text-[11px] text-amber-300/90">{catalogError}</div>
+            <div className="px-5 pb-1 text-[11px] text-amber-300/90">
+              {catalogError}
+            </div>
           ) : null}
 
           <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-0.5">
@@ -517,7 +564,7 @@ export function ComposerPanel({
                   if (event.target.files) {
                     void addFiles(event.target.files);
                   }
-                  event.currentTarget.value = '';
+                  event.currentTarget.value = "";
                 }}
                 ref={fileInputRef}
                 type="file"
@@ -536,13 +583,15 @@ export function ComposerPanel({
                 value={modelValue}
                 onValueChange={handleModelChange}
                 disabled={isModelDisabled}
-                label={isCatalogLoading ? 'Loading models' : modelLabel}
+                label={isCatalogLoading ? "Loading models" : modelLabel}
               >
                 {catalog.map((entry) => (
                   <SelectItem key={entry.id} value={entry.id}>
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate">{entry.label}</span>
-                      <span className="truncate text-[10px] text-muted-foreground/75">{entry.id}</span>
+                      <span className="truncate text-[10px] text-muted-foreground/75">
+                        {entry.id}
+                      </span>
                     </div>
                   </SelectItem>
                 ))}
@@ -550,7 +599,11 @@ export function ComposerPanel({
               <InlineSelect
                 value={embeddingModelValue}
                 onValueChange={handleEmbeddingModelChange}
-                disabled={isCatalogLoading || isModelSaving || embeddingCatalog.length === 0}
+                disabled={
+                  isCatalogLoading ||
+                  isModelSaving ||
+                  embeddingCatalog.length === 0
+                }
                 label={embeddingModelLabel}
               >
                 {embeddingCatalog.map((entry) => (
@@ -558,7 +611,8 @@ export function ComposerPanel({
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate">{entry.label}</span>
                       <span className="truncate text-[10px] text-muted-foreground/75">
-                        {entry.dimensions}d · {Math.round(entry.contextLength / 1024)}k ctx
+                        {entry.dimensions}d ·{" "}
+                        {Math.round(entry.contextLength / 1024)}k ctx
                       </span>
                     </div>
                   </SelectItem>
@@ -567,17 +621,17 @@ export function ComposerPanel({
               {embeddingProgress ? (
                 <span
                   className={cn(
-                    'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
-                    embeddingProgress.state === 'failed'
-                      ? 'bg-destructive/15 text-destructive-foreground'
-                      : embeddingProgress.state === 'ready'
-                        ? 'bg-emerald-500/12 text-emerald-500'
-                        : 'bg-primary/12 text-primary',
+                    "shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                    embeddingProgress.state === "failed"
+                      ? "bg-destructive/15 text-destructive-foreground"
+                      : embeddingProgress.state === "ready"
+                        ? "bg-emerald-500/12 text-emerald-500"
+                        : "bg-primary/12 text-primary",
                   )}
                   title={`${embeddingProgress.indexed}/${embeddingProgress.total} repo graph embeddings`}
                 >
-                  {embeddingProgress.state === 'ready'
-                    ? 'Indexed'
+                  {embeddingProgress.state === "ready"
+                    ? "Indexed"
                     : `Index ${embeddingProgress.percent}%`}
                 </span>
               ) : null}
@@ -585,8 +639,10 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className={cn(
-                    'flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent',
-                    reasoningEnabled ? 'text-foreground' : 'text-muted-foreground/60',
+                    "flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent",
+                    reasoningEnabled
+                      ? "text-foreground"
+                      : "text-muted-foreground/60",
                   )}
                   onClick={() => setReasoningEnabled((value) => !value)}
                   title={reasoningToggleLabel}
@@ -596,17 +652,19 @@ export function ComposerPanel({
               ) : null}
               <div
                 className={cn(
-                  'grid shrink-0 transition-all duration-300 ease-out',
+                  "grid shrink-0 transition-all duration-300 ease-out",
                   reasoningEnabled && supportsReasoningEffort
-                    ? 'grid-cols-[1fr] opacity-100'
-                    : 'grid-cols-[0fr] opacity-0',
+                    ? "grid-cols-[1fr] opacity-100"
+                    : "grid-cols-[0fr] opacity-0",
                 )}
               >
                 <div className="min-w-0 overflow-hidden">
                   <InlineSelect
                     value={reasoningValue}
                     onValueChange={(value) =>
-                      setReasoningValue(value as AssistantRunOptions['reasoning'])
+                      setReasoningValue(
+                        value as AssistantRunOptions["reasoning"],
+                      )
                     }
                     label={formatReasoningEffort(reasoningValue)}
                     title={`Reasoning effort: ${formatReasoningEffort(reasoningValue)}`}
@@ -622,7 +680,7 @@ export function ComposerPanel({
               <InlineSelect
                 value={modeValue}
                 onValueChange={(value) =>
-                  setModeValue(value as AssistantRunOptions['mode'])
+                  setModeValue(value as AssistantRunOptions["mode"])
                 }
                 label={formatAssistantMode(modeValue)}
                 title={`Execution mode: ${formatAssistantMode(modeValue)}`}
@@ -677,7 +735,7 @@ export function ComposerPanel({
                 title={
                   trustContract
                     ? `Contract v${trustContract.version}: ${trustContract.autonomy}`
-                    : 'Contract pending'
+                    : "Contract pending"
                 }
               >
                 <ShieldCheckIcon className="size-3.5" />
@@ -699,10 +757,10 @@ export function ComposerPanel({
                 </Button>
               ) : null}
               <Button
-                aria-label={isRunning ? 'Thinking' : 'Send'}
+                aria-label={isRunning ? "Thinking" : "Send"}
                 className={cn(
-                  'size-9 rounded-full border-0 bg-[#2454ff] p-0 text-white shadow-none hover:bg-[#3462ff]',
-                  isRunning ? 'opacity-90' : '',
+                  "size-9 rounded-full border-0 bg-[#2454ff] p-0 text-white shadow-none hover:bg-[#3462ff]",
+                  isRunning ? "opacity-90" : "",
                 )}
                 disabled={isRunning || isModelSaving || !hasWorkspace}
                 onClick={handleSubmit}
@@ -721,11 +779,13 @@ export function ComposerPanel({
         {!settings.floatingInput ? (
           <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
             <span className="truncate">
-              Scope {trustContract?.allowedPaths.slice(0, 3).join(', ') ?? 'loading'}
+              Scope{" "}
+              {trustContract?.allowedPaths.slice(0, 3).join(", ") ?? "loading"}
             </span>
             <span className="max-w-[42%] truncate text-right">
-              {workspace?.branch ?? 'main'} / blocked{' '}
-              {trustContract?.blockedActions.slice(0, 2).join(', ') ?? 'loading'}
+              {workspace?.branch ?? "main"} / blocked{" "}
+              {trustContract?.blockedActions.slice(0, 2).join(", ") ??
+                "loading"}
             </span>
           </div>
         ) : null}
@@ -744,19 +804,19 @@ function AttachmentChip({
   unsupported: boolean;
 }) {
   const Icon =
-    attachment.kind === 'image'
+    attachment.kind === "image"
       ? ImageIcon
-      : attachment.kind === 'video'
+      : attachment.kind === "video"
         ? VideoIcon
         : FileIcon;
 
   return (
     <div
       className={cn(
-        'flex h-7 max-w-[180px] items-center gap-1.5 rounded-md border px-2 text-[11px]',
+        "flex h-7 max-w-[180px] items-center gap-1.5 rounded-md border px-2 text-[11px]",
         unsupported
-          ? 'border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-300'
-          : 'border-border/55 bg-background/35 text-muted-foreground',
+          ? "border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-300"
+          : "border-border/55 bg-background/35 text-muted-foreground",
       )}
       title={`${attachment.name} (${formatBytes(attachment.size)})`}
     >
@@ -779,12 +839,12 @@ async function readAttachment(file: File): Promise<AssistantAttachment> {
   const base = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     name: file.name,
-    mimeType: file.type || 'application/octet-stream',
+    mimeType: file.type || "application/octet-stream",
     size: file.size,
     kind,
   };
 
-  if (kind === 'image' || kind === 'video') {
+  if (kind === "image" || kind === "video") {
     return { ...base, dataUrl: await readFileAsDataUrl(file) };
   }
 
@@ -796,29 +856,30 @@ async function readAttachment(file: File): Promise<AssistantAttachment> {
 }
 
 function getAttachmentKind(file: File): AssistantAttachmentKind {
-  if (file.type.startsWith('image/')) {
-    return 'image';
+  if (file.type.startsWith("image/")) {
+    return "image";
   }
 
-  if (file.type.startsWith('video/')) {
-    return 'video';
+  if (file.type.startsWith("video/")) {
+    return "video";
   }
 
-  return 'file';
+  return "file";
 }
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read file.'));
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Could not read file."));
     reader.readAsDataURL(file);
   });
 }
 
 function isTextLikeFile(file: File) {
   return (
-    file.type.startsWith('text/') ||
+    file.type.startsWith("text/") ||
     /\.(csv|json|md|txt|xml|yaml|yml)$/i.test(file.name)
   );
 }
@@ -832,8 +893,10 @@ function isAttachmentSupported(
 
 function formatUnsupportedKinds(kinds: AssistantAttachmentKind[]) {
   return kinds
-    .map((kind) => (kind === 'image' ? 'images' : kind === 'video' ? 'video' : 'files'))
-    .join(', ');
+    .map((kind) =>
+      kind === "image" ? "images" : kind === "video" ? "video" : "files",
+    )
+    .join(", ");
 }
 
 function formatBytes(bytes: number) {
@@ -857,10 +920,15 @@ function PermissionPrompt({
   onAction: (action: PolicyStopAction) => void;
   stop: PolicyStop;
 }) {
-  const toolName = stop.attemptedAction.toolName ?? 'tool action';
-  const target = stop.attemptedAction.command ?? stop.attemptedAction.target ?? stop.policyId;
-  const canApprove = stop.availableActions.includes('approve_once');
-  const canDecline = stop.availableActions.includes('safer_alternative') || stop.availableActions.includes('abort');
+  const toolName = stop.attemptedAction.toolName ?? "tool action";
+  const target =
+    stop.attemptedAction.command ??
+    stop.attemptedAction.target ??
+    stop.policyId;
+  const canApprove = stop.availableActions.includes("approve_once");
+  const canDecline =
+    stop.availableActions.includes("safer_alternative") ||
+    stop.availableActions.includes("abort");
 
   return (
     <div className="border-b border-border/50 px-4 py-3">
@@ -875,7 +943,9 @@ function PermissionPrompt({
               {target}
             </span>
           </div>
-          <div className="mt-2 text-[12px] font-medium text-foreground/90">{stop.title}</div>
+          <div className="mt-2 text-[12px] font-medium text-foreground/90">
+            {stop.title}
+          </div>
           <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground">
             {stop.explanation}
           </div>
@@ -885,7 +955,13 @@ function PermissionPrompt({
             <Button
               className="h-8 rounded-full border-border/60 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
               disabled={disabled}
-              onClick={() => onAction(stop.availableActions.includes('safer_alternative') ? 'safer_alternative' : 'abort')}
+              onClick={() =>
+                onAction(
+                  stop.availableActions.includes("safer_alternative")
+                    ? "safer_alternative"
+                    : "abort",
+                )
+              }
               size="xs"
               variant="outline"
             >
@@ -896,7 +972,7 @@ function PermissionPrompt({
             <Button
               className="h-8 rounded-full bg-emerald-500 px-3 text-[11px] text-white shadow-none hover:bg-emerald-400"
               disabled={disabled}
-              onClick={() => onAction('approve_once')}
+              onClick={() => onAction("approve_once")}
               size="xs"
               variant="outline"
             >
@@ -947,26 +1023,26 @@ function InlineSelect({
   );
 }
 
-function formatReasoningEffort(effort: AssistantRunOptions['reasoning']) {
-  if (effort === 'xhigh') {
-    return 'X High';
+function formatReasoningEffort(effort: AssistantRunOptions["reasoning"]) {
+  if (effort === "xhigh") {
+    return "X High";
   }
 
   return effort
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(' ');
+    .join(" ");
 }
 
-function formatAssistantMode(mode: AssistantRunOptions['mode']) {
+function formatAssistantMode(mode: AssistantRunOptions["mode"]) {
   switch (mode) {
-    case 'critic_loop':
-      return 'Critic Loop';
-    case 'plan':
-      return 'Plan';
+    case "critic_loop":
+      return "Critic Loop";
+    case "plan":
+      return "Plan";
     default:
-      return 'Build';
+      return "Build";
   }
 }
 
@@ -978,7 +1054,7 @@ function resolveModelValue(
     return storedModel;
   }
 
-  return catalog[0]?.id ?? storedModel ?? '';
+  return catalog[0]?.id ?? storedModel ?? "";
 }
 
 function resolveEmbeddingModelValue(
@@ -989,5 +1065,5 @@ function resolveEmbeddingModelValue(
     return storedModel;
   }
 
-  return catalog[0]?.id ?? storedModel ?? '';
+  return catalog[0]?.id ?? storedModel ?? "";
 }
