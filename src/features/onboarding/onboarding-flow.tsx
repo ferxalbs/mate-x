@@ -179,29 +179,23 @@ function renderStep(step: number, props: any) {
 
 function IntroStep() {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-20 px-4">
+    <div className="flex flex-col items-center justify-center text-center space-y-8 py-16">
       <motion.div 
         initial={{ y: 10, opacity: 0, filter: "blur(10px)" }}
         animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="space-y-8 max-w-2xl"
+        className="space-y-6"
       >
-        <div className="space-y-4">
-          <h1 className="text-[6rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-foreground via-foreground/90 to-foreground/30">
-            MaTE X
-          </h1>
-          <p className="text-3xl text-foreground/90 font-semibold tracking-tight">
-            Verify AI-generated code before it ships.
-          </p>
-        </div>
-
+        <h1 className="text-[5rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/50">
+          MaTE X
+        </h1>
         <motion.p 
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="text-sm text-muted-foreground/80 font-medium tracking-wider uppercase mt-8 mx-auto leading-relaxed border-t border-border/20 pt-8 px-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="text-2xl text-muted-foreground font-medium max-w-lg mx-auto tracking-tight"
         >
-          Local-first security verification for repo changes, secrets, traces, validation, and evidence packs.
+          The local-first AI security partner for elite engineering teams.
         </motion.p>
       </motion.div>
     </div>
