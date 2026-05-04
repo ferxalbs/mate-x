@@ -72,6 +72,8 @@ interface ComposerPanelProps {
   showScrollButton: boolean;
   pendingPolicyStop: PolicyStop | null;
   trustContract: WorkspaceTrustContract | null;
+  prompt?: string;
+  onPromptChange?: (prompt: string) => void;
 }
 
 export function ComposerPanel({
@@ -85,8 +87,21 @@ export function ComposerPanel({
   showScrollButton,
   pendingPolicyStop,
   trustContract,
+  prompt: externalPrompt,
+  onPromptChange,
 }: ComposerPanelProps) {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(externalPrompt ?? '');
+
+  useEffect(() => {
+    if (externalPrompt !== undefined && externalPrompt !== prompt) {
+      setPrompt(externalPrompt);
+    }
+  }, [externalPrompt]);
+
+  const handlePromptChange = (value: string) => {
+    setPrompt(value);
+    onPromptChange?.(value);
+  };
   const [modelValue, setModelValue] = useState('');
   const [embeddingModelValue, setEmbeddingModelValue] = useState('');
   const [embeddingCatalog, setEmbeddingCatalog] = useState<
@@ -419,7 +434,7 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            'rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] transition-all duration-300 glass',
+            'rounded-[28px] border border-[var(--panel-border)]/50 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.7)] transition-all duration-300 glass',
             isDraggingFile ? 'ring-2 ring-[#2454ff]/70' : '',
           )}
           style={{ '--glass-bg': 'var(--panel)' } as any}
@@ -454,7 +469,7 @@ export function ComposerPanel({
           <div className="px-5 py-4">
             <textarea
               className="min-h-[60px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
-              onChange={(event) => setPrompt(event.target.value)}
+              onChange={(event) => handlePromptChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();

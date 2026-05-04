@@ -16,6 +16,7 @@ export function HomePage() {
   const [traceVersion, setTraceVersion] = useState<'v1' | 'v2'>('v2');
   const [traceV2InlineEvents, setTraceV2InlineEvents] = useState(false);
   const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
+  const [composerPrompt, setComposerPrompt] = useState('');
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -34,9 +35,38 @@ export function HomePage() {
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
   const selectedThread = threads.find((thread) => thread.id === activeThreadId) ?? null;
+  const messages = selectedThread?.messages ?? [];
+  const hasMessages = messages.length > 0;
   const canUndoLastTurn =
     runStatus !== 'running' &&
-    (selectedThread?.messages ?? []).some((message) => message.role === 'user');
+    messages.some((message) => message.role === 'user');
+
+  async function handleResolvePolicyStop(stop: PolicyStop, action: PolicyStopAction) {
+    await resolvePolicyStop({ stopId: stop.id, action });
+    setPendingPolicyStop(null);
+  }
+
+  const composer = (
+    <ComposerPanel
+      canUndoLastTurn={canUndoLastTurn}
+      isRunning={runStatus === 'running'}
+      onScrollToBottom={() =>
+        messageScrollerRef.current?.scrollTo({
+          top: messageScrollerRef.current.scrollHeight,
+          behavior: 'smooth',
+        })
+      }
+      onSubmit={submitPrompt}
+      onResolvePolicyStop={handleResolvePolicyStop}
+      onUndoLastTurn={undoLastTurn}
+      pendingPolicyStop={pendingPolicyStop}
+      trustContract={trustContract}
+      workspace={workspace}
+      showScrollButton={showScrollButton}
+      prompt={composerPrompt}
+      onPromptChange={setComposerPrompt}
+    />
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -85,11 +115,6 @@ export function HomePage() {
     };
   }, [activeThreadId, runStatus]);
 
-  async function handleResolvePolicyStop(stop: PolicyStop, action: PolicyStopAction) {
-    await resolvePolicyStop({ stopId: stop.id, action });
-    setPendingPolicyStop(null);
-  }
-
   useEffect(() => {
     const handleSettingsUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<AppSettings>;
@@ -124,7 +149,7 @@ export function HomePage() {
       */}
       <div
         className="relative flex min-h-0 flex-1 flex-col"
-        style={{ paddingBottom: settings.floatingInput ? 152 : 0 }}
+        style={{ paddingBottom: hasMessages && settings.floatingInput ? 152 : 0 }}
       >
         <MessageStream
           canUndoLastTurn={canUndoLastTurn}
@@ -132,37 +157,22 @@ export function HomePage() {
           isRunning={runStatus === 'running'}
           isBootstrapped={isBootstrapped}
           lastError={lastError}
-          messages={selectedThread?.messages ?? []}
-          onCreateThread={createThread}
+          messages={messages}
           onImportWorkspace={importWorkspace}
           onUndoLastTurn={undoLastTurn}
           onVisibilityChange={setShowScrollButton}
+          onSelectPrompt={setComposerPrompt}
           scrollerRef={messageScrollerRef}
           traceVersion={traceVersion}
           traceV2InlineEvents={traceV2InlineEvents}
           workspace={workspace}
+          composer={!hasMessages ? composer : null}
         />
-        {settings.floatingInput ? (
+        {hasMessages && settings.floatingInput ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[152px] bg-gradient-to-t from-background via-background/60 to-transparent" />
         ) : null}
       </div>
-      <ComposerPanel
-        canUndoLastTurn={canUndoLastTurn}
-        isRunning={runStatus === 'running'}
-        onScrollToBottom={() =>
-          messageScrollerRef.current?.scrollTo({
-            top: messageScrollerRef.current.scrollHeight,
-            behavior: 'smooth',
-          })
-        }
-        onSubmit={submitPrompt}
-        onResolvePolicyStop={handleResolvePolicyStop}
-        onUndoLastTurn={undoLastTurn}
-        pendingPolicyStop={pendingPolicyStop}
-        trustContract={trustContract}
-        workspace={workspace}
-        showScrollButton={showScrollButton}
-      />
+      {hasMessages ? composer : null}
     </section>
   );
 }

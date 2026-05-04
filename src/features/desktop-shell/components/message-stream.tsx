@@ -8,7 +8,6 @@ import {
   FileTextIcon,
   FolderPlusIcon,
   LoaderCircle,
-  MessageSquarePlusIcon,
 } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
@@ -19,6 +18,7 @@ import { cn } from '../../../lib/utils';
 import { ChatMarkdown } from './chat-markdown';
 import { EvidencePackCard } from './evidence-pack-card';
 import { useChatStore } from '../../../store/chat-store';
+import { BrainIcon, ExternalLinkIcon, RotateUndoIcon, ShieldCheckIcon } from './Icons.tsx';
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -27,14 +27,14 @@ interface MessageStreamProps {
   traceVersion: 'v1' | 'v2';
   traceV2InlineEvents: boolean;
   workspace: WorkspaceSummary | null;
-  hasActiveThread: boolean;
   isBootstrapped: boolean;
   lastError: string | null;
-  onCreateThread: () => void;
   onImportWorkspace: () => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   onVisibilityChange: (visible: boolean) => void;
+  onSelectPrompt: (prompt: string) => void;
   scrollerRef: RefObject<HTMLDivElement | null>;
+  composer?: ReactNode;
 }
 
 export function MessageStream({
@@ -44,14 +44,14 @@ export function MessageStream({
   traceVersion,
   traceV2InlineEvents,
   workspace,
-  hasActiveThread,
   isBootstrapped,
   lastError,
-  onCreateThread,
   onImportWorkspace,
   onUndoLastTurn,
   onVisibilityChange,
+  onSelectPrompt,
   scrollerRef,
+  composer,
 }: MessageStreamProps) {
   const settings = useChatStore((state) => state.settings);
   const shouldStickToBottomRef = useRef(true);
@@ -105,12 +105,12 @@ export function MessageStream({
         <div className="flex flex-1 flex-col gap-7">
           {messages.length === 0 ? (
             <EmptyState
-              hasActiveThread={hasActiveThread}
               isBootstrapped={isBootstrapped}
               lastError={lastError}
-              onCreateThread={onCreateThread}
               onImportWorkspace={onImportWorkspace}
+              onSelectPrompt={onSelectPrompt}
               workspace={workspace}
+              composer={composer}
             />
           ) : null}
 
@@ -134,75 +134,112 @@ export function MessageStream({
 }
 
 function EmptyState({
-  hasActiveThread,
   isBootstrapped,
   lastError,
-  onCreateThread,
   onImportWorkspace,
+  onSelectPrompt,
   workspace,
+  composer,
 }: {
-  hasActiveThread: boolean;
   isBootstrapped: boolean;
   lastError: string | null;
-  onCreateThread: () => void;
   onImportWorkspace: () => Promise<void>;
+  onSelectPrompt: (prompt: string) => void;
   workspace: WorkspaceSummary | null;
+  composer?: ReactNode;
 }) {
-  const hasWorkspace = Boolean(workspace);
   const title = lastError
     ? 'Something needs attention'
     : !isBootstrapped
       ? 'Loading workspace'
-      : hasWorkspace
-    ? hasActiveThread
-      ? 'Start a security review'
-      : 'Create a thread to continue'
-    : 'Import a folder to begin';
-  const description = lastError
-    ? lastError
-    : !isBootstrapped
-      ? 'MaTE X is restoring your previous session and checking local workspace state.'
-      : hasWorkspace
-    ? `Ask MaTE X to inspect ${workspace?.name ?? 'your repository'}, explain risk, or review a change.`
-    : 'Choose a local repository. MaTE X will load source control, create a chat thread, and prepare review context.';
-  const steps = hasWorkspace
-    ? ['Ask for a review.', 'Inspect findings.', 'Open Mission Log.']
-    : ['Import a repository.', 'Configure Rainy key.', 'Ask for a review.'];
+      : `What should we build in ${workspace?.name ?? 'mate-x'}?`;
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4">
-      <div className="w-full max-w-[520px] rounded-lg border border-border/55 bg-[var(--surface-soft)]/72 px-8 py-8 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-        <p className="text-[15px] font-semibold tracking-[-0.02em] text-foreground/94">{title}</p>
-        <p className="mt-3 text-[13px] leading-6 text-muted-foreground">{description}</p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void onImportWorkspace()}
-            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <FolderPlusIcon className="size-4" />
-            Import Folder
-          </button>
-          {hasWorkspace ? (
-            <button
-              type="button"
-              onClick={onCreateThread}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              <MessageSquarePlusIcon className="size-4" />
-              New Thread
-            </button>
-          ) : null}
-        </div>
-        <div className="mt-6 grid gap-2 text-[12px] leading-5 text-muted-foreground sm:grid-cols-3">
-          {steps.map((step, index) => (
-            <p key={step} className="rounded-md border border-border/55 bg-background/45 p-3">
-              {index + 1}. {step}
-            </p>
-          ))}
-        </div>
+    <div className="flex flex-1 flex-col items-center justify-center px-4 pt-[10vh] pb-12">
+      <div className="w-full max-w-[720px] text-center">
+        <h1 className="mb-10 text-[28px] font-medium tracking-[-0.015em] text-foreground/95">
+          {title}
+        </h1>
+
+        {lastError || !isBootstrapped ? (
+          <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground/80">
+            {lastError ?? 'MaTE X is restoring your previous session and checking local workspace state.'}
+          </p>
+        ) : (
+          <>
+            <div className="mb-12 flex justify-center">
+              <div className="w-full max-w-[680px]">
+                {composer}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <FeatureCard
+                icon={<ShieldCheckIcon className="size-4 text-emerald-500" />}
+                title="Security Audit"
+                description="Scan for common vulnerabilities and hardcoded secrets"
+                onClick={() => onSelectPrompt('Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks.')}
+              />
+              <FeatureCard
+                icon={<BrainIcon className="size-4 text-purple-500" />}
+                title="Bug Hunting"
+                description="Find logical flaws or edge cases in recent changes"
+                onClick={() => onSelectPrompt('Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases.')}
+              />
+              <FeatureCard
+                icon={<FileTextIcon className="size-4 text-blue-500" />}
+                title="Compliance"
+                description="Verify code against security policies and standards"
+                onClick={() => onSelectPrompt('Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies.')}
+              />
+              <FeatureCard
+                icon={<ExternalLinkIcon className="size-4 text-amber-500" />}
+                title="Arch Review"
+                description="Analyze system boundaries and data flow risks"
+                onClick={() => onSelectPrompt('Review the system architecture. Map the data flows between components and identify potential trust boundary issues.')}
+              />
+            </div>
+
+            <div className="mt-12 flex items-center justify-center gap-6">
+              <button
+                type="button"
+                onClick={() => void onImportWorkspace()}
+                className="inline-flex items-center gap-2 text-[12px] font-medium text-muted-foreground/60 transition-colors hover:text-foreground"
+              >
+                <FolderPlusIcon className="size-3.5 opacity-60" />
+                Import another folder
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col items-start rounded-xl border border-border/30 bg-background/20 p-4 text-left transition-all hover:border-border/80 hover:bg-background/40 hover:shadow-sm"
+    >
+      <div className="mb-3 rounded-lg bg-background/50 p-2 shadow-sm ring-1 ring-border/5 transition-all group-hover:ring-border/20">
+        {icon}
+      </div>
+      <h3 className="text-[13px] font-medium text-foreground/85">{title}</h3>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground/50">{description}</p>
+    </button>
   );
 }
 
