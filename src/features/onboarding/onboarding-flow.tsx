@@ -105,7 +105,7 @@ export function OnboardingFlow() {
         ))}
       </div>
 
-      <div className="relative w-full max-w-lg overflow-hidden">
+      <div className="relative w-full max-w-lg">
         <AnimatePresence initial={false} mode="wait" custom={direction}>
           <motion.div
             key={currentStep}
@@ -116,7 +116,7 @@ export function OnboardingFlow() {
             exit="exit"
             transition={{
               x: { type: "spring", stiffness: 300, damping: 30 },
-              opacity: { duration: 0.2 }
+              opacity: { duration: 0.3 }
             }}
             className="w-full"
           >
@@ -137,15 +137,26 @@ export function OnboardingFlow() {
         </AnimatePresence>
       </div>
 
-      <div className="mt-8 flex w-full max-w-lg justify-between">
-        <Button variant="ghost" onClick={handleBack} disabled={currentStep === 0}>
+      <div className="mt-12 flex w-full max-w-lg justify-between items-center">
+        <Button variant="ghost" onClick={handleBack} disabled={currentStep === 0} className="hover:bg-accent/10">
           Back
         </Button>
-        <Button onClick={handleNext}>
+        <Button onClick={handleNext} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-full px-6">
           {currentStep === steps.length - 1 ? "Finish" : "Continue"}
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
+
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.25 }}
+        transition={{ delay: 1, duration: 1 }}
+        className="mt-auto pt-16 pb-2 text-center select-none pointer-events-none"
+      >
+        <p className="text-[9px] tracking-[0.2em] uppercase font-bold text-muted-foreground max-w-md mx-auto leading-relaxed">
+          Local-first security verification for repo changes, secrets, traces, validation, and evidence packs.
+        </p>
+      </motion.div>
     </div>
   );
 }
@@ -179,23 +190,23 @@ function renderStep(step: number, props: any) {
 
 function IntroStep() {
   return (
-    <div className="flex flex-col items-center justify-center text-center space-y-8 py-16">
+    <div className="flex flex-col items-center justify-center text-center space-y-8 py-12">
       <motion.div 
         initial={{ y: 10, opacity: 0, filter: "blur(10px)" }}
         animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: 1, ease: "easeOut" }}
         className="space-y-6"
       >
-        <h1 className="text-[5rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/50">
+        <h1 className="text-[5.5rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/30 pb-2">
           MaTE X
         </h1>
         <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-2xl text-muted-foreground font-medium max-w-lg mx-auto tracking-tight"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+          className="text-3xl text-foreground font-bold max-w-lg mx-auto tracking-tight"
         >
-          The local-first AI security partner for elite engineering teams.
+          Verify AI-generated code before it ships.
         </motion.p>
       </motion.div>
     </div>
@@ -220,18 +231,19 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
   const isReady = status?.inferenceReady || privacyProgress?.state === 'ready';
 
   return (
-    <Card className="border-border/40 bg-card/50 backdrop-blur">
+    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
       <CardHeader>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative z-10">
           <Shield className="h-5 w-5 text-primary" />
           <CardTitle>Privacy Sentinel</CardTitle>
         </div>
-        <CardDescription>
+        <CardDescription className="relative z-10">
           MaTE X uses a local ONNX model to scan your code for secrets and PII before anything leaves your machine.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-lg border bg-muted/30 p-4">
+      <CardContent className="space-y-4 relative z-10">
+        <div className="rounded-xl border border-border/40 bg-muted/40 p-4 backdrop-blur-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Model Status</span>
             {isReady ? (
@@ -282,18 +294,19 @@ function ApiKeyStep({ apiKey, setApiKey, initialApiKey }: any) {
   const isConfigured = !!initialApiKey || (apiKey && apiKey.length > 5);
 
   return (
-    <Card className="border-border/40 bg-card/50 backdrop-blur">
+    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
       <CardHeader>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative z-10">
           <Key className="h-5 w-5 text-primary" />
           <CardTitle>Rainy Dashboard</CardTitle>
         </div>
-        <CardDescription>
+        <CardDescription className="relative z-10">
           Get your API key to enable powerful AI reasoning and RepoGraph indexing.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-lg border bg-muted/30 p-4">
+      <CardContent className="space-y-4 relative z-10">
+        <div className="rounded-xl border border-border/40 bg-muted/40 p-4 backdrop-blur-sm">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium">Connection Status</span>
             {isConfigured ? (
@@ -340,17 +353,18 @@ function ApiKeyStep({ apiKey, setApiKey, initialApiKey }: any) {
 
 function ConfigStep({ settings, setSettings, setAppearance, setTheme }: any) {
   return (
-    <Card className="border-border/40 bg-card/50 backdrop-blur">
+    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
       <CardHeader>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative z-10">
           <Settings className="h-5 w-5 text-primary" />
           <CardTitle>Final Touches</CardTitle>
         </div>
-        <CardDescription>
+        <CardDescription className="relative z-10">
           Configure your preferred interface settings.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 relative z-10">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Appearance</Label>
