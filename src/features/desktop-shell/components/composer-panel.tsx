@@ -475,7 +475,7 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            "rounded-[26px] border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.30)] transition-all duration-300 glass",
+            "rounded-[26px] border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 transition-all duration-300 glass",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
           style={{ "--glass-bg": "var(--panel)" } as any}
