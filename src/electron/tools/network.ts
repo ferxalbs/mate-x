@@ -43,18 +43,16 @@ const severityRank = { critical: 0, high: 1, medium: 2, info: 3 } as const;
 function sourceRoleFor(file: string, lineContent = ''): NetworkFinding['sourceRole'] {
   const lower = file.toLowerCase();
   const line = lineContent.toLowerCase();
-  if (lower.includes('src/electron/tools/')) return 'scanner';
-  if (lower.includes('src/electron/privacy/privacy-regex-scanner') || lower.includes('src/electron/privacy/privacy-canary')) return 'scanner';
+  if (/(scanner|canary|fuzzer|prober|poison|audit)/.test(lower) && (line.includes('169.254.169.254') || line.includes('127.0.0.1') || line.includes('localhost') || line.includes('10.0.0.5'))) return 'scanner';
   if (
-    lower.includes('/tools/')
-    && (
-      line.includes('pattern')
-      || line.includes('regex')
-      || line.includes('private_ip_blocks')
-      || line.includes('ssrf')
-      || line.includes('metadata endpoint')
-      || line.includes('recommended fixes')
-    )
+    line.includes('pattern')
+    || line.includes('regex')
+    || line.includes('private_ip_blocks')
+    || line.includes('ssrf')
+    || line.includes('metadata endpoint')
+    || line.includes('recommended fixes')
+    || line.includes('if (ip ===')
+    || (lower.includes('/tools/') && (line.includes('169.254.169.254') || line.includes('127.0.0.1') || line.includes('localhost') || line.includes('replace_me') || line.includes('your-rainy-host') || line.includes('example.com')))
   ) return 'scanner';
   if (lower.includes('/docs/') || lower.endsWith('.md') || lower.endsWith('.mdx')) return 'docs';
   if (lower.includes('/test/') || lower.includes('/tests/') || lower.includes('.test.') || lower.includes('.spec.')) return 'test';
