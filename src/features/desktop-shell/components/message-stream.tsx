@@ -103,7 +103,7 @@ export function MessageStream({
     <div ref={scrollerRef} className="flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 pb-8 transition-all duration-300">
       <div className={cn(
         "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
-        settings.compactMode ? "max-w-[680px]" : "max-w-[980px]"
+        settings.compactMode && messages.length > 0 ? "max-w-[680px]" : "max-w-[980px]"
       )}>
         <div className="flex flex-1 flex-col gap-7">
           {messages.length === 0 ? (
@@ -160,7 +160,7 @@ function EmptyState({
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 pt-[8vh] transition-all duration-300">
       <div className="flex w-full max-w-[820px] flex-col items-center">
-        <h1 className="mb-8 text-center text-[32px] font-medium tracking-tight text-foreground/90 transition-all">
+        <h1 className="mb-6 text-center text-[32px] font-medium tracking-tight text-foreground/90 transition-all">
           {title}
         </h1>
 
@@ -169,12 +169,12 @@ function EmptyState({
             {lastError ?? 'MaTE X is restoring your previous session and checking local workspace state.'}
           </p>
         ) : (
-          <div className="flex w-full flex-col items-center space-y-10">
+          <div className="flex w-full flex-col items-center space-y-4">
             <div className="w-full max-w-[760px]">
               {composer}
             </div>
 
-            <div className="flex w-full flex-wrap items-center justify-center gap-3">
+            <div className="flex w-full max-w-[760px] flex-wrap items-center justify-center gap-2.5 px-4">
               <FeatureChip
                 icon={<ShieldCheckIcon className="size-3.5 text-emerald-500" />}
                 label="Security Audit"
@@ -201,7 +201,7 @@ function EmptyState({
               />
             </div>
 
-            <div className="flex items-center justify-center pt-2">
+            <div className="flex items-center justify-center pt-4">
               <button
                 type="button"
                 onClick={() => void onImportWorkspace()}
