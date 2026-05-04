@@ -434,12 +434,12 @@ export function ComposerPanel({
   return (
     <div
       className={cn(
-        "transition-all duration-300 bg-transparent",
+        "transition-all duration-300",
         settings.floatingInput
           ? // Truly float: exit flex flow, sit above message content.
             // pointer-events-none on wrapper so transparent area is click-through.
             "pointer-events-none absolute bottom-0 inset-x-0 z-40 pb-4"
-          : "pb-6 px-4 sm:px-6 lg:px-9 bg-transparent",
+          : "pt-2 pb-6 px-8",
       )}
     >
       {/* Soft gradient fade above the panel */}
@@ -452,7 +452,7 @@ export function ComposerPanel({
           "mx-auto w-full transition-all duration-300 bg-transparent",
           // Re-enable pointer events only on the actual panel area.
           settings.floatingInput ? "pointer-events-auto px-4" : "relative",
-          settings.compactMode ? "max-w-[680px]" : "max-w-[980px]",
+          settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
         )}
       >
         {showScrollButton ? (
@@ -475,7 +475,7 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            "rounded-[26px] border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 transition-all duration-300 glass",
+            "rounded-xl border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.30)] transition-all duration-300 glass",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
           style={{ "--glass-bg": "var(--panel)" } as any}
@@ -509,9 +509,9 @@ export function ComposerPanel({
               {capabilityNotice}
             </div>
           ) : null}
-          <div className="px-5 py-3 bg-transparent">
+          <div className="px-5 py-4 bg-transparent">
             <textarea
-              className="min-h-[52px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[44px]"
+              className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -555,7 +555,7 @@ export function ComposerPanel({
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 px-4 pb-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-1 turn-chip-strip sm:pb-0">
               <input
                 className="hidden"
