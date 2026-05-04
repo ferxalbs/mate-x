@@ -434,12 +434,12 @@ export function ComposerPanel({
   return (
     <div
       className={cn(
-        "transition-all duration-300",
+        "transition-all duration-300 bg-transparent",
         settings.floatingInput
           ? // Truly float: exit flex flow, sit above message content.
             // pointer-events-none on wrapper so transparent area is click-through.
             "pointer-events-none absolute bottom-0 inset-x-0 z-40 pb-4"
-          : "pt-2 pb-6 px-8",
+          : "pb-6 px-8 bg-transparent",
       )}
     >
       {/* Soft gradient fade above the panel */}
