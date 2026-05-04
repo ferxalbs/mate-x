@@ -117,7 +117,7 @@ export function MessageStream({
   return (
     <div
       ref={scrollerRef}
-      className="flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 pb-8 transition-all duration-300"
+      className="flex min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 transition-all duration-300 sm:px-6 lg:px-9"
     >
       <div
         className={cn(
@@ -185,9 +185,9 @@ function EmptyState({
       : `What should we build in ${workspace?.name ?? "mate-x"}?`;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 pt-[8vh] transition-all duration-300">
+    <div className="flex flex-1 flex-col items-center justify-center px-0 pb-16 pt-[6vh] transition-all duration-300 sm:px-4 sm:pb-24 sm:pt-[8vh]">
       <div className="flex w-full max-w-[820px] flex-col items-center">
-        <h1 className="mb-6 text-center text-[32px] font-medium tracking-tight text-foreground/90 transition-all">
+        <h1 className="mb-5 max-w-[min(100%,760px)] text-center text-2xl font-medium text-foreground/90 transition-all sm:mb-6 sm:text-[32px]">
           {title}
         </h1>
 
@@ -198,9 +198,9 @@ function EmptyState({
           </p>
         ) : (
           <div className="flex w-full flex-col items-center space-y-4">
-            <div className="w-full max-w-[760px]">{composer}</div>
+            <div className="w-full max-w-[760px] min-w-0">{composer}</div>
 
-            <div className="flex w-full max-w-[760px] flex-wrap items-center justify-center gap-2.5 px-4">
+            <div className="grid w-full max-w-[760px] grid-cols-2 gap-2 px-0 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-2.5 sm:px-4">
               <FeatureChip
                 icon={<ShieldCheckIcon className="size-3.5 text-emerald-500" />}
                 label="Security Audit"
@@ -268,14 +268,14 @@ function FeatureChip({
             <button
               type="button"
               onClick={onClick}
-              className="group flex h-9 items-center gap-2 rounded-full border border-border/40 bg-background/30 px-3.5 text-[12px] font-medium text-muted-foreground/80 backdrop-blur-md transition-all duration-300 hover:border-border/80 hover:bg-background/60 hover:text-foreground hover:shadow-sm"
+              className="group flex h-9 min-w-0 items-center justify-center gap-2 rounded-lg border border-border/60 bg-[var(--panel)]/72 px-3 text-[12px] font-medium text-muted-foreground/85 backdrop-blur-md transition-all duration-300 hover:border-border hover:bg-[var(--panel)] hover:text-foreground hover:shadow-sm sm:justify-start sm:px-3.5"
             />
           }
         >
           <div className="flex items-center justify-center text-foreground/70 transition-colors group-hover:text-foreground">
             {icon}
           </div>
-          <span>{label}</span>
+          <span className="truncate">{label}</span>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={8} className="max-w-[280px]">
           <p className="text-center leading-relaxed text-muted-foreground">

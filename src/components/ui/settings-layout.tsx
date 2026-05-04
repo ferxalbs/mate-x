@@ -22,7 +22,7 @@ export function SettingsSection({
         </h2>
         {headerAction}
       </div>
-      <div className="relative w-full min-w-0 overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm/4 not-dark:bg-clip-padding before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:shadow-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]">
+      <div className="relative w-full min-w-0 overflow-hidden rounded-xl border border-[var(--panel-border)] bg-[var(--panel)]/88 text-card-foreground shadow-sm/4 not-dark:bg-clip-padding before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:shadow-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]">
         {children}
       </div>
     </section>
@@ -47,7 +47,7 @@ export function SettingsRow({
   return (
     <div
       className={cn(
-        "border-t border-border/60 px-4 first:border-t-0 sm:px-5",
+        "border-t border-[var(--panel-border)]/75 px-4 first:border-t-0 sm:px-5",
         children ? "pt-4 pb-0" : "py-4",
       )}
     >

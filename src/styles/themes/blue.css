@@ -2,8 +2,8 @@
   --background: #f8fafc;
   --app-chrome-background: #f1f5f9;
   --foreground: #0f172a;
-  --card: #ffffff;
-  --popover: #ffffff;
+  --card: #f8fafc;
+  --popover: #f8fafc;
   --primary: oklch(0.55 0.22 250);
   --ring: oklch(0.55 0.22 250);
   --sidebar: #f1f5f9;

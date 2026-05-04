@@ -5,8 +5,9 @@
   --card: #f8f9fa;
   --popover: #f8f9fa;
   --sidebar: #f8f9fa;
-  --surface: #ffffff;
-  --panel: #ffffff;
+  --surface: #f1f3f5;
+  --surface-soft: #e9ecef;
+  --panel: #f8f9fa;
   --titlebar: #f8f9fa;
   --border: color-mix(in srgb, black 10%, transparent);
   --input: color-mix(in srgb, black 12%, transparent);
