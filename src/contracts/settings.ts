@@ -28,6 +28,7 @@ export interface AppSettings {
   privacyMinModelConfidence: number;
   privacyShowPreviewBeforeCloudSend: boolean;
   supermemoryApiKey?: string;
+  onboardingCompleted: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -53,4 +54,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   privacyMinModelConfidence: 0.5,
   privacyShowPreviewBeforeCloudSend: true,
   supermemoryApiKey: '',
+  onboardingCompleted: false,
 };
