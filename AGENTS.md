@@ -24,7 +24,7 @@ MaTE X is a desktop security review agent for local repositories. Target platfor
 **Directory map — memorize this, do not re-read it:**
 
 | Path | Purpose |
-|---|---|
+| --- | --- |
 | `src/electron/` | Main-process: services, IPC handlers, Git integration, Rainy orchestration |
 | `src/features/` | Renderer features |
 | `src/contracts/` | Shared TS contracts/interfaces |
@@ -42,7 +42,7 @@ MaTE X is a desktop security review agent for local repositories. Target platfor
 
 ## Always Ignore — Never Read These
 
-```
+```text
 node_modules/
 dist/
 .next/
