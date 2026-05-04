@@ -8,7 +8,6 @@ import {
   CopyIcon,
   ExternalLinkIcon,
   FileTextIcon,
-  FolderPlusIcon,
   LoaderCircle,
   ShieldCheckIcon,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ interface MessageStreamProps {
   workspace: WorkspaceSummary | null;
   isBootstrapped: boolean;
   lastError: string | null;
-  onImportWorkspace: () => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   onVisibilityChange: (visible: boolean) => void;
   onSelectPrompt: (prompt: string) => void;
@@ -49,7 +47,6 @@ export function MessageStream({
   workspace,
   isBootstrapped,
   lastError,
-  onImportWorkspace,
   onUndoLastTurn,
   onVisibilityChange,
   onSelectPrompt,
@@ -70,7 +67,7 @@ export function MessageStream({
     const updateScrollState = () => {
       const distanceFromBottom =
         element.scrollHeight - element.scrollTop - element.clientHeight;
-      const nextShowScrollButton = distanceFromBottom > 140;
+      const nextShowScrollButton = messages.length > 0 && distanceFromBottom > 140;
       const nextStickToBottom = distanceFromBottom < 32;
 
       shouldStickToBottomRef.current = nextStickToBottom;
@@ -84,7 +81,7 @@ export function MessageStream({
       element.removeEventListener('scroll', updateScrollState);
       onVisibilityChange(false);
     };
-  }, [onVisibilityChange, scrollerRef]);
+  }, [onVisibilityChange, scrollerRef, messages.length]);
 
   useEffect(() => {
     const element = scrollerRef.current;
@@ -110,7 +107,6 @@ export function MessageStream({
             <EmptyState
               isBootstrapped={isBootstrapped}
               lastError={lastError}
-              onImportWorkspace={onImportWorkspace}
               onSelectPrompt={onSelectPrompt}
               workspace={workspace}
               composer={composer}
@@ -139,14 +135,12 @@ export function MessageStream({
 function EmptyState({
   isBootstrapped,
   lastError,
-  onImportWorkspace,
   onSelectPrompt,
   workspace,
   composer,
 }: {
   isBootstrapped: boolean;
   lastError: string | null;
-  onImportWorkspace: () => Promise<void>;
   onSelectPrompt: (prompt: string) => void;
   workspace: WorkspaceSummary | null;
   composer?: ReactNode;
@@ -199,17 +193,6 @@ function EmptyState({
                 prompt="Review the system architecture. Map the data flows between components and identify potential trust boundary issues."
                 onClick={() => onSelectPrompt('Review the system architecture. Map the data flows between components and identify potential trust boundary issues.')}
               />
-            </div>
-
-            <div className="flex items-center justify-center pt-4">
-              <button
-                type="button"
-                onClick={() => void onImportWorkspace()}
-                className="inline-flex items-center gap-2 rounded-full border border-border/30 bg-background/20 px-4 py-2 text-[12px] font-medium text-muted-foreground/60 backdrop-blur-sm transition-all hover:border-border/60 hover:bg-background/40 hover:text-foreground"
-              >
-                <FolderPlusIcon className="size-3.5 opacity-60" />
-                Import another folder
-              </button>
             </div>
           </div>
         )}
