@@ -157,7 +157,6 @@ export function HomePage() {
           isBootstrapped={isBootstrapped}
           lastError={lastError}
           messages={messages}
-          onImportWorkspace={importWorkspace}
           onUndoLastTurn={undoLastTurn}
           onVisibilityChange={setShowScrollButton}
           onSelectPrompt={setComposerPrompt}
