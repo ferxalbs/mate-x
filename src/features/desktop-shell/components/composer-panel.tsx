@@ -444,12 +444,12 @@ export function ComposerPanel({
     >
       {/* Soft gradient fade above the panel */}
       {settings.floatingInput ? (
-        <div className="pointer-events-none absolute inset-x-0 top-[-64px] h-[64px] bg-gradient-to-t from-background/60 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bg-transparent" />
       ) : null}
 
       <div
         className={cn(
-          "mx-auto w-full transition-all duration-300",
+          "mx-auto w-full transition-all duration-300 bg-transparent",
           // Re-enable pointer events only on the actual panel area.
           settings.floatingInput ? "pointer-events-auto px-4" : "relative",
           settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
@@ -475,7 +475,7 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            "rounded-xl border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.72)] transition-all duration-300 glass",
+            "rounded-xl border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.30)] transition-all duration-300 glass",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
           style={{ "--glass-bg": "var(--panel)" } as any}
@@ -509,7 +509,7 @@ export function ComposerPanel({
               {capabilityNotice}
             </div>
           ) : null}
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 bg-transparent">
             <textarea
               className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}
