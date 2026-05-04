@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet } from "@tanstack/react-router";
-import {
-  ActivityIcon,
-  GitBranchIcon,
-  ShieldCheckIcon,
-} from "lucide-react";
+import { ActivityIcon, GitBranchIcon, ShieldCheckIcon } from "lucide-react";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
 import type { GitStatus } from "../../contracts/git";
@@ -94,15 +90,13 @@ export function DesktopShell() {
   );
 }
 
-function ChangeImpactPanel({
-  workspaceId,
-}: {
-  workspaceId: string | null;
-}) {
+function ChangeImpactPanel({ workspaceId }: { workspaceId: string | null }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [impactedFiles, setImpactedFiles] = useState<RepoGraphImpactedFile[]>([]);
+  const [impactedFiles, setImpactedFiles] = useState<RepoGraphImpactedFile[]>(
+    [],
+  );
   const [tests, setTests] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,7 +123,9 @@ function ChangeImpactPanel({
           ? window.mate.repo.graph.getImpactedFiles(changedFiles)
           : Promise.resolve([]),
         Promise.all(
-          changedFiles.map((file) => window.mate.repo.graph.getTestsForFile(file)),
+          changedFiles.map((file) =>
+            window.mate.repo.graph.getTestsForFile(file),
+          ),
         ),
       ]);
       setGitStatus(status);
@@ -149,7 +145,8 @@ function ChangeImpactPanel({
     };
 
     window.addEventListener("mate:open-impact-panel", openPanel);
-    return () => window.removeEventListener("mate:open-impact-panel", openPanel);
+    return () =>
+      window.removeEventListener("mate:open-impact-panel", openPanel);
   }, [analyzeImpact]);
 
   if (!workspaceId) {
@@ -249,10 +246,16 @@ function ChangeImpactPanel({
               className="flex gap-2 rounded border bg-muted/30 px-1.5 py-0.5"
               title={entry.reason}
             >
-              <span className="shrink-0 text-muted-foreground">d{entry.distance}</span>
-              <span className="min-w-0 flex-1 truncate">{entry.group ?? entry.file}</span>
+              <span className="shrink-0 text-muted-foreground">
+                d{entry.distance}
+              </span>
+              <span className="min-w-0 flex-1 truncate">
+                {entry.group ?? entry.file}
+              </span>
               {entry.hiddenCount ? (
-                <span className="shrink-0 text-muted-foreground">+{entry.hiddenCount}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  +{entry.hiddenCount}
+                </span>
               ) : null}
             </li>
           ))}
@@ -277,7 +280,9 @@ function ChangeImpactPanel({
             </li>
           ))}
           {tests.length === 0 ? (
-            <li className="text-muted-foreground">No direct test mapping found</li>
+            <li className="text-muted-foreground">
+              No direct test mapping found
+            </li>
           ) : null}
         </ul>
       </div>
@@ -309,7 +314,9 @@ function getChangedFiles(status: GitStatus) {
       ...status.staged,
       ...status.renamed.map((file) => file.to),
     ]),
-  ].filter(Boolean).sort();
+  ]
+    .filter(Boolean)
+    .sort();
 }
 
 function summarizeImpact(
@@ -317,8 +324,9 @@ function summarizeImpact(
   impactedFiles: RepoGraphImpactedFile[],
 ) {
   const concreteImpacts = impactedFiles.filter((entry) => !entry.group);
-  const serviceCount = concreteImpacts.filter((entry) =>
-    entry.file.startsWith("src/electron/") && !entry.file.includes("/tools/"),
+  const serviceCount = concreteImpacts.filter(
+    (entry) =>
+      entry.file.startsWith("src/electron/") && !entry.file.includes("/tools/"),
   ).length;
   const toolFanoutCount = impactedFiles.reduce(
     (total, entry) =>
@@ -350,11 +358,7 @@ function summarizeImpact(
   };
 }
 
-function RepoHealthCard({
-  health,
-}: {
-  health: WorkspaceHealthProfile | null;
-}) {
+function RepoHealthCard({ health }: { health: WorkspaceHealthProfile | null }) {
   if (!health) {
     return null;
   }
@@ -397,7 +401,10 @@ function RepoHealthCard({
         <p className="text-muted-foreground text-[10px] uppercase tracking-[0.08em]">
           Next action
         </p>
-        <p className="truncate font-medium text-xs" title={health.recommendedNextAction}>
+        <p
+          className="truncate font-medium text-xs"
+          title={health.recommendedNextAction}
+        >
           {health.recommendedNextAction}
         </p>
       </div>

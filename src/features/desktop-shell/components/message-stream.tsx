@@ -10,23 +10,40 @@ import {
   FileTextIcon,
   LoaderCircle,
   ShieldCheckIcon,
-} from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+} from "lucide-react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
-import type { ChatMessage, MessageArtifact, ToolEvent } from '../../../contracts/chat';
-import type { WorkspaceSummary } from '../../../contracts/workspace';
-import { formatTimestamp } from '../../../lib/time';
-import { cn } from '../../../lib/utils';
-import { ChatMarkdown } from './chat-markdown';
-import { EvidencePackCard } from './evidence-pack-card';
-import { useChatStore } from '../../../store/chat-store';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
+import type {
+  ChatMessage,
+  MessageArtifact,
+  ToolEvent,
+} from "../../../contracts/chat";
+import type { WorkspaceSummary } from "../../../contracts/workspace";
+import { formatTimestamp } from "../../../lib/time";
+import { cn } from "../../../lib/utils";
+import { ChatMarkdown } from "./chat-markdown";
+import { EvidencePackCard } from "./evidence-pack-card";
+import { useChatStore } from "../../../store/chat-store";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../../components/ui/tooltip";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
   messages: ChatMessage[];
   isRunning: boolean;
-  traceVersion: 'v1' | 'v2';
+  traceVersion: "v1" | "v2";
   traceV2InlineEvents: boolean;
   workspace: WorkspaceSummary | null;
   isBootstrapped: boolean;
@@ -56,7 +73,7 @@ export function MessageStream({
   const settings = useChatStore((state) => state.settings);
   const shouldStickToBottomRef = useRef(true);
   const hasStreamingAssistantMessage =
-    isRunning && messages.at(-1)?.role === 'assistant';
+    isRunning && messages.at(-1)?.role === "assistant";
 
   useEffect(() => {
     const element = scrollerRef.current;
@@ -67,7 +84,8 @@ export function MessageStream({
     const updateScrollState = () => {
       const distanceFromBottom =
         element.scrollHeight - element.scrollTop - element.clientHeight;
-      const nextShowScrollButton = messages.length > 0 && distanceFromBottom > 140;
+      const nextShowScrollButton =
+        messages.length > 0 && distanceFromBottom > 140;
       const nextStickToBottom = distanceFromBottom < 32;
 
       shouldStickToBottomRef.current = nextStickToBottom;
@@ -75,10 +93,10 @@ export function MessageStream({
     };
 
     updateScrollState();
-    element.addEventListener('scroll', updateScrollState, { passive: true });
+    element.addEventListener("scroll", updateScrollState, { passive: true });
 
     return () => {
-      element.removeEventListener('scroll', updateScrollState);
+      element.removeEventListener("scroll", updateScrollState);
       onVisibilityChange(false);
     };
   }, [onVisibilityChange, scrollerRef, messages.length]);
@@ -92,16 +110,23 @@ export function MessageStream({
 
     element.scrollTo({
       top: element.scrollHeight,
-      behavior: messages.length > 0 ? 'smooth' : 'auto',
+      behavior: messages.length > 0 ? "smooth" : "auto",
     });
   }, [messages, isRunning]);
 
   return (
-    <div ref={scrollerRef} className="flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 pb-8 transition-all duration-300">
-      <div className={cn(
-        "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
-        settings.compactMode && messages.length > 0 ? "max-w-[680px]" : "max-w-[980px]"
-      )}>
+    <div
+      ref={scrollerRef}
+      className="flex min-h-0 flex-1 overflow-y-auto px-9 pt-7 pb-8 transition-all duration-300"
+    >
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
+          settings.compactMode && messages.length > 0
+            ? "max-w-[680px]"
+            : "max-w-[980px]",
+        )}
+      >
         <div className="flex flex-1 flex-col gap-7">
           {messages.length === 0 ? (
             <EmptyState
@@ -116,8 +141,16 @@ export function MessageStream({
           {messages.map((message, index) => (
             <MessageEntry
               key={message.id}
-              canUndo={canUndoLastTurn && message.role === 'user' && index === messages.length - 1}
-              isStreaming={isRunning && index === messages.length - 1 && message.role === 'assistant'}
+              canUndo={
+                canUndoLastTurn &&
+                message.role === "user" &&
+                index === messages.length - 1
+              }
+              isStreaming={
+                isRunning &&
+                index === messages.length - 1 &&
+                message.role === "assistant"
+              }
               message={message}
               onUndo={onUndoLastTurn}
               traceVersion={traceVersion}
@@ -146,10 +179,10 @@ function EmptyState({
   composer?: ReactNode;
 }) {
   const title = lastError
-    ? 'Something needs attention'
+    ? "Something needs attention"
     : !isBootstrapped
-      ? 'Loading workspace'
-      : `What should we build in ${workspace?.name ?? 'mate-x'}?`;
+      ? "Loading workspace"
+      : `What should we build in ${workspace?.name ?? "mate-x"}?`;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 pt-[8vh] transition-all duration-300">
@@ -160,38 +193,53 @@ function EmptyState({
 
         {lastError || !isBootstrapped ? (
           <p className="mt-2 text-center text-[14px] leading-relaxed text-muted-foreground/70">
-            {lastError ?? 'MaTE X is restoring your previous session and checking local workspace state.'}
+            {lastError ??
+              "MaTE X is restoring your previous session and checking local workspace state."}
           </p>
         ) : (
           <div className="flex w-full flex-col items-center space-y-4">
-            <div className="w-full max-w-[760px]">
-              {composer}
-            </div>
+            <div className="w-full max-w-[760px]">{composer}</div>
 
             <div className="flex w-full max-w-[760px] flex-wrap items-center justify-center gap-2.5 px-4">
               <FeatureChip
                 icon={<ShieldCheckIcon className="size-3.5 text-emerald-500" />}
                 label="Security Audit"
                 prompt="Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks."
-                onClick={() => onSelectPrompt('Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks.')}
+                onClick={() =>
+                  onSelectPrompt(
+                    "Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks.",
+                  )
+                }
               />
               <FeatureChip
                 icon={<BrainIcon className="size-3.5 text-purple-500" />}
                 label="Bug Hunting"
                 prompt="Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases."
-                onClick={() => onSelectPrompt('Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases.')}
+                onClick={() =>
+                  onSelectPrompt(
+                    "Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases.",
+                  )
+                }
               />
               <FeatureChip
                 icon={<FileTextIcon className="size-3.5 text-blue-500" />}
                 label="Compliance"
                 prompt="Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies."
-                onClick={() => onSelectPrompt('Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies.')}
+                onClick={() =>
+                  onSelectPrompt(
+                    "Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies.",
+                  )
+                }
               />
               <FeatureChip
                 icon={<ExternalLinkIcon className="size-3.5 text-amber-500" />}
                 label="Arch Review"
                 prompt="Review the system architecture. Map the data flows between components and identify potential trust boundary issues."
-                onClick={() => onSelectPrompt('Review the system architecture. Map the data flows between components and identify potential trust boundary issues.')}
+                onClick={() =>
+                  onSelectPrompt(
+                    "Review the system architecture. Map the data flows between components and identify potential trust boundary issues.",
+                  )
+                }
               />
             </div>
           </div>
@@ -215,20 +263,24 @@ function FeatureChip({
   return (
     <TooltipProvider delay={200}>
       <Tooltip>
-        <TooltipTrigger render={
-          <button
-            type="button"
-            onClick={onClick}
-            className="group flex h-9 items-center gap-2 rounded-full border border-border/40 bg-background/30 px-3.5 text-[12px] font-medium text-muted-foreground/80 backdrop-blur-md transition-all duration-300 hover:border-border/80 hover:bg-background/60 hover:text-foreground hover:shadow-sm"
-          />
-        }>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              onClick={onClick}
+              className="group flex h-9 items-center gap-2 rounded-full border border-border/40 bg-background/30 px-3.5 text-[12px] font-medium text-muted-foreground/80 backdrop-blur-md transition-all duration-300 hover:border-border/80 hover:bg-background/60 hover:text-foreground hover:shadow-sm"
+            />
+          }
+        >
           <div className="flex items-center justify-center text-foreground/70 transition-colors group-hover:text-foreground">
             {icon}
           </div>
           <span>{label}</span>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={8} className="max-w-[280px]">
-          <p className="text-center leading-relaxed text-muted-foreground">{prompt}</p>
+          <p className="text-center leading-relaxed text-muted-foreground">
+            {prompt}
+          </p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -247,19 +299,19 @@ function MessageEntry({
   isStreaming: boolean;
   canUndo: boolean;
   onUndo: () => Promise<string | null>;
-  traceVersion: 'v1' | 'v2';
+  traceVersion: "v1" | "v2";
   traceV2InlineEvents: boolean;
 }) {
-  const isUser = message.role === 'user';
+  const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
   const artifacts = message.artifacts ?? [];
-  const thought = message.thought?.trim() ?? '';
+  const thought = message.thought?.trim() ?? "";
   const hasTimeline = events.length > 0;
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
       return;
     }
 
@@ -271,10 +323,12 @@ function MessageEntry({
   if (isUser) {
     const settings = useChatStore.getState().settings;
     return (
-      <article className={cn(
-        "ml-auto flex w-full justify-end transition-all duration-300",
-        settings.compactMode ? "max-w-[540px]" : "max-w-[610px]"
-      )}>
+      <article
+        className={cn(
+          "ml-auto flex w-full justify-end transition-all duration-300",
+          settings.compactMode ? "max-w-[540px]" : "max-w-[610px]",
+        )}
+      >
         <div className="group rounded-[20px] border border-border/65 bg-[var(--surface)] px-5 py-4 text-left shadow-none">
           <p className="whitespace-pre-wrap text-[14px] leading-6 text-foreground">
             {message.content}
@@ -284,8 +338,14 @@ function MessageEntry({
               {formatTimestamp(message.createdAt)}
             </p>
             <MessageActionButton
-              ariaLabel={copied ? 'Copied message' : 'Copy message'}
-              icon={copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+              ariaLabel={copied ? "Copied message" : "Copy message"}
+              icon={
+                copied ? (
+                  <CheckIcon className="size-3.5" />
+                ) : (
+                  <CopyIcon className="size-3.5" />
+                )
+              }
               onClick={() => void handleCopy()}
             />
             {canUndo ? (
@@ -303,22 +363,28 @@ function MessageEntry({
 
   const normalizedContent = deferredContent.trim();
   const hideMarkdownWhileStreaming =
-    isStreaming && hasTimeline && !(traceVersion === 'v2' && traceV2InlineEvents);
+    isStreaming &&
+    hasTimeline &&
+    !(traceVersion === "v2" && traceV2InlineEvents);
   const hideProgressTranscript =
     hasTimeline &&
     isProgressTranscript(normalizedContent) &&
-    !normalizedContent.toLowerCase().includes('recent execution trace:');
+    !normalizedContent.toLowerCase().includes("recent execution trace:");
   const shouldRenderMarkdown =
     normalizedContent.length > 0 &&
     !hideMarkdownWhileStreaming &&
     !hideProgressTranscript;
-  const shouldRenderResultFallback = !isStreaming && hasTimeline && !shouldRenderMarkdown;
-  const shouldRenderEvidencePack = !isStreaming && Boolean(message.evidencePack);
+  const shouldRenderResultFallback =
+    !isStreaming && hasTimeline && !shouldRenderMarkdown;
+  const shouldRenderEvidencePack =
+    !isStreaming && Boolean(message.evidencePack);
 
   return (
     <article className="group pl-6">
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
-        {thought ? <ThinkingRow isStreaming={isStreaming} thought={thought} /> : null}
+        {thought ? (
+          <ThinkingRow isStreaming={isStreaming} thought={thought} />
+        ) : null}
         {traceVersion === "v2" && traceV2InlineEvents ? (
           normalizedContent.length > 0 ? (
             <InterleavedMessageContent
@@ -332,9 +398,14 @@ function MessageEntry({
         ) : (
           <>
             {shouldRenderMarkdown ? (
-              <ChatMarkdown content={deferredContent} isStreaming={isStreaming} />
+              <ChatMarkdown
+                content={deferredContent}
+                isStreaming={isStreaming}
+              />
             ) : null}
-            {shouldRenderEvidencePack ? <EvidencePackCard evidencePack={message.evidencePack!} /> : null}
+            {shouldRenderEvidencePack ? (
+              <EvidencePackCard evidencePack={message.evidencePack!} />
+            ) : null}
             {hasTimeline ? (
               <RunTimeline
                 artifacts={artifacts}
@@ -349,10 +420,18 @@ function MessageEntry({
         )}
       </div>
       <div className="mt-2 flex items-center gap-1.5">
-        <p className="text-[11px] text-muted-foreground/55">{formatTimestamp(message.createdAt)}</p>
+        <p className="text-[11px] text-muted-foreground/55">
+          {formatTimestamp(message.createdAt)}
+        </p>
         <MessageActionButton
-          ariaLabel={copied ? 'Copied message' : 'Copy message'}
-          icon={copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+          ariaLabel={copied ? "Copied message" : "Copy message"}
+          icon={
+            copied ? (
+              <CheckIcon className="size-3.5" />
+            ) : (
+              <CopyIcon className="size-3.5" />
+            )
+          }
           onClick={() => void handleCopy()}
         />
       </div>
@@ -370,7 +449,9 @@ function InterleavedMessageContent({
   isStreaming: boolean;
 }) {
   const parts = useMemo(() => {
-    return content.split(/(<!-- mate-trace:.*? -->|<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?<\/(?:thought|think|thinking|reasoning|analysis)>)/gi);
+    return content.split(
+      /(<!-- mate-trace:.*? -->|<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?<\/(?:thought|think|thinking|reasoning|analysis)>)/gi,
+    );
   }, [content]);
 
   const usedEventIds = new Set<string>();
@@ -391,7 +472,9 @@ function InterleavedMessageContent({
 
     // Hide partial markers during streaming
     const cleanedPart = normalizeAssistantVisibleText(
-      isStreaming ? part.replace(/<!-- mate-trace:.*$/, "").replace(/<!--$/, "") : part,
+      isStreaming
+        ? part.replace(/<!-- mate-trace:.*$/, "").replace(/<!--$/, "")
+        : part,
     );
     const trimmedPart = cleanedPart.trim();
     if (!trimmedPart) return null;
@@ -402,44 +485,44 @@ function InterleavedMessageContent({
     }
 
     // Detect strict XML thought blocks
-    const thoughtTagMatch = trimmedPart.match(/^<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>([\s\S]*?)<\/(?:thought|think|thinking|reasoning|analysis)>$/i);
+    const thoughtTagMatch = trimmedPart.match(
+      /^<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>([\s\S]*?)<\/(?:thought|think|thinking|reasoning|analysis)>$/i,
+    );
     if (thoughtTagMatch) {
-      const traceGroup = pendingTraceEvents.length > 0
-        ? (
+      const traceGroup =
+        pendingTraceEvents.length > 0 ? (
           <div className="my-1.5">
             <InlineTraceGroup events={pendingTraceEvents.splice(0)} />
           </div>
-        )
-        : null;
+        ) : null;
       const isFirstModelText = !hasRenderedModelText;
       hasRenderedModelText = true;
 
       return (
         <div key={`thought-${index}`} className="my-2 space-y-2">
           {isFirstModelText ? null : traceGroup}
-          <ThinkingRow isStreaming={isStreaming} thought={thoughtTagMatch[1].trim()} />
+          <ThinkingRow
+            isStreaming={isStreaming}
+            thought={thoughtTagMatch[1].trim()}
+          />
           {isFirstModelText ? traceGroup : null}
         </div>
       );
     }
 
-    const traceGroup = pendingTraceEvents.length > 0
-      ? (
+    const traceGroup =
+      pendingTraceEvents.length > 0 ? (
         <div className="my-1.5">
           <InlineTraceGroup events={pendingTraceEvents.splice(0)} />
         </div>
-      )
-      : null;
+      ) : null;
     const isFirstModelText = !hasRenderedModelText;
     hasRenderedModelText = true;
 
     return (
       <div key={`text-${index}`} className="space-y-2">
         {isFirstModelText ? null : traceGroup}
-        <ChatMarkdown
-          content={cleanedPart}
-          isStreaming={isStreaming}
-        />
+        <ChatMarkdown content={cleanedPart} isStreaming={isStreaming} />
         {isFirstModelText ? traceGroup : null}
       </div>
     );
@@ -447,28 +530,37 @@ function InterleavedMessageContent({
 
   const trailingTraceEvents = [
     ...pendingTraceEvents,
-    ...events.filter((event) => isInlineTraceEvent(event) && !usedEventIds.has(event.id)),
+    ...events.filter(
+      (event) => isInlineTraceEvent(event) && !usedEventIds.has(event.id),
+    ),
   ];
-  const trailingTraceGroup = trailingTraceEvents.length > 0 && hasRenderedModelText
-    ? (
+  const trailingTraceGroup =
+    trailingTraceEvents.length > 0 && hasRenderedModelText ? (
       <div className="my-1.5">
         <InlineTraceGroup events={trailingTraceEvents} />
       </div>
-    )
-    : null;
+    ) : null;
 
   if (!hasRenderedModelText && isStreaming) {
     return <AssistantPendingRow events={events} />;
   }
 
-  return <div className="space-y-4">{renderedParts}{trailingTraceGroup}</div>;
+  return (
+    <div className="space-y-4">
+      {renderedParts}
+      {trailingTraceGroup}
+    </div>
+  );
 }
 
 function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
-  const latestTraceEvent = [...events].reverse().find((event) => {
-    return isInlineTraceEvent(event) && event.status === 'active';
-  }) ?? [...events].reverse().find(isInlineTraceEvent);
-  const status = latestTraceEvent ? summarizeInlineTraceEvent(latestTraceEvent) : 'Working';
+  const latestTraceEvent =
+    [...events].reverse().find((event) => {
+      return isInlineTraceEvent(event) && event.status === "active";
+    }) ?? [...events].reverse().find(isInlineTraceEvent);
+  const status = latestTraceEvent
+    ? summarizeInlineTraceEvent(latestTraceEvent)
+    : "Working";
 
   return (
     <div className="inline-flex items-center gap-2 text-[12px] font-medium text-muted-foreground/72">
@@ -480,11 +572,26 @@ function AssistantPendingRow({ events }: { events: ToolEvent[] }) {
 
 function normalizeAssistantVisibleText(value: string) {
   return value
-    .replace(/<\|channel\|>\s*(?:analysis|thought|thinking|reasoning|final)?/gi, "")
-    .replace(/<\|(?:start|end|message|channel|constrain|return|recipient)\|>/gi, "")
-    .replace(/<\/?\s*channel\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi, "")
-    .replace(/<\s*channel\s*\|\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi, "")
-    .replace(/(^|\n)\s*(?:analysis|thought|thinking|reasoning|final)\b\s*(?=<|\n|$)/gi, "$1")
+    .replace(
+      /<\|channel\|>\s*(?:analysis|thought|thinking|reasoning|final)?/gi,
+      "",
+    )
+    .replace(
+      /<\|(?:start|end|message|channel|constrain|return|recipient)\|>/gi,
+      "",
+    )
+    .replace(
+      /<\/?\s*channel\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi,
+      "",
+    )
+    .replace(
+      /<\s*channel\s*\|\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi,
+      "",
+    )
+    .replace(
+      /(^|\n)\s*(?:analysis|thought|thinking|reasoning|final)\b\s*(?=<|\n|$)/gi,
+      "$1",
+    )
     .replace(/[ \t]+\n/g, "\n");
 }
 
@@ -496,7 +603,8 @@ function ResultFallback() {
         Result
       </div>
       <p className="mt-1.5 text-[12px] text-muted-foreground">
-        No final synthesis text was returned for this run. The audit timeline above has the full execution trace.
+        No final synthesis text was returned for this run. The audit timeline
+        above has the full execution trace.
       </p>
     </section>
   );
@@ -512,10 +620,10 @@ function RunTimeline({
   events: ToolEvent[];
   artifacts: MessageArtifact[];
   isStreaming: boolean;
-  traceVersion: 'v1' | 'v2';
+  traceVersion: "v1" | "v2";
   traceV2InlineEvents: boolean;
 }) {
-  if (traceVersion === 'v2') {
+  if (traceVersion === "v2") {
     return (
       <RunTimelineV2
         events={events}
@@ -526,7 +634,13 @@ function RunTimeline({
     );
   }
 
-  return <RunTimelineV1 events={events} artifacts={artifacts} isStreaming={isStreaming} />;
+  return (
+    <RunTimelineV1
+      events={events}
+      artifacts={artifacts}
+      isStreaming={isStreaming}
+    />
+  );
 }
 
 function RunTimelineV1({
@@ -539,10 +653,10 @@ function RunTimelineV1({
   isStreaming: boolean;
 }) {
   const [expanded, setExpanded] = useState(isStreaming);
-  const [phaseFilter, setPhaseFilter] = useState<'all' | EventPhase>('all');
+  const [phaseFilter, setPhaseFilter] = useState<"all" | EventPhase>("all");
   const total = events.length;
-  const doneCount = events.filter((event) => event.status === 'done').length;
-  const errorCount = events.filter((event) => event.status === 'error').length;
+  const doneCount = events.filter((event) => event.status === "done").length;
+  const errorCount = events.filter((event) => event.status === "error").length;
   const phaseCounts = useMemo(() => {
     const counts: Record<EventPhase, number> = {
       initial: 0,
@@ -558,7 +672,10 @@ function RunTimelineV1({
     return counts;
   }, [events]);
   const filteredEvents = useMemo(
-    () => (phaseFilter === 'all' ? events : events.filter((event) => classifyEventPhase(event) === phaseFilter)),
+    () =>
+      phaseFilter === "all"
+        ? events
+        : events.filter((event) => classifyEventPhase(event) === phaseFilter),
     [events, phaseFilter],
   );
 
@@ -579,13 +696,19 @@ function RunTimelineV1({
           className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           onClick={() => setExpanded((value) => !value)}
         >
-          {expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+          {expanded ? (
+            <ChevronDownIcon className="size-3.5" />
+          ) : (
+            <ChevronRightIcon className="size-3.5" />
+          )}
           Run activity
           <span className="text-muted-foreground/65">{total} steps</span>
         </button>
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
           <span>{doneCount} done</span>
-          {errorCount > 0 ? <span className="text-amber-300/90">{errorCount} issues</span> : null}
+          {errorCount > 0 ? (
+            <span className="text-amber-300/90">{errorCount} issues</span>
+          ) : null}
         </div>
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -593,29 +716,29 @@ function RunTimelineV1({
           Agent Trace v1
         </span>
         <PhaseFilterChip
-          active={phaseFilter === 'all'}
+          active={phaseFilter === "all"}
           label={`All (${total})`}
-          onClick={() => setPhaseFilter('all')}
+          onClick={() => setPhaseFilter("all")}
         />
         <PhaseFilterChip
-          active={phaseFilter === 'initial'}
+          active={phaseFilter === "initial"}
           label={`Initial (${phaseCounts.initial})`}
-          onClick={() => setPhaseFilter('initial')}
+          onClick={() => setPhaseFilter("initial")}
         />
         <PhaseFilterChip
-          active={phaseFilter === 'investigation'}
+          active={phaseFilter === "investigation"}
           label={`Investigation (${phaseCounts.investigation})`}
-          onClick={() => setPhaseFilter('investigation')}
+          onClick={() => setPhaseFilter("investigation")}
         />
         <PhaseFilterChip
-          active={phaseFilter === 'updates'}
+          active={phaseFilter === "updates"}
           label={`Updates (${phaseCounts.updates})`}
-          onClick={() => setPhaseFilter('updates')}
+          onClick={() => setPhaseFilter("updates")}
         />
         <PhaseFilterChip
-          active={phaseFilter === 'summary'}
+          active={phaseFilter === "summary"}
           label={`Summary (${phaseCounts.summary})`}
-          onClick={() => setPhaseFilter('summary')}
+          onClick={() => setPhaseFilter("summary")}
         />
       </div>
 
@@ -647,7 +770,9 @@ function RunTimelineV1({
         </div>
       ) : (
         <div className="rounded-lg border border-border/45 bg-background/38 px-2.5 py-2 text-[11px] text-muted-foreground">
-          Details are collapsed. Expand <span className="text-foreground/85">Run activity</span> to inspect audit rows and commands.
+          Details are collapsed. Expand{" "}
+          <span className="text-foreground/85">Run activity</span> to inspect
+          audit rows and commands.
         </div>
       )}
     </section>
@@ -667,8 +792,11 @@ function RunTimelineV2({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAllActionsModal, setShowAllActionsModal] = useState(false);
-  const actionEvents = useMemo(() => events.filter(isInlineTraceEvent), [events]);
-  const statusLabel = isStreaming ? 'running' : 'done';
+  const actionEvents = useMemo(
+    () => events.filter(isInlineTraceEvent),
+    [events],
+  );
+  const statusLabel = isStreaming ? "running" : "done";
   const previewEvents = actionEvents.slice(0, 10);
 
   useEffect(() => {
@@ -677,14 +805,14 @@ function RunTimelineV2({
     }
 
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setShowAllActionsModal(false);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [inlineEvents, showAllActionsModal]);
 
@@ -694,16 +822,19 @@ function RunTimelineV2({
     return (
       <section className="space-y-2">
         <div className="space-y-1.5 rounded-2xl border border-border/45 bg-background/22 p-2.5">
-          {visibleEvents.length > 0 ? visibleEvents.map((event) => (
-            <ActionEventCard key={event.id} event={event} />
-          )) : (
+          {visibleEvents.length > 0 ? (
+            visibleEvents.map((event) => (
+              <ActionEventCard key={event.id} event={event} />
+            ))
+          ) : (
             <div className="rounded-xl border border-border/35 bg-[var(--surface)]/45 px-3 py-2 text-[12px] text-muted-foreground">
               No tool actions captured in this turn.
             </div>
           )}
           {isStreaming && actionEvents.length > visibleEvents.length ? (
             <div className="px-1 pt-0.5 text-[11px] text-muted-foreground/55">
-              Showing latest {visibleEvents.length} of {actionEvents.length} trace events.
+              Showing latest {visibleEvents.length} of {actionEvents.length}{" "}
+              trace events.
             </div>
           ) : null}
         </div>
@@ -718,21 +849,29 @@ function RunTimelineV2({
         className="inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-background/35 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={() => setExpanded((value) => !value)}
       >
-        {expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+        {expanded ? (
+          <ChevronDownIcon className="size-3.5" />
+        ) : (
+          <ChevronRightIcon className="size-3.5" />
+        )}
         <span className="font-medium text-foreground/85">Model actions</span>
         <span>{actionEvents.length}</span>
-        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/75">{statusLabel}</span>
+        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/75">
+          {statusLabel}
+        </span>
       </button>
 
       {expanded ? (
         <div className="space-y-1.5">
-          {actionEvents.length > 0 ? previewEvents.map((event, index) => (
-            <ActionEventCard
-              key={event.id}
-              event={event}
-              className={index % 2 === 0 ? "mr-5" : "ml-5"}
-            />
-          )) : (
+          {actionEvents.length > 0 ? (
+            previewEvents.map((event, index) => (
+              <ActionEventCard
+                key={event.id}
+                event={event}
+                className={index % 2 === 0 ? "mr-5" : "ml-5"}
+              />
+            ))
+          ) : (
             <div className="rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] text-muted-foreground">
               No tool actions captured in this turn.
             </div>
@@ -791,7 +930,11 @@ function RunTimelineV2({
             </div>
             <div className="max-h-[64vh] space-y-1.5 overflow-y-auto pr-1">
               {actionEvents.map((event, index) => (
-                <ActionEventCard key={event.id} event={event} prefix={`${index + 1}.`} />
+                <ActionEventCard
+                  key={event.id}
+                  event={event}
+                  prefix={`${index + 1}.`}
+                />
               ))}
             </div>
           </div>
@@ -811,7 +954,9 @@ function ActionEventCard({
   prefix?: string;
 }) {
   const command = extractCommandFromEvent(event);
-  const row = command ? `Ran command - ${command}` : `${event.label} - ${event.detail}`;
+  const row = command
+    ? `Ran command - ${command}`
+    : `${event.label} - ${event.detail}`;
 
   return (
     <div
@@ -821,8 +966,12 @@ function ActionEventCard({
       )}
     >
       <div className="flex min-w-0 items-start gap-2">
-        <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">{prefix}</span>
-        <span className="min-w-0 flex-1 break-words text-foreground/90">{row}</span>
+        <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">
+          {prefix}
+        </span>
+        <span className="min-w-0 flex-1 break-words text-foreground/90">
+          {row}
+        </span>
       </div>
       {event.policy ? <ToolPolicyBadges event={event} /> : null}
     </div>
@@ -846,7 +995,7 @@ function isInlineTraceEvent(event: ToolEvent) {
   return label.startsWith("executing ") || event.status === "error";
 }
 
-type EventPhase = 'initial' | 'investigation' | 'updates' | 'summary';
+type EventPhase = "initial" | "investigation" | "updates" | "summary";
 
 function PhaseFilterChip({
   active,
@@ -873,16 +1022,22 @@ function PhaseFilterChip({
   );
 }
 
-function StatusIcon({ status }: { status: ToolEvent['status'] }) {
-  if (status === 'active') {
-    return <LoaderCircle className="mt-0.5 size-3.5 shrink-0 animate-spin text-foreground/80" />;
+function StatusIcon({ status }: { status: ToolEvent["status"] }) {
+  if (status === "active") {
+    return (
+      <LoaderCircle className="mt-0.5 size-3.5 shrink-0 animate-spin text-foreground/80" />
+    );
   }
 
-  if (status === 'error') {
-    return <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-300/90" />;
+  if (status === "error") {
+    return (
+      <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-300/90" />
+    );
   }
 
-  return <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0 text-emerald-300/90" />;
+  return (
+    <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0 text-emerald-300/90" />
+  );
 }
 
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
@@ -916,11 +1071,12 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
 
 function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
   const [expanded, setExpanded] = useState(false);
-  const active = events.some((event) => event.status === 'active');
-  const failed = events.some((event) => event.status === 'error');
-  const label = events.length === 1
-    ? summarizeInlineTraceEvent(events[0])
-    : `${active ? 'Running' : 'Ran'} ${events.length} actions`;
+  const active = events.some((event) => event.status === "active");
+  const failed = events.some((event) => event.status === "error");
+  const label =
+    events.length === 1
+      ? summarizeInlineTraceEvent(events[0])
+      : `${active ? "Running" : "Ran"} ${events.length} actions`;
 
   return (
     <div className="text-[12px] leading-5 text-muted-foreground/72">
@@ -934,7 +1090,9 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
         ) : (
           <ChevronRightIcon className="size-3 shrink-0" />
         )}
-        <InlineTraceStatusDot status={active ? 'active' : failed ? 'error' : 'done'} />
+        <InlineTraceStatusDot
+          status={active ? "active" : failed ? "error" : "done"}
+        />
         <span className="truncate">{label}</span>
       </button>
       {expanded ? (
@@ -948,23 +1106,29 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
   );
 }
 
-function InlineTraceStatusDot({ status }: { status: ToolEvent['status'] }) {
-  if (status === 'active') {
-    return <LoaderCircle className="size-3 shrink-0 animate-spin text-primary/70" />;
+function InlineTraceStatusDot({ status }: { status: ToolEvent["status"] }) {
+  if (status === "active") {
+    return (
+      <LoaderCircle className="size-3 shrink-0 animate-spin text-primary/70" />
+    );
   }
 
-  if (status === 'error') {
-    return <span className="size-1.5 shrink-0 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.4)]" />;
+  if (status === "error") {
+    return (
+      <span className="size-1.5 shrink-0 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.4)]" />
+    );
   }
 
-  return <span className="size-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" />;
+  return (
+    <span className="size-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" />
+  );
 }
 
 function summarizeInlineTraceEvent(event: ToolEvent) {
-  const label = event.label.replace(/^Executing\s+/i, '').trim() || event.label;
+  const label = event.label.replace(/^Executing\s+/i, "").trim() || event.label;
   const target = extractInlineTraceTarget(event.detail);
 
-  if (event.status === 'error') {
+  if (event.status === "error") {
     return target ? `${label} failed - ${target}` : `${label} failed`;
   }
 
@@ -972,7 +1136,9 @@ function summarizeInlineTraceEvent(event: ToolEvent) {
 }
 
 function extractInlineTraceTarget(detail: string) {
-  const argsMatch = detail.match(/^Running\s+[a-zA-Z0-9_]+\s+with arguments:\s+(.+)$/);
+  const argsMatch = detail.match(
+    /^Running\s+[a-zA-Z0-9_]+\s+with arguments:\s+(.+)$/,
+  );
   if (!argsMatch) {
     return null;
   }
@@ -987,7 +1153,7 @@ function extractInlineTraceTarget(detail: string) {
       args.command ??
       args.name;
 
-    return typeof value === 'string' && value.trim() ? value.trim() : null;
+    return typeof value === "string" && value.trim() ? value.trim() : null;
   } catch {
     return null;
   }
@@ -996,10 +1162,11 @@ function extractInlineTraceTarget(detail: string) {
 function TimelineEventRow({ event }: { event: ToolEvent }) {
   const command = extractCommandFromEvent(event);
   const hasExtra = Boolean(command) || event.detail.length > 180;
-  const [expanded, setExpanded] = useState(event.status === 'active');
-  const preview = event.detail.length > 180
-    ? `${event.detail.slice(0, 177).trimEnd()}...`
-    : event.detail;
+  const [expanded, setExpanded] = useState(event.status === "active");
+  const preview =
+    event.detail.length > 180
+      ? `${event.detail.slice(0, 177).trimEnd()}...`
+      : event.detail;
 
   return (
     <div className="rounded-lg border border-border/45 bg-background/38 px-2.5 py-2">
@@ -1007,14 +1174,20 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
         <StatusIcon status={event.status} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className="text-[11px] font-medium text-foreground/90">{event.label}</div>
+            <div className="text-[11px] font-medium text-foreground/90">
+              {event.label}
+            </div>
             {hasExtra ? (
               <button
                 type="button"
                 className="inline-flex items-center rounded px-1 text-[10px] text-muted-foreground/75 transition-colors hover:bg-accent hover:text-foreground"
                 onClick={() => setExpanded((value) => !value)}
               >
-                {expanded ? <ChevronDownIcon className="size-3" /> : <ChevronRightIcon className="size-3" />}
+                {expanded ? (
+                  <ChevronDownIcon className="size-3" />
+                ) : (
+                  <ChevronRightIcon className="size-3" />
+                )}
               </button>
             ) : null}
           </div>
@@ -1047,8 +1220,12 @@ function ToolPolicyBadges({ event }: { event: ToolEvent }) {
         : policy.riskClass === "dangerous"
           ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
           : "border-red-300/30 bg-red-400/8 text-red-200";
-  const contractLabel = policy.allowedByContract ? "contract allowed" : "contract blocked";
-  const escalationLabel = policy.escalationRequired ? "escalation needed" : "no escalation";
+  const contractLabel = policy.allowedByContract
+    ? "contract allowed"
+    : "contract blocked";
+  const escalationLabel = policy.escalationRequired
+    ? "escalation needed"
+    : "no escalation";
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] leading-none">
@@ -1077,11 +1254,13 @@ function ToolPolicyBadges({ event }: { event: ToolEvent }) {
 }
 
 function extractCommandFromEvent(event: ToolEvent) {
-  if (!event.label.startsWith('Executing ')) {
+  if (!event.label.startsWith("Executing ")) {
     return null;
   }
 
-  const match = event.detail.match(/^Running\s+([a-zA-Z0-9_]+)\s+with arguments:\s+(.+)$/);
+  const match = event.detail.match(
+    /^Running\s+([a-zA-Z0-9_]+)\s+with arguments:\s+(.+)$/,
+  );
   if (!match) {
     return null;
   }
@@ -1095,34 +1274,34 @@ function classifyEventPhase(event: ToolEvent): EventPhase {
   const combined = `${label} ${detail}`;
 
   if (
-    combined.includes('response complete') ||
-    combined.includes('turn complete') ||
-    combined.includes('final') ||
-    combined.includes('synthesis')
+    combined.includes("response complete") ||
+    combined.includes("turn complete") ||
+    combined.includes("final") ||
+    combined.includes("synthesis")
   ) {
-    return 'summary';
+    return "summary";
   }
 
   if (
-    combined.includes('executing') ||
-    combined.includes('tool') ||
-    combined.includes('command') ||
-    combined.includes('patch') ||
-    combined.includes('file change')
+    combined.includes("executing") ||
+    combined.includes("tool") ||
+    combined.includes("command") ||
+    combined.includes("patch") ||
+    combined.includes("file change")
   ) {
-    return 'investigation';
+    return "investigation";
   }
 
   if (
-    combined.includes('running agent pass') ||
-    combined.includes('start') ||
-    combined.includes('turn started') ||
-    combined.includes('agent message')
+    combined.includes("running agent pass") ||
+    combined.includes("start") ||
+    combined.includes("turn started") ||
+    combined.includes("agent message")
   ) {
-    return 'initial';
+    return "initial";
   }
 
-  return 'updates';
+  return "updates";
 }
 
 function isProgressTranscript(content: string) {
@@ -1132,12 +1311,12 @@ function isProgressTranscript(content: string) {
 
   const lowered = content.toLowerCase();
   const signals = [
-    'running agent pass',
-    'done agent pass',
-    'tool batch',
-    'executing ',
-    'continue investigation',
-    'response complete',
+    "running agent pass",
+    "done agent pass",
+    "tool batch",
+    "executing ",
+    "continue investigation",
+    "response complete",
   ];
 
   return signals.some((signal) => lowered.includes(signal));
@@ -1183,7 +1362,13 @@ function RotateUndoIcon() {
   );
 }
 
-function ThinkingRow({ thought = '', isStreaming = true }: { thought?: string; isStreaming?: boolean }) {
+function ThinkingRow({
+  thought = "",
+  isStreaming = true,
+}: {
+  thought?: string;
+  isStreaming?: boolean;
+}) {
   const [expanded, setExpanded] = useState(isStreaming);
 
   useEffect(() => {
