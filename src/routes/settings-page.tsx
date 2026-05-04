@@ -53,7 +53,7 @@ import type {
   PrivacyModelStatus,
   PrivacySafeScanResult,
 } from '../contracts/privacy';
-import { useTheme, type Theme } from '../hooks/use-theme';
+import { useTheme } from '../hooks/use-theme';
 import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
 import { AgentProfilerSettings } from '../features/agent-profiler/agent-profiler-settings';
 import { cn } from '../lib/utils';
@@ -88,7 +88,7 @@ function maskKey(key: string) {
 
 export function SettingsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const { setTheme } = useTheme();
+  const { setAppearance, setTheme, setBlurEnabled } = useTheme();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const activeWorkspace = useChatStore((state) => state.workspace);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
@@ -145,7 +145,9 @@ export function SettingsPage() {
         setTrustDraft(contract);
         setAppSettings(persistedAppSettings);
         setSavedAppSettings(persistedAppSettings);
-        setTheme(persistedAppSettings.theme as Theme);
+        setAppearance(persistedAppSettings.appearance);
+        setTheme(persistedAppSettings.theme);
+        setBlurEnabled(persistedAppSettings.blurEnabled);
         applyRendererSettings(persistedAppSettings);
       } finally {
         if (!cancelled) {
@@ -159,7 +161,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId, setTheme]);
+  }, [activeWorkspaceId, setAppearance, setTheme, setBlurEnabled]);
 
   useEffect(() => {
     setSaveState('idle');
@@ -350,7 +352,9 @@ export function SettingsPage() {
     if (section === 'general') {
       setAppSettings((current) => ({
         ...current,
+        appearance: DEFAULT_APP_SETTINGS.appearance,
         theme: DEFAULT_APP_SETTINGS.theme,
+        blurEnabled: DEFAULT_APP_SETTINGS.blurEnabled,
         timeFormat: DEFAULT_APP_SETTINGS.timeFormat,
         agentTraceVersion: DEFAULT_APP_SETTINGS.agentTraceVersion,
         agentTraceV2InlineEvents: DEFAULT_APP_SETTINGS.agentTraceV2InlineEvents,
@@ -359,7 +363,9 @@ export function SettingsPage() {
         compactMode: DEFAULT_APP_SETTINGS.compactMode,
         floatingInput: DEFAULT_APP_SETTINGS.floatingInput,
       }));
-      setTheme('system');
+      setAppearance('system');
+      setTheme('default');
+      setBlurEnabled(true);
     } else if (section === 'archive') {
       setAppSettings((current) => ({
         ...current,
@@ -395,7 +401,7 @@ export function SettingsPage() {
       }));
     }
     setSaveState('idle');
-  }, [section, setTheme, trustContract]);
+  }, [section, setAppearance, setTheme, setBlurEnabled, trustContract]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
@@ -408,7 +414,9 @@ export function SettingsPage() {
 
   const changedSettingLabels = useMemo(
     () => [
+      ...(appSettings.appearance !== savedAppSettings.appearance ? ['Appearance'] : []),
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
+      ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Blur effects'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.agentTraceVersion !== savedAppSettings.agentTraceVersion ? ['Agent Trace mode'] : []),
       ...(appSettings.agentTraceV2InlineEvents !== savedAppSettings.agentTraceV2InlineEvents
@@ -443,13 +451,15 @@ export function SettingsPage() {
       ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
     [
+      appSettings.appearance,
+      appSettings.theme,
+      appSettings.blurEnabled,
       appSettings.archiveConfirmation,
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
       appSettings.diffLineWrapping,
       appSettings.agentTraceVersion,
       appSettings.agentTraceV2InlineEvents,
-      appSettings.theme,
       appSettings.timeFormat,
       appSettings.agentProfilerAutoSwitch,
       appSettings.privacyBlockP0CloudSend,
@@ -461,13 +471,15 @@ export function SettingsPage() {
       appSettings.privacyUseOnnxModel,
       appSettings.privacyUseRegex,
       hasTrustDraft,
+      savedAppSettings.appearance,
+      savedAppSettings.theme,
+      savedAppSettings.blurEnabled,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
       savedAppSettings.diffLineWrapping,
       savedAppSettings.agentTraceVersion,
       savedAppSettings.agentTraceV2InlineEvents,
-      savedAppSettings.theme,
       savedAppSettings.timeFormat,
       savedAppSettings.agentProfilerAutoSwitch,
       savedAppSettings.privacyBlockP0CloudSend,
@@ -484,7 +496,10 @@ export function SettingsPage() {
   return (
     <>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <header className="drag-region flex h-[52px] shrink-0 items-center border-b border-border/70 px-5">
+        <header
+          className="drag-region glass sticky top-0 z-10 flex h-[52px] shrink-0 items-center border-b border-border/70 px-5"
+          style={{ '--glass-bg': 'var(--background)' } as any}
+        >
           <div className="flex min-w-0 items-center gap-3">
             <span className="text-sm font-medium tracking-tight text-foreground">Settings</span>
             <span className="rounded-full bg-muted/45 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
@@ -511,14 +526,15 @@ export function SettingsPage() {
               <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
                 <>
                   <SettingsRow
-                    title="Theme"
-                    description="Choose how Mate X looks across the app."
+                    title="Appearance"
+                    description="Choose how Mate X feels. System follows your OS setting."
                     control={
                       <Select
-                        value={appSettings.theme}
+                        value={appSettings.appearance}
                         onValueChange={(value) => {
-                          setTheme(value as Theme);
-                          setAppSettings((current) => ({ ...current, theme: value as Theme }));
+                          const appearance = value as any;
+                          setAppearance(appearance);
+                          setAppSettings((current) => ({ ...current, appearance }));
                           if (saveState === 'saved') {
                             setSaveState('idle');
                           }
@@ -531,7 +547,31 @@ export function SettingsPage() {
                           <SelectItem value="system">System</SelectItem>
                           <SelectItem value="light">Light</SelectItem>
                           <SelectItem value="dark">Dark</SelectItem>
-                          <SelectItem value="oled">OLED (Black)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingsRow
+                    title="Theme"
+                    description="Choose a color palette for the interface."
+                    control={
+                      <Select
+                        value={appSettings.theme}
+                        onValueChange={(value) => {
+                          const theme = value as any;
+                          setTheme(theme);
+                          setAppSettings((current) => ({ ...current, theme }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="oled">OLED (True Black)</SelectItem>
                           <SelectItem value="blue">Deep Blue</SelectItem>
                           <SelectItem value="deepblue">Ocean Abyss</SelectItem>
                           <SelectItem value="deeppurple">Royal Purple</SelectItem>
@@ -540,6 +580,22 @@ export function SettingsPage() {
                           <SelectItem value="midnight">Midnight Blue</SelectItem>
                         </SelectContent>
                       </Select>
+                    }
+                  />
+                  <SettingsRow
+                    title="Blur effects"
+                    description="Enable backdrop glass effects on supported areas."
+                    control={
+                      <Switch
+                        checked={appSettings.blurEnabled}
+                        onCheckedChange={(value) => {
+                          setBlurEnabled(value);
+                          setAppSettings((current) => ({ ...current, blurEnabled: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
                     }
                   />
                   <SettingsRow

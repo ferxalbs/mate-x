@@ -1,11 +1,14 @@
 export type TimeFormat = 'system' | '24h' | '12h';
-export type ThemePreference = 'light' | 'dark' | 'oled' | 'blue' | 'deepblue' | 'deeppurple' | 'casimiri' | 'greenspace' | 'midnight' | 'system';
+export type AppearancePreference = 'light' | 'dark' | 'system';
+export type ThemePreference = 'default' | 'oled' | 'blue' | 'deepblue' | 'deeppurple' | 'casimiri' | 'greenspace' | 'midnight';
 export type AgentTraceVersion = 'v1' | 'v2';
 export type PrivacyMode = 'off' | 'warn' | 'review' | 'strict';
 export type PrivacyPlaceholderStyle = 'simple' | 'typed' | 'stable';
 
 export interface AppSettings {
+  appearance: AppearancePreference;
   theme: ThemePreference;
+  blurEnabled: boolean;
   timeFormat: TimeFormat;
   agentTraceVersion: AgentTraceVersion;
   agentTraceV2InlineEvents: boolean;
@@ -28,7 +31,9 @@ export interface AppSettings {
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  theme: 'system',
+  appearance: 'system',
+  theme: 'default',
+  blurEnabled: true,
   timeFormat: 'system',
   agentTraceVersion: 'v2',
   agentTraceV2InlineEvents: false,

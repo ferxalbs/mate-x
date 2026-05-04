@@ -67,7 +67,6 @@ interface ComposerPanelProps {
   onScrollToBottom: () => void;
   onResolvePolicyStop: (stop: PolicyStop, action: PolicyStopAction) => Promise<void>;
   workspace: WorkspaceSummary | null;
-  resolvedTheme: 'light' | 'dark';
   onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   showScrollButton: boolean;
@@ -81,7 +80,6 @@ export function ComposerPanel({
   onScrollToBottom,
   onResolvePolicyStop,
   workspace,
-  resolvedTheme,
   onSubmit,
   onUndoLastTurn,
   showScrollButton,
@@ -421,24 +419,10 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            'rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] transition-all duration-300',
+            'rounded-[28px] border border-[var(--panel-border)] shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] transition-all duration-300 glass',
             isDraggingFile ? 'ring-2 ring-[#2454ff]/70' : '',
-            // Floating: ultra-transparent glass (30% dark / 75% light).
-            // Compact: same premium dark-glass aesthetic at higher opacity.
-            settings.floatingInput
-              ? cn(
-                  'backdrop-blur-3xl',
-                  resolvedTheme === 'dark'
-                    ? 'bg-[var(--panel)]/30'
-                    : 'bg-[var(--panel)]/75',
-                )
-              : cn(
-                  'backdrop-blur-2xl',
-                  resolvedTheme === 'dark'
-                    ? 'bg-[var(--panel)]/30'
-                    : 'bg-[var(--panel)]/75',
-            ),
           )}
+          style={{ '--glass-bg': 'var(--panel)' } as any}
           onDragEnter={(event) => {
             event.preventDefault();
             if (event.dataTransfer.types.includes('Files')) {

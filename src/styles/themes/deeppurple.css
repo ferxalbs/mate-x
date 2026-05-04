@@ -1,19 +1,39 @@
 @variant theme-deeppurple {
-  --background: #080412;
-  --app-chrome-background: #05020a;
-  --foreground: #f5f3ff;
-  --card: #120826;
-  --popover: #120826;
-  --primary: oklch(0.6 0.22 285);
-  --ring: oklch(0.6 0.22 285);
-  --sidebar: #0a0514;
-  --sidebar-accent: #1e103d;
-  --surface: #170b33;
-  --panel: #170b33;
-  --titlebar: #0a0514;
-  --border: color-mix(in srgb, #8b5cf6 15%, transparent);
-  --input: color-mix(in srgb, #8b5cf6 20%, transparent);
-  --muted: color-mix(in srgb, #8b5cf6 8%, transparent);
-  --accent: color-mix(in srgb, #8b5cf6 12%, transparent);
-  --code-bg: #05020a;
+  --background: #fdfcff;
+  --app-chrome-background: #f5f3ff;
+  --foreground: #2e1065;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --primary: oklch(0.55 0.25 285);
+  --ring: oklch(0.55 0.25 285);
+  --sidebar: #f5f3ff;
+  --sidebar-accent: #ede9fe;
+  --surface: #ffffff;
+  --panel: #ffffff;
+  --titlebar: #f5f3ff;
+  --border: color-mix(in srgb, #7c3aed 15%, #ddd6fe);
+  --input: color-mix(in srgb, #7c3aed 20%, #ddd6fe);
+  --muted: #f5f3ff;
+  --accent: #f5f3ff;
+  --code-bg: #fdfcff;
+
+  @variant dark {
+    --background: #080412;
+    --app-chrome-background: #05020a;
+    --foreground: #f5f3ff;
+    --card: #120826;
+    --popover: #120826;
+    --primary: oklch(0.6 0.22 285);
+    --ring: oklch(0.6 0.22 285);
+    --sidebar: #0a0514;
+    --sidebar-accent: #1e103d;
+    --surface: #170b33;
+    --panel: #170b33;
+    --titlebar: #0a0514;
+    --border: color-mix(in srgb, #8b5cf6 15%, transparent);
+    --input: color-mix(in srgb, #8b5cf6 20%, transparent);
+    --muted: color-mix(in srgb, #8b5cf6 8%, transparent);
+    --accent: color-mix(in srgb, #8b5cf6 12%, transparent);
+    --code-bg: #05020a;
+  }
 }

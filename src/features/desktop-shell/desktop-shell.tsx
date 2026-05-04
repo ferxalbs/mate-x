@@ -38,7 +38,7 @@ export function DesktopShell() {
   const activeThreadId = activeWorkspaceId
     ? (activeThreadIds[activeWorkspaceId] ?? "")
     : "";
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     void bootstrap();
@@ -76,6 +76,7 @@ export function DesktopShell() {
             onSelectThread={selectThread}
             onRenameThread={renameThread}
             theme={theme}
+            resolvedTheme={resolvedTheme}
             threads={threads}
             workspaces={workspaces}
             workspace={workspace}
@@ -169,7 +170,7 @@ function ChangeImpactPanel({
   }
 
   return (
-    <aside className="absolute right-4 bottom-4 z-30 w-[380px] max-w-[calc(100%-2rem)] rounded-lg border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
+    <aside className="absolute right-4 bottom-4 z-30 w-[380px] max-w-[calc(100%-2rem)] rounded-lg border border-border glass p-3 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <ShieldCheckIcon className="size-4 shrink-0 text-primary" />

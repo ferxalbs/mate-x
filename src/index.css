@@ -64,6 +64,16 @@
   }
 }
 
+@layer utilities {
+  .glass {
+    background-color: color-mix(in srgb, var(--glass-bg, var(--background)) calc(var(--blur-opacity) * 100%), transparent);
+  }
+  :root.blur-enabled .glass {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/40;

@@ -13,7 +13,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from '../../../components/ui/m
 import { SidebarTrigger, useSidebar } from '../../../components/ui/sidebar';
 import type { Conversation, RunStatus } from '../../../contracts/chat';
 import type { WorkspaceSummary } from '../../../contracts/workspace';
-import type { Theme } from '../../../hooks/use-theme';
+import type { Appearance } from '../../../hooks/use-theme';
 import { cn } from '../../../lib/utils';
 import { openWorkspacePath } from '../../../services/repo-client';
 
@@ -24,7 +24,7 @@ interface ChatTopbarProps {
   runStatus: RunStatus;
   onCreateThread: () => void;
   onImportWorkspace: () => Promise<void>;
-  onThemeChange: (theme: Theme) => void;
+  onAppearanceChange: (appearance: Appearance) => void;
 }
 
 function TitlebarButton({
@@ -52,7 +52,7 @@ export function ChatTopbar({
   runStatus,
   onCreateThread,
   onImportWorkspace,
-  onThemeChange,
+  onAppearanceChange,
 }: ChatTopbarProps) {
   const { state } = useSidebar();
   const [openTarget, setOpenTarget] = useState('folder');
@@ -65,9 +65,10 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        'drag-region flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] bg-[var(--titlebar)] px-4 transition-[padding-left] duration-200 ease-linear',
+        'drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)] px-4 transition-[padding-left] duration-200 ease-linear',
         state === 'collapsed' && 'pl-[88px]',
       )}
+      style={{ '--glass-bg': 'var(--titlebar)' } as any}
     >
       <div className="flex min-w-0 items-center gap-3">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
@@ -182,9 +183,9 @@ export function ChatTopbar({
             <EllipsisVerticalIcon className="size-3.5" />
           </MenuTrigger>
           <MenuPopup align="end">
-            <MenuItem onClick={() => onThemeChange('light')}>Light mode</MenuItem>
-            <MenuItem onClick={() => onThemeChange('dark')}>Dark mode</MenuItem>
-            <MenuItem onClick={() => onThemeChange('system')}>System mode</MenuItem>
+            <MenuItem onClick={() => onAppearanceChange('light')}>Light mode</MenuItem>
+            <MenuItem onClick={() => onAppearanceChange('dark')}>Dark mode</MenuItem>
+            <MenuItem onClick={() => onAppearanceChange('system')}>System mode</MenuItem>
             <MenuItem>{workspace?.branch ?? 'main'}</MenuItem>
           </MenuPopup>
         </Menu>
