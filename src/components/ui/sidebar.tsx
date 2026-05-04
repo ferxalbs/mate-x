@@ -16,7 +16,7 @@ import {
   SheetTitle,
 } from "~/components/ui/sheet";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useIsMobile } from "~/hooks/useMediaQuery";
 import { getLocalStorageItem, numberCodec, setLocalStorageItem } from "~/hooks/useLocalStorage";
 
@@ -323,9 +323,9 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
         {showSidebarIcon ? <PanelLeftCloseIcon className="size-3.5" /> : <PanelLeftIcon className="size-3.5" />}
         <span className="sr-only">Toggle Sidebar</span>
       </TooltipTrigger>
-      <TooltipPopup side="bottom" align="center" className="text-[10px]">
+      <TooltipContent side="bottom" align="center" className="text-[10px]">
         {showSidebarIcon ? "Hide sidebar" : "Show sidebar"}
-      </TooltipPopup>
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -787,7 +787,7 @@ function SidebarMenuButton({
   ...props
 }: useRender.ComponentProps<"button"> & {
   isActive?: boolean;
-  tooltip?: string | React.ComponentProps<typeof TooltipPopup>;
+  tooltip?: string | React.ComponentProps<typeof TooltipContent>;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
 
@@ -820,7 +820,7 @@ function SidebarMenuButton({
   return (
     <Tooltip>
       <TooltipTrigger render={buttonElement as React.ReactElement<Record<string, unknown>>} />
-      <TooltipPopup
+      <TooltipContent
         align="center"
         hidden={state !== "collapsed" || isMobile}
         side="right"

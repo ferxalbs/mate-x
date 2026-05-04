@@ -153,7 +153,6 @@ export function HomePage() {
       >
         <MessageStream
           canUndoLastTurn={canUndoLastTurn}
-          hasActiveThread={selectedThread !== null}
           isRunning={runStatus === 'running'}
           isBootstrapped={isBootstrapped}
           lastError={lastError}

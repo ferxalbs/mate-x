@@ -21,6 +21,7 @@ import { cn } from '../../../lib/utils';
 import { ChatMarkdown } from './chat-markdown';
 import { EvidencePackCard } from './evidence-pack-card';
 import { useChatStore } from '../../../store/chat-store';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -157,91 +158,97 @@ function EmptyState({
       : `What should we build in ${workspace?.name ?? 'mate-x'}?`;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 pt-[10vh] pb-12">
-      <div className="w-full max-w-[720px] text-center">
-        <h1 className="mb-10 text-[28px] font-medium tracking-[-0.015em] text-foreground/95">
+    <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 pt-[8vh] transition-all duration-300">
+      <div className="flex w-full max-w-[820px] flex-col items-center">
+        <h1 className="mb-8 text-center text-[32px] font-medium tracking-tight text-foreground/90 transition-all">
           {title}
         </h1>
 
         {lastError || !isBootstrapped ? (
-          <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground/80">
+          <p className="mt-2 text-center text-[14px] leading-relaxed text-muted-foreground/70">
             {lastError ?? 'MaTE X is restoring your previous session and checking local workspace state.'}
           </p>
         ) : (
-          <>
-            <div className="mb-12 flex justify-center">
-              <div className="w-full max-w-[680px]">
-                {composer}
-              </div>
+          <div className="flex w-full flex-col items-center space-y-10">
+            <div className="w-full max-w-[760px]">
+              {composer}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-              <FeatureCard
-                icon={<ShieldCheckIcon className="size-4 text-emerald-500" />}
-                title="Security Audit"
-                description="Scan for common vulnerabilities and hardcoded secrets"
+            <div className="flex w-full flex-wrap items-center justify-center gap-3">
+              <FeatureChip
+                icon={<ShieldCheckIcon className="size-3.5 text-emerald-500" />}
+                label="Security Audit"
+                prompt="Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks."
                 onClick={() => onSelectPrompt('Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks.')}
               />
-              <FeatureCard
-                icon={<BrainIcon className="size-4 text-purple-500" />}
-                title="Bug Hunting"
-                description="Find logical flaws or edge cases in recent changes"
+              <FeatureChip
+                icon={<BrainIcon className="size-3.5 text-purple-500" />}
+                label="Bug Hunting"
+                prompt="Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases."
                 onClick={() => onSelectPrompt('Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases.')}
               />
-              <FeatureCard
-                icon={<FileTextIcon className="size-4 text-blue-500" />}
-                title="Compliance"
-                description="Verify code against security policies and standards"
+              <FeatureChip
+                icon={<FileTextIcon className="size-3.5 text-blue-500" />}
+                label="Compliance"
+                prompt="Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies."
                 onClick={() => onSelectPrompt('Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies.')}
               />
-              <FeatureCard
-                icon={<ExternalLinkIcon className="size-4 text-amber-500" />}
-                title="Arch Review"
-                description="Analyze system boundaries and data flow risks"
+              <FeatureChip
+                icon={<ExternalLinkIcon className="size-3.5 text-amber-500" />}
+                label="Arch Review"
+                prompt="Review the system architecture. Map the data flows between components and identify potential trust boundary issues."
                 onClick={() => onSelectPrompt('Review the system architecture. Map the data flows between components and identify potential trust boundary issues.')}
               />
             </div>
 
-            <div className="mt-12 flex items-center justify-center gap-6">
+            <div className="flex items-center justify-center pt-2">
               <button
                 type="button"
                 onClick={() => void onImportWorkspace()}
-                className="inline-flex items-center gap-2 text-[12px] font-medium text-muted-foreground/60 transition-colors hover:text-foreground"
+                className="inline-flex items-center gap-2 rounded-full border border-border/30 bg-background/20 px-4 py-2 text-[12px] font-medium text-muted-foreground/60 backdrop-blur-sm transition-all hover:border-border/60 hover:bg-background/40 hover:text-foreground"
               >
                 <FolderPlusIcon className="size-3.5 opacity-60" />
                 Import another folder
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function FeatureCard({
+function FeatureChip({
   icon,
-  title,
-  description,
+  label,
+  prompt,
   onClick,
 }: {
   icon: ReactNode;
-  title: string;
-  description: string;
+  label: string;
+  prompt: string;
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col items-start rounded-xl border border-border/30 bg-background/20 p-4 text-left transition-all hover:border-border/80 hover:bg-background/40 hover:shadow-sm"
-    >
-      <div className="mb-3 rounded-lg bg-background/50 p-2 shadow-sm ring-1 ring-border/5 transition-all group-hover:ring-border/20">
-        {icon}
-      </div>
-      <h3 className="text-[13px] font-medium text-foreground/85">{title}</h3>
-      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground/50">{description}</p>
-    </button>
+    <TooltipProvider delay={200}>
+      <Tooltip>
+        <TooltipTrigger render={
+          <button
+            type="button"
+            onClick={onClick}
+            className="group flex h-9 items-center gap-2 rounded-full border border-border/40 bg-background/30 px-3.5 text-[12px] font-medium text-muted-foreground/80 backdrop-blur-md transition-all duration-300 hover:border-border/80 hover:bg-background/60 hover:text-foreground hover:shadow-sm"
+          />
+        }>
+          <div className="flex items-center justify-center text-foreground/70 transition-colors group-hover:text-foreground">
+            {icon}
+          </div>
+          <span>{label}</span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={8} className="max-w-[280px]">
+          <p className="text-center leading-relaxed text-muted-foreground">{prompt}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
