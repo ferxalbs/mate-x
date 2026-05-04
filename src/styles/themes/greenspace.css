@@ -1,15 +1,17 @@
 @variant theme-greenspace {
-  --background: #fcfdfc;
+  --background: #f6fbf7;
   --app-chrome-background: #f0fdf4;
   --foreground: #064e3b;
-  --card: #ffffff;
-  --popover: #ffffff;
+  --card: #f7fcf8;
+  --popover: #f7fcf8;
   --primary: oklch(0.5 0.2 160);
   --ring: oklch(0.5 0.2 160);
   --sidebar: #f0fdf4;
   --sidebar-accent: #dcfce7;
-  --surface: #ffffff;
-  --panel: #ffffff;
+  --surface: #ecf9f0;
+  --surface-soft: #dff5e7;
+  --panel: #f6fcf8;
+  --panel-border: color-mix(in srgb, #059669 22%, #bbf7d0);
   --titlebar: #f0fdf4;
   --border: color-mix(in srgb, #059669 15%, #d1fae5);
   --input: color-mix(in srgb, #059669 20%, #d1fae5);

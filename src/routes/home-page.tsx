@@ -131,7 +131,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <section className="relative flex min-w-0 flex-1 flex-col bg-background">
+    <section className="relative flex min-w-0 flex-1 flex-col bg-[var(--surface)] text-foreground">
       <ChatTopbar
         conversation={selectedThread}
         onCreateThread={createThread}
@@ -148,7 +148,7 @@ export function HomePage() {
         zone gives the glass panel real colors to blur against.
       */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col"
+        className="relative flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_50%_18%,color-mix(in_srgb,var(--accent)_18%,transparent),transparent_34%),linear-gradient(180deg,var(--surface),var(--background))]"
         style={{ paddingBottom: hasMessages && settings.floatingInput ? 152 : 0 }}
       >
         <MessageStream
@@ -167,7 +167,7 @@ export function HomePage() {
           composer={!hasMessages ? composer : null}
         />
         {hasMessages && settings.floatingInput ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[152px] bg-gradient-to-t from-background via-background/60 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[152px] bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/70 to-transparent" />
         ) : null}
       </div>
       {hasMessages ? composer : null}

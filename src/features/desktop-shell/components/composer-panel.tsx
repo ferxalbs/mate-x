@@ -475,8 +475,8 @@ export function ComposerPanel({
         ) : null}
         <div
           className={cn(
-            "rounded-[28px] border border-[var(--panel-border)]/50 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.7)] transition-all duration-300 glass",
-            isDraggingFile ? "ring-2 ring-[#2454ff]/70" : "",
+            "rounded-xl border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.72)] transition-all duration-300 glass",
+            isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
           style={{ "--glass-bg": "var(--panel)" } as any}
           onDragEnter={(event) => {
@@ -511,7 +511,7 @@ export function ComposerPanel({
           ) : null}
           <div className="px-5 py-4">
             <textarea
-              className="min-h-[60px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
+              className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -555,8 +555,8 @@ export function ComposerPanel({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-0.5">
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto turn-chip-strip">
+          <div className="flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-1 turn-chip-strip sm:pb-0">
               <input
                 className="hidden"
                 multiple
@@ -571,7 +571,7 @@ export function ComposerPanel({
               />
               <button
                 aria-label="Attach files"
-                className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent sm:size-6"
                 disabled={!hasWorkspace}
                 onClick={() => fileInputRef.current?.click()}
                 title="Attach files"
@@ -639,7 +639,7 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent",
+                    "flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent sm:size-6",
                     reasoningEnabled
                       ? "text-foreground"
                       : "text-muted-foreground/60",
@@ -692,7 +692,7 @@ export function ComposerPanel({
               {!supportsImageInput ? (
                 <button
                   aria-label="Images unavailable"
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/35 sm:size-6"
                   disabled
                   title="This model does not process images."
                   type="button"
@@ -703,7 +703,7 @@ export function ComposerPanel({
               {!supportsVideoInput ? (
                 <button
                   aria-label="Video unavailable"
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/35 sm:size-6"
                   disabled
                   title="This model does not process video."
                   type="button"
@@ -714,7 +714,7 @@ export function ComposerPanel({
               {!supportsFileInput ? (
                 <button
                   aria-label="Files unavailable"
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/35"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/35 sm:size-6"
                   disabled
                   title="This model does not process files."
                   type="button"
@@ -724,14 +724,14 @@ export function ComposerPanel({
               ) : null}
               {toolCallingSupported ? (
                 <div
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground sm:size-6"
                   title="Supports tools"
                 >
                   <WrenchIcon className="size-3.5" />
                 </div>
               ) : null}
               <div
-                className="flex size-6 shrink-0 items-center justify-center rounded-md text-emerald-600 dark:text-emerald-300/90"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-success sm:size-6"
                 title={
                   trustContract
                     ? `Contract v${trustContract.version}: ${trustContract.autonomy}`
@@ -742,7 +742,7 @@ export function ComposerPanel({
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted-foreground/60">
+            <div className="flex shrink-0 items-center justify-end gap-3 text-[11px] text-muted-foreground/60">
               {canUndoLastTurn ? (
                 <Button
                   aria-label="Undo last turn"
@@ -759,7 +759,7 @@ export function ComposerPanel({
               <Button
                 aria-label={isRunning ? "Thinking" : "Send"}
                 className={cn(
-                  "size-9 rounded-full border-0 bg-[#2454ff] p-0 text-white shadow-none hover:bg-[#3462ff]",
+                  "size-9 rounded-lg border-0 bg-primary p-0 text-primary-foreground shadow-none hover:bg-primary/90",
                   isRunning ? "opacity-90" : "",
                 )}
                 disabled={isRunning || isModelSaving || !hasWorkspace}
@@ -1018,7 +1018,9 @@ function InlineSelect({
       >
         <SelectValue>{label}</SelectValue>
       </SelectTrigger>
-      <SelectPopup>{children}</SelectPopup>
+      <SelectPopup className="max-w-[min(22rem,var(--available-width))] text-popover-foreground">
+        {children}
+      </SelectPopup>
     </Select>
   );
 }

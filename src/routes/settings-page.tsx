@@ -495,10 +495,10 @@ export function SettingsPage() {
 
   return (
     <>
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)] text-foreground">
         <header
           className="drag-region glass sticky top-0 z-10 flex h-[52px] shrink-0 items-center border-b border-border/70 px-5"
-          style={{ '--glass-bg': 'var(--background)' } as any}
+          style={{ '--glass-bg': 'var(--titlebar)' } as any}
         >
           <div className="flex min-w-0 items-center gap-3">
             <span className="text-sm font-medium tracking-tight text-foreground">Settings</span>
@@ -510,7 +510,7 @@ export function SettingsPage() {
             <Button
               size="xs"
               variant="outline"
-              className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] font-medium shadow-none"
+              className="h-8 rounded-lg border-border/70 bg-[var(--panel)]/75 px-3 text-[12px] font-medium shadow-none hover:bg-accent"
               onClick={handleRestoreDefaults}
               disabled={isBusy || changedSettingLabels.length === 0}
             >
@@ -520,7 +520,7 @@ export function SettingsPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,var(--surface),var(--background))] p-6">
           <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
             {section === 'general' ? (
               <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
