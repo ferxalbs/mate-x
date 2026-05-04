@@ -48,6 +48,7 @@ interface AppSidebarProps {
   activeThreadId: string;
   threads: Conversation[];
   theme: Theme;
+  resolvedTheme: 'light' | 'dark';
   runStatus: RunStatus;
   onImportWorkspace: () => void;
   onActivateWorkspace: (workspaceId: string) => Promise<void>;
@@ -132,6 +133,7 @@ export function AppSidebar({
   activeThreadId,
   threads,
   theme,
+  resolvedTheme,
   runStatus,
   onImportWorkspace,
   onActivateWorkspace,
@@ -486,7 +488,7 @@ export function AppSidebar({
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]",
-                      theme === "dark"
+                      resolvedTheme === "dark"
                         ? "bg-accent text-foreground"
                         : "bg-muted/70 text-muted-foreground",
                     )}

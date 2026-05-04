@@ -29,7 +29,7 @@ export function HomePage() {
   const submitPrompt = useChatStore((state) => state.submitPrompt);
   const undoLastTurn = useChatStore((state) => state.undoLastTurn);
   const settings = useChatStore((state) => state.settings);
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setAppearance } = useTheme();
 
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
@@ -111,7 +111,7 @@ export function HomePage() {
         conversation={selectedThread}
         onCreateThread={createThread}
         onImportWorkspace={importWorkspace}
-        onThemeChange={setTheme}
+        onAppearanceChange={setAppearance}
         resolvedTheme={resolvedTheme}
         runStatus={runStatus}
         workspace={workspace}

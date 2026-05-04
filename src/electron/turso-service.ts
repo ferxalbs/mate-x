@@ -1320,19 +1320,22 @@ function safeParseTrustContract(raw: string, workspaceId: string): WorkspaceTrus
 
 function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
   return {
+    appearance:
+      input.appearance === 'dark' || input.appearance === 'light' || input.appearance === 'system'
+        ? input.appearance
+        : DEFAULT_APP_SETTINGS.appearance,
     theme:
-      input.theme === 'dark' ||
-      input.theme === 'light' ||
+      input.theme === 'default' ||
       input.theme === 'oled' ||
       input.theme === 'blue' ||
       input.theme === 'deepblue' ||
       input.theme === 'deeppurple' ||
       input.theme === 'casimiri' ||
       input.theme === 'greenspace' ||
-      input.theme === 'midnight' ||
-      input.theme === 'system'
+      input.theme === 'midnight'
         ? input.theme
         : DEFAULT_APP_SETTINGS.theme,
+    blurEnabled: typeof input.blurEnabled === 'boolean' ? input.blurEnabled : DEFAULT_APP_SETTINGS.blurEnabled,
     timeFormat:
       input.timeFormat === '12h' || input.timeFormat === '24h' || input.timeFormat === 'system'
         ? input.timeFormat

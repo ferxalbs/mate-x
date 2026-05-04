@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import type { AppearancePreference, ThemePreference } from '../contracts/settings';
 
-export type Theme = 'light' | 'dark' | 'oled' | 'blue' | 'deepblue' | 'deeppurple' | 'casimiri' | 'greenspace' | 'midnight' | 'system';
+export type Appearance = AppearancePreference;
+export type Theme = ThemePreference;
 
 type ThemeSnapshot = {
+  appearance: Appearance;
   theme: Theme;
+  blurEnabled: boolean;
   systemDark: boolean;
 };
 
-const STORAGE_KEY = 'mate-x:theme';
+const APPEARANCE_KEY = 'mate-x:appearance';
+const THEME_KEY = 'mate-x:theme-v2';
+const BLUR_KEY = 'mate-x:blur';
 const MEDIA_QUERY = '(prefers-color-scheme: dark)';
 
 let listeners: Array<() => void> = [];
@@ -21,48 +27,56 @@ function getSystemDark() {
   return window.matchMedia(MEDIA_QUERY).matches;
 }
 
+function getStoredAppearance(): Appearance {
+  const raw = localStorage.getItem(APPEARANCE_KEY);
+  if (raw === 'light' || raw === 'dark' || raw === 'system') {
+    return raw;
+  }
+  return 'system';
+}
+
 function getStoredTheme(): Theme {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(THEME_KEY);
   if (
-    raw === 'light' ||
-    raw === 'dark' ||
+    raw === 'default' ||
     raw === 'oled' ||
     raw === 'blue' ||
     raw === 'deepblue' ||
     raw === 'deeppurple' ||
     raw === 'casimiri' ||
     raw === 'greenspace' ||
-    raw === 'midnight' ||
-    raw === 'system'
+    raw === 'midnight'
   ) {
     return raw;
   }
-  return 'system';
+  return 'default';
 }
 
-function applyTheme(theme: Theme, suppressTransitions = false) {
+function getStoredBlur(): boolean {
+  const raw = localStorage.getItem(BLUR_KEY);
+  return raw !== 'false';
+}
+
+function applyTheme(appearance: Appearance, theme: Theme, blurEnabled: boolean, suppressTransitions = false) {
   if (suppressTransitions) {
     document.documentElement.classList.add('no-transitions');
   }
 
-  const isDark =
-    theme === 'dark' ||
-    theme === 'oled' ||
-    theme === 'blue' ||
-    theme === 'deepblue' ||
-    theme === 'deeppurple' ||
-    theme === 'casimiri' ||
-    theme === 'greenspace' ||
-    theme === 'midnight' ||
-    (theme === 'system' && getSystemDark());
+  const isDark = appearance === 'dark' || (appearance === 'system' && getSystemDark());
   document.documentElement.classList.toggle('dark', isDark);
-  document.documentElement.classList.toggle('theme-oled', theme === 'oled');
-  document.documentElement.classList.toggle('theme-blue', theme === 'blue');
-  document.documentElement.classList.toggle('theme-deepblue', theme === 'deepblue');
-  document.documentElement.classList.toggle('theme-deeppurple', theme === 'deeppurple');
-  document.documentElement.classList.toggle('theme-casimiri', theme === 'casimiri');
-  document.documentElement.classList.toggle('theme-greenspace', theme === 'greenspace');
-  document.documentElement.classList.toggle('theme-midnight', theme === 'midnight');
+  document.documentElement.classList.toggle('blur-enabled', blurEnabled);
+
+  // Set blur opacity based on mode
+  if (isDark) {
+    document.documentElement.style.setProperty('--blur-opacity', '0.3');
+  } else {
+    document.documentElement.style.setProperty('--blur-opacity', '0.65');
+  }
+
+  const themes: Theme[] = ['default', 'oled', 'blue', 'deepblue', 'deeppurple', 'casimiri', 'greenspace', 'midnight'];
+  for (const t of themes) {
+    document.documentElement.classList.toggle(`theme-${t}`, theme === t);
+  }
 
   if (suppressTransitions) {
     void document.documentElement.offsetHeight;
@@ -72,17 +86,25 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
   }
 }
 
-applyTheme(getStoredTheme());
+applyTheme(getStoredAppearance(), getStoredTheme(), getStoredBlur());
 
 function getSnapshot(): ThemeSnapshot {
+  const appearance = getStoredAppearance();
   const theme = getStoredTheme();
-  const systemDark = theme === 'system' ? getSystemDark() : false;
+  const blurEnabled = getStoredBlur();
+  const systemDark = appearance === 'system' ? getSystemDark() : false;
 
-  if (lastSnapshot && lastSnapshot.theme === theme && lastSnapshot.systemDark === systemDark) {
+  if (
+    lastSnapshot &&
+    lastSnapshot.appearance === appearance &&
+    lastSnapshot.theme === theme &&
+    lastSnapshot.blurEnabled === blurEnabled &&
+    lastSnapshot.systemDark === systemDark
+  ) {
     return lastSnapshot;
   }
 
-  lastSnapshot = { theme, systemDark };
+  lastSnapshot = { appearance, theme, blurEnabled, systemDark };
   return lastSnapshot;
 }
 
@@ -91,15 +113,15 @@ function subscribe(listener: () => void) {
 
   const query = window.matchMedia(MEDIA_QUERY);
   const handleMediaChange = () => {
-    if (getStoredTheme() === 'system') {
-      applyTheme('system', true);
+    if (getStoredAppearance() === 'system') {
+      applyTheme('system', getStoredTheme(), getStoredBlur(), true);
       emitChange();
     }
   };
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) {
-      applyTheme(getStoredTheme(), true);
+    if (event.key === APPEARANCE_KEY || event.key === THEME_KEY || event.key === BLUR_KEY) {
+      applyTheme(getStoredAppearance(), getStoredTheme(), getStoredBlur(), true);
       emitChange();
     }
   };
@@ -116,31 +138,32 @@ function subscribe(listener: () => void) {
 
 export function useTheme() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot);
-  const theme = snapshot.theme;
-  const resolvedTheme: 'light' | 'dark' =
-    theme === 'system'
-      ? snapshot.systemDark
-        ? 'dark'
-        : 'light'
-      : theme === 'oled' ||
-        theme === 'blue' ||
-        theme === 'deepblue' ||
-        theme === 'deeppurple' ||
-        theme === 'casimiri' ||
-        theme === 'greenspace' ||
-        theme === 'midnight'
-        ? 'dark'
-        : theme;
+  const { appearance, theme, blurEnabled } = snapshot;
 
-  const setTheme = useCallback((nextTheme: Theme) => {
-    localStorage.setItem(STORAGE_KEY, nextTheme);
-    applyTheme(nextTheme, true);
+  const resolvedTheme: 'light' | 'dark' =
+    appearance === 'system' ? (snapshot.systemDark ? 'dark' : 'light') : appearance;
+
+  const setAppearance = useCallback((next: Appearance) => {
+    localStorage.setItem(APPEARANCE_KEY, next);
+    applyTheme(next, getStoredTheme(), getStoredBlur(), true);
+    emitChange();
+  }, []);
+
+  const setTheme = useCallback((next: Theme) => {
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(getStoredAppearance(), next, getStoredBlur(), true);
+    emitChange();
+  }, []);
+
+  const setBlurEnabled = useCallback((next: boolean) => {
+    localStorage.setItem(BLUR_KEY, String(next));
+    applyTheme(getStoredAppearance(), getStoredTheme(), next, true);
     emitChange();
   }, []);
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(appearance, theme, blurEnabled);
+  }, [appearance, theme, blurEnabled]);
 
-  return { theme, resolvedTheme, setTheme } as const;
+  return { appearance, theme, blurEnabled, resolvedTheme, setAppearance, setTheme, setBlurEnabled } as const;
 }

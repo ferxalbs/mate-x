@@ -10,7 +10,9 @@ function getSettingsApi(): SettingsApi {
 }
 
 export const TIME_FORMAT_STORAGE_KEY = 'mate-x:time-format';
-export const THEME_STORAGE_KEY = 'mate-x:theme';
+export const APPEARANCE_STORAGE_KEY = 'mate-x:appearance';
+export const THEME_STORAGE_KEY = 'mate-x:theme-v2';
+export const BLUR_STORAGE_KEY = 'mate-x:blur';
 
 export function getApiKey() {
   return getSettingsApi().getApiKey();
@@ -56,7 +58,9 @@ export function applyRendererSettings(settings: AppSettings) {
   if (typeof window === 'undefined') {
     return;
   }
+  window.localStorage.setItem(APPEARANCE_STORAGE_KEY, settings.appearance);
   window.localStorage.setItem(THEME_STORAGE_KEY, settings.theme);
+  window.localStorage.setItem(BLUR_STORAGE_KEY, String(settings.blurEnabled));
   window.localStorage.setItem(TIME_FORMAT_STORAGE_KEY, settings.timeFormat);
 }
 

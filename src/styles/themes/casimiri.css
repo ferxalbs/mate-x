@@ -1,19 +1,39 @@
 @variant theme-casimiri {
-  --background: #1a1b1e;
-  --app-chrome-background: #141517;
-  --foreground: #e1e1e6;
-  --card: #25262b;
-  --popover: #25262b;
-  --primary: oklch(0.65 0.1 240);
-  --ring: oklch(0.65 0.1 240);
-  --sidebar: #141517;
-  --sidebar-accent: #2c2e33;
-  --surface: #25262b;
-  --panel: #25262b;
-  --titlebar: #141517;
-  --border: color-mix(in srgb, white 8%, transparent);
-  --input: color-mix(in srgb, white 10%, transparent);
-  --muted: color-mix(in srgb, white 5%, transparent);
-  --accent: color-mix(in srgb, white 7%, transparent);
-  --code-bg: #101113;
+  --background: #fcfcfd;
+  --app-chrome-background: #f8f9fa;
+  --foreground: #1a1b1e;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --primary: oklch(0.45 0.1 240);
+  --ring: oklch(0.45 0.1 240);
+  --sidebar: #f8f9fa;
+  --sidebar-accent: #f1f3f5;
+  --surface: #ffffff;
+  --panel: #ffffff;
+  --titlebar: #f8f9fa;
+  --border: color-mix(in srgb, black 8%, transparent);
+  --input: color-mix(in srgb, black 10%, transparent);
+  --muted: color-mix(in srgb, black 5%, transparent);
+  --accent: color-mix(in srgb, black 7%, transparent);
+  --code-bg: #f8f9fa;
+
+  @variant dark {
+    --background: #1a1b1e;
+    --app-chrome-background: #141517;
+    --foreground: #e1e1e6;
+    --card: #25262b;
+    --popover: #25262b;
+    --primary: oklch(0.65 0.1 240);
+    --ring: oklch(0.65 0.1 240);
+    --sidebar: #141517;
+    --sidebar-accent: #2c2e33;
+    --surface: #25262b;
+    --panel: #25262b;
+    --titlebar: #141517;
+    --border: color-mix(in srgb, white 8%, transparent);
+    --input: color-mix(in srgb, white 10%, transparent);
+    --muted: color-mix(in srgb, white 5%, transparent);
+    --accent: color-mix(in srgb, white 7%, transparent);
+    --code-bg: #101113;
+  }
 }

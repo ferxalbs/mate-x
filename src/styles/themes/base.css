@@ -27,6 +27,8 @@
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-700);
 
+  --blur-opacity: 0.65;
+
   /* Code Syntax Highlighting (Light) */
   --code-bg: #f8f9fa;
   --code-header-bg: #f1f3f5;
