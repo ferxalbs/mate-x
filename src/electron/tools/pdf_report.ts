@@ -23,18 +23,16 @@ const cleanLines = (stdout: string) => stdout.split('\n').filter(Boolean);
 const sourceRoleFor = (value: string): ReportFinding['sourceRole'] => {
   const file = value.split(':')[0]?.toLowerCase() ?? value.toLowerCase();
   const line = value.toLowerCase();
-  if (file.includes('src/electron/tools/')) return 'scanner';
-  if (file.includes('src/electron/privacy/privacy-regex-scanner') || file.includes('src/electron/privacy/privacy-canary')) return 'scanner';
+  if (/(scanner|canary|fuzzer|prober|poison|audit)/.test(file) && (line.includes('169.254.169.254') || line.includes('127.0.0.1') || line.includes('localhost') || line.includes('10.0.0.5'))) return 'scanner';
   if (
-    file.includes('/tools/')
-    && (
-      line.includes('pattern')
-      || line.includes('regex')
-      || line.includes('private_ip_blocks')
-      || line.includes('ssrf')
-      || line.includes('metadata endpoint')
-      || line.includes('recommended fixes')
-    )
+    line.includes('pattern')
+    || line.includes('regex')
+    || line.includes('private_ip_blocks')
+    || line.includes('ssrf')
+    || line.includes('metadata endpoint')
+    || line.includes('recommended fixes')
+    || line.includes('if (ip ===')
+    || (file.includes('/tools/') && (line.includes('169.254.169.254') || line.includes('127.0.0.1') || line.includes('localhost') || line.includes('replace_me') || line.includes('your-rainy-host') || line.includes('example.com')))
   ) return 'scanner';
   if (file.includes('/docs/') || file.endsWith('.md') || file.endsWith('.mdx')) return 'docs';
   if (file.includes('/test/') || file.includes('/tests/') || file.includes('.test.') || file.includes('.spec.')) return 'test';
