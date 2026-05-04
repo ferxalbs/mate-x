@@ -138,5 +138,6 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - Validate all IPC inputs.
 - Update `src/contracts/` whenever payloads change.
 - **Data Normalization**: When adding new allowed values to settings or contracts (e.g., new themes in `src/contracts/settings.ts`), you MUST update the corresponding normalization logic in `src/electron/turso-service.ts` (e.g., `normalizeAppSettings`) so the database does not reject or overwrite the new valid values.
+- **No Product Boxing**: MaTE X analyzes arbitrary third-party repositories, not only this repo. Never hardcode MaTE-specific paths, filenames, fixtures, scanner internals, or repository assumptions into analysis logic unless the code explicitly gates them to MaTE X self-diagnostics. Tools must classify evidence by generic source semantics (runtime code, docs, tests, examples, generated files, scanner rules) and keep active findings separate from reference signals so real user repositories are not misreported.
 - Optimize: security first, then responsiveness and low overhead.
 - Avoid platform regressions on macOS x86/ARM and Windows 10+.
