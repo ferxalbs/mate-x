@@ -10,9 +10,9 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { ChatMessage, Conversation, ReproducibleRun, ToolEvent } from "../contracts/chat";
-import { formatTimestamp } from "../lib/time";
-import { useChatStore } from "../store/chat-store";
+import type { ChatMessage, Conversation, ReproducibleRun, ToolEvent } from "@/contracts/chat";
+import { formatTimestamp } from "@/lib/time";
+import { useChatStore } from "@/store/chat-store";
 
 type MissionRun = {
   id: string;
@@ -254,7 +254,7 @@ export function RunsPage() {
         </div>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <button
-            className="rounded-md border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!selectedRun?.record}
             onClick={() => void handleExportRun()}
             type="button"
@@ -279,7 +279,7 @@ export function RunsPage() {
                 const status = runStatus === "running" && run.id === runs[0]?.id ? "running" : run.status;
                 return (
                   <button
-                    className={`rounded-md px-3 py-2 text-left transition-colors ${
+                    className={`rounded-xl px-3 py-2 text-left transition-colors ${
                       run.id === selectedRun.id
                         ? "bg-accent text-foreground"
                         : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
@@ -329,7 +329,7 @@ export function RunsPage() {
               />
             </div>
 
-            <section className="mb-5 rounded-md border border-border/70 px-4 py-3">
+            <section className="mb-5 rounded-2xl border border-border/70 px-5 py-4">
               <div className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
                 <MessageSquareTextIcon className="size-3.5" />
                 Initial Intent
@@ -350,7 +350,7 @@ export function RunsPage() {
                         </div>
                         <div className="mt-2 h-full w-px bg-border/70" />
                       </div>
-                      <div className="rounded-md border border-border/70 px-3 py-2">
+                      <div className="rounded-2xl border border-border/70 px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <h2 className="text-xs font-semibold text-foreground">{getSemanticEventLabel(event)}</h2>
                           <span className={`rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider ${statusClass(event.status === "error" ? "failed" : event.status === "active" ? "running" : "completed")}`}>
@@ -366,7 +366,7 @@ export function RunsPage() {
                   );
                 })
               ) : (
-                <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                   No tool timeline was captured for this assistant turn.
                 </div>
               )}
@@ -385,7 +385,7 @@ export function RunsPage() {
                 <dt className="text-muted-foreground">Decisions</dt>
                 <dd className="mt-1 space-y-2">
                   {decisionTrail.map((decision) => (
-                    <div className="rounded-md border border-border/60 px-2 py-1.5" key={`${decision.label}:${decision.detail}`}>
+                    <div className="rounded-xl border border-border/60 px-2.5 py-2" key={`${decision.label}:${decision.detail}`}>
                       <div className="font-medium text-foreground">{decision.label}</div>
                       <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{decision.detail}</div>
                     </div>
@@ -394,7 +394,7 @@ export function RunsPage() {
               </div>
               <div>
                 <dt className="text-muted-foreground">Integrity</dt>
-                <dd className="mt-1 rounded-md border border-border/60 px-2 py-1.5">
+                <dd className="mt-1 rounded-xl border border-border/60 px-2.5 py-2">
                   {selectedRun.record?.integrity ? (
                     <>
                       <div className="font-medium text-emerald-600 dark:text-emerald-300">Sealed run</div>
@@ -421,7 +421,7 @@ export function RunsPage() {
                 <dd className="mt-1 space-y-2">
                   {commandEvidence.length > 0 ? (
                     commandEvidence.map((command) => (
-                      <div className="rounded-md border border-border/60 px-2 py-1.5" key={`${command.tool}:${command.target}:${command.result}`}>
+                      <div className="rounded-xl border border-border/60 px-2.5 py-2" key={`${command.tool}:${command.target}:${command.result}`}>
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-mono text-[11px] font-medium text-foreground">{command.tool}</span>
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{command.result}</span>
@@ -431,14 +431,14 @@ export function RunsPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-md border border-border/60 px-2 py-1.5 text-[11px] text-muted-foreground">
+                    <div className="rounded-xl border border-border/60 px-2.5 py-2 text-[11px] text-muted-foreground">
                       No command artifacts reported. Tool activity remains available in timeline.
                     </div>
                   )}
                 </dd>
               </div>
             </dl>
-            <div className="mt-5 rounded-md border border-border/70 px-3 py-2">
+            <div className="mt-5 rounded-2xl border border-border/70 px-4 py-3">
               <div className="mb-1 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
                 <CheckCircle2Icon className="size-3.5" />
                 Final Result
@@ -451,7 +451,7 @@ export function RunsPage() {
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center px-6">
-          <div className="max-w-[520px] rounded-md border border-border/70 px-6 py-5 text-center">
+          <div className="max-w-[520px] rounded-3xl border border-border/70 px-8 py-7 text-center">
             <h2 className="text-sm font-semibold text-foreground">No reproducible runs captured yet</h2>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
               Ask MaTE X to work on current workspace. Mission Log will show real assistant turns, tool events,
@@ -466,7 +466,7 @@ export function RunsPage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border/70 px-3 py-2">
+    <div className="rounded-2xl border border-border/70 px-4 py-3">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60">{label}</div>
       <div className="mt-1 truncate text-sm font-semibold">{value}</div>
     </div>
