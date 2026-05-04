@@ -6,6 +6,7 @@
 - Added capability context for Repo graph, Privacy Sentinel, Security Path Trace, and Evidence Pack so the flow explains what will happen before setup completes.
 - Split onboarding into general setup and functional verification stages, preserving appearance/theme/time controls, Rainy API key setup, and Privacy Sentinel ONNX model download before first verification.
 - Fixed Privacy Sentinel onboarding progress so unknown download totals show a preparing state instead of `NaN%`, with visible runtime, inference, and progress status.
+- Fixed stale Privacy Sentinel status after model install so ready state wins over pending download progress, and connected onboarding Trust setup to the real workspace trust contract instead of local-only toggles.
 - Added richer workspace, trust boundary, and evidence pack cards while preserving existing `onboardingCompleted` settings persistence.
 
 ## Unreleased - 2026.05.03 (3) [Settings Layout Hardening]

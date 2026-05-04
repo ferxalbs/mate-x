@@ -16,7 +16,6 @@ import {
   Terminal,
   Pencil,
   Eye,
-  PauseCircle,
   PlayCircle,
   Database,
   Activity,
@@ -31,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { getAppSettings, updateAppSettings, getApiKey } from "../../services/settings-client";
 import type { AppSettings, AppearancePreference, ThemePreference, TimeFormat } from "../../contracts/settings";
 import type { PrivacyModelDownloadProgress } from "../../contracts/privacy";
+import type { WorkspaceTrustAutonomy, WorkspaceTrustContract } from "../../contracts/workspace";
 import { useTheme } from "../../hooks/use-theme";
 
 const steps = [
@@ -39,7 +39,7 @@ const steps = [
   { id: "privacy", title: "Privacy Sentinel", description: "Prepare local secret and PII checks.", cta: "Continue" },
   { id: "api-key", title: "Rainy API", description: "Enable AI reasoning and repo embeddings.", cta: "Continue" },
   { id: "workspace", title: "Connect workspace", description: "Build repo graph and validation context.", cta: "Select repository" },
-  { id: "trust", title: "Set trust boundary", description: "Define what MaTE X can touch.", cta: "Configure policy" },
+  { id: "trust", title: "Set trust boundary", description: "Define what MaTE X can touch.", cta: "Save policy" },
   { id: "verification", title: "First verification run", description: "Generate first evidence pack.", cta: "Start verification" },
 ];
 
@@ -53,12 +53,7 @@ export function OnboardingFlow() {
   const [initialApiKey, setInitialApiKey] = useState<string | null>(null);
   const [privacyProgress, setPrivacyProgress] = useState<PrivacyModelDownloadProgress | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
-  const [policy, setPolicy] = useState({
-    read: true,
-    patch: false,
-    commands: false,
-    approval: true,
-  });
+  const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
   const navigate = useNavigate();
   const { setAppearance, setTheme } = useTheme();
 
@@ -93,12 +88,14 @@ export function OnboardingFlow() {
       const workspace = await window.mate.repo.openWorkspacePicker();
       if (workspace?.workspace) {
         setSelectedWorkspace(workspace.workspace.name || workspace.workspace.path || workspace.workspace.id);
+        setTrustDraft(workspace.trustContract);
       }
     } catch {
       setSelectedWorkspace(null);
+      setTrustDraft(null);
     }
     setDirection(1);
-    setCurrentStep(2);
+    setCurrentStep(5);
   }, []);
 
   const handlePrimaryAction = useCallback(() => {
@@ -112,8 +109,11 @@ export function OnboardingFlow() {
       void handleWorkspaceSelect();
       return;
     }
+    if (currentStep === 5 && trustDraft) {
+      void window.mate.repo.updateWorkspaceTrustContract(trustDraft);
+    }
     handleNext();
-  }, [apiKey, currentStep, handleNext, handleWorkspaceSelect, settings]);
+  }, [apiKey, currentStep, handleNext, handleWorkspaceSelect, settings, trustDraft]);
 
   const handleFinish = async () => {
     if (!settings) return;
@@ -181,8 +181,8 @@ export function OnboardingFlow() {
           >
             {renderStep(currentStep, { 
               selectedWorkspace,
-              policy,
-              setPolicy,
+              trustDraft,
+              setTrustDraft,
               settings,
               setSettings,
               apiKey,
@@ -272,9 +272,7 @@ function IntroStep() {
         >
           Verify AI-generated code before it ships.
         </motion.p>
-        <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-          Local-first security verification for repo changes, secrets, traces, validation, and evidence packs.
-        </p>
+
       </motion.div>
     </div>
   );
@@ -380,12 +378,14 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
   const total = privacyProgress?.total ?? 0;
   const hasProgressTotal = total > 0;
   const progressPercent = hasProgressTotal ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-  const progressLabel = hasProgressTotal ? `${progressPercent}%` : "Preparing...";
+  const progressLabel = isReady ? "Installed" : hasProgressTotal ? `${progressPercent}%` : "Preparing...";
   const statusLabel = isReady
     ? "Ready"
     : isDownloading
       ? privacyProgress?.state === "verifying" ? "Verifying model" : "Downloading model"
       : "Required for first verification test";
+  const runtimeLabel = isReady || status?.runtimeAvailable ? "Available" : "Pending";
+  const inferenceLabel = isReady ? "Ready" : "Not ready";
 
   return (
     <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
@@ -414,18 +414,18 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
           <div className="mb-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
             <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2">
               <span className="block text-[10px] uppercase tracking-wide">Runtime</span>
-              <span className="font-medium text-foreground">{status?.runtimeAvailable ? "Available" : "Pending"}</span>
+              <span className="font-medium text-foreground">{runtimeLabel}</span>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2">
               <span className="block text-[10px] uppercase tracking-wide">Inference</span>
-              <span className="font-medium text-foreground">{isReady ? "Ready" : "Not ready"}</span>
+              <span className="font-medium text-foreground">{inferenceLabel}</span>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2">
               <span className="block text-[10px] uppercase tracking-wide">Progress</span>
               <span className="font-medium text-foreground">{progressLabel}</span>
             </div>
           </div>
-          {isDownloading ? (
+          {!isReady && isDownloading ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>{privacyProgress.file || "Downloading..."}</span>
@@ -546,13 +546,18 @@ function WorkspaceStep({ selectedWorkspace }: { selectedWorkspace: string | null
   );
 }
 
-function TrustBoundaryStep({ policy, setPolicy }: any) {
-  const items = [
-    { key: "read", title: "Read repo", body: "Inspect changed files and dependency paths.", icon: Eye },
-    { key: "patch", title: "Patch files", body: "Allow proposed fixes after review.", icon: Pencil },
-    { key: "commands", title: "Run commands", body: "Use validation commands when needed.", icon: Terminal },
-    { key: "approval", title: "Pause on risk", body: "Ask before high-risk actions.", icon: PauseCircle },
-  ];
+function TrustBoundaryStep({ trustDraft, setTrustDraft }: {
+  trustDraft: WorkspaceTrustContract | null;
+  setTrustDraft: (updater: WorkspaceTrustContract | ((draft: WorkspaceTrustContract | null) => WorkspaceTrustContract | null)) => void;
+}) {
+  const updateList = (key: keyof Pick<WorkspaceTrustContract, "allowedPaths" | "forbiddenPaths" | "allowedCommands" | "allowedDomains" | "allowedSecrets" | "allowedActions" | "blockedActions">, value: string) => {
+    const nextValue = value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    setTrustDraft((draft) => draft ? { ...draft, [key]: nextValue } : draft);
+  };
 
   return (
     <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
@@ -567,30 +572,111 @@ function TrustBoundaryStep({ policy, setPolicy }: any) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 relative z-10">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {items.map(({ key, title, body, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setPolicy((current: typeof policy) => ({ ...current, [key]: !current[key as keyof typeof policy] }))}
-              className={`rounded-xl border p-4 text-left transition-colors ${
-                policy[key as keyof typeof policy] ? "border-primary/50 bg-primary/10" : "border-border/50 bg-muted/30 hover:bg-muted/50"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-background text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold">{title}</span>
-                  <span className="block text-xs leading-5 text-muted-foreground">{body}</span>
-                </span>
+        {trustDraft ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-[1fr_190px]">
+              <div className="rounded-xl border border-border/40 bg-background/60 p-4">
+                <p className="text-sm font-semibold">{trustDraft.name} v{trustDraft.version}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Real workspace contract. Saved here, enforced before tool execution.
+                </p>
               </div>
-            </button>
-          ))}
-        </div>
+              <div className="space-y-2">
+                <Label>Operational profile</Label>
+                <Select
+                  value={trustDraft.autonomy}
+                  onValueChange={(value) =>
+                    setTrustDraft((draft) => draft ? { ...draft, autonomy: value as WorkspaceTrustAutonomy } : draft)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plan-only">Plan only</SelectItem>
+                    <SelectItem value="approval-required">Approval required</SelectItem>
+                    <SelectItem value="trusted-patch">Trusted patch</SelectItem>
+                    <SelectItem value="unrestricted">Unrestricted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TrustListField
+                icon={<Eye className="h-4 w-4" />}
+                title="Scope"
+                description="Paths the agent can inspect or modify."
+                value={trustDraft.allowedPaths}
+                onChange={(value) => updateList("allowedPaths", value)}
+              />
+              <TrustListField
+                icon={<Lock className="h-4 w-4" />}
+                title="Forbidden"
+                description="Paths blocked even inside allowed scope."
+                value={trustDraft.forbiddenPaths}
+                onChange={(value) => updateList("forbiddenPaths", value)}
+              />
+              <TrustListField
+                icon={<Terminal className="h-4 w-4" />}
+                title="Commands"
+                description="Exact command prefixes allowed."
+                value={trustDraft.allowedCommands}
+                onChange={(value) => updateList("allowedCommands", value)}
+              />
+              <TrustListField
+                icon={<Pencil className="h-4 w-4" />}
+                title="Actions"
+                description="Allowed and blocked action classes."
+                value={[
+                  ...trustDraft.allowedActions.map((action) => `allow:${action}`),
+                  ...trustDraft.blockedActions.map((action) => `block:${action}`),
+                ]}
+                onChange={(value) => {
+                  const items = value.split("\n").map((item) => item.trim()).filter(Boolean);
+                  setTrustDraft((draft) =>
+                    draft
+                      ? {
+                          ...draft,
+                          allowedActions: items.filter((item) => item.startsWith("allow:")).map((item) => item.slice(6)),
+                          blockedActions: items.filter((item) => item.startsWith("block:")).map((item) => item.slice(6)),
+                        }
+                      : draft,
+                  );
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+            Select repository first. Trust contract loads from active workspace.
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function TrustListField({ icon, title, description, value, onChange }: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  value: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border/40 bg-background/60 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <span className="text-primary">{icon}</span>
+        {title}
+      </div>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      <textarea
+        value={value.join("\n")}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-3 h-24 w-full resize-none rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs outline-none focus:border-primary"
+        spellCheck={false}
+      />
+    </div>
   );
 }
 
