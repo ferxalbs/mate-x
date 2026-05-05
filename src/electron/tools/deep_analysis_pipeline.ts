@@ -177,6 +177,26 @@ function exactNextCalls(candidate: Candidate) {
   ];
 }
 
+function pipelineClusterKey(candidate: Candidate) {
+  const bucket = Math.floor(candidate.line / 20) * 20;
+  return `${candidate.matcher.slug}:${candidate.file}:${bucket}`;
+}
+
+function topCandidateClusters(candidates: Candidate[]) {
+  const clusters = new Map<string, { representative: Candidate; count: number; lines: number[] }>();
+  for (const candidate of candidates) {
+    const key = pipelineClusterKey(candidate);
+    const current = clusters.get(key);
+    if (!current) {
+      clusters.set(key, { representative: candidate, count: 1, lines: [candidate.line] });
+      continue;
+    }
+    current.count += 1;
+    current.lines.push(candidate.line);
+  }
+  return [...clusters.values()];
+}
+
 export const deepAnalysisPipelineTool: Tool = {
   name: 'deep_analysis_pipeline',
   description: 'Runs the MaTE X Deep Analysis Pipeline: cheap candidate scan, additive FileRecord persistence, heuristic revalidation, triage, and Git ownership enrichment. Use before expensive agent review.',
@@ -268,9 +288,11 @@ export const deepAnalysisPipelineTool: Tool = {
         acc[priorityFor(candidate)] += 1;
         return acc;
       }, { P0: 0, P1: 0, P2: 0, P3: 0 });
+      const candidateClusters = topCandidateClusters(candidates);
+      const queueClusters = topCandidateClusters(queue);
 
       let report = 'MaTE X Deep Analysis Pipeline\n=============================\n';
-      report += `Run: ${runId}\nScope: ${relativePath}\nFiles scanned: ${scannedFiles.length}\nCandidates found: ${candidates.length}\nCandidates processed: ${queue.length}\n`;
+      report += `Run: ${runId}\nScope: ${relativePath}\nFiles scanned: ${scannedFiles.length}\nCandidates found: ${candidates.length} (${candidateClusters.length} clusters)\nCandidates processed: ${queue.length}\n`;
       report += `Priority: ${priorityCounts.P0} P0, ${priorityCounts.P1} P1, ${priorityCounts.P2} P2, ${priorityCounts.P3} P3\n`;
       report += `Revalidation: ${verdictCounts.confirmed_candidate} confirmed candidates, ${verdictCounts.needs_context} need context, ${verdictCounts.likely_false_positive} likely false positives\n`;
       report += `FileRecords: ${written.length} written under ${dataDir}\n`;
@@ -284,11 +306,18 @@ export const deepAnalysisPipelineTool: Tool = {
         report += `- [${priorityFor(candidate)}] ${candidate.matcher.title} at ${candidate.file}:${candidate.line} (${candidate.sourceRole}, ${candidate.confidence})\n`;
         report += `  ${candidate.evidence}\n`;
       }
+      const duplicateClusters = queueClusters.filter((item) => item.count > 1);
+      if (duplicateClusters.length > 0) {
+        report += '\nClustered Repeats\n-----------------\n';
+        for (const cluster of duplicateClusters.slice(0, 10)) {
+          report += `- ${cluster.count}x ${cluster.representative.matcher.title} in ${cluster.representative.file} near L${Math.min(...cluster.lines)}-L${Math.max(...cluster.lines)}\n`;
+        }
+      }
       report += '\nNext Agent Steps\n----------------\n';
       report += '- Use only tool arguments shown below; security_path_trace accepts scope, maxFiles, maxTraces only.\n';
       report += '- Run security_path_trace before promoting any candidate to finding.\n';
       report += '- Use evidence_pack for final report language.\n';
-      const nextToolCalls = queue.slice(0, 3).map((candidate) => ({
+      const nextToolCalls = queueClusters.slice(0, 3).map(({ representative: candidate }) => ({
         candidate: `${candidate.matcher.title} at ${candidate.file}:${candidate.line}`,
         calls: exactNextCalls(candidate),
       }));
