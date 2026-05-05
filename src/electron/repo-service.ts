@@ -1952,13 +1952,18 @@ async function executeAgentToolCall({
 
     const normalizedResult = truncateToolOutput(String(result ?? ""));
     const parsedOutput = parseJsonObject(normalizedResult);
+    const outputIndicatesFailure = isToolFailureOutput(normalizedResult);
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
-      toolEvent.status = "done";
+      toolEvent.status = outputIndicatesFailure ? "error" : "done";
       toolEvent.detail = summarizeToolOutput(normalizedResult);
     }
     if (policyStop) {
-      policyService.markStopCompleted(policyStop.id);
+      if (outputIndicatesFailure) {
+        policyService.markStopFailed(policyStop.id);
+      } else {
+        policyService.markStopCompleted(policyStop.id);
+      }
     }
     emitProgress();
 
@@ -1995,6 +2000,10 @@ async function executeAgentToolCall({
       } satisfies ToolExecutionRecord,
     };
   }
+}
+
+function isToolFailureOutput(output: string) {
+  return /^(?:Error|Tool .+ failed|Workspace Trust Contract blocks|Policy stop)\b/i.test(output.trim());
 }
 
 async function requestRainyAgenticResponse({
