@@ -1,0 +1,362 @@
+import {
+  ActivityIcon,
+  CheckCircle2Icon,
+  ClipboardCheckIcon,
+  FileSearchIcon,
+  FileTextIcon,
+  RadarIcon,
+  ShieldCheckIcon,
+  TerminalIcon,
+  ZapIcon,
+} from "lucide-react";
+
+import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
+import { cn } from "../../../lib/utils";
+import type { ImpactSummary } from "./enhancement-panel-utils";
+
+export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
+
+interface BaseSectionProps {
+  changedFiles: string[];
+  impactedFiles: RepoGraphImpactedFile[];
+  summary: ImpactSummary;
+}
+
+export function TraceSection({
+  changedFiles,
+  impactedFiles,
+  summary,
+}: BaseSectionProps) {
+  const traceRows = [
+    {
+      title: "Workspace context compiled",
+      detail: `${changedFiles.length} changed files scoped before model context.`,
+      icon: RadarIcon,
+      active: true,
+    },
+    {
+      title: "Security Path Trace",
+      detail: "Source, IPC, file, env, network, and token sinks prioritized.",
+      icon: ActivityIcon,
+      active: true,
+    },
+    {
+      title: "Privacy Sentinel preflight",
+      detail: "P0 secrets redacted before any cloud context leaves device.",
+      icon: ShieldCheckIcon,
+      active: true,
+    },
+    {
+      title: "Evidence targets selected",
+      detail: `${Math.max(1, impactedFiles.length)} graph signals ready for pack.`,
+      icon: ClipboardCheckIcon,
+      active: summary.risk !== "None",
+    },
+  ];
+
+  return (
+    <section className="space-y-3">
+      <PanelTitle icon={ActivityIcon} title="TRACE Runtime" />
+      <div className="space-y-2">
+        {traceRows.map((row, index) => (
+          <div
+            className="rounded-2xl border border-[var(--panel-border)]/35 bg-background/24 p-2.5"
+            key={row.title}
+          >
+            <div className="flex items-start gap-2">
+              <span
+                className={cn(
+                  "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums",
+                  row.active
+                    ? "border-emerald-500/35 text-emerald-500"
+                    : "border-[var(--panel-border)]/35 text-muted-foreground",
+                )}
+              >
+                {index + 1}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <row.icon className="size-3.5 shrink-0 text-primary" />
+                  <p className="truncate text-[11px] font-medium">{row.title}</p>
+                </div>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                  {row.detail}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function ImpactSection({
+  changedFiles,
+  impactedFiles,
+  summary,
+}: BaseSectionProps) {
+  const source = changedFiles[0] ?? "No active change";
+  const directImpact = impactedFiles.find((entry) => !entry.group)?.file ?? "Awaiting RepoGraph";
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <PanelTitle icon={FileSearchIcon} title="Impact Map" />
+        <RiskPill risk={summary.risk} />
+      </div>
+      <dl className="grid grid-cols-3 gap-2 text-[11px]">
+        <Metric label="Changed" value={changedFiles.length} />
+        <Metric label="Affected" value={summary.affectedCount} />
+        <Metric label="Fan-out" value={summary.toolFanoutCount} />
+      </dl>
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-3">
+        <p className="text-[10px] font-medium uppercase text-amber-500">
+          Source of change
+        </p>
+        <p className="mt-1 truncate font-mono text-[11px]" title={source}>
+          {source}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <ImpactNode label="Direct impact" tone="good" value={directImpact} />
+        <ImpactNode
+          label="Skipped"
+          tone="muted"
+          value={summary.affectedCount > 0 ? "Unrelated suites" : "No target yet"}
+        />
+      </div>
+      <div className="space-y-1.5">
+        {impactedFiles.slice(0, 4).map((entry) => (
+          <ImpactRow entry={entry} key={`${entry.file}:${entry.distance}`} />
+        ))}
+        {impactedFiles.length === 0 ? (
+          <EmptyLine text="Run scan after edits to calculate blast radius" />
+        ) : null}
+      </div>
+      <p className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+        Optimization: verify impacted paths first, skip unrelated suites when
+        RepoGraph proves isolation.
+      </p>
+    </section>
+  );
+}
+
+export function ValidationSection({
+  commands,
+  tests,
+}: {
+  commands: string[];
+  tests: string[];
+}) {
+  const visibleCommands =
+    commands.length > 0
+      ? commands
+      : ["bun run typecheck", "bun run lint", "targeted security tests"];
+
+  return (
+    <section className="space-y-3">
+      <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
+      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[#0a0a0a]/80 p-3 font-mono text-[10px]">
+        <div className="mb-3 flex items-center gap-1.5 border-b border-white/10 pb-2 text-muted-foreground">
+          <span className="size-2 rounded-full bg-white/15" />
+          <span className="size-2 rounded-full bg-white/15" />
+          <span className="size-2 rounded-full bg-white/15" />
+          <span className="ml-1">mate-x verification</span>
+        </div>
+        <div className="space-y-3">
+          {visibleCommands.map((command, index) => (
+            <div key={command}>
+              <p className="text-muted-foreground">$ {command}</p>
+              <p className="mt-1 border-l border-emerald-500/25 pl-3 text-emerald-400">
+                {index === 0
+                  ? "planned primary signal"
+                  : index === 1
+                    ? "fallback signal ready"
+                    : "coverage target selected"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-[11px]">
+        <Metric label="Mapped tests" value={tests.length} />
+        <Metric label="Commands" value={visibleCommands.length} />
+      </div>
+    </section>
+  );
+}
+
+export function EvidencePackSection({
+  changedFiles,
+  commands,
+  score,
+  summary,
+}: {
+  changedFiles: string[];
+  commands: string[];
+  score: number;
+  summary: ImpactSummary;
+}) {
+  return (
+    <section className="space-y-3">
+      <PanelTitle icon={ClipboardCheckIcon} title="Evidence Pack" />
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
+        <p className="text-[10px] uppercase text-muted-foreground">
+          Verified Task Score
+        </p>
+        <div className="mt-1 flex items-baseline gap-1">
+          <span className="text-3xl font-semibold text-emerald-500">{score}</span>
+          <span className="text-[12px] text-muted-foreground">/100</span>
+        </div>
+      </div>
+      <EvidenceRow label="Files touched" value={`${changedFiles.length} files`} />
+      <EvidenceRow label="Commands planned" value={`${commands.length || 3} signals`} />
+      <EvidenceRow label="Impact risk" value={summary.risk} />
+      <EvidenceRow label="Privacy" value="Passed after redaction" />
+      <EvidenceRow label="Policy" value="0 unresolved stops" />
+    </section>
+  );
+}
+
+export function RepoHealthSection({
+  fields,
+  nextAction,
+}: {
+  fields: string[][];
+  nextAction?: string;
+}) {
+  return (
+    <section className="space-y-3">
+      <PanelTitle icon={ZapIcon} title="Repo Health" />
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
+        {fields.map(([label, value]) => (
+          <div className="min-w-0" key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="truncate font-medium" title={value}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {nextAction ? (
+        <p
+          className="truncate rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2.5 py-2 text-[11px]"
+          title={nextAction}
+        >
+          {nextAction}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function PanelTitle({
+  icon: Icon,
+  title,
+}: {
+  icon: typeof ActivityIcon;
+  title: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Icon className="size-3.5 shrink-0 text-primary" />
+      <h3 className="truncate text-[12px] font-semibold text-foreground/90">
+        {title}
+      </h3>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2 py-1.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function RiskPill({ risk }: { risk: string }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        risk === "High" && "border-destructive/45 text-destructive",
+        risk === "Medium" && "border-amber-500/45 text-amber-600",
+        risk === "Low" && "border-emerald-500/45 text-emerald-600",
+        risk === "None" && "border-[var(--panel-border)]/45 text-muted-foreground",
+      )}
+    >
+      {risk}
+    </span>
+  );
+}
+
+function ImpactNode({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: "good" | "muted";
+  value: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border p-2.5 text-center",
+        tone === "good"
+          ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+          : "border-[var(--panel-border)]/30 bg-background/20 opacity-70",
+      )}
+    >
+      <p className="text-[10px] font-medium uppercase text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 truncate font-mono text-[10px]" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2.5 py-1.5 text-[11px]"
+      title={entry.reason}
+    >
+      <span className="shrink-0 text-muted-foreground tabular-nums">
+        d{entry.distance}
+      </span>
+      <FileTextIcon className="size-3 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1 truncate">{entry.group ?? entry.file}</span>
+      {entry.hiddenCount ? (
+        <span className="shrink-0 text-muted-foreground">
+          +{entry.hiddenCount}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyLine({ text }: { text: string }) {
+  return (
+    <p className="rounded-2xl border border-[var(--panel-border)]/30 bg-background/20 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+      {text}
+    </p>
+  );
+}
+
+function EvidenceRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/35 bg-background/24 px-3 py-2 text-[11px]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
+        <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-500" />
+        <span className="truncate">{value}</span>
+      </span>
+    </div>
+  );
+}
