@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
 import {
+  classifyEgressEvidenceSeverity,
   classifySqlEvidenceSeverity,
   classifyWeakCryptoEvidenceSeverity,
 } from "./attack_surface_scan";
@@ -54,6 +55,36 @@ describe("attack surface scan SQL triage", () => {
     assert.equal(
       classifyWeakCryptoEvidenceSeverity("const token = Math.random().toString(36).slice(2)"),
       "high",
+    );
+  });
+});
+
+describe("attack surface scan egress triage", () => {
+  it("downgrades constant host fetch calls", () => {
+    assert.equal(
+      classifyEgressEvidenceSeverity("const response = await fetch(OPENROUTER_ANTHROPIC_MESSAGES_URL, {", "src/lib/llm/anthropic.ts"),
+      "info",
+    );
+  });
+
+  it("keeps environment-backed base URLs as medium signal", () => {
+    assert.equal(
+      classifyEgressEvidenceSeverity("const response = await fetch(`${import.meta.env.VITE_API_URL}/agents/research`, {", "src/pages/ResearchPage.tsx"),
+      "medium",
+    );
+  });
+
+  it("keeps API route user-controlled URLs high", () => {
+    assert.equal(
+      classifyEgressEvidenceSeverity("const response = await fetch(req.query.callbackUrl, {", "src/api/v1/webhooks/routes.ts"),
+      "high",
+    );
+  });
+
+  it("keeps dynamic endpoint variables medium until source proof exists", () => {
+    assert.equal(
+      classifyEgressEvidenceSeverity("const response = await fetch(safeEndpoint, {", "src/lib/tools/runtime.ts"),
+      "medium",
     );
   });
 });
