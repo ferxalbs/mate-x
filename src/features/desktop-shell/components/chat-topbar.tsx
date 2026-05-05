@@ -1,9 +1,14 @@
 import {
+  ActivityIcon,
   ChevronDownIcon,
-  EllipsisVerticalIcon,
   ExternalLinkIcon,
+  FileSearchIcon,
   GitBranchIcon,
+  Loader2Icon,
+  MapIcon,
+  PanelRightIcon,
   PlusIcon,
+  TargetIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -29,15 +34,20 @@ interface ChatTopbarProps {
 function TitlebarButton({
   children,
   onClick,
+  className,
 }: {
   children?: ReactNode;
   onClick?: () => void;
+  className?: string;
 }) {
   return (
     <Button
       size="xs"
       variant="outline"
-      className="h-8 rounded-full border-border/50 bg-background/40 px-3 text-[12px] font-medium text-foreground/80 shadow-none hover:bg-accent hover:text-foreground"
+      className={cn(
+        'h-8 rounded-full border-border/55 bg-background/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none hover:border-primary/35 hover:bg-primary/10 hover:text-primary',
+        className,
+      )}
       onClick={onClick}
     >
       {children}
@@ -50,13 +60,25 @@ export function ChatTopbar({
   conversation,
   runStatus,
   onCreateThread,
-  onImportWorkspace,
-  onAppearanceChange,
 }: ChatTopbarProps) {
   const { state } = useSidebar();
   const [openTarget, setOpenTarget] = useState('folder');
   const [gitAction, setGitAction] = useState('commit-push');
   const title = conversation?.title ?? 'No active thread';
+  const eventCount = conversation?.messages.length ?? 0;
+  const liveLabel = runStatus === 'running' ? 'Live running' : eventCount > 0 ? 'Live ready' : 'Live idle';
+  const liveTone =
+    runStatus === 'running'
+      ? 'border-blue-400/45 bg-blue-500/14 text-blue-300 hover:bg-blue-500/18'
+      : eventCount > 0
+        ? 'border-emerald-400/45 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/18'
+        : 'border-[var(--panel-border)]/60 bg-background/55 text-foreground/80';
+  const toggleLivePanel = () => {
+    window.dispatchEvent(new Event('mate:toggle-enhancement-panel'));
+  };
+  const sendLiveCommand = (detail: { action?: 'open' | 'scan'; view?: 'trace' | 'impact' | 'validation' | 'evidence' }) => {
+    window.dispatchEvent(new CustomEvent('mate:enhancement-panel-command', { detail }));
+  };
 
   return (
     <header
@@ -85,14 +107,43 @@ export function ChatTopbar({
 
       <div className="no-drag flex shrink-0 items-center gap-2">
         <Menu>
-          <MenuTrigger render={<TitlebarButton />}>
-            <PlusIcon className="size-3.5" />
-            Add action
+          <MenuTrigger render={<TitlebarButton className={liveTone} onClick={toggleLivePanel} />}>
+            {runStatus === 'running' ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <ActivityIcon className="size-3.5" />
+            )}
+            <span>{liveLabel}</span>
+            <span className="rounded-full bg-background/45 px-1.5 py-0.5 text-[10px] text-current/80">
+              {eventCount}
+            </span>
+            <ChevronDownIcon className="size-3.5 text-current/65" />
           </MenuTrigger>
           <MenuPopup align="end">
-            <MenuItem onClick={onCreateThread}>New thread</MenuItem>
-            <MenuItem onClick={() => void onImportWorkspace()}>Import folder</MenuItem>
-            <MenuItem>Search project</MenuItem>
+            <MenuItem onClick={() => sendLiveCommand({ action: 'open' })}>
+              <PanelRightIcon className="size-3.5" />
+              Open panel
+            </MenuItem>
+            <MenuItem onClick={() => sendLiveCommand({ action: 'scan' })}>
+              <GitBranchIcon className="size-3.5" />
+              Scan impact
+            </MenuItem>
+            <MenuItem onClick={() => sendLiveCommand({ view: 'trace' })}>
+              <ActivityIcon className="size-3.5" />
+              TRACE
+            </MenuItem>
+            <MenuItem onClick={() => sendLiveCommand({ view: 'impact' })}>
+              <MapIcon className="size-3.5" />
+              Impact
+            </MenuItem>
+            <MenuItem onClick={() => sendLiveCommand({ view: 'validation' })}>
+              <TargetIcon className="size-3.5" />
+              Validation
+            </MenuItem>
+            <MenuItem onClick={() => sendLiveCommand({ view: 'evidence' })}>
+              <FileSearchIcon className="size-3.5" />
+              Evidence
+            </MenuItem>
           </MenuPopup>
         </Menu>
         <Menu>
@@ -153,28 +204,6 @@ export function ChatTopbar({
         >
           <PlusIcon className="size-3.5" />
         </Button>
-        <Menu>
-          <MenuTrigger
-            render={
-              <Button
-                aria-label={
-                  workspace?.branch ? `Current checkout ${workspace.branch}` : 'Current checkout'
-                }
-                size="icon-xs"
-                variant="outline"
-                className="size-8 rounded-lg border-border/70 bg-background/65 shadow-none hover:bg-accent"
-              />
-            }
-          >
-            <EllipsisVerticalIcon className="size-3.5" />
-          </MenuTrigger>
-          <MenuPopup align="end">
-            <MenuItem onClick={() => onAppearanceChange('light')}>Light mode</MenuItem>
-            <MenuItem onClick={() => onAppearanceChange('dark')}>Dark mode</MenuItem>
-            <MenuItem onClick={() => onAppearanceChange('system')}>System mode</MenuItem>
-            <MenuItem>{workspace?.branch ?? 'main'}</MenuItem>
-          </MenuPopup>
-        </Menu>
       </div>
     </header>
   );

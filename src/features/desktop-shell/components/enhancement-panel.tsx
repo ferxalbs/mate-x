@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  ChevronLeftIcon,
   ChevronRightIcon,
   ClipboardCheckIcon,
   GitBranchIcon,
@@ -51,7 +50,7 @@ export function EnhancementPanel({
   runStatus,
   workspaceId,
 }: EnhancementPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [activeView, setActiveView] = useState<EnhancementView>("trace");
   const [loading, setLoading] = useState(false);
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
@@ -141,55 +140,52 @@ export function EnhancementPanel({
     }
   }, [runEnhancementScan, workspaceId]);
 
+  useEffect(() => {
+    const handleToggle = () => setCollapsed((current) => !current);
+    window.addEventListener("mate:toggle-enhancement-panel", handleToggle);
+    return () => {
+      window.removeEventListener("mate:toggle-enhancement-panel", handleToggle);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleCommand = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: "open" | "scan"; view?: EnhancementView }>).detail;
+      if (detail?.view) {
+        setActiveView(detail.view);
+        setCollapsed(false);
+      }
+      if (detail?.action === "open") {
+        setCollapsed(false);
+      }
+      if (detail?.action === "scan") {
+        setCollapsed(false);
+        void runEnhancementScan();
+      }
+    };
+    window.addEventListener("mate:enhancement-panel-command", handleCommand);
+    return () => {
+      window.removeEventListener("mate:enhancement-panel-command", handleCommand);
+    };
+  }, [runEnhancementScan]);
+
   if (!workspaceId) {
     return null;
   }
 
   if (collapsed) {
-    return (
-      <aside className="hidden h-full w-[48px] shrink-0 border-l border-[var(--panel-border)]/35 bg-[var(--panel)]/82 backdrop-blur-xl lg:flex">
-        <div className="flex w-full flex-col items-center gap-2 px-2 py-3">
-          <button
-            aria-label="Show enhancement panel"
-            className="flex size-8 items-center justify-center rounded-full border border-[var(--panel-border)]/45 bg-background/35 text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={() => setCollapsed(false)}
-            type="button"
-          >
-            <ChevronLeftIcon className="size-4" />
-          </button>
-          {views.map((view) => (
-            <button
-              aria-label={view.label}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-full text-[10px] font-semibold",
-                activeView === view.id
-                  ? "bg-primary/14 text-primary"
-                  : "text-muted-foreground hover:bg-accent/55 hover:text-foreground",
-              )}
-              key={view.id}
-              onClick={() => {
-                setActiveView(view.id);
-                setCollapsed(false);
-              }}
-              type="button"
-            >
-              {view.label[0]}
-            </button>
-          ))}
-        </div>
-      </aside>
-    );
+    return null;
   }
 
   return (
-    <aside className="hidden h-full w-[316px] shrink-0 border-l border-[var(--panel-border)]/35 bg-[var(--panel)]/82 backdrop-blur-xl lg:flex 2xl:w-[348px]">
+    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-[var(--panel)]/88 backdrop-blur-xl lg:flex 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
-        <div className="border-b border-[var(--panel-border)]/35 px-4 py-3">
+        <div className="border-b border-[var(--panel-border)]/45 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-[13px] font-semibold text-foreground/92">
-                  Live Enhancement
+                <h2 className="truncate text-[13px] font-semibold text-foreground">
+                  Live
                 </h2>
               </div>
               <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
@@ -199,14 +195,14 @@ export function EnhancementPanel({
             <div className="flex shrink-0 items-center gap-1">
               <button
                 aria-label="Hide enhancement panel"
-                className="flex size-8 items-center justify-center rounded-full border border-[var(--panel-border)]/45 bg-background/35 text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="flex size-8 items-center justify-center rounded-full border border-[var(--panel-border)]/55 bg-background/55 text-muted-foreground hover:border-primary/40 hover:bg-primary/12 hover:text-primary"
                 onClick={() => setCollapsed(true)}
                 type="button"
               >
                 <ChevronRightIcon className="size-4" />
               </button>
               <Button
-                className="h-8 rounded-full border-[var(--panel-border)]/45 bg-background/35 px-3 text-[11px] shadow-none hover:bg-accent disabled:opacity-60"
+                className="h-8 rounded-full border-[var(--panel-border)]/55 bg-background/55 px-3 text-[11px] shadow-none hover:border-primary/40 hover:bg-primary/12 hover:text-primary disabled:opacity-60"
                 disabled={loading}
                 onClick={runEnhancementScan}
                 size="xs"
@@ -217,7 +213,7 @@ export function EnhancementPanel({
               </Button>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/30 bg-background/24 px-3 py-2 text-[11px]">
+          <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/45 bg-background/42 px-3 py-2 text-[11px]">
             <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
               <PanelRightIcon className="size-3.5 shrink-0" />
               <span className="truncate">{panelState}</span>
@@ -245,13 +241,13 @@ export function EnhancementPanel({
               <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
             </div>
           ) : null}
-          <div className="mt-3 grid grid-cols-4 gap-1 rounded-full border border-[var(--panel-border)]/30 bg-background/24 p-1">
+          <div className="mt-3 grid grid-cols-4 gap-1 rounded-full border border-[var(--panel-border)]/45 bg-background/42 p-1">
             {views.map((view) => (
               <button
                 className={cn(
                   "h-7 rounded-full px-1 text-[10px] font-medium transition-colors",
                   activeView === view.id
-                    ? "bg-primary/14 text-primary"
+                    ? "bg-primary/18 text-primary"
                     : "text-muted-foreground hover:bg-accent/55 hover:text-foreground",
                 )}
                 key={view.id}
