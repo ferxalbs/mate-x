@@ -153,13 +153,13 @@ export class WorkspaceMemoryService {
       "# Workspace Memory",
       "",
       "## GUARDRAILS.md",
-      byKind.get("guardrails") ?? "",
+      this.sanitizeBootstrapMemory(byKind.get("guardrails") ?? ""),
       "",
       "## WORKSTATE.md",
-      byKind.get("workstate") ?? "",
+      this.sanitizeBootstrapMemory(byKind.get("workstate") ?? ""),
       "",
       "## MEMORY.md",
-      byKind.get("memory") ?? "",
+      this.sanitizeBootstrapMemory(byKind.get("memory") ?? ""),
     ].join("\n");
 
     return {
@@ -176,14 +176,14 @@ export class WorkspaceMemoryService {
   ): Promise<WorkspaceMemoryProposedUpdate[]> {
     const metadata = await this.ensureWorkspaceMemory(workspaceId, repoPath);
     const createdAt = summary.completedAt;
-    const responseSummary = this.summarizeText(summary.response);
+    const responseSummary = this.summarizeText(this.stripToolTraceNoise(summary.response));
     const touchedPaths = summary.touchedPaths.slice(0, 12);
     const toolNames = Array.from(new Set(summary.toolNames)).slice(0, 12);
 
     await this.appendGeneratedSection(metadata, "workstate", [
       `## Session Summary - ${this.formatDate(createdAt)}`,
       "<!-- mate-x:generated:start -->",
-      `- Prompt: ${this.singleLine(summary.prompt)}`,
+      `- Prompt: ${this.singleLine(this.stripToolTraceNoise(summary.prompt))}`,
       `- Result: ${responseSummary}`,
       touchedPaths.length > 0
         ? `- Touched paths: ${touchedPaths.join(", ")}`
@@ -199,7 +199,7 @@ export class WorkspaceMemoryService {
     const memoryContent = [
       `## Proposed Durable Memory - ${this.formatDate(createdAt)}`,
       "<!-- mate-x:generated:start -->",
-      `- User intent: ${this.singleLine(summary.prompt)}`,
+      `- User intent: ${this.singleLine(this.stripToolTraceNoise(summary.prompt))}`,
       `- Outcome: ${responseSummary}`,
       touchedPaths.length > 0 ? `- Relevant paths: ${touchedPaths.join(", ")}` : "",
       "<!-- mate-x:generated:end -->",
@@ -402,6 +402,20 @@ export class WorkspaceMemoryService {
 
   private singleLine(value: string) {
     return value.replace(/\s+/g, " ").trim();
+  }
+
+  private sanitizeBootstrapMemory(content: string) {
+    return this.stripToolTraceNoise(content)
+      .replace(/<!-- mate-x:generated:start -->[\s\S]*?<!-- mate-x:generated:end -->/g, "[generated run summary omitted]")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  private stripToolTraceNoise(content: string) {
+    return content
+      .replace(/<!-- mate-trace:[\s\S]*?-->/g, "")
+      .replace(/NEXT_TOOL_CALLS_JSON_DO_NOT_PARAPHRASE[\s\S]*?(?=\n#{1,6}\s|\n[A-Z][^\n]{0,80}\n-{3,}|$)/g, "[tool call block omitted]")
+      .replace(/```json\s*\[[\s\S]*?"tool"\s*:\s*"[^"]+"[\s\S]*?```\s*/g, "[tool call JSON omitted]\n");
   }
 
   private formatDate(value: string) {
