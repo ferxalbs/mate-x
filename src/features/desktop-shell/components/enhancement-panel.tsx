@@ -69,6 +69,7 @@ export function EnhancementPanel({
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
   const verifiedScore = getVerifiedScore(runtime.evidencePack);
   const verdictLabel = runtime.evidencePack?.verdict.label ?? "";
+  const cleanVerdictLabel = verdictLabel.replace(/\*/g, "").trim();
   const runFailed = /fail|error|blocked/i.test(verdictLabel);
   const lowConfidence =
     verifiedScore !== null && verifiedScore < 50 && runtime.evidencePack !== null;
@@ -77,7 +78,7 @@ export function EnhancementPanel({
     : runFailed
       ? verdictLabel
       : lowConfidence
-        ? `Low confidence: ${verdictLabel || "review incomplete"}`
+        ? `Low confidence: ${cleanVerdictLabel || "review incomplete"}`
       : loading || runtime.isRunning
         ? scanPhase ?? "Processing"
         : health
@@ -295,6 +296,7 @@ export function EnhancementPanel({
               commands={commands}
               evidenceFiles={evidenceFiles}
               evidencePack={runtime.evidencePack}
+              impactedFiles={impactedFiles}
               score={verifiedScore}
               summary={summary}
             />

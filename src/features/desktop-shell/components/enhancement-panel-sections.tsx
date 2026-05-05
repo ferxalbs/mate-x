@@ -222,6 +222,7 @@ export function EvidencePackSection({
   commands,
   evidenceFiles,
   evidencePack,
+  impactedFiles,
   score,
   summary,
 }: {
@@ -229,6 +230,7 @@ export function EvidencePackSection({
   commands: string[];
   evidenceFiles: string[];
   evidencePack: EvidencePack | null;
+  impactedFiles: RepoGraphImpactedFile[];
   score: number | null;
   summary: ImpactSummary;
 }) {
@@ -237,8 +239,15 @@ export function EvidencePackSection({
   const verdict = evidencePack?.verdict.label ?? "Pending verified run";
   const scoreTone = getEvidenceTone(score, verdict);
   const runFailed = /fail|error|blocked/i.test(verdict);
+  const lowConfidence = score !== null && score < 50;
   const fileLabel = `${filesCount} ${filesCount === 1 ? "file" : "files"}`;
   const securityTone = getSecurityRiskTone(verdict, summary.risk);
+  const blastRadius =
+    impactedFiles.length > 0
+      ? summary.risk
+      : changedFiles.length > 0
+        ? "Unknown"
+        : "No changes";
 
   return (
     <section className="space-y-3">
@@ -251,7 +260,7 @@ export function EvidencePackSection({
         )}
       >
         <p className="text-[10px] uppercase text-muted-foreground">
-          Verified Task Score
+          Evidence Confidence
         </p>
         <div className="mt-1 flex items-baseline gap-1">
           <span className={cn("text-3xl font-semibold", toneValueClassName(scoreTone))}>
@@ -286,8 +295,8 @@ export function EvidencePackSection({
       />
       <EvidenceRow
         label="Blast radius"
-        tone={impactTone(summary.risk)}
-        value={summary.risk === "None" ? "Unknown" : summary.risk}
+        tone={impactTone(blastRadius)}
+        value={blastRadius}
       />
       <EvidenceRow
         label="Verdict"
@@ -297,7 +306,7 @@ export function EvidencePackSection({
       <EvidenceRow
         label="Risk log"
         tone={
-          runFailed
+          runFailed || lowConfidence
             ? "bad"
             : (evidencePack?.unresolvedRisks?.length ?? 0) > 0
               ? "warn"
@@ -306,6 +315,8 @@ export function EvidencePackSection({
         value={
           runFailed
             ? "Incomplete"
+            : lowConfidence
+              ? "Not validated"
             : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
@@ -330,6 +341,15 @@ export function RepoHealthSection({
         <PanelTitle icon={ZapIcon} title="Repo Health" />
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
+      {!hasProfile ? (
+        <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-background/18 px-3 py-2">
+          <p className="text-[11px] font-medium">Workspace profile unavailable</p>
+          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+            Stack/test/lint/git signals pending. Audit evidence still shown above.
+          </p>
+        </div>
+      ) : null}
+      {hasProfile ? (
       <div
         className={cn(
           "rounded-2xl border p-3",
@@ -347,6 +367,7 @@ export function RepoHealthSection({
           </p>
         ) : null}
       </div>
+      ) : null}
       {hasProfile ? (
         <dl className="grid grid-cols-2 gap-2 text-[11px]">
           {signals.map((signal) => (
@@ -632,6 +653,9 @@ function impactTone(risk: string): SignalTone {
   }
   if (risk === "Low") {
     return "good";
+  }
+  if (risk === "Unknown") {
+    return "warn";
   }
 
   return "muted";
