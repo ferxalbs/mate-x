@@ -81,7 +81,9 @@ export function DesktopShell() {
               <Outlet />
             </div>
             <EnhancementPanel
+              conversation={threads.find((thread) => thread.id === activeThreadId) ?? null}
               health={workspace?.health ?? null}
+              runStatus={runStatus}
               workspaceId={activeWorkspaceId}
             />
           </div>

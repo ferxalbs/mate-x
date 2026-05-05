@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
+import type { EvidencePack, ToolEvent } from "../../../contracts/chat";
 import { cn } from "../../../lib/utils";
 import type { ImpactSummary } from "./enhancement-panel-utils";
 
@@ -19,44 +20,56 @@ export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
 interface BaseSectionProps {
   changedFiles: string[];
   impactedFiles: RepoGraphImpactedFile[];
+  isLoading?: boolean;
   summary: ImpactSummary;
 }
 
 export function TraceSection({
   changedFiles,
+  events,
   impactedFiles,
+  isLoading,
   summary,
-}: BaseSectionProps) {
-  const traceRows = [
-    {
-      title: "Workspace context compiled",
-      detail: `${changedFiles.length} changed files scoped before model context.`,
-      icon: RadarIcon,
-      active: true,
-    },
-    {
-      title: "Security Path Trace",
-      detail: "Source, IPC, file, env, network, and token sinks prioritized.",
-      icon: ActivityIcon,
-      active: true,
-    },
-    {
-      title: "Privacy Sentinel preflight",
-      detail: "P0 secrets redacted before any cloud context leaves device.",
-      icon: ShieldCheckIcon,
-      active: true,
-    },
-    {
-      title: "Evidence targets selected",
-      detail: `${Math.max(1, impactedFiles.length)} graph signals ready for pack.`,
-      icon: ClipboardCheckIcon,
-      active: summary.risk !== "None",
-    },
-  ];
+}: BaseSectionProps & { events: ToolEvent[] }) {
+  const traceRows =
+    events.length > 0
+      ? events.slice(-5).map((event) => ({
+          title: event.label,
+          detail: event.detail,
+          icon: ActivityIcon,
+          active: event.status !== "error",
+        }))
+      : [
+          {
+            title: "Workspace context",
+            detail:
+              changedFiles.length > 0
+                ? `${changedFiles.length} changed files scoped locally.`
+                : "No thread events yet. Run a task to populate live TRACE.",
+            icon: RadarIcon,
+            active: changedFiles.length > 0,
+          },
+          {
+            title: "RepoGraph impact",
+            detail:
+              impactedFiles.length > 0
+                ? `${impactedFiles.length} impacted entries from graph.`
+                : "Waiting for changed files or active run events.",
+            icon: FileSearchIcon,
+            active: impactedFiles.length > 0,
+          },
+          {
+            title: "Risk state",
+            detail: `Current impact risk: ${summary.risk}.`,
+            icon: ShieldCheckIcon,
+            active: summary.risk !== "None",
+          },
+        ];
 
   return (
     <section className="space-y-3">
       <PanelTitle icon={ActivityIcon} title="TRACE Runtime" />
+      {isLoading ? <SkeletonStack /> : null}
       <div className="space-y-2">
         {traceRows.map((row, index) => (
           <div
@@ -94,6 +107,7 @@ export function TraceSection({
 export function ImpactSection({
   changedFiles,
   impactedFiles,
+  isLoading,
   summary,
 }: BaseSectionProps) {
   const source = changedFiles[0] ?? "No active change";
@@ -105,6 +119,7 @@ export function ImpactSection({
         <PanelTitle icon={FileSearchIcon} title="Impact Map" />
         <RiskPill risk={summary.risk} />
       </div>
+      {isLoading ? <SkeletonStack /> : null}
       <dl className="grid grid-cols-3 gap-2 text-[11px]">
         <Metric label="Changed" value={changedFiles.length} />
         <Metric label="Affected" value={summary.affectedCount} />
@@ -144,19 +159,21 @@ export function ImpactSection({
 
 export function ValidationSection({
   commands,
+  evidencePack,
+  isLoading,
   tests,
 }: {
   commands: string[];
+  evidencePack: EvidencePack | null;
+  isLoading?: boolean;
   tests: string[];
 }) {
-  const visibleCommands =
-    commands.length > 0
-      ? commands
-      : ["bun run typecheck", "bun run lint", "targeted security tests"];
+  const visibleCommands = commands.length > 0 ? commands : [];
 
   return (
     <section className="space-y-3">
       <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
+      {isLoading ? <SkeletonStack /> : null}
       <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[#0a0a0a]/80 p-3 font-mono text-[10px]">
         <div className="mb-3 flex items-center gap-1.5 border-b border-white/10 pb-2 text-muted-foreground">
           <span className="size-2 rounded-full bg-white/15" />
@@ -165,18 +182,19 @@ export function ValidationSection({
           <span className="ml-1">mate-x verification</span>
         </div>
         <div className="space-y-3">
-          {visibleCommands.map((command, index) => (
+          {visibleCommands.map((command) => (
             <div key={command}>
               <p className="text-muted-foreground">$ {command}</p>
               <p className="mt-1 border-l border-emerald-500/25 pl-3 text-emerald-400">
-                {index === 0
-                  ? "planned primary signal"
-                  : index === 1
-                    ? "fallback signal ready"
-                    : "coverage target selected"}
+                {evidencePack ? "executed evidence signal" : "planned from workspace profile"}
               </p>
             </div>
           ))}
+          {visibleCommands.length === 0 ? (
+            <p className="text-muted-foreground">
+              No validation command evidence yet. Run verified task or scan changed files.
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -190,31 +208,47 @@ export function ValidationSection({
 export function EvidencePackSection({
   changedFiles,
   commands,
+  evidenceFiles,
+  evidencePack,
   score,
   summary,
 }: {
   changedFiles: string[];
   commands: string[];
-  score: number;
+  evidenceFiles: string[];
+  evidencePack: EvidencePack | null;
+  score: number | null;
   summary: ImpactSummary;
 }) {
+  const filesCount = evidenceFiles.length || changedFiles.length;
+  const commandCount = evidencePack?.commandsExecuted?.length ?? commands.length;
+
   return (
     <section className="space-y-3">
       <PanelTitle icon={ClipboardCheckIcon} title="Evidence Pack" />
+      {!evidencePack ? <SkeletonStack /> : null}
       <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
         <p className="text-[10px] uppercase text-muted-foreground">
           Verified Task Score
         </p>
         <div className="mt-1 flex items-baseline gap-1">
-          <span className="text-3xl font-semibold text-emerald-500">{score}</span>
+          <span className="text-3xl font-semibold text-emerald-500">
+            {score ?? "--"}
+          </span>
           <span className="text-[12px] text-muted-foreground">/100</span>
         </div>
       </div>
-      <EvidenceRow label="Files touched" value={`${changedFiles.length} files`} />
-      <EvidenceRow label="Commands planned" value={`${commands.length || 3} signals`} />
+      <EvidenceRow label="Files touched" value={`${filesCount} files`} />
+      <EvidenceRow label="Commands" value={`${commandCount} signals`} />
       <EvidenceRow label="Impact risk" value={summary.risk} />
-      <EvidenceRow label="Privacy" value="Passed after redaction" />
-      <EvidenceRow label="Policy" value="0 unresolved stops" />
+      <EvidenceRow
+        label="Verdict"
+        value={evidencePack?.verdict.label ?? "Pending verified run"}
+      />
+      <EvidenceRow
+        label="Risks"
+        value={`${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`}
+      />
     </section>
   );
 }
@@ -346,6 +380,15 @@ function EmptyLine({ text }: { text: string }) {
     <p className="rounded-2xl border border-[var(--panel-border)]/30 bg-background/20 px-2.5 py-1.5 text-[11px] text-muted-foreground">
       {text}
     </p>
+  );
+}
+
+function SkeletonStack() {
+  return (
+    <div className="space-y-2">
+      <div className="h-10 animate-pulse rounded-2xl border border-[var(--panel-border)]/25 bg-background/28" />
+      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-[var(--panel-border)]/20 bg-background/20" />
+    </div>
   );
 }
 
