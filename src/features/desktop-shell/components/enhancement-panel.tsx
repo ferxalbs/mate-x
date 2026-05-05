@@ -67,9 +67,13 @@ export function EnhancementPanel({
   const repoSignals = getRepoHealthSignals(health);
   const evidenceCommands = getEvidenceCommands(runtime.evidencePack);
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
+  const verdictLabel = runtime.evidencePack?.verdict.label ?? "";
+  const runFailed = /fail|error|blocked/i.test(verdictLabel);
   const panelState = error
     ? "Needs attention"
-    : loading || runtime.isRunning
+    : runFailed
+      ? verdictLabel
+      : loading || runtime.isRunning
       ? scanPhase ?? "Processing"
       : health
         ? runtime.statusLabel
@@ -218,6 +222,8 @@ export function EnhancementPanel({
                 className={cn(
                   "size-1.5 rounded-full",
                   error
+                    ? "bg-destructive"
+                    : runFailed
                     ? "bg-destructive"
                     : loading || runtime.isRunning
                       ? "animate-pulse bg-blue-500"
