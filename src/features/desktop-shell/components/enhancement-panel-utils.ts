@@ -155,7 +155,18 @@ export function getRepoHealthSignals(
   ];
 }
 
-export function getRepoHealthVerdict(signals: RepoHealthSignal[]) {
+export function getRepoHealthVerdict(
+  signals: RepoHealthSignal[],
+  hasProfile: boolean,
+) {
+  if (!hasProfile) {
+    return {
+      label: "Awaiting",
+      detail: "Workspace profile not loaded yet.",
+      tone: "muted" as SignalTone,
+    };
+  }
+
   if (signals.some((signal) => signal.tone === "bad")) {
     return {
       label: "Critical",
