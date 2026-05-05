@@ -135,8 +135,31 @@ function adjustSeverity(severity: Severity, sourceRole: SourceRole): Severity {
   return severity === 'critical' || severity === 'high' ? 'medium' : 'info';
 }
 
+function effectiveSeverity(matcher: Matcher, sourceRole: SourceRole, evidence: string): Severity {
+  let severity = matcher.severity;
+
+  if (matcher.slug === 'sql-construction') {
+    severity = classifySqlEvidenceSeverity(evidence);
+  }
+
+  return adjustSeverity(severity, sourceRole);
+}
+
+export function classifySqlEvidenceSeverity(evidence: string): Severity {
+  const normalized = evidence.trim();
+  const usesSqlTag = /\bsql`/.test(normalized);
+  const hasInterpolation = /\$\{/.test(normalized);
+  const hasConcatenation = /\+\s*[\w"'`]/.test(normalized);
+  const isStaticDdl = /\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|VIEW)\b|\bADD\s+COLUMN\b/i.test(normalized);
+
+  if (isStaticDdl && !hasInterpolation && !hasConcatenation) return 'info';
+  if (usesSqlTag && !hasInterpolation && !hasConcatenation) return 'medium';
+  return 'high';
+}
+
 function confidenceFor(sourceRole: SourceRole, evidence: string): Candidate['confidence'] {
   if (sourceRole !== 'active') return 'low';
+  if (/\bsql`/.test(evidence) && !/\$\{|\+/.test(evidence)) return 'medium';
   if (/\b(req|request|input|payload|body|params|query|argv|env)\b/i.test(evidence)) return 'high';
   return 'medium';
 }
@@ -151,13 +174,14 @@ function parseRgRows(stdout: string, files: Set<string>): Candidate[] {
     for (const matcher of MATCHERS) {
       if (!matcher.pattern.test(evidence)) continue;
       const sourceRole = sourceRoleFor(file, evidence);
+      const severity = effectiveSeverity(matcher, sourceRole, evidence);
       candidates.push({
         matcher,
         file,
         line: Number(lineText),
         sourceRole,
         evidence: evidence.trim().slice(0, 220),
-        severity: adjustSeverity(matcher.severity, sourceRole),
+        severity,
         confidence: confidenceFor(sourceRole, evidence),
       });
     }
