@@ -13,7 +13,12 @@ import {
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { EvidencePack, ToolEvent } from "../../../contracts/chat";
 import { cn } from "../../../lib/utils";
-import type { ImpactSummary } from "./enhancement-panel-utils";
+import type {
+  ImpactSummary,
+  RepoHealthSignal,
+  SignalTone,
+} from "./enhancement-panel-utils";
+import { getRepoHealthVerdict } from "./enhancement-panel-utils";
 
 export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
 
@@ -254,23 +259,34 @@ export function EvidencePackSection({
 }
 
 export function RepoHealthSection({
-  fields,
+  signals,
   nextAction,
 }: {
-  fields: string[][];
+  signals: RepoHealthSignal[];
   nextAction?: string;
 }) {
+  const verdict = getRepoHealthVerdict(signals);
+
   return (
     <section className="space-y-3">
-      <PanelTitle icon={ZapIcon} title="Repo Health" />
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
-        {fields.map(([label, value]) => (
-          <div className="min-w-0" key={label}>
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="truncate font-medium" title={value}>
-              {value}
-            </dd>
-          </div>
+      <div className="flex items-center justify-between gap-2">
+        <PanelTitle icon={ZapIcon} title="Repo Health" />
+        <TonePill label={verdict.label} tone={verdict.tone} />
+      </div>
+      <div
+        className={cn(
+          "rounded-2xl border p-3",
+          toneSurfaceClassName(verdict.tone),
+        )}
+      >
+        <p className="text-[10px] font-medium uppercase text-muted-foreground">
+          Live repo verdict
+        </p>
+        <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-2 text-[11px]">
+        {signals.map((signal) => (
+          <HealthSignalCell signal={signal} key={signal.label} />
         ))}
       </dl>
       {nextAction ? (
@@ -312,18 +328,17 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 function RiskPill({ risk }: { risk: string }) {
+  const tone =
+    risk === "High"
+      ? "bad"
+      : risk === "Medium"
+        ? "warn"
+        : risk === "Low"
+          ? "good"
+          : "muted";
+
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-        risk === "High" && "border-destructive/45 text-destructive",
-        risk === "Medium" && "border-amber-500/45 text-amber-600",
-        risk === "Low" && "border-emerald-500/45 text-emerald-600",
-        risk === "None" && "border-[var(--panel-border)]/45 text-muted-foreground",
-      )}
-    >
-      {risk}
-    </span>
+    <TonePill label={risk} tone={tone} />
   );
 }
 
@@ -402,4 +417,92 @@ function EvidenceRow({ label, value }: { label: string; value: string }) {
       </span>
     </div>
   );
+}
+
+function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
+  return (
+    <div
+      className={cn(
+        "min-w-0 rounded-2xl border px-2.5 py-2",
+        toneSurfaceClassName(signal.tone),
+      )}
+    >
+      <dt className="flex items-center justify-between gap-2 text-muted-foreground">
+        <span className="truncate">{signal.label}</span>
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            toneDotClassName(signal.tone),
+          )}
+        />
+      </dt>
+      <dd className="mt-1 truncate font-medium" title={signal.value}>
+        {signal.value}
+      </dd>
+    </div>
+  );
+}
+
+function TonePill({ label, tone }: { label: string; tone: SignalTone }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        toneTextClassName(tone),
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function toneSurfaceClassName(tone: SignalTone) {
+  if (tone === "bad") {
+    return "border-destructive/35 bg-destructive/[0.05]";
+  }
+  if (tone === "warn") {
+    return "border-amber-500/35 bg-amber-500/[0.05]";
+  }
+  if (tone === "watch") {
+    return "border-yellow-500/30 bg-yellow-500/[0.045]";
+  }
+  if (tone === "good") {
+    return "border-emerald-500/30 bg-emerald-500/[0.045]";
+  }
+
+  return "border-[var(--panel-border)]/35 bg-background/24";
+}
+
+function toneTextClassName(tone: SignalTone) {
+  if (tone === "bad") {
+    return "border-destructive/45 text-destructive";
+  }
+  if (tone === "warn") {
+    return "border-amber-500/45 text-amber-600";
+  }
+  if (tone === "watch") {
+    return "border-yellow-500/45 text-yellow-600";
+  }
+  if (tone === "good") {
+    return "border-emerald-500/45 text-emerald-600";
+  }
+
+  return "border-[var(--panel-border)]/45 text-muted-foreground";
+}
+
+function toneDotClassName(tone: SignalTone) {
+  if (tone === "bad") {
+    return "bg-destructive";
+  }
+  if (tone === "warn") {
+    return "bg-amber-500";
+  }
+  if (tone === "watch") {
+    return "bg-yellow-500";
+  }
+  if (tone === "good") {
+    return "bg-emerald-500";
+  }
+
+  return "bg-muted-foreground";
 }
