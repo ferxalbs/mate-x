@@ -32,8 +32,8 @@ const MATCHERS: Matcher[] = [
   {
     slug: 'command-exec',
     title: 'Shell or process execution',
-    pattern: /\b(exec|execFile|spawn|spawnSync|execSync|system|popen|child_process)\b/,
-    search: '\\b(exec|execFile|spawn|spawnSync|execSync|system|popen|child_process)\\b',
+    pattern: /\b(?:exec|execFile|spawn|spawnSync|execSync|system|popen|shell)\s*\(|\bchild_process\b|from\s+['"]node:child_process['"]|require\s*\(\s*['"](?:node:)?child_process['"]\s*\)/,
+    search: "\\b(exec|execFile|spawn|spawnSync|execSync|system|popen|shell)\\s*\\(|\\bchild_process\\b|from\\s+['\\\"]node:child_process['\\\"]|require\\s*\\(\\s*['\\\"](?:node:)?child_process['\\\"]\\s*\\)",
     severity: 'high',
     reason: 'process execution can become command injection when arguments include user-controlled data',
   },
