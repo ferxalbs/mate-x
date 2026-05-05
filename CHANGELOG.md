@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.05 (4) [Deep Analysis Signal Ranking]
+
+- Added semantic egress ranking so constant-host outbound calls are downgraded, environment-backed base URLs remain medium signal, and user-controlled callback/webhook targets in API surfaces stay high signal.
+- Strengthened Deep Analysis Pipeline exact-tool-call dedupe so repeated sinks in the same matcher/file collapse into one investigation target instead of wasting next-step slots.
+- Added focused scanner tests for SQL triage, weak crypto jitter/token cases, and outbound request ranking.
+- Verified with `bun run lint`, `bun run typecheck`, and `bunx vitest run src/electron/tools/attack_surface_scan.test.ts`.
+
 ## Unreleased - 2026.05.05 (3) [Release Hardening]
 
 - Fixed workspace terminal launching so macOS opens Terminal at the active workspace and Windows opens Command Prompt with the workspace as `cwd`.
