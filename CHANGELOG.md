@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.05 (2) [Attack Surface Evidence Pipeline]
+
+- Added `attack_surface_scan` as a local-first wide-net security candidate scanner that ranks active-source evidence before expensive AI review.
+- Added `candidate_revalidator` to inspect candidate context, detect source/sink/mitigation/reference signals, and separate confirmed candidates from likely false positives or items needing context.
+- Added `evidence_pack` to enforce precise candidate vs finding language, including final-answer blocks that only allow vulnerability wording after source-to-sink proof.
+- Hardened `security_path_trace` precision so HTTP query parameter reads such as `c.req.query()` are not mislabeled as database sinks, and trace reports now use `Trace summary` instead of premature `Finding` wording.
+- Disabled the direct `security_path_trace` shortcut when multi-tool evidence pipeline prompts mention `attack_surface_scan`, `candidate_revalidator`, or `evidence_pack`, preventing the assistant from skipping the requested workflow.
+- Reduced attack-surface false positives by tightening command-execution detection to real calls/imports and limiting dynamic-code timer matches to string-based `setTimeout`/`setInterval` usage.
+- Verified with `bun run typecheck`.
+
 ## Unreleased - 2026.05.05 (1) [Live Enhancement Panel]
 
 - Replaced the topbar `Analyze` affordance with a right-side Live Enhancement panel that mirrors the sidebar, can collapse into a compact rail, and preserves the main chat/composer layout.
