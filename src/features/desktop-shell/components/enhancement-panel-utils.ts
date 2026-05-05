@@ -10,12 +10,19 @@ import type {
 } from "../../../contracts/chat";
 
 export type ImpactRisk = "High" | "Medium" | "Low" | "None";
+export type SignalTone = "good" | "watch" | "warn" | "bad" | "muted";
 
 export interface ImpactSummary {
   affectedCount: number;
   serviceCount: number;
   toolFanoutCount: number;
   risk: ImpactRisk;
+}
+
+export interface RepoHealthSignal {
+  label: string;
+  value: string;
+  tone: SignalTone;
 }
 
 export function getChangedFiles(status: GitStatus) {
@@ -91,6 +98,93 @@ export function getRepoFields(health: WorkspaceHealthProfile | null) {
     ["Git", health.gitDirtyState],
     ["Secrets", String(health.secretWarningCount)],
   ];
+}
+
+export function getRepoHealthSignals(
+  health: WorkspaceHealthProfile | null,
+): RepoHealthSignal[] {
+  if (!health) {
+    return [
+      { label: "Stack", value: "Detecting", tone: "watch" },
+      { label: "PM", value: "Unknown", tone: "muted" },
+      { label: "Test", value: "Map pending", tone: "watch" },
+      { label: "Lint", value: "Map pending", tone: "watch" },
+      { label: "Git", value: "Pending", tone: "watch" },
+      { label: "Secrets", value: "0", tone: "good" },
+    ];
+  }
+
+  const stackValue = health.stack.length > 0 ? health.stack.join(", ") : "Unknown";
+  const hasTestCommand =
+    Boolean(health.testCommand) && health.testCommand !== "unknown";
+  const hasLintCommand =
+    Boolean(health.lintCommand) && health.lintCommand !== "unknown";
+  const secretCount = health.secretWarningCount;
+
+  return [
+    {
+      label: "Stack",
+      value: stackValue,
+      tone: health.stack.length > 0 ? "good" : "warn",
+    },
+    {
+      label: "PM",
+      value: health.packageManager,
+      tone: health.packageManager === "unknown" ? "warn" : "good",
+    },
+    {
+      label: "Test",
+      value: health.testCommand,
+      tone: hasTestCommand ? "good" : "warn",
+    },
+    {
+      label: "Lint",
+      value: health.lintCommand,
+      tone: hasLintCommand ? "good" : "warn",
+    },
+    {
+      label: "Git",
+      value: health.gitDirtyState,
+      tone: health.gitDirtyState === "clean" ? "good" : "watch",
+    },
+    {
+      label: "Secrets",
+      value: String(secretCount),
+      tone: secretCount > 0 ? "bad" : "good",
+    },
+  ];
+}
+
+export function getRepoHealthVerdict(signals: RepoHealthSignal[]) {
+  if (signals.some((signal) => signal.tone === "bad")) {
+    return {
+      label: "Critical",
+      detail: "Repo has blocking security signals.",
+      tone: "bad" as SignalTone,
+    };
+  }
+
+  if (signals.some((signal) => signal.tone === "warn")) {
+    return {
+      label: "Weak",
+      detail: "Repo is missing core quality signals.",
+      tone: "warn" as SignalTone,
+    };
+  }
+
+  if (signals.some((signal) => signal.tone === "watch")) {
+    return {
+      label: "Watch",
+      detail: "Repo usable, but live scan still resolving.",
+      tone: "watch" as SignalTone,
+    };
+  }
+
+  return {
+    label: "Strong",
+    detail: "Repo exposes usable verification signals.",
+    tone: "good" as SignalTone,
+  };
 }
 
 export function getVerificationCommands(tests: string[], health: WorkspaceHealthProfile | null) {

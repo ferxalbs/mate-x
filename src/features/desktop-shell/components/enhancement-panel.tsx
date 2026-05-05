@@ -5,7 +5,6 @@ import {
   ClipboardCheckIcon,
   GitBranchIcon,
   PanelRightIcon,
-  SparklesIcon,
 } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
@@ -26,7 +25,7 @@ import {
   getEvidenceCommands,
   getEvidenceFiles,
   getPanelRuntimeSnapshot,
-  getRepoFields,
+  getRepoHealthSignals,
   getVerificationCommands,
   getVerifiedScore,
   summarizeImpact,
@@ -61,10 +60,11 @@ export function EnhancementPanel({
   );
   const [tests, setTests] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [scanPhase, setScanPhase] = useState<string | null>(null);
 
   const runtime = getPanelRuntimeSnapshot(conversation, runStatus);
   const summary = summarizeImpact(changedFiles, impactedFiles);
-  const repoFields = getRepoFields(health);
+  const repoSignals = getRepoHealthSignals(health);
   const evidenceCommands = getEvidenceCommands(runtime.evidencePack);
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
   const commands =
@@ -78,6 +78,7 @@ export function EnhancementPanel({
     setImpactedFiles([]);
     setTests([]);
     setError(null);
+    setScanPhase(null);
     setActiveView("trace");
   }, [workspaceId]);
 
@@ -88,10 +89,15 @@ export function EnhancementPanel({
 
     setLoading(true);
     setError(null);
+    setScanPhase("Reading git status");
     try {
       const status = await window.mate.git.getStatus();
       const files = getChangedFiles(status);
+      setScanPhase("Refreshing RepoGraph");
       await window.mate.repo.graph.refresh();
+      setScanPhase(
+        files.length > 0 ? "Mapping changed paths" : "Checking workspace graph",
+      );
       const [impact, testLists] = await Promise.all([
         files.length > 0
           ? window.mate.repo.graph.getImpactedFiles(files)
@@ -100,6 +106,7 @@ export function EnhancementPanel({
           files.map((file) => window.mate.repo.graph.getTestsForFile(file)),
         ),
       ]);
+      setScanPhase("Classifying repo signals");
       setChangedFiles(files);
       setImpactedFiles(impact);
       setTests([...new Set(testLists.flat())].slice(0, 6));
@@ -108,6 +115,7 @@ export function EnhancementPanel({
       setError((scanError as Error).message);
     } finally {
       setLoading(false);
+      setScanPhase(null);
     }
   }, [workspaceId]);
 
@@ -169,7 +177,7 @@ export function EnhancementPanel({
                 </h2>
               </div>
               <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                {runtime.activeRunTitle ?? "System signals, no mock data."}
+                {runtime.activeRunTitle ?? scanPhase ?? "System signals, no mock data."}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -189,14 +197,16 @@ export function EnhancementPanel({
                 variant="outline"
               >
                 <GitBranchIcon className="size-3.5" />
-                {loading ? "Scanning" : "Scan"}
+                {loading ? "Live" : "Scan"}
               </Button>
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/30 bg-background/24 px-3 py-2 text-[11px]">
             <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
               <PanelRightIcon className="size-3.5 shrink-0" />
-              <span className="truncate">{runtime.statusLabel}</span>
+              <span className="truncate">
+                {scanPhase ?? runtime.statusLabel}
+              </span>
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
               <span
@@ -208,6 +218,11 @@ export function EnhancementPanel({
               {runtime.events.length} events
             </span>
           </div>
+          {loading ? (
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-background/35">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
+            </div>
+          ) : null}
           <div className="mt-3 grid grid-cols-4 gap-1 rounded-full border border-[var(--panel-border)]/30 bg-background/24 p-1">
             {views.map((view) => (
               <button
@@ -266,7 +281,7 @@ export function EnhancementPanel({
 
           <div className="mt-4 rounded-2xl border border-[var(--panel-border)]/38 bg-background/24 p-3">
             <RepoHealthSection
-              fields={repoFields}
+              signals={repoSignals}
               nextAction={health?.recommendedNextAction}
             />
           </div>
