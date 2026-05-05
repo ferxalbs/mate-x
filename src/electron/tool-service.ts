@@ -61,6 +61,7 @@ import { securityPathTraceTool } from "./tools/security_path_trace";
 import { attackSurfaceScanTool } from "./tools/attack_surface_scan";
 import { candidateRevalidatorTool } from "./tools/candidate_revalidator";
 import { evidencePackTool } from "./tools/evidence_pack";
+import { deepAnalysisPipelineTool } from "./tools/deep_analysis_pipeline";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -149,6 +150,7 @@ export class ToolService {
     this.registerTool(attackSurfaceScanTool);
     this.registerTool(candidateRevalidatorTool);
     this.registerTool(evidencePackTool);
+    this.registerTool(deepAnalysisPipelineTool);
     // Future tools can be registered here or dynamically loaded
   }
 

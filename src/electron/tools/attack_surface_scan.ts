@@ -6,10 +6,10 @@ import type { Tool } from '../tool-service';
 
 const execFileAsync = promisify(execFile);
 
-type SourceRole = 'active' | 'test' | 'docs' | 'example' | 'scanner' | 'generated';
-type Severity = 'critical' | 'high' | 'medium' | 'info';
+export type SourceRole = 'active' | 'test' | 'docs' | 'example' | 'scanner' | 'generated';
+export type Severity = 'critical' | 'high' | 'medium' | 'info';
 
-type Matcher = {
+export type Matcher = {
   slug: string;
   title: string;
   pattern: RegExp;
@@ -18,7 +18,7 @@ type Matcher = {
   reason: string;
 };
 
-type Candidate = {
+export type Candidate = {
   matcher: Matcher;
   file: string;
   line: number;
@@ -103,7 +103,7 @@ const MATCHERS: Matcher[] = [
   },
 ];
 
-const SEVERITY_RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, info: 3 };
+export const SEVERITY_RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, info: 3 };
 
 const shouldSkipFile = (file: string) => (
   file.includes('node_modules/')
@@ -175,6 +175,36 @@ function uniqueCandidates(candidates: Candidate[]) {
   });
 }
 
+export async function scanAttackSurfaceCandidates(params: {
+  workspacePath: string;
+  relativePath: string;
+}): Promise<{ scannedFiles: string[]; candidates: Candidate[] }> {
+  const { workspacePath, relativePath } = params;
+  const targetStat = await stat(join(workspacePath, relativePath));
+  const files = targetStat.isFile()
+    ? [relativePath]
+    : (await execFileAsync('rg', ['--files', '--', relativePath], { cwd: workspacePath })).stdout.split('\n').filter(Boolean);
+  const scannedFiles = files.filter((file) => !shouldSkipFile(file));
+  const scannedFileSet = new Set(scannedFiles);
+  const searchPattern = MATCHERS.map((matcher) => `(?:${matcher.search})`).join('|');
+  const { stdout } = scannedFiles.length === 0
+    ? { stdout: '' }
+    : await execFileAsync(
+      'rg',
+      ['-n', '--no-heading', '-e', searchPattern, '--', ...scannedFiles],
+      { cwd: workspacePath, maxBuffer: 1024 * 1024 * 12 },
+    ).catch(() => ({ stdout: '' }));
+
+  const candidates = uniqueCandidates(parseRgRows(stdout, scannedFileSet)).sort((a, b) => (
+    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]
+    || (a.sourceRole === 'active' ? -1 : 1)
+    || a.file.localeCompare(b.file)
+    || a.line - b.line
+  ));
+
+  return { scannedFiles, candidates };
+}
+
 export const attackSurfaceScanTool: Tool = {
   name: 'attack_surface_scan',
   description: 'Runs a cheap wide-net attack surface candidate scan before expensive AI review. Classifies source role, ranks evidence, and returns a focused investigation queue.',
@@ -197,27 +227,7 @@ export const attackSurfaceScanTool: Tool = {
     const limit = Math.max(10, Math.min(Number(args.limit || 80), 200));
 
     try {
-      const targetStat = await stat(join(workspacePath, relativePath));
-      const files = targetStat.isFile()
-        ? [relativePath]
-        : (await execFileAsync('rg', ['--files', '--', relativePath], { cwd: workspacePath })).stdout.split('\n').filter(Boolean);
-      const scannedFiles = files.filter((file) => !shouldSkipFile(file));
-      const scannedFileSet = new Set(scannedFiles);
-      const searchPattern = MATCHERS.map((matcher) => `(?:${matcher.search})`).join('|');
-      const { stdout } = scannedFiles.length === 0
-        ? { stdout: '' }
-        : await execFileAsync(
-          'rg',
-          ['-n', '--no-heading', '-e', searchPattern, '--', ...scannedFiles],
-          { cwd: workspacePath, maxBuffer: 1024 * 1024 * 12 },
-        ).catch(() => ({ stdout: '' }));
-
-      const candidates = uniqueCandidates(parseRgRows(stdout, scannedFileSet)).sort((a, b) => (
-        SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]
-        || (a.sourceRole === 'active' ? -1 : 1)
-        || a.file.localeCompare(b.file)
-        || a.line - b.line
-      ));
+      const { scannedFiles, candidates } = await scanAttackSurfaceCandidates({ workspacePath, relativePath });
       const counts = candidates.reduce<Record<Severity, number>>((acc, candidate) => {
         acc[candidate.severity] += 1;
         return acc;

@@ -592,7 +592,36 @@ export async function runAssistant(
 
   emitProgress();
 
-  const directSecurityTraceArgs = parseDirectSecurityPathTraceArgs(prompt);
+  const directDeepAnalysisArgs = parseDirectDeepAnalysisPipelineArgs(prompt);
+  if (directDeepAnalysisArgs) {
+    const result = await executeAgentToolCall({
+      toolCall: {
+        id: "direct-deep-analysis-pipeline",
+        name: "deep_analysis_pipeline",
+        arguments: JSON.stringify(directDeepAnalysisArgs),
+      },
+      toolIndex: 0,
+      iteration: 0,
+      snapshot,
+      events,
+      emitProgress,
+      appSettings,
+      runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+    });
+
+    content = result.content;
+    toolExecutions = [result.toolExecution];
+    events.push({
+      id: "step-direct-deep-analysis-pipeline",
+      label: "Direct tool response",
+      detail: "Ran deep_analysis_pipeline locally because the prompt explicitly requested it.",
+      status: "done",
+    });
+    emitProgress(content);
+    handledDirectTool = true;
+  }
+
+  const directSecurityTraceArgs = handledDirectTool ? null : parseDirectSecurityPathTraceArgs(prompt);
   if (directSecurityTraceArgs) {
     const result = await executeAgentToolCall({
       toolCall: {
@@ -1610,7 +1639,11 @@ function parseDirectSecurityPathTraceArgs(prompt: string) {
   if (!/\bsecurity_path_trace\b/.test(prompt)) {
     return null;
   }
-  if (/\b(attack_surface_scan|candidate_revalidator|evidence_pack)\b/.test(prompt)) {
+  if (/\b(deep_analysis_pipeline|attack_surface_scan|candidate_revalidator|evidence_pack)\b/.test(prompt)) {
+    return null;
+  }
+  if (!/\b(run|call|use|execute)\s+security_path_trace\b/i.test(prompt)
+    && !/\bsecurity_path_trace\b[\s\S]{0,120}\bScope:/i.test(prompt)) {
     return null;
   }
 
@@ -1622,6 +1655,23 @@ function parseDirectSecurityPathTraceArgs(prompt: string) {
     scope,
     maxFiles: Number.isFinite(maxFiles) ? maxFiles : 250,
     maxTraces: Number.isFinite(maxTraces) ? maxTraces : 12,
+  };
+}
+
+function parseDirectDeepAnalysisPipelineArgs(prompt: string) {
+  if (!/\b(run|call|use|execute)\s+deep_analysis_pipeline\b/i.test(prompt)) {
+    return null;
+  }
+
+  const path =
+    prompt.match(/\bpath\s+["']([^"']+)["']/i)?.[1]?.trim()
+    || prompt.match(/\bScope:\s*([^\n]+)/i)?.[1]?.trim()
+    || "src";
+  const limit = Number(prompt.match(/\blimit\s+(\d+)/i)?.[1] ?? 40);
+
+  return {
+    path,
+    limit: Number.isFinite(limit) ? limit : 40,
   };
 }
 
