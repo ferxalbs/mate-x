@@ -1610,6 +1610,9 @@ function parseDirectSecurityPathTraceArgs(prompt: string) {
   if (!/\bsecurity_path_trace\b/.test(prompt)) {
     return null;
   }
+  if (/\b(attack_surface_scan|candidate_revalidator|evidence_pack)\b/.test(prompt)) {
+    return null;
+  }
 
   const scope = prompt.match(/\bScope:\s*([^\n]+)/i)?.[1]?.trim() || ".";
   const maxFiles = Number(prompt.match(/\bMax files:\s*(\d+)/i)?.[1] ?? 250);
