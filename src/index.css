@@ -227,7 +227,7 @@ label:has(> select#reasoning-effort) select {
 .chat-markdown {
   min-width: 0;
   overflow-wrap: anywhere;
-  word-break: break-word;
+  word-break: normal;
   color: inherit;
 }
 
@@ -428,15 +428,27 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown table {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
+  white-space: nowrap;
 }
 
 .chat-markdown th,
 .chat-markdown td {
   border: 1px solid var(--border);
-  padding: 0.35rem 0.45rem;
+  min-width: 7rem;
+  padding: 0.45rem 0.55rem;
   text-align: left;
+  vertical-align: top;
+  word-break: normal;
+}
+
+.chat-markdown td:last-child {
+  min-width: 16rem;
+  white-space: normal;
 }
 
 .chat-markdown-streaming {

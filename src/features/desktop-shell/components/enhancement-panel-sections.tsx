@@ -116,6 +116,7 @@ export function ImpactSection({
   summary,
 }: BaseSectionProps) {
   const source = changedFiles[0] ?? "No active change";
+  const sourceIsArtifact = /\.(pdf|md|txt|html)$/i.test(source);
   const directImpact = impactedFiles.find((entry) => !entry.group)?.file ?? "Awaiting RepoGraph";
 
   return (
@@ -132,11 +133,17 @@ export function ImpactSection({
       </dl>
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-3">
         <p className="text-[10px] font-medium uppercase text-amber-500">
-          Source of change
+          {sourceIsArtifact ? "Evidence artifact" : "Source of change"}
         </p>
         <p className="mt-1 truncate font-mono text-[11px]" title={source}>
           {source}
         </p>
+        {sourceIsArtifact ? (
+          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+            Artifact captured from run. Source-code paths must come from trace or
+            RepoGraph before claiming impact.
+          </p>
+        ) : null}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <ImpactNode label="Direct impact" tone="good" value={directImpact} />
@@ -189,7 +196,7 @@ export function ValidationSection({
         <div className="space-y-3">
           {visibleCommands.map((command) => (
             <div key={command}>
-              <p className="text-muted-foreground">$ {command}</p>
+              <p className="text-muted-foreground">$ {formatCommandLabel(command)}</p>
               <p className="mt-1 border-l border-emerald-500/25 pl-3 text-emerald-400">
                 {evidencePack ? "executed evidence signal" : "planned from workspace profile"}
               </p>
@@ -229,6 +236,9 @@ export function EvidencePackSection({
   const commandCount = evidencePack?.commandsExecuted?.length ?? commands.length;
   const verdict = evidencePack?.verdict.label ?? "Pending verified run";
   const scoreTone = getEvidenceTone(score, verdict);
+  const runFailed = /fail|error|blocked/i.test(verdict);
+  const fileLabel = `${filesCount} ${filesCount === 1 ? "file" : "files"}`;
+  const securityTone = getSecurityRiskTone(verdict, summary.risk);
 
   return (
     <section className="space-y-3">
@@ -255,22 +265,49 @@ export function EvidencePackSection({
           </p>
         ) : null}
       </div>
-      <EvidenceRow label="Files touched" value={`${filesCount} files`} />
+      {runFailed ? (
+        <FailureReasonCard
+          commandCount={commandCount}
+          filesCount={filesCount}
+          verdict={verdict}
+        />
+      ) : null}
+      <EvidenceRow label="Files touched" value={fileLabel} />
       <EvidenceRow label="Commands" value={`${commandCount} signals`} />
       <EvidenceRow
-        label="Impact risk"
+        label="Security risk"
+        tone={securityTone}
+        value={cleanVerdictLabel(verdict)}
+      />
+      <EvidenceRow
+        label="Evidence confidence"
+        tone={scoreTone}
+        value={getConfidenceLabel(score, verdict)}
+      />
+      <EvidenceRow
+        label="Blast radius"
         tone={impactTone(summary.risk)}
-        value={summary.risk}
+        value={summary.risk === "None" ? "Unknown" : summary.risk}
       />
       <EvidenceRow
         label="Verdict"
         tone={scoreTone}
-        value={verdict}
+        value={runFailed ? verdict : getVerdictReadiness(score)}
       />
       <EvidenceRow
-        label="Risks"
-        tone={(evidencePack?.unresolvedRisks?.length ?? 0) > 0 ? "warn" : "good"}
-        value={`${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`}
+        label="Risk log"
+        tone={
+          runFailed
+            ? "bad"
+            : (evidencePack?.unresolvedRisks?.length ?? 0) > 0
+              ? "warn"
+              : "good"
+        }
+        value={
+          runFailed
+            ? "Incomplete"
+            : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
+        }
       />
     </section>
   );
@@ -310,14 +347,13 @@ export function RepoHealthSection({
           </p>
         ) : null}
       </div>
-      <dl className="grid grid-cols-2 gap-2 text-[11px]">
-        {signals.map((signal) => (
-          <HealthSignalCell
-            signal={hasProfile ? signal : { ...signal, tone: "muted" }}
-            key={signal.label}
-          />
-        ))}
-      </dl>
+      {hasProfile ? (
+        <dl className="grid grid-cols-2 gap-2 text-[11px]">
+          {signals.map((signal) => (
+            <HealthSignalCell signal={signal} key={signal.label} />
+          ))}
+        </dl>
+      ) : null}
       {nextAction ? (
         <p
           className="truncate rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2.5 py-2 text-[11px]"
@@ -458,6 +494,39 @@ function EvidenceRow({
   );
 }
 
+function FailureReasonCard({
+  commandCount,
+  filesCount,
+  verdict,
+}: {
+  commandCount: number;
+  filesCount: number;
+  verdict: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-destructive/35 bg-destructive/[0.045] p-3">
+      <p className="text-[10px] font-medium uppercase text-destructive">
+        Blocking issue
+      </p>
+      <p className="mt-1 text-[11px] font-semibold text-foreground">
+        {verdict}: evidence run did not complete cleanly.
+      </p>
+      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+        Captured {commandCount} command signals and {filesCount} file
+        signal{filesCount === 1 ? "" : "s"}, but review cannot be trusted until
+        file-level diff evidence completes.
+      </p>
+    </div>
+  );
+}
+
+function formatCommandLabel(command: string) {
+  const name = command.trim().split(/\s+/, 1)[0] ?? command;
+  return name
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function getEvidenceTone(score: number | null, verdict: string): SignalTone {
   if (/fail|error|blocked/i.test(verdict)) {
     return "bad";
@@ -491,13 +560,67 @@ function getEvidenceScoreReason(
     return "Score pending until verified task run completes.";
   }
   if (score < 50) {
-    return "Low confidence. Evidence exists, but task needs stronger file-level verification.";
+    return "Low confidence. Findings may be useful, but claim needs stronger file-level verification before demo use.";
   }
   if (score < 75) {
     return "Partial confidence. Review unresolved risks before demo claim.";
   }
 
   return "Evidence is strong enough for product demo summary.";
+}
+
+function getConfidenceLabel(score: number | null, verdict: string) {
+  if (/fail|error|blocked/i.test(verdict)) {
+    return "Failed";
+  }
+  if (score === null) {
+    return "Pending";
+  }
+  if (score < 50) {
+    return "Low";
+  }
+  if (score < 75) {
+    return "Partial";
+  }
+  if (score < 90) {
+    return "High";
+  }
+
+  return "Verified";
+}
+
+function getVerdictReadiness(score: number | null) {
+  if (score === null) {
+    return "Pending";
+  }
+  if (score < 50) {
+    return "Needs evidence";
+  }
+  if (score < 75) {
+    return "Review before demo";
+  }
+
+  return "Demo-ready";
+}
+
+function getSecurityRiskTone(verdict: string, fallbackRisk: string): SignalTone {
+  const label = cleanVerdictLabel(verdict).toLowerCase();
+
+  if (label.includes("critical") || label.includes("high")) {
+    return "bad";
+  }
+  if (label.includes("medium")) {
+    return "warn";
+  }
+  if (label.includes("low")) {
+    return "good";
+  }
+
+  return impactTone(fallbackRisk);
+}
+
+function cleanVerdictLabel(verdict: string) {
+  return verdict.replace(/\*/g, "").trim() || "Pending";
 }
 
 function impactTone(risk: string): SignalTone {
