@@ -131,7 +131,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <section className="relative flex min-w-0 flex-1 flex-col bg-transparent text-foreground">
+    <section className="relative flex h-full min-w-0 flex-1 flex-col bg-transparent text-foreground">
       <ChatTopbar
         conversation={selectedThread}
         onCreateThread={createThread}

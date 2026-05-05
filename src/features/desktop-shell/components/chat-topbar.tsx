@@ -4,7 +4,6 @@ import {
   ExternalLinkIcon,
   GitBranchIcon,
   PlusIcon,
-  ShieldCheckIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -58,9 +57,6 @@ export function ChatTopbar({
   const [openTarget, setOpenTarget] = useState('folder');
   const [gitAction, setGitAction] = useState('commit-push');
   const title = conversation?.title ?? 'No active thread';
-  const openImpactPanel = () => {
-    window.dispatchEvent(new CustomEvent('mate:open-impact-panel'));
-  };
 
   return (
     <header
@@ -156,16 +152,6 @@ export function ChatTopbar({
           onClick={onCreateThread}
         >
           <PlusIcon className="size-3.5" />
-        </Button>
-        <Button
-          aria-label="Analyze change impact"
-          size="xs"
-          variant="outline"
-          className="h-8 rounded-lg border-border/70 bg-background/65 px-3 text-[12px] font-medium shadow-none hover:bg-accent"
-          onClick={openImpactPanel}
-        >
-          <ShieldCheckIcon className="size-3.5" />
-          Analyze
         </Button>
         <Menu>
           <MenuTrigger
