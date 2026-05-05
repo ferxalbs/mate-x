@@ -386,7 +386,7 @@ function MessageEntry({
           <ThinkingRow isStreaming={isStreaming} thought={thought} />
         ) : null}
         {traceVersion === "v2" && traceV2InlineEvents ? (
-          normalizedContent.length > 0 ? (
+          normalizedContent.length > 0 || hasTimeline ? (
             <InterleavedMessageContent
               content={message.content}
               events={events}
@@ -535,7 +535,7 @@ function InterleavedMessageContent({
     ),
   ];
   const trailingTraceGroup =
-    trailingTraceEvents.length > 0 && hasRenderedModelText ? (
+    trailingTraceEvents.length > 0 ? (
       <div className="my-1.5">
         <InlineTraceGroup events={trailingTraceEvents} />
       </div>
@@ -549,6 +549,7 @@ function InterleavedMessageContent({
     <div className="space-y-4">
       {renderedParts}
       {trailingTraceGroup}
+      {!hasRenderedModelText && !isStreaming ? <ResultFallback /> : null}
     </div>
   );
 }
@@ -1041,7 +1042,7 @@ function StatusIcon({ status }: { status: ToolEvent["status"] }) {
 }
 
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(event.status === "error");
   const summary = summarizeInlineTraceEvent(event);
   const detail = extractCommandFromEvent(event) ?? event.detail;
 
@@ -1070,9 +1071,9 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
 }
 
 function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
-  const [expanded, setExpanded] = useState(false);
   const active = events.some((event) => event.status === "active");
   const failed = events.some((event) => event.status === "error");
+  const [expanded, setExpanded] = useState(failed);
   const label =
     events.length === 1
       ? summarizeInlineTraceEvent(events[0])

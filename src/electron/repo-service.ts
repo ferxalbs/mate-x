@@ -1675,6 +1675,73 @@ function parseDirectDeepAnalysisPipelineArgs(prompt: string) {
   };
 }
 
+function parseToolArguments(rawArguments: string | undefined): Record<string, unknown> {
+  if (!rawArguments) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(rawArguments) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Recover first valid object when a model appends prose or another call.
+  }
+
+  const recovered = extractFirstBalancedJsonObject(rawArguments);
+  if (!recovered) {
+    throw new Error("Invalid tool arguments.");
+  }
+
+  const parsed = JSON.parse(recovered) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Tool arguments must be a JSON object.");
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function extractFirstBalancedJsonObject(value: string): string | null {
+  const start = value.indexOf("{");
+  if (start === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return value.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
 function truncateToolOutput(content: string) {
   if (content.length <= MAX_TOOL_OUTPUT_CHARS) {
     return content;
@@ -1778,7 +1845,7 @@ async function executeAgentToolCall({
   let toolArgs: Record<string, unknown>;
 
   try {
-    toolArgs = rawArguments ? JSON.parse(rawArguments) : {};
+    toolArgs = parseToolArguments(rawArguments);
   } catch (error) {
     const reason =
       error instanceof Error ? error.message : "Invalid tool arguments.";
