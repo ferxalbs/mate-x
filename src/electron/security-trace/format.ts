@@ -26,7 +26,7 @@ export function formatSecurityTraces(traces: SecurityTrace[]) {
 Path: ${path}
 ${trace.path.map(formatNode).join('\n\n')}
 
-Finding: ${trace.finding.summary}
+Trace summary: ${trace.finding.summary}
 
 Patch suggestion: ${trace.patchSuggestion}`;
     }),

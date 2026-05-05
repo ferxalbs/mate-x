@@ -52,7 +52,7 @@ export const SINK_PATTERNS: SecurityPattern[] = [
   {
     id: 'db-query',
     label: 'database query',
-    regex: /\b(query|execute|raw|run|prepare)\s*\(/,
+    regex: /\b(?:db|database|client|pool|conn|connection|knex|prisma|sql|repository|repo|turso|sqlite|postgres|mysql|drizzle)(?:\.\w+)*\.(?:query|execute|raw|run|prepare|queryRaw|executeRaw)\s*\(|\b(?:\$queryRaw|\$executeRaw|queryRaw|executeRaw)\s*\(/,
   },
   {
     id: 'dom-injection',
