@@ -67,22 +67,26 @@ export function EnhancementPanel({
   const repoSignals = getRepoHealthSignals(health);
   const evidenceCommands = getEvidenceCommands(runtime.evidencePack);
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
+  const verifiedScore = getVerifiedScore(runtime.evidencePack);
   const verdictLabel = runtime.evidencePack?.verdict.label ?? "";
   const runFailed = /fail|error|blocked/i.test(verdictLabel);
+  const lowConfidence =
+    verifiedScore !== null && verifiedScore < 50 && runtime.evidencePack !== null;
   const panelState = error
     ? "Needs attention"
     : runFailed
       ? verdictLabel
+      : lowConfidence
+        ? `Low confidence: ${verdictLabel || "review incomplete"}`
       : loading || runtime.isRunning
-      ? scanPhase ?? "Processing"
-      : health
+        ? scanPhase ?? "Processing"
+        : health
         ? runtime.statusLabel
         : "Awaiting workspace profile";
   const commands =
     evidenceCommands.length > 0
       ? evidenceCommands
       : getVerificationCommands(tests, health);
-  const verifiedScore = getVerifiedScore(runtime.evidencePack);
 
   useEffect(() => {
     setChangedFiles([]);
