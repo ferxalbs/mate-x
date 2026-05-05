@@ -92,6 +92,15 @@ export const evidencePackTool: Tool = {
       report += '- Report as candidate only. Say no confirmed exploitability was proven.\n';
     }
 
+    report += '\nFinal Answer Block\n------------------\n';
+    if (verdict === 'confirmed_finding') {
+      report += 'Verdict: Confirmed finding.\n';
+      report += 'Use finding language only with cited source, sink, exploit path, and missing mitigation from the trace above.\n';
+    } else {
+      report += `Verdict: ${verdictLabel(verdict)}.\n`;
+      report += 'No confirmed exploitability was proven. Treat this as an investigation candidate, not a vulnerability.\n';
+    }
+
     report += '\nNext Action\n-----------\n';
     report += recommendation || (verdict === 'confirmed_finding'
       ? 'Patch vulnerable path and add regression validation.'

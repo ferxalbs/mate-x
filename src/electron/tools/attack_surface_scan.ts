@@ -40,8 +40,8 @@ const MATCHERS: Matcher[] = [
   {
     slug: 'dynamic-code',
     title: 'Dynamic code execution',
-    pattern: /\b(eval|Function|vm\.runIn|setTimeout|setInterval)\s*\(/,
-    search: '\\b(eval|Function|vm\\.runIn|setTimeout|setInterval)\\s*\\(',
+    pattern: /\b(?:eval|Function|vm\.runIn\w*)\s*\(|\b(?:setTimeout|setInterval)\s*\(\s*['"`]/,
+    search: "\\b(eval|Function|vm\\.runIn\\w*)\\s*\\(|\\b(setTimeout|setInterval)\\s*\\(\\s*['\\\"`]",
     severity: 'high',
     reason: 'dynamic execution can convert untrusted strings into code',
   },
