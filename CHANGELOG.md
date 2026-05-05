@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.05 (3) [Release Hardening]
+
+- Fixed workspace terminal launching so macOS opens Terminal at the active workspace and Windows opens Command Prompt with the workspace as `cwd`.
+- Added terminal spawn error handlers to avoid main-process crashes when the platform terminal launch fails.
+- Hardened `run_tests` with a 10-minute timeout and bounded output capture so hung validation commands and large logs do not pin the app or grow memory without limit.
+- Hardened manual update checks with numeric version comparison to avoid downgrade prompts and GitHub release URL validation before opening the browser.
+- Added main-process `uncaughtException` and `unhandledRejection` logging for production diagnostics.
+- Verified with `bun run lint`, `bun run typecheck`, and `bun run package`.
+
 ## Unreleased - 2026.05.05 (2) [Attack Surface Evidence Pipeline]
 
 - Added `attack_surface_scan` as a local-first wide-net security candidate scanner that ranks active-source evidence before expensive AI review.

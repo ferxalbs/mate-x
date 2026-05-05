@@ -25,11 +25,19 @@ process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
   return (originalEmitWarning as (...emitArgs: unknown[]) => void)(warning, ...args);
 }) as typeof process.emitWarning;
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception in main process:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection in main process:', reason);
+});
+
 // Chromium/EGL device probing is noisy on some Linux desktops.
 // Linux is not a supported target yet. Keep startup behavior explicit.
 if (!['darwin', 'win32'].includes(process.platform)) {
   app.whenReady().then(() => {
-    console.error(`Unsupported platform: ${process.platform}. MaTE X currently supports macOS and Windows only. And never implement for this OS.`);
+    console.error(`Unsupported platform: ${process.platform}. MaTE X currently supports macOS and Windows only.`);
     app.quit();
   });
 }

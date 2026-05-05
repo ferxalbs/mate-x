@@ -5,6 +5,13 @@ import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 
+const TEST_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_OUTPUT_SUMMARY_CHARS = 120_000;
+
+function appendOutputSummary(current: string, next: string) {
+  return `${current}${next}`.slice(-MAX_OUTPUT_SUMMARY_CHARS);
+}
+
 export const runTestsTool: Tool = {
   name: "run_tests",
   description:
@@ -120,6 +127,7 @@ export const runTestsTool: Tool = {
 
     return new Promise((resolve) => {
       let outputSummary = "";
+      let timedOut = false;
 
       // Determine shell based on profile or platform defaults
       const isWindows = process.platform === "win32";
@@ -133,17 +141,24 @@ export const runTestsTool: Tool = {
 
       child.stdout.on("data", (data) => {
         const str = data.toString();
-        outputSummary += str;
+        outputSummary = appendOutputSummary(outputSummary, str);
         broadcastStream(str);
       });
 
       child.stderr.on("data", (data) => {
         const str = data.toString();
-        outputSummary += str;
+        outputSummary = appendOutputSummary(outputSummary, str);
         broadcastStream(str);
       });
 
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        broadcastStream(`\n--- Tests timed out after ${TEST_RUN_TIMEOUT_MS / 1000} seconds ---\n`);
+        child.kill("SIGKILL");
+      }, TEST_RUN_TIMEOUT_MS);
+
       child.on("close", async (code) => {
+        clearTimeout(timeout);
         broadcastStream(`\n--- Tests completed with exit code ${code} ---\n`);
 
         // Simple heuristic to extract failing tests
@@ -162,7 +177,7 @@ export const runTestsTool: Tool = {
           command,
           scope: args.scope,
           exitCode: code ?? undefined,
-          status: code === 0 ? "success" : "failed",
+          status: code === 0 && !timedOut ? "success" : "failed",
           outputSummary: outputSummary.slice(0, 5000), // Summarize if too long
           failingTests: failingTests.slice(0, 20), // Limit to avoid large db entries
           validationPlan: validationPlan ?? undefined,
@@ -220,7 +235,9 @@ export const runTestsTool: Tool = {
                 reason: validationPlan?.fallbackTrigger,
               }
             : undefined,
-          summary: `Test run finished with code ${code}. Saved to run ID ${savedRun.id}.`,
+          summary: timedOut
+            ? `Test run timed out after ${TEST_RUN_TIMEOUT_MS / 1000} seconds. Saved to run ID ${savedRun.id}.`
+            : `Test run finished with code ${code}. Saved to run ID ${savedRun.id}.`,
           validationPlan: validationPlan ?? undefined,
           plannedCommand,
           failingTests: runResult.failingTests,
@@ -232,6 +249,7 @@ export const runTestsTool: Tool = {
       });
 
       child.on("error", (error) => {
+         clearTimeout(timeout);
          const errorMessage = `Failed to start process: ${error.message}`;
          broadcastStream(`\n${errorMessage}\n`);
          resolve(JSON.stringify({ error: errorMessage }));
