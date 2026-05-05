@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 
 import { describe, it } from "vitest";
 
-import { classifySqlEvidenceSeverity } from "./attack_surface_scan";
+import {
+  classifySqlEvidenceSeverity,
+  classifyWeakCryptoEvidenceSeverity,
+} from "./attack_surface_scan";
 
 describe("attack surface scan SQL triage", () => {
   it("downgrades static DDL in SQL tagged templates", () => {
@@ -37,6 +40,20 @@ describe("attack surface scan SQL triage", () => {
     assert.equal(
       classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM users WHERE id = ${userId}`)", "src/lib/models/registry.ts"),
       "medium",
+    );
+  });
+
+  it("downgrades Math.random retry jitter", () => {
+    assert.equal(
+      classifyWeakCryptoEvidenceSeverity("const jitter = Math.floor(Math.random() * 120)"),
+      "info",
+    );
+  });
+
+  it("keeps Math.random token generation high", () => {
+    assert.equal(
+      classifyWeakCryptoEvidenceSeverity("const token = Math.random().toString(36).slice(2)"),
+      "high",
     );
   });
 });

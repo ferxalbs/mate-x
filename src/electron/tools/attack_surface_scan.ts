@@ -140,6 +140,8 @@ function effectiveSeverity(matcher: Matcher, sourceRole: SourceRole, evidence: s
 
   if (matcher.slug === 'sql-construction') {
     severity = classifySqlEvidenceSeverity(evidence, file);
+  } else if (matcher.slug === 'weak-crypto') {
+    severity = classifyWeakCryptoEvidenceSeverity(evidence);
   }
 
   return adjustSeverity(severity, sourceRole);
@@ -163,9 +165,21 @@ export function classifySqlEvidenceSeverity(evidence: string, file = ''): Severi
   return 'high';
 }
 
+export function classifyWeakCryptoEvidenceSeverity(evidence: string): Severity {
+  const normalized = evidence.toLowerCase();
+  const usesMathRandom = /\bmath\.random\b/.test(normalized);
+  const looksRetryJitter = /\b(jitter|backoff|retry|retries|sleep|delay|timeout)\b/.test(normalized);
+  const looksSecurityUse = /\b(token|secret|password|nonce|salt|key|session|csrf|crypto|auth|randombytes)\b/.test(normalized);
+
+  if (usesMathRandom && looksRetryJitter && !looksSecurityUse) return 'info';
+  if (usesMathRandom && !looksSecurityUse) return 'medium';
+  return 'high';
+}
+
 function confidenceFor(sourceRole: SourceRole, evidence: string, file: string): Candidate['confidence'] {
   if (sourceRole !== 'active') return 'low';
   if (classifySqlEvidenceSeverity(evidence, file) === 'info') return 'low';
+  if (classifyWeakCryptoEvidenceSeverity(evidence) === 'info') return 'low';
   if (/\bsql`/.test(evidence) && !/\$\{|\+/.test(evidence)) return 'medium';
   if (/(?:^|\/)(?:api|routes?|controllers?|handlers?)(?:\/|\.|$)/i.test(file) && /\$\{|\+/.test(evidence)) return 'high';
   if (/\b(req|request|input|payload|body|params|query|argv|env)\b/i.test(evidence)) return 'high';
@@ -205,6 +219,26 @@ function uniqueCandidates(candidates: Candidate[]) {
     seen.add(key);
     return true;
   });
+}
+
+function clusterKey(candidate: Candidate) {
+  const bucket = Math.floor(candidate.line / 20) * 20;
+  return `${candidate.matcher.slug}:${candidate.file}:${bucket}`;
+}
+
+function clusterCandidates(candidates: Candidate[]) {
+  const clusters = new Map<string, { representative: Candidate; count: number; lines: number[] }>();
+  for (const candidate of candidates) {
+    const key = clusterKey(candidate);
+    const current = clusters.get(key);
+    if (!current) {
+      clusters.set(key, { representative: candidate, count: 1, lines: [candidate.line] });
+      continue;
+    }
+    current.count += 1;
+    current.lines.push(candidate.line);
+  }
+  return [...clusters.values()];
 }
 
 export async function scanAttackSurfaceCandidates(params: {
@@ -264,11 +298,12 @@ export const attackSurfaceScanTool: Tool = {
         acc[candidate.severity] += 1;
         return acc;
       }, { critical: 0, high: 0, medium: 0, info: 0 });
+      const clusters = clusterCandidates(candidates);
       const activeCount = candidates.filter((candidate) => candidate.sourceRole === 'active').length;
 
       let report = 'MaTE X Attack Surface Scan\n==========================\n';
       report += `Scope: ${relativePath}\nFiles scanned: ${scannedFiles.length}\n`;
-      report += `Candidates: ${candidates.length} (${counts.critical} critical, ${counts.high} high, ${counts.medium} medium, ${counts.info} info; ${activeCount} active-source)\n`;
+      report += `Candidates: ${candidates.length} (${clusters.length} clusters; ${counts.critical} critical, ${counts.high} high, ${counts.medium} medium, ${counts.info} info; ${activeCount} active-source)\n`;
       report += 'Important: these are candidates, not confirmed findings or vulnerabilities. Do not label them as findings until data-flow review confirms exploitability.\n';
       report += '\nPositioning\n-----------\n';
       report += '- MaTE X advantage: local-first candidate pruning before Rainy/Codex reasoning; credentials stay in main-process settings.\n';
@@ -289,6 +324,11 @@ export const attackSurfaceScanTool: Tool = {
         report += `  Why: ${candidate.matcher.reason}\n`;
       }
       if (candidates.length > limit) report += `\n... ${candidates.length - limit} additional candidate(s) omitted.\n`;
+
+      report += '\nDuplicate Clusters\n------------------\n';
+      for (const cluster of clusters.filter((item) => item.count > 1).slice(0, 12)) {
+        report += `- ${cluster.count}x ${cluster.representative.matcher.title} in ${cluster.representative.file} near L${Math.min(...cluster.lines)}-L${Math.max(...cluster.lines)}\n`;
+      }
 
       report += '\nNext Agent Steps\n----------------\n';
       report += '- Prioritize active-source high/critical candidates with high confidence.\n';
