@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { AssistantRunOptions } from "../contracts/chat";
@@ -193,8 +194,34 @@ export function registerIpcHandlers() {
         return;
       }
 
-      if (process.platform === "darwin") {
-        await shell.openExternal(`file://${encodedWorkspacePath}`);
+      if (target === "terminal") {
+        if (process.platform === "darwin") {
+          const terminal = spawn("open", ["-a", "Terminal", workspacePath], {
+            detached: true,
+            stdio: "ignore",
+          });
+          terminal.on("error", (error) => {
+            console.error("Failed to open Terminal:", error);
+          });
+          terminal.unref();
+          return;
+        }
+
+        if (process.platform === "win32") {
+          const terminal = spawn("cmd.exe", ["/K"], {
+            cwd: workspacePath,
+            detached: true,
+            stdio: "ignore",
+            windowsHide: false,
+          });
+          terminal.on("error", (error) => {
+            console.error("Failed to open Command Prompt:", error);
+          });
+          terminal.unref();
+          return;
+        }
+
+        await shell.openPath(workspacePath);
         return;
       }
 

@@ -8,6 +8,33 @@ import { updateElectronApp } from 'update-electron-app';
 // Al ponerlo en true, se activará el actualizador nativo invisible.
 // =========================================================================
 const HAS_CRYPTOGRAPHIC_KEYS = false;
+const RELEASES_URL = 'https://github.com/ferxalbs/mate-x/releases/latest';
+
+function compareVersions(left: string, right: string) {
+  const leftParts = left.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = right.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (diff !== 0) return Math.sign(diff);
+  }
+
+  return 0;
+}
+
+function resolveReleaseUrl(value: unknown) {
+  if (typeof value !== 'string') return RELEASES_URL;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'github.com'
+      ? url.toString()
+      : RELEASES_URL;
+  } catch {
+    return RELEASES_URL;
+  }
+}
 
 export function initializeUpdater() {
   if (HAS_CRYPTOGRAPHIC_KEYS) {
@@ -40,7 +67,7 @@ export async function checkForUpdates(showUpToDateDialog = true) {
     const data = await response.json();
     const latestVersion = data.tag_name?.replace('v', '');
 
-    if (latestVersion && latestVersion !== currentVersion) {
+    if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
       const { response: userChoice } = await dialog.showMessageBox({
         type: 'info',
         title: 'Actualización Disponible',
@@ -51,7 +78,7 @@ export async function checkForUpdates(showUpToDateDialog = true) {
       });
 
       if (userChoice === 0) {
-        shell.openExternal(data.html_url);
+        shell.openExternal(resolveReleaseUrl(data.html_url));
       }
     } else if (showUpToDateDialog) {
       // Solo mostramos este diálogo si el usuario hizo clic explícitamente en el botón "Check Updates"
