@@ -21,8 +21,22 @@ describe("attack surface scan SQL triage", () => {
 
   it("keeps interpolated SQL as high signal", () => {
     assert.equal(
-      classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM users WHERE id = ${userId}`)"),
+      classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM users WHERE id = ${userId}`)", "src/api/v1/users/routes.ts"),
       "high",
+    );
+  });
+
+  it("keeps unsafe raw SQL high even outside API routes", () => {
+    assert.equal(
+      classifySqlEvidenceSeverity("const result = await db.execute(raw(`SELECT * FROM ${table}`))", "src/lib/models/registry.ts"),
+      "high",
+    );
+  });
+
+  it("keeps non-route SQL tag interpolation medium until source proof exists", () => {
+    assert.equal(
+      classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM users WHERE id = ${userId}`)", "src/lib/models/registry.ts"),
+      "medium",
     );
   });
 });

@@ -135,31 +135,39 @@ function adjustSeverity(severity: Severity, sourceRole: SourceRole): Severity {
   return severity === 'critical' || severity === 'high' ? 'medium' : 'info';
 }
 
-function effectiveSeverity(matcher: Matcher, sourceRole: SourceRole, evidence: string): Severity {
+function effectiveSeverity(matcher: Matcher, sourceRole: SourceRole, evidence: string, file: string): Severity {
   let severity = matcher.severity;
 
   if (matcher.slug === 'sql-construction') {
-    severity = classifySqlEvidenceSeverity(evidence);
+    severity = classifySqlEvidenceSeverity(evidence, file);
   }
 
   return adjustSeverity(severity, sourceRole);
 }
 
-export function classifySqlEvidenceSeverity(evidence: string): Severity {
+export function classifySqlEvidenceSeverity(evidence: string, file = ''): Severity {
   const normalized = evidence.trim();
+  const lowerFile = file.toLowerCase();
   const usesSqlTag = /\bsql`/.test(normalized);
   const hasInterpolation = /\$\{/.test(normalized);
   const hasConcatenation = /\+\s*[\w"'`]/.test(normalized);
+  const hasUnsafeRaw = /\b(?:raw|unsafe|executeRaw|queryRawUnsafe)\b/i.test(normalized);
   const isStaticDdl = /\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|VIEW)\b|\bADD\s+COLUMN\b/i.test(normalized);
+  const isApiSurface = /(?:^|\/)(?:api|routes?|controllers?|handlers?)(?:\/|\.|$)/i.test(lowerFile);
 
   if (isStaticDdl && !hasInterpolation && !hasConcatenation) return 'info';
+  if (hasUnsafeRaw || hasConcatenation) return 'high';
+  if (hasInterpolation && isApiSurface) return 'high';
+  if (hasInterpolation) return 'medium';
   if (usesSqlTag && !hasInterpolation && !hasConcatenation) return 'medium';
   return 'high';
 }
 
-function confidenceFor(sourceRole: SourceRole, evidence: string): Candidate['confidence'] {
+function confidenceFor(sourceRole: SourceRole, evidence: string, file: string): Candidate['confidence'] {
   if (sourceRole !== 'active') return 'low';
+  if (classifySqlEvidenceSeverity(evidence, file) === 'info') return 'low';
   if (/\bsql`/.test(evidence) && !/\$\{|\+/.test(evidence)) return 'medium';
+  if (/(?:^|\/)(?:api|routes?|controllers?|handlers?)(?:\/|\.|$)/i.test(file) && /\$\{|\+/.test(evidence)) return 'high';
   if (/\b(req|request|input|payload|body|params|query|argv|env)\b/i.test(evidence)) return 'high';
   return 'medium';
 }
@@ -174,7 +182,7 @@ function parseRgRows(stdout: string, files: Set<string>): Candidate[] {
     for (const matcher of MATCHERS) {
       if (!matcher.pattern.test(evidence)) continue;
       const sourceRole = sourceRoleFor(file, evidence);
-      const severity = effectiveSeverity(matcher, sourceRole, evidence);
+      const severity = effectiveSeverity(matcher, sourceRole, evidence, file);
       candidates.push({
         matcher,
         file,
@@ -182,7 +190,7 @@ function parseRgRows(stdout: string, files: Set<string>): Candidate[] {
         sourceRole,
         evidence: evidence.trim().slice(0, 220),
         severity,
-        confidence: confidenceFor(sourceRole, evidence),
+        confidence: confidenceFor(sourceRole, evidence, file),
       });
     }
   }
