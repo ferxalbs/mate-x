@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.05 (1) [Live Enhancement Panel]
+
+- Replaced the topbar `Analyze` affordance with a right-side Live Enhancement panel that mirrors the sidebar, can collapse into a compact rail, and preserves the main chat/composer layout.
+- Added modular Enhancement panel sections for TRACE, Impact, Validation, Evidence Pack, and Repo Health so users can switch between live runtime context, RepoGraph blast radius, validation signals, and evidence status.
+- Wired the panel to active conversation state, assistant tool events, run status, RepoGraph impact, git changed files, workspace health, and real Evidence Pack data instead of static demo-only values.
+- Added honest skeleton and pending states when no live run or Evidence Pack exists, while showing real Verified Task Score, executed commands, touched files, unresolved risks, and verdict once available.
+- Fixed shell height and hook-order regressions introduced during the panel migration, preserving the floating composer and stable React render behavior.
+- Verified with `bun run lint` and `bun run typecheck`.
+
 ## Unreleased - 2026.05.03 (4) [Onboarding Verification Workflow]
 
 - Reworked onboarding into the four-step verification workflow: Welcome, Connect workspace, Set trust boundary, and First verification run.
