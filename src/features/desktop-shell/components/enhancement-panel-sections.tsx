@@ -227,31 +227,49 @@ export function EvidencePackSection({
 }) {
   const filesCount = evidenceFiles.length || changedFiles.length;
   const commandCount = evidencePack?.commandsExecuted?.length ?? commands.length;
+  const verdict = evidencePack?.verdict.label ?? "Pending verified run";
+  const scoreTone = getEvidenceTone(score, verdict);
 
   return (
     <section className="space-y-3">
       <PanelTitle icon={ClipboardCheckIcon} title="Evidence Pack" />
       {!evidencePack ? <SkeletonStack /> : null}
-      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
+      <div
+        className={cn(
+          "rounded-2xl border p-3",
+          toneSurfaceClassName(scoreTone),
+        )}
+      >
         <p className="text-[10px] uppercase text-muted-foreground">
           Verified Task Score
         </p>
         <div className="mt-1 flex items-baseline gap-1">
-          <span className="text-3xl font-semibold text-emerald-500">
+          <span className={cn("text-3xl font-semibold", toneValueClassName(scoreTone))}>
             {score ?? "--"}
           </span>
           <span className="text-[12px] text-muted-foreground">/100</span>
         </div>
+        {evidencePack ? (
+          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+            {getEvidenceScoreReason(score, verdict, commandCount, filesCount)}
+          </p>
+        ) : null}
       </div>
       <EvidenceRow label="Files touched" value={`${filesCount} files`} />
       <EvidenceRow label="Commands" value={`${commandCount} signals`} />
-      <EvidenceRow label="Impact risk" value={summary.risk} />
+      <EvidenceRow
+        label="Impact risk"
+        tone={impactTone(summary.risk)}
+        value={summary.risk}
+      />
       <EvidenceRow
         label="Verdict"
-        value={evidencePack?.verdict.label ?? "Pending verified run"}
+        tone={scoreTone}
+        value={verdict}
       />
       <EvidenceRow
         label="Risks"
+        tone={(evidencePack?.unresolvedRisks?.length ?? 0) > 0 ? "warn" : "good"}
         value={`${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`}
       />
     </section>
@@ -294,7 +312,10 @@ export function RepoHealthSection({
       </div>
       <dl className="grid grid-cols-2 gap-2 text-[11px]">
         {signals.map((signal) => (
-          <HealthSignalCell signal={signal} key={signal.label} />
+          <HealthSignalCell
+            signal={hasProfile ? signal : { ...signal, tone: "muted" }}
+            key={signal.label}
+          />
         ))}
       </dl>
       {nextAction ? (
@@ -415,16 +436,82 @@ function SkeletonStack() {
   );
 }
 
-function EvidenceRow({ label, value }: { label: string; value: string }) {
+function EvidenceRow({
+  label,
+  tone = "good",
+  value,
+}: {
+  label: string;
+  tone?: SignalTone;
+  value: string;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/35 bg-background/24 px-3 py-2 text-[11px]">
       <span className="text-muted-foreground">{label}</span>
       <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
-        <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-500" />
+        <CheckCircle2Icon
+          className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
+        />
         <span className="truncate">{value}</span>
       </span>
     </div>
   );
+}
+
+function getEvidenceTone(score: number | null, verdict: string): SignalTone {
+  if (/fail|error|blocked/i.test(verdict)) {
+    return "bad";
+  }
+  if (score === null) {
+    return "muted";
+  }
+  if (score < 50) {
+    return "bad";
+  }
+  if (score < 75) {
+    return "warn";
+  }
+  if (score < 90) {
+    return "watch";
+  }
+
+  return "good";
+}
+
+function getEvidenceScoreReason(
+  score: number | null,
+  verdict: string,
+  commandCount: number,
+  filesCount: number,
+) {
+  if (/fail|error|blocked/i.test(verdict)) {
+    return `Low score because run verdict is ${verdict}. Evidence captured ${commandCount} command signals across ${filesCount} file signal${filesCount === 1 ? "" : "s"}, but result did not complete cleanly.`;
+  }
+  if (score === null) {
+    return "Score pending until verified task run completes.";
+  }
+  if (score < 50) {
+    return "Low confidence. Evidence exists, but task needs stronger file-level verification.";
+  }
+  if (score < 75) {
+    return "Partial confidence. Review unresolved risks before demo claim.";
+  }
+
+  return "Evidence is strong enough for product demo summary.";
+}
+
+function impactTone(risk: string): SignalTone {
+  if (risk === "High") {
+    return "bad";
+  }
+  if (risk === "Medium") {
+    return "warn";
+  }
+  if (risk === "Low") {
+    return "good";
+  }
+
+  return "muted";
 }
 
 function summarizeTraceDetail(detail: string) {
@@ -571,4 +658,21 @@ function toneDotClassName(tone: SignalTone) {
   }
 
   return "bg-muted-foreground";
+}
+
+function toneValueClassName(tone: SignalTone) {
+  if (tone === "bad") {
+    return "text-destructive";
+  }
+  if (tone === "warn") {
+    return "text-amber-500";
+  }
+  if (tone === "watch") {
+    return "text-yellow-500";
+  }
+  if (tone === "good") {
+    return "text-emerald-500";
+  }
+
+  return "text-muted-foreground";
 }
