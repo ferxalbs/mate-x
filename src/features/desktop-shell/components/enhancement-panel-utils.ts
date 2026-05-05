@@ -1,6 +1,13 @@
 import type { GitStatus } from "../../../contracts/git";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { WorkspaceHealthProfile } from "../../../contracts/workspace";
+import type {
+  ChatMessage,
+  Conversation,
+  EvidencePack,
+  RunStatus,
+  ToolEvent,
+} from "../../../contracts/chat";
 
 export type ImpactRisk = "High" | "Medium" | "Low" | "None";
 
@@ -97,12 +104,56 @@ export function getVerificationCommands(tests: string[], health: WorkspaceHealth
   return [...new Set(commands)].slice(0, 3);
 }
 
-export function getVerifiedScore(summary: ImpactSummary, tests: string[], changedFiles: string[]) {
-  const evidence = changedFiles.length > 0 ? 18 : 0;
-  const validation = tests.length > 0 ? 18 : 8;
-  const privacy = 20;
-  const impact = summary.risk === "High" ? 18 : summary.risk === "Medium" ? 22 : 24;
-  const graph = Math.min(20, Math.max(8, summary.affectedCount + 8));
+export interface PanelRuntimeSnapshot {
+  latestAssistant: ChatMessage | null;
+  evidencePack: EvidencePack | null;
+  events: ToolEvent[];
+  activeRunTitle: string | null;
+  statusLabel: string;
+  isRunning: boolean;
+}
 
-  return Math.min(96, evidence + validation + privacy + impact + graph);
+export function getPanelRuntimeSnapshot(
+  conversation: Conversation | null,
+  runStatus: RunStatus,
+): PanelRuntimeSnapshot {
+  const messages = conversation?.messages ?? [];
+  const latestAssistant =
+    [...messages].reverse().find((message) => message.role === "assistant") ??
+    null;
+  const activeRun =
+    conversation?.runs?.find((run) => run.status === "running") ??
+    conversation?.runs?.at(-1) ??
+    null;
+  const evidencePack =
+    latestAssistant?.evidencePack ?? activeRun?.result?.evidencePack ?? null;
+
+  return {
+    latestAssistant,
+    evidencePack,
+    events: latestAssistant?.events ?? activeRun?.events ?? [],
+    activeRunTitle: activeRun?.title ?? null,
+    statusLabel:
+      runStatus === "running"
+        ? "Running"
+        : evidencePack
+          ? evidencePack.status
+          : "No pack",
+    isRunning: runStatus === "running",
+  };
+}
+
+export function getVerifiedScore(evidencePack: EvidencePack | null) {
+  return evidencePack?.verifiedTaskScore?.score ?? null;
+}
+
+export function getEvidenceCommands(evidencePack: EvidencePack | null) {
+  return evidencePack?.commandsExecuted?.map((entry) => entry.command) ?? [];
+}
+
+export function getEvidenceFiles(evidencePack: EvidencePack | null) {
+  return [
+    ...(evidencePack?.filesModified?.map((entry) => entry.path) ?? []),
+    ...(evidencePack?.touchedPaths ?? []),
+  ].filter((path, index, all) => all.indexOf(path) === index);
 }
