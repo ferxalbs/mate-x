@@ -67,6 +67,13 @@ export function EnhancementPanel({
   const repoSignals = getRepoHealthSignals(health);
   const evidenceCommands = getEvidenceCommands(runtime.evidencePack);
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
+  const panelState = error
+    ? "Needs attention"
+    : loading || runtime.isRunning
+      ? scanPhase ?? "Processing"
+      : health
+        ? runtime.statusLabel
+        : "Awaiting workspace profile";
   const commands =
     evidenceCommands.length > 0
       ? evidenceCommands
@@ -177,7 +184,7 @@ export function EnhancementPanel({
                 </h2>
               </div>
               <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                {runtime.activeRunTitle ?? scanPhase ?? "System signals, no mock data."}
+                {runtime.activeRunTitle ?? panelState}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -197,22 +204,26 @@ export function EnhancementPanel({
                 variant="outline"
               >
                 <GitBranchIcon className="size-3.5" />
-                {loading ? "Live" : "Scan"}
+                {loading ? "Processing" : "Scan"}
               </Button>
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/30 bg-background/24 px-3 py-2 text-[11px]">
             <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
               <PanelRightIcon className="size-3.5 shrink-0" />
-              <span className="truncate">
-                {scanPhase ?? runtime.statusLabel}
-              </span>
+              <span className="truncate">{panelState}</span>
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
               <span
                 className={cn(
                   "size-1.5 rounded-full",
-                  runtime.isRunning ? "animate-pulse bg-blue-500" : "bg-emerald-500",
+                  error
+                    ? "bg-destructive"
+                    : loading || runtime.isRunning
+                      ? "animate-pulse bg-blue-500"
+                      : health
+                        ? "bg-emerald-500"
+                        : "bg-muted-foreground",
                 )}
               />
               {runtime.events.length} events
@@ -281,6 +292,7 @@ export function EnhancementPanel({
 
           <div className="mt-4 rounded-2xl border border-[var(--panel-border)]/38 bg-background/24 p-3">
             <RepoHealthSection
+              hasProfile={Boolean(health)}
               signals={repoSignals}
               nextAction={health?.recommendedNextAction}
             />

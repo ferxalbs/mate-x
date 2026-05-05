@@ -40,7 +40,7 @@ export function TraceSection({
     events.length > 0
       ? events.slice(-5).map((event) => ({
           title: event.label,
-          detail: event.detail,
+          detail: summarizeTraceDetail(event.detail),
           icon: ActivityIcon,
           active: event.status !== "error",
         }))
@@ -259,13 +259,15 @@ export function EvidencePackSection({
 }
 
 export function RepoHealthSection({
+  hasProfile,
   signals,
   nextAction,
 }: {
+  hasProfile: boolean;
   signals: RepoHealthSignal[];
   nextAction?: string;
 }) {
-  const verdict = getRepoHealthVerdict(signals);
+  const verdict = getRepoHealthVerdict(signals, hasProfile);
 
   return (
     <section className="space-y-3">
@@ -283,6 +285,12 @@ export function RepoHealthSection({
           Live repo verdict
         </p>
         <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
+        {!hasProfile ? (
+          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+            Waiting for stack, package manager, test, lint, git, and secret
+            signals from workspace health service.
+          </p>
+        ) : null}
       </div>
       <dl className="grid grid-cols-2 gap-2 text-[11px]">
         {signals.map((signal) => (
@@ -417,6 +425,64 @@ function EvidenceRow({ label, value }: { label: string; value: string }) {
       </span>
     </div>
   );
+}
+
+function summarizeTraceDetail(detail: string) {
+  const trimmed = detail.trim();
+
+  if (!trimmed) {
+    return "Event recorded without extra detail.";
+  }
+
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as
+        | {
+            channel?: string;
+            callees?: string[];
+            callers?: string[];
+            files?: string[];
+            command?: string;
+          }
+        | Array<{ channel?: string; file?: string; command?: string }>;
+
+      if (Array.isArray(parsed)) {
+        const labels = parsed
+          .map((entry) => entry.channel ?? entry.command ?? entry.file)
+          .filter(Boolean)
+          .slice(0, 3);
+        return labels.length > 0
+          ? `${labels.join(", ")}${parsed.length > labels.length ? "..." : ""}`
+          : `${parsed.length} structured events captured.`;
+      }
+
+      if (parsed.channel) {
+        const targets = [
+          ...(parsed.callees ?? []),
+          ...(parsed.callers ?? []),
+          ...(parsed.files ?? []),
+        ].slice(0, 2);
+        return targets.length > 0
+          ? `${parsed.channel} touches ${targets.join(", ")}`
+          : `${parsed.channel} IPC surface mapped.`;
+      }
+
+      if (parsed.command) {
+        return `Command signal: ${parsed.command}`;
+      }
+
+      return "Structured evidence captured.";
+    } catch {
+      return compactTraceText(trimmed);
+    }
+  }
+
+  return compactTraceText(trimmed);
+}
+
+function compactTraceText(text: string) {
+  const compact = text.replace(/\s+/g, " ");
+  return compact.length > 150 ? `${compact.slice(0, 147)}...` : compact;
 }
 
 function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
