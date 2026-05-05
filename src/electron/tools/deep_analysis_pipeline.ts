@@ -197,6 +197,15 @@ function topCandidateClusters(candidates: Candidate[]) {
   return [...clusters.values()];
 }
 
+function topInvestigationTargets(candidates: Candidate[]) {
+  const targets = new Map<string, Candidate>();
+  for (const candidate of candidates) {
+    const key = `${candidate.matcher.slug}:${candidate.file}`;
+    if (!targets.has(key)) targets.set(key, candidate);
+  }
+  return [...targets.values()];
+}
+
 export const deepAnalysisPipelineTool: Tool = {
   name: 'deep_analysis_pipeline',
   description: 'Runs the MaTE X Deep Analysis Pipeline: cheap candidate scan, additive FileRecord persistence, heuristic revalidation, triage, and Git ownership enrichment. Use before expensive agent review.',
@@ -317,7 +326,7 @@ export const deepAnalysisPipelineTool: Tool = {
       report += '- Use only tool arguments shown below; security_path_trace accepts scope, maxFiles, maxTraces only.\n';
       report += '- Run security_path_trace before promoting any candidate to finding.\n';
       report += '- Use evidence_pack for final report language.\n';
-      const nextToolCalls = queueClusters.slice(0, 3).map(({ representative: candidate }) => ({
+      const nextToolCalls = topInvestigationTargets(queue).slice(0, 3).map((candidate) => ({
         candidate: `${candidate.matcher.title} at ${candidate.file}:${candidate.line}`,
         calls: exactNextCalls(candidate),
       }));

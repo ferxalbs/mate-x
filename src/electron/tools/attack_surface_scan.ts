@@ -140,6 +140,8 @@ function effectiveSeverity(matcher: Matcher, sourceRole: SourceRole, evidence: s
 
   if (matcher.slug === 'sql-construction') {
     severity = classifySqlEvidenceSeverity(evidence, file);
+  } else if (matcher.slug === 'ssrf-egress') {
+    severity = classifyEgressEvidenceSeverity(evidence, file);
   } else if (matcher.slug === 'weak-crypto') {
     severity = classifyWeakCryptoEvidenceSeverity(evidence);
   }
@@ -176,10 +178,31 @@ export function classifyWeakCryptoEvidenceSeverity(evidence: string): Severity {
   return 'high';
 }
 
-function confidenceFor(sourceRole: SourceRole, evidence: string, file: string): Candidate['confidence'] {
+export function classifyEgressEvidenceSeverity(evidence: string, file = ''): Severity {
+  const normalized = evidence.trim();
+  const lower = normalized.toLowerCase();
+  const lowerFile = file.toLowerCase();
+  const isApiSurface = /(?:^|\/)(?:api|routes?|controllers?|handlers?)(?:\/|\.|$)/i.test(lowerFile);
+  const hasSourceToken = /\b(req|request|input|payload|body|params|query|searchparams|url|callback|webhook|redirect|target)\b/i.test(normalized);
+  const hasDynamicAssembly = /\$\{|\+\s*[\w"'`]/.test(normalized);
+  const usesEnvBase = /\b(?:import\.meta\.env|process\.env)\b/.test(normalized);
+  const usesLiteralUrl = /\b(?:fetch|axios|request|got|https?\.request)\s*\(\s*['"`]https?:\/\//i.test(normalized);
+  const usesAllCapsUrlConstant = /\b(?:fetch|axios|request|got|https?\.request)\s*\(\s*[A-Z][A-Z0-9_]*URL[A-Z0-9_]*/.test(normalized);
+  const usesEndpointVariable = /\b(?:url|uri|endpoint|target|callback|webhook|redirect)\b/i.test(normalized);
+
+  if ((usesLiteralUrl || usesAllCapsUrlConstant) && !hasDynamicAssembly && !hasSourceToken) return 'info';
+  if (usesEnvBase && !hasSourceToken) return 'medium';
+  if (hasSourceToken && (isApiSurface || hasDynamicAssembly || usesEndpointVariable)) return 'high';
+  if (usesEndpointVariable || hasDynamicAssembly) return 'medium';
+  if (lower.includes('fetch(') || lower.includes('axios(') || lower.includes('request(') || lower.includes('got(')) return 'medium';
+  return 'high';
+}
+
+function confidenceFor(matcher: Matcher, sourceRole: SourceRole, evidence: string, file: string): Candidate['confidence'] {
   if (sourceRole !== 'active') return 'low';
-  if (classifySqlEvidenceSeverity(evidence, file) === 'info') return 'low';
-  if (classifyWeakCryptoEvidenceSeverity(evidence) === 'info') return 'low';
+  if (matcher.slug === 'sql-construction' && classifySqlEvidenceSeverity(evidence, file) === 'info') return 'low';
+  if (matcher.slug === 'ssrf-egress' && classifyEgressEvidenceSeverity(evidence, file) === 'info') return 'low';
+  if (matcher.slug === 'weak-crypto' && classifyWeakCryptoEvidenceSeverity(evidence) === 'info') return 'low';
   if (/\bsql`/.test(evidence) && !/\$\{|\+/.test(evidence)) return 'medium';
   if (/(?:^|\/)(?:api|routes?|controllers?|handlers?)(?:\/|\.|$)/i.test(file) && /\$\{|\+/.test(evidence)) return 'high';
   if (/\b(req|request|input|payload|body|params|query|argv|env)\b/i.test(evidence)) return 'high';
@@ -204,7 +227,7 @@ function parseRgRows(stdout: string, files: Set<string>): Candidate[] {
         sourceRole,
         evidence: evidence.trim().slice(0, 220),
         severity,
-        confidence: confidenceFor(sourceRole, evidence, file),
+        confidence: confidenceFor(matcher, sourceRole, evidence, file),
       });
     }
   }
