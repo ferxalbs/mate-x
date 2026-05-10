@@ -338,7 +338,7 @@ export function ComposerPanel({
       setIsModelSaving(false);
     }
 
-    setPrompt("");
+    handlePromptChange("");
     setAttachments([]);
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
@@ -414,7 +414,7 @@ export function ComposerPanel({
   async function handleUndoLastTurn() {
     const restoredPrompt = await onUndoLastTurn();
     if (restoredPrompt) {
-      setPrompt(restoredPrompt);
+      handlePromptChange(restoredPrompt);
     }
   }
 

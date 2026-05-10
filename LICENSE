@@ -1,0 +1,93 @@
+# MaTE X Licence — OpenCore Licensing Model
+
+Copyright (c) 2026 Enosis Labs, Inc. All rights reserved.
+
+Licensor:       Enosis Labs, Inc.
+Licensed Work:  MaTE X — AI Agent Workspace for Verified Repo Work
+Website:        <https://mate-x.xyz>
+Contact:        <legal@enosislabs.com>
+
+-------------------------------------------------------------------------------
+
+OPEN CORE — PERMITTED PERSONAL & COMMUNITY USE
+
+The MaTE X core engine, agent orchestration framework, and base tooling (the
+"Licensed Work") may be used, inspected, modified, and distributed for
+personal, non-commercial purposes only, subject to the following conditions:
+
+1. Attribution. Attribution to Enosis Labs, Inc. must be preserved in all
+   derivative works and forks. This includes retaining this licence notice in
+   all copies or substantial portions of the Licensed Work.
+
+2. No Branding Reuse. You may not use the MaTE X name, logo, or branding in
+   derivative products without explicit prior written permission from
+   Enosis Labs, Inc.
+
+3. Rainy API Requirement. The Rainy API must remain present and active
+   in all forks, derivatives, and modified distributions of MaTE X permitted
+   under this licence, including those created for personal use. The Rainy
+   API is an integral infrastructure component of the MaTE X security
+   architecture.
+
+   Intentionally removing, bypassing, replacing, or disabling the Rainy
+   API v3 in any fork or derivative work constitutes a serious and material
+   breach of this licence and immediately and automatically terminates all
+   rights granted hereunder. Enosis Labs, Inc. reserves the right to pursue
+   all available legal remedies, including injunctive relief and damages.
+
+4. Non-Commercial Only. This licence does not grant rights for commercial use.
+   See the Commercial Use section below.
+
+5. No Warranty. The Licensed Work is provided "AS IS" without warranty of any
+   kind, express or implied, including but not limited to warranties of
+   merchantability, fitness for a particular purpose, and non-infringement.
+   In no event shall Enosis Labs, Inc. be liable for any claim, damages, or
+   other liability arising from or in connection with the Licensed Work.
+
+-------------------------------------------------------------------------------
+
+PROPRIETARY COMPONENTS — NOT COVERED BY THIS LICENCE
+
+The following components are exclusively proprietary to Enosis Labs, Inc. and
+are NOT licensed under the MaTE X Licence. All rights are reserved:
+
+- MaTE X Privacy Sentinel (local privacy filter model and weights)
+- AETHER model weights and inference engine
+- AETHER DARE reasoning engine and chain-of-thought architecture
+- Rainy API (gateway protocol, infrastructure, and operational systems)
+
+Reverse engineering, redistribution, or reproduction of these components is
+strictly prohibited.
+
+-------------------------------------------------------------------------------
+
+COMMERCIAL USE — LICENCE REQUIRED
+
+Use of MaTE X by companies, organizations, teams, or any entity operating for
+commercial purposes is NOT permitted under this licence. Commercial use
+requires a separate MaTE X Commercial Licence or MaTE X Enterprise Licence,
+issued exclusively by Enosis Labs, Inc.
+
+Permitted without a commercial licence:
+
+- Individual developers for personal, non-commercial projects
+- Open-source contributors (non-commercial projects)
+- Academic researchers (non-commercial use)
+
+Requires a commercial licence:
+
+- Companies and organizations of any size
+- Deploying MaTE X in production systems
+- Using MaTE X for client work or SaaS products
+
+Using MaTE X commercially without a valid commercial licence constitutes
+copyright infringement and a material breach of these Terms.
+
+To obtain a commercial licence: <legal@enosislabs.com>
+For full terms: <https://mate-x.xyz/terms>
+
+-------------------------------------------------------------------------------
+
+This licence is not equivalent to MIT, Apache 2.0, or GPL. Review the full
+Terms of Service at <https://mate-x.xyz/terms> for the complete list of rights
+and restrictions governing use of MaTE X and its associated services.
