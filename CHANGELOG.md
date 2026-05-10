@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.10 (1) [Sandbox Isolation Hardening]
+
+- Hardened `sandbox_run` with process-tree timeout termination, deterministic status reporting, and async failure-memory persistence so validation runs finish faster and avoid false crash labels from stderr text.
+- Added `isolated-copy` execution mode for running commands in a temporary workspace copy that excludes heavy/generated directories and cleans itself up after success, failure, or timeout.
+- Defaulted package-manager mutation commands to isolated-copy mode when no execution mode is requested, reducing accidental direct workspace dependency changes while preserving explicit direct-mode control through policy.
+- Added focused sandbox tests for command parsing, mutation detection, report status, isolated-copy behavior, cleanup, and generated-directory skipping.
+- Verified with `bun run lint`, `bun run typecheck`, and `bunx vitest run src/electron/tools/sandbox_run.test.ts`.
+
 ## Unreleased - 2026.05.05 (4) [Deep Analysis Signal Ranking]
 
 - Added semantic egress ranking so constant-host outbound calls are downgraded, environment-backed base URLs remain medium signal, and user-controlled callback/webhook targets in API surfaces stay high signal.
