@@ -9,8 +9,14 @@ const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
 const LONG_RUNNING_TIMEOUT_SECONDS = 60;
 type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
+type SandboxStatus =
+  | "PASSED"
+  | "FAILED"
+  | "TIMED_OUT"
+  | "START_FAILED"
+  | "TERMINATED";
 
-function parseCommand(command: string) {
+export function parseSandboxCommand(command: string) {
   const tokens: string[] = [];
   let current = "";
   let quote: "'" | "\"" | null = null;
@@ -130,6 +136,69 @@ function stopPowerSaveBlocker(id: number | undefined) {
   }
 }
 
+function killProcessTree(childPid: number | undefined) {
+  if (typeof childPid !== "number") {
+    return;
+  }
+
+  try {
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/pid", String(childPid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      return;
+    }
+
+    process.kill(-childPid, "SIGKILL");
+  } catch {
+    try {
+      process.kill(childPid, "SIGKILL");
+    } catch {
+      // Process already exited or platform refused signal.
+    }
+  }
+}
+
+export function buildSandboxReport(input: {
+  status: SandboxStatus;
+  output: string;
+  timeoutSeconds: number;
+  port: string;
+  nodeEnv: string;
+  keepAwake: boolean;
+  powerBlockerId?: number;
+  powerSaveBlockerType: PowerSaveBlockerType;
+  startedAt: number;
+  exitCode?: number | null;
+  signal?: NodeJS.Signals | null;
+  pid?: number;
+}) {
+  const durationMs = Date.now() - input.startedAt;
+  const exitLine =
+    typeof input.exitCode === "number"
+      ? `Exit code: ${input.exitCode}`
+      : `Signal: ${input.signal ?? "none"}`;
+
+  return [
+    "Sandbox Report: Execution completed.",
+    `Status: ${input.status}`,
+    exitLine,
+    `PID: ${input.pid ?? "unknown"}`,
+    `Duration ms: ${durationMs}`,
+    `Timeout seconds: ${input.timeoutSeconds}`,
+    `PORT: ${input.port}`,
+    `NODE_ENV: ${input.nodeEnv}`,
+    `Keep awake: ${input.keepAwake}`,
+    `Power save blocker: ${typeof input.powerBlockerId === "number" ? input.powerSaveBlockerType : "not_active"}`,
+    `Output:\n${input.output}`,
+  ].join("\n");
+}
+
+function persistSandboxOutcomeSoon(input: Parameters<typeof persistSandboxOutcome>[0]) {
+  void persistSandboxOutcome(input).catch(() => undefined);
+}
+
 export const sandboxRunnerTool: Tool = {
   name: "sandbox_run",
   description:
@@ -187,7 +256,7 @@ export const sandboxRunnerTool: Tool = {
     let cmdArgs: string[];
 
     try {
-      ({ cmd, cmdArgs } = parseCommand(command));
+      ({ cmd, cmdArgs } = parseSandboxCommand(command));
     } catch (error) {
       return `Error: ${error instanceof Error ? error.message : "Invalid command."}`;
     }
@@ -235,8 +304,9 @@ export const sandboxRunnerTool: Tool = {
 
     return new Promise((resolve) => {
       let output = "";
-      let crashed = false;
       let finished = false;
+      let timedOut = false;
+      const startedAt = Date.now();
       const powerBlockerId = startPowerSaveBlocker(
         keepAwake,
         powerSaveBlockerType,
@@ -245,6 +315,8 @@ export const sandboxRunnerTool: Tool = {
       const child = spawn(cmd, cmdArgs, {
         cwd: workspacePath,
         env: { ...process.env, PORT: port, NODE_ENV: nodeEnv },
+        detached: process.platform !== "win32",
+        windowsHide: true,
       });
 
       child.stdout.on("data", (data) => {
@@ -255,12 +327,9 @@ export const sandboxRunnerTool: Tool = {
       child.stderr.on("data", (data) => {
         const err = data.toString();
         output = appendOutput(output, `\\n[STDERR] ${err}`, maxOutputChars);
-        if (err.toLowerCase().includes("error") || err.toLowerCase().includes("trace")) {
-          crashed = true;
-        }
       });
 
-      const finish = async (report: string, exitCode?: number) => {
+      const finish = (report: string, exitCode?: number) => {
         if (finished) {
           return;
         }
@@ -268,72 +337,85 @@ export const sandboxRunnerTool: Tool = {
         finished = true;
         clearTimeout(timer);
         stopPowerSaveBlocker(powerBlockerId);
-        const failureMemory = activeWorkspaceId
-          ? await persistSandboxOutcome({
+
+        if (activeWorkspaceId) {
+          persistSandboxOutcomeSoon({
               workspaceId: activeWorkspaceId,
               command,
               exitCode,
               framework: profile?.testFramework,
               output,
               priorFailureId: priorMatches[0]?.failure.id,
-            })
-          : undefined;
+          });
+        }
 
-        const memoryReport = failureMemory
-          ? [
-              "",
-              "Failure Memory:",
-              `- ID: ${failureMemory.id}`,
-              `- Error signature: ${failureMemory.errorSignature}`,
-              `- Occurrence count: ${failureMemory.occurrenceCount}`,
-              failureMemory.occurrenceCount > 1
-                ? "- Warning: same failure repeated. Change approach before retrying."
-                : undefined,
-            ].filter(Boolean).join("\n")
-          : "";
-
-        resolve(`${priorWarning}${report}${memoryReport}`);
+        resolve(`${priorWarning}${report}`);
       };
 
       child.on("error", (error) => {
         output = appendOutput(output, `\n[ERROR] ${error.message}`, maxOutputChars);
         finish(
-          `Sandbox Report: Failed to start process.\nStatus: CRASH DETECTED\nOutput:\n${error.message}`,
+          buildSandboxReport({
+            status: "START_FAILED",
+            output: error.message,
+            timeoutSeconds,
+            port,
+            nodeEnv,
+            keepAwake,
+            powerBlockerId,
+            powerSaveBlockerType,
+            startedAt,
+            exitCode: 1,
+            pid: child.pid,
+          }),
           1,
         );
       });
 
       const timer = setTimeout(() => {
-        child.kill("SIGKILL");
+        timedOut = true;
+        killProcessTree(child.pid);
         finish(
-          [
-            "Sandbox Report: Execution completed.",
-            `Status: ${crashed ? "CRASH DETECTED" : "STABLE"}`,
-            `Timeout seconds: ${timeoutSeconds}`,
-            `PORT: ${port}`,
-            `NODE_ENV: ${nodeEnv}`,
-            `Keep awake: ${keepAwake}`,
-            `Power save blocker: ${typeof powerBlockerId === "number" ? powerSaveBlockerType : "not_active"}`,
-            `Output:\n${output}`,
-            "",
-            `The sandbox cleanly terminated the process after ${timeoutSeconds} seconds.`,
-          ].join("\\n"),
-          crashed ? 1 : 0,
+          buildSandboxReport({
+            status: "TIMED_OUT",
+            output: `${output}\n\nThe sandbox terminated the process tree after ${timeoutSeconds} seconds.`,
+            timeoutSeconds,
+            port,
+            nodeEnv,
+            keepAwake,
+            powerBlockerId,
+            powerSaveBlockerType,
+            startedAt,
+            exitCode: 124,
+            pid: child.pid,
+          }),
+          124,
         );
       }, timeoutSeconds * 1000);
 
-      child.on("close", (code) => {
+      child.on("close", (code, signal) => {
+        if (timedOut) {
+          return;
+        }
+
+        const status: SandboxStatus =
+          code === 0 ? "PASSED" : signal ? "TERMINATED" : "FAILED";
+
         finish(
-          [
-            `Sandbox Report: Process exited with code ${code}.`,
-            `Status: ${code === 0 ? "STABLE (Finished)" : "CRASH DETECTED"}`,
-            `Timeout seconds: ${timeoutSeconds}`,
-            `PORT: ${port}`,
-            `NODE_ENV: ${nodeEnv}`,
-            `Keep awake: ${keepAwake}`,
-            `Power save blocker: ${typeof powerBlockerId === "number" ? powerSaveBlockerType : "not_active"}`,
-            `Output:\n${output}`,
-          ].join("\\n"),
+          buildSandboxReport({
+            status,
+            output,
+            timeoutSeconds,
+            port,
+            nodeEnv,
+            keepAwake,
+            powerBlockerId,
+            powerSaveBlockerType,
+            startedAt,
+            exitCode: code,
+            signal,
+            pid: child.pid,
+          }),
           code ?? undefined,
         );
       });
