@@ -7,8 +7,10 @@ import { describe, it } from "vitest";
 
 import {
   buildSandboxReport,
+  isPackageManagerMutationCommand,
   parseSandboxCommand,
   prepareSandboxWorkspace,
+  resolveSandboxExecutionMode,
 } from "./sandbox_run";
 
 describe("sandbox_run command parsing", () => {
@@ -28,6 +30,31 @@ describe("sandbox_run command parsing", () => {
 
   it("rejects empty commands", () => {
     assert.throws(() => parseSandboxCommand("   "), /Command is required/);
+  });
+});
+
+describe("sandbox_run command risk detection", () => {
+  it("detects package-manager mutations", () => {
+    assert.equal(isPackageManagerMutationCommand("bun add lodash"), true);
+    assert.equal(isPackageManagerMutationCommand("npm install react"), true);
+    assert.equal(isPackageManagerMutationCommand("pnpm test"), false);
+  });
+
+  it("defaults package mutations to isolated-copy unless caller explicitly selects direct", () => {
+    assert.equal(
+      resolveSandboxExecutionMode({
+        command: "bun add lodash",
+        requestedMode: undefined,
+      }),
+      "isolated-copy",
+    );
+    assert.equal(
+      resolveSandboxExecutionMode({
+        command: "bun add lodash",
+        requestedMode: "direct",
+      }),
+      "direct",
+    );
   });
 });
 

@@ -124,6 +124,26 @@ function resolveExecutionMode(value: unknown): SandboxExecutionMode {
   return value === "isolated-copy" ? "isolated-copy" : DEFAULT_EXECUTION_MODE;
 }
 
+export function isPackageManagerMutationCommand(command: string) {
+  return /\b(bun|npm|pnpm|yarn)\s+(add|install|i|update|upgrade|remove|uninstall)\b/i.test(
+    command,
+  );
+}
+
+export function resolveSandboxExecutionMode(input: {
+  command: string;
+  requestedMode: unknown;
+}) {
+  if (
+    input.requestedMode === undefined &&
+    isPackageManagerMutationCommand(input.command)
+  ) {
+    return "isolated-copy";
+  }
+
+  return resolveExecutionMode(input.requestedMode);
+}
+
 function startPowerSaveBlocker(
   keepAwake: boolean,
   type: PowerSaveBlockerType,
@@ -334,7 +354,10 @@ export const sandboxRunnerTool: Tool = {
     const port = resolvePort(args.port);
     const nodeEnv = resolveNodeEnv(args.nodeEnv);
     const keepAwake = resolveKeepAwake(args.keepAwake, timeoutSeconds);
-    const executionMode = resolveExecutionMode(args.executionMode);
+    const executionMode = resolveSandboxExecutionMode({
+      command,
+      requestedMode: args.executionMode,
+    });
     const powerSaveBlockerType = resolvePowerSaveBlockerType(
       args.powerSaveBlockerType,
     );
