@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { powerSaveBlocker } from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
@@ -8,7 +11,17 @@ import type { Tool } from "../tool-service";
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
 const LONG_RUNNING_TIMEOUT_SECONDS = 60;
+const DEFAULT_EXECUTION_MODE = "direct";
+const IGNORED_COPY_NAMES = new Set([
+  ".git",
+  "coverage",
+  "dist",
+  "node_modules",
+  "out",
+  "target",
+]);
 type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
+type SandboxExecutionMode = "direct" | "isolated-copy";
 type SandboxStatus =
   | "PASSED"
   | "FAILED"
@@ -107,6 +120,10 @@ function resolvePowerSaveBlockerType(value: unknown): PowerSaveBlockerType {
     : "prevent-app-suspension";
 }
 
+function resolveExecutionMode(value: unknown): SandboxExecutionMode {
+  return value === "isolated-copy" ? "isolated-copy" : DEFAULT_EXECUTION_MODE;
+}
+
 function startPowerSaveBlocker(
   keepAwake: boolean,
   type: PowerSaveBlockerType,
@@ -162,6 +179,8 @@ function killProcessTree(childPid: number | undefined) {
 
 export function buildSandboxReport(input: {
   status: SandboxStatus;
+  executionMode?: SandboxExecutionMode;
+  cleanupStatus?: string;
   output: string;
   timeoutSeconds: number;
   port: string;
@@ -183,6 +202,8 @@ export function buildSandboxReport(input: {
   return [
     "Sandbox Report: Execution completed.",
     `Status: ${input.status}`,
+    `Execution mode: ${input.executionMode ?? DEFAULT_EXECUTION_MODE}`,
+    input.cleanupStatus ? `Cleanup: ${input.cleanupStatus}` : undefined,
     exitLine,
     `PID: ${input.pid ?? "unknown"}`,
     `Duration ms: ${durationMs}`,
@@ -192,11 +213,44 @@ export function buildSandboxReport(input: {
     `Keep awake: ${input.keepAwake}`,
     `Power save blocker: ${typeof input.powerBlockerId === "number" ? input.powerSaveBlockerType : "not_active"}`,
     `Output:\n${input.output}`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function persistSandboxOutcomeSoon(input: Parameters<typeof persistSandboxOutcome>[0]) {
   void persistSandboxOutcome(input).catch(() => undefined);
+}
+
+export async function prepareSandboxWorkspace(input: {
+  executionMode: SandboxExecutionMode;
+  workspacePath: string;
+}) {
+  if (input.executionMode === "direct") {
+    return {
+      runPath: input.workspacePath,
+      cleanup: async () => "not_required",
+    };
+  }
+
+  const runPath = await mkdtemp(join(tmpdir(), "mate-x-sandbox-"));
+  await cp(input.workspacePath, runPath, {
+    recursive: true,
+    filter: (source) => {
+      const name = source.split(/[\\/]/).pop() ?? "";
+      return (
+        !IGNORED_COPY_NAMES.has(name) &&
+        !name.endsWith(".log") &&
+        !name.endsWith(".map")
+      );
+    },
+  });
+
+  return {
+    runPath,
+    cleanup: async () => {
+      await rm(runPath, { force: true, recursive: true });
+      return "removed_isolated_copy";
+    },
+  };
 }
 
 export const sandboxRunnerTool: Tool = {
@@ -244,6 +298,12 @@ export const sandboxRunnerTool: Tool = {
         description:
           "Electron powerSaveBlocker mode when keepAwake is active. Use prevent-app-suspension for normal long tests; prevent-display-sleep for interactive/browser scenarios that must keep the display awake.",
       },
+      executionMode: {
+        type: "string",
+        enum: ["direct", "isolated-copy"],
+        description:
+          "Workspace execution mode. direct runs in the real workspace. isolated-copy runs in a temporary copy that excludes node_modules, .git, build outputs, logs, maps, and coverage, then removes it after the run.",
+      },
     },
     required: ["command"],
   },
@@ -274,6 +334,7 @@ export const sandboxRunnerTool: Tool = {
     const port = resolvePort(args.port);
     const nodeEnv = resolveNodeEnv(args.nodeEnv);
     const keepAwake = resolveKeepAwake(args.keepAwake, timeoutSeconds);
+    const executionMode = resolveExecutionMode(args.executionMode);
     const powerSaveBlockerType = resolvePowerSaveBlockerType(
       args.powerSaveBlockerType,
     );
@@ -302,6 +363,28 @@ export const sandboxRunnerTool: Tool = {
         ].join("\n")
       : "";
 
+    let preparedWorkspace: Awaited<ReturnType<typeof prepareSandboxWorkspace>>;
+    try {
+      preparedWorkspace = await prepareSandboxWorkspace({
+        executionMode,
+        workspacePath,
+      });
+    } catch (error) {
+      return buildSandboxReport({
+        status: "START_FAILED",
+        executionMode,
+        cleanupStatus: "not_started",
+        output: error instanceof Error ? error.message : "Failed to prepare sandbox workspace.",
+        timeoutSeconds,
+        port,
+        nodeEnv,
+        keepAwake,
+        powerSaveBlockerType,
+        startedAt: Date.now(),
+        exitCode: 1,
+      });
+    }
+
     return new Promise((resolve) => {
       let output = "";
       let finished = false;
@@ -313,7 +396,7 @@ export const sandboxRunnerTool: Tool = {
       );
 
       const child = spawn(cmd, cmdArgs, {
-        cwd: workspacePath,
+        cwd: preparedWorkspace.runPath,
         env: { ...process.env, PORT: port, NODE_ENV: nodeEnv },
         detached: process.platform !== "win32",
         windowsHide: true,
@@ -329,7 +412,13 @@ export const sandboxRunnerTool: Tool = {
         output = appendOutput(output, `\\n[STDERR] ${err}`, maxOutputChars);
       });
 
-      const finish = (report: string, exitCode?: number) => {
+      const finish = async (
+        reportInput: Omit<
+          Parameters<typeof buildSandboxReport>[0],
+          "cleanupStatus"
+        >,
+        exitCode?: number,
+      ) => {
         if (finished) {
           return;
         }
@@ -337,6 +426,12 @@ export const sandboxRunnerTool: Tool = {
         finished = true;
         clearTimeout(timer);
         stopPowerSaveBlocker(powerBlockerId);
+        let cleanupStatus: string;
+        try {
+          cleanupStatus = await preparedWorkspace.cleanup();
+        } catch (error) {
+          cleanupStatus = `failed: ${error instanceof Error ? error.message : "unknown"}`;
+        }
 
         if (activeWorkspaceId) {
           persistSandboxOutcomeSoon({
@@ -349,14 +444,18 @@ export const sandboxRunnerTool: Tool = {
           });
         }
 
-        resolve(`${priorWarning}${report}`);
+        resolve(`${priorWarning}${buildSandboxReport({
+          ...reportInput,
+          cleanupStatus,
+        })}`);
       };
 
       child.on("error", (error) => {
         output = appendOutput(output, `\n[ERROR] ${error.message}`, maxOutputChars);
-        finish(
-          buildSandboxReport({
+        void finish(
+          {
             status: "START_FAILED",
+            executionMode,
             output: error.message,
             timeoutSeconds,
             port,
@@ -367,7 +466,7 @@ export const sandboxRunnerTool: Tool = {
             startedAt,
             exitCode: 1,
             pid: child.pid,
-          }),
+          },
           1,
         );
       });
@@ -375,9 +474,10 @@ export const sandboxRunnerTool: Tool = {
       const timer = setTimeout(() => {
         timedOut = true;
         killProcessTree(child.pid);
-        finish(
-          buildSandboxReport({
+        void finish(
+          {
             status: "TIMED_OUT",
+            executionMode,
             output: `${output}\n\nThe sandbox terminated the process tree after ${timeoutSeconds} seconds.`,
             timeoutSeconds,
             port,
@@ -388,7 +488,7 @@ export const sandboxRunnerTool: Tool = {
             startedAt,
             exitCode: 124,
             pid: child.pid,
-          }),
+          },
           124,
         );
       }, timeoutSeconds * 1000);
@@ -401,9 +501,10 @@ export const sandboxRunnerTool: Tool = {
         const status: SandboxStatus =
           code === 0 ? "PASSED" : signal ? "TERMINATED" : "FAILED";
 
-        finish(
-          buildSandboxReport({
+        void finish(
+          {
             status,
+            executionMode,
             output,
             timeoutSeconds,
             port,
@@ -415,7 +516,7 @@ export const sandboxRunnerTool: Tool = {
             exitCode: code,
             signal,
             pid: child.pid,
-          }),
+          },
           code ?? undefined,
         );
       });

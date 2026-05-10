@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, it } from "vitest";
 
-import { buildSandboxReport, parseSandboxCommand } from "./sandbox_run";
+import {
+  buildSandboxReport,
+  parseSandboxCommand,
+  prepareSandboxWorkspace,
+} from "./sandbox_run";
 
 describe("sandbox_run command parsing", () => {
   it("parses a direct command with quoted args", () => {
@@ -61,5 +68,44 @@ describe("sandbox_run reporting", () => {
     assert.match(report, /Status: TIMED_OUT/);
     assert.match(report, /PID: 123/);
     assert.match(report, /Duration ms: \d+/);
+  });
+});
+
+describe("sandbox_run isolated workspace", () => {
+  it("runs from a temporary copy without mutating the original workspace", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-source-${Date.now()}`);
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(join(workspacePath, "file.txt"), "original");
+
+    const prepared = await prepareSandboxWorkspace({
+      executionMode: "isolated-copy",
+      workspacePath,
+    });
+    await writeFile(join(prepared.runPath, "file.txt"), "mutated");
+
+    assert.equal(await readFile(join(workspacePath, "file.txt"), "utf8"), "original");
+    assert.equal(await prepared.cleanup(), "removed_isolated_copy");
+    await assert.rejects(() => stat(prepared.runPath));
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+
+  it("skips heavy generated directories while copying", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-source-${Date.now()}`);
+    await mkdir(join(workspacePath, "node_modules"), { recursive: true });
+    await mkdir(join(workspacePath, ".git"), { recursive: true });
+    await writeFile(join(workspacePath, "node_modules", "dep.js"), "dep");
+    await writeFile(join(workspacePath, ".git", "HEAD"), "ref");
+    await writeFile(join(workspacePath, "app.ts"), "app");
+
+    const prepared = await prepareSandboxWorkspace({
+      executionMode: "isolated-copy",
+      workspacePath,
+    });
+
+    assert.equal(await readFile(join(prepared.runPath, "app.ts"), "utf8"), "app");
+    await assert.rejects(() => stat(join(prepared.runPath, "node_modules")));
+    await assert.rejects(() => stat(join(prepared.runPath, ".git")));
+    await prepared.cleanup();
+    await rm(workspacePath, { force: true, recursive: true });
   });
 });
