@@ -82,6 +82,27 @@ export function parseSandboxCommand(command: string) {
   };
 }
 
+function resolveSandboxCommand(input: { command: unknown; args: unknown }) {
+  if (typeof input.command !== "string" || input.command.trim() === "") {
+    throw new Error("Command is required.");
+  }
+
+  if (Array.isArray(input.args)) {
+    if (/[|&;<>`$]/.test(input.command) || /\s/.test(input.command.trim())) {
+      throw new Error(
+        "When args is provided, command must be only the executable name or path.",
+      );
+    }
+
+    return {
+      cmd: input.command.trim(),
+      cmdArgs: input.args.map((arg) => String(arg)),
+    };
+  }
+
+  return parseSandboxCommand(input.command);
+}
+
 function resolveAllowedNumber<const T extends readonly number[]>(
   value: unknown,
   allowed: T,
@@ -124,6 +145,17 @@ function resolvePowerSaveBlockerType(value: unknown): PowerSaveBlockerType {
 
 function resolveExecutionMode(value: unknown): SandboxExecutionMode {
   return value === "isolated-copy" ? "isolated-copy" : DEFAULT_EXECUTION_MODE;
+}
+
+function formatStartFailure(error: Error, command: string) {
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code === "ENOENT") {
+    return `${error.message}\nExecutable not found. Use an installed binary on PATH, or pass command plus args explicitly.`;
+  }
+  if (code === "ENOEXEC") {
+    return `${error.message}\nExecutable format invalid. Use a real executable with a shebang, or run the interpreter directly with args.`;
+  }
+  return `${error.message}\nCommand was parsed as direct exec: ${command}`;
 }
 
 export function isPackageManagerMutationCommand(command: string) {
@@ -363,7 +395,13 @@ export const sandboxRunnerTool: Tool = {
     properties: {
       command: {
         type: "string",
-        description: "The direct command to run in the real workspace, without shell operators (e.g., 'bun run start' or 'node server.js'). Package-manager mutation commands require policy approval because they can modify the project.",
+        description: "Direct executable command, optionally with simple whitespace-separated args. Shell operators are rejected. Prefer command plus args for precision.",
+      },
+      args: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Optional explicit argv list. When provided, command must be only the executable name or path, e.g. command 'bun', args ['run', 'typecheck'].",
       },
       timeoutSeconds: {
         type: "number",
@@ -417,7 +455,10 @@ export const sandboxRunnerTool: Tool = {
     let cmdArgs: string[];
 
     try {
-      ({ cmd, cmdArgs } = parseSandboxCommand(command));
+      ({ cmd, cmdArgs } = resolveSandboxCommand({
+        command,
+        args: args.args,
+      }));
     } catch (error) {
       return `Error: ${error instanceof Error ? error.message : "Invalid command."}`;
     }
@@ -566,12 +607,13 @@ export const sandboxRunnerTool: Tool = {
       };
 
       child.on("error", (error) => {
-        output = appendOutput(output, `\n[ERROR] ${error.message}`, maxOutputChars);
+        const failure = formatStartFailure(error, command);
+        output = appendOutput(output, `\n[ERROR] ${failure}`, maxOutputChars);
         void finish(
           {
             status: "START_FAILED",
             executionMode,
-            output: error.message,
+            output: failure,
             timeoutSeconds,
             port,
             nodeEnv,
