@@ -345,6 +345,18 @@ export function EvidencePackSection({
           <FileArchiveIcon className="size-3.5" />
           Generate Compliance Report
         </button>
+        <button
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-background/18 px-3 py-2 text-[11px] font-medium text-foreground/80 transition hover:bg-background/30 disabled:opacity-55"
+          disabled={!canExportCompliance}
+          onClick={() => {
+            if (evidencePack) void window.mate.repo.generateComplianceReport(evidencePack);
+          }}
+          title="Export Agent Runbook"
+          type="button"
+        >
+          <FileTextIcon className="size-3.5" />
+          Export Agent Runbook
+        </button>
       </div>
     </section>
   );

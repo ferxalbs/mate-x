@@ -5,6 +5,10 @@ import { promisify } from "node:util";
 
 import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
 import { generateEvidenceAttestation } from "../features/compliance/attestation";
+import {
+  attachAgentIdentity,
+  resolveAgentRunIdentity,
+} from "../features/compliance/agentIdentity";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
 import {
   appendVerificationWarnings,
@@ -724,11 +728,17 @@ export async function runAssistant(
     runbookId: resolvedOptions.runbookId,
     initialStatusLines: snapshot.statusLines,
   });
+  const agentIdentity = await resolveAgentRunIdentity({
+    workspacePath: snapshot.workspace.path,
+    policySources: await loadCompliancePolicySources(snapshot.workspace.path),
+  });
+  const identityEvidencePack = attachAgentIdentity(baseEvidencePack, agentIdentity);
   const { evidencePack } = await generateEvidenceAttestation({
-    evidencePack: baseEvidencePack,
+    evidencePack: identityEvidencePack,
     workspacePath: snapshot.workspace.path,
     taskId,
     policyApplied: resolvedOptions.runbookId ?? "workspace-trust-contract",
+    agentIdentity,
     privacyScan: async (payload) => {
       const scan = await privacyFirewall.scanTextSafe(payload);
       const hasSecrets = scan.spans.some(
@@ -790,6 +800,19 @@ export async function runAssistant(
       workingSet,
     },
   };
+}
+
+async function loadCompliancePolicySources(workspacePath: string) {
+  const agentsPath = path.join(workspacePath, "AGENTS.md");
+  const rulesPath = path.join(workspacePath, "RULES.md");
+  const sources = await Promise.all(
+    [agentsPath, rulesPath].map(async (policyPath) => {
+      const content = await readFile(policyPath, "utf8").catch(() => null);
+      return content ? { path: path.basename(policyPath), content } : null;
+    }),
+  );
+
+  return sources.filter((source): source is { path: string; content: string } => source !== null);
 }
 
 export async function getAgentRoutingRecommendation(
