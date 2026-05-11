@@ -39,9 +39,9 @@ Before transmitting any repository context, tool outputs, workspace memory, or p
 
 ### Compliance & Attestations
 
-Each completed agent run can produce local-first compliance evidence under `.matex/evidence/<taskId>/`. MaTE X generates signed in-toto/SLSA provenance for Evidence Packs, then exports a SOC 2 / procurement ZIP containing `evidence-pack.json`, `attestation.intoto.json`, `compliance-report.pdf`, `audit-log.json`, `policy-applied.md`, and `manifest.json` with SHA-256 hashes.
+Each completed agent run can produce local-first compliance evidence under `.matex/evidence/<taskId>/`. MaTE X generates signed in-toto/SLSA provenance for Evidence Packs, binds the run to a persistent local Agent Run Identity, then exports a SOC 2 / procurement ZIP containing `evidence-pack.json`, `attestation.intoto.json`, `compliance-report.pdf`, `audit-log.json`, `policy-applied.md`, `agent-runbook.json`, `agent-runbook.md`, and `manifest.json` with SHA-256 hashes.
 
-The export is built on-device. Privacy Firewall checks run before attestation trust is added, and native report delivery integrations receive only encrypted ZIP payloads when explicitly enabled.
+The Agent Run Identity lives in `.matex/config/agent-identity.json`, includes a policy hash for local `AGENTS.md` / `RULES.md` evidence, and is never sent to Rainy API without explicit future consent. Exports are built on-device. Privacy Firewall checks run before attestation trust is added, and native report delivery integrations receive only encrypted ZIP payloads when explicitly enabled.
 
 ## Tech Stack
 

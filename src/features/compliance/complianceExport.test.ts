@@ -45,10 +45,12 @@ describe("compliance export unit", () => {
 
   it("builds a ZIP containing all local headers", () => {
     const zip = buildZip([
-      { path: "evidence-pack.json", content: Buffer.from("{}") },
-      { path: "manifest.json", content: Buffer.from("{}") },
+      { path: "evidence-pack.json", content: Buffer.from("{}"), date: new Date("2026-05-11T00:01:02.000Z") },
+      { path: "manifest.json", content: Buffer.from("{}"), date: new Date("2026-05-11T00:01:02.000Z") },
     ]);
     assert.equal(zip.readUInt32LE(0), 0x04034b50);
+    assert.notEqual(zip.readUInt16LE(10), 0);
+    assert.notEqual(zip.readUInt16LE(12), 0);
     assert.match(zip.toString("latin1"), /evidence-pack\.json/);
     assert.match(zip.toString("latin1"), /manifest\.json/);
   });
@@ -67,6 +69,8 @@ describe("compliance export unit", () => {
 
     assert.match(zip.toString("latin1"), /compliance-report\.pdf/);
     assert.deepEqual(Object.keys(manifest.files), [
+      "agent-runbook.json",
+      "agent-runbook.md",
       "attestation.intoto.json",
       "audit-log.json",
       "compliance-report.pdf",
@@ -136,6 +140,7 @@ describe("compliance export e2e", () => {
     const zip = await readFile(result.zipPath);
 
     assert.match(zip.toString("latin1"), /attestation\.intoto\.json/);
+    assert.match(zip.toString("latin1"), /agent-runbook\.json/);
     assert.match(zip.toString("latin1"), /https:\/\/slsa\.dev\/provenance\/v1/);
   });
 

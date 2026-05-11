@@ -4,6 +4,7 @@ import { homedir, platform, release } from "node:os";
 import { dirname, join, relative } from "node:path";
 
 import type { EvidencePack } from "../../contracts/chat";
+import type { AgentRunIdentity } from "./agentIdentity";
 
 export const MATE_X_SLSA_PREDICATE_TYPE = "https://slsa.dev/provenance/v1";
 export const MATE_X_BUILDER_ID = "mate-x-desktop-electron-42";
@@ -40,6 +41,7 @@ export interface MateXAgentRunStatement {
         workspacePath: string;
       };
     };
+    agentIdentity?: AgentRunIdentity;
     metadata: {
       buildStartedOn: string;
       buildFinishedOn: string;
@@ -70,6 +72,7 @@ export interface GenerateEvidenceAttestationParams {
   electronVersion?: string;
   keyDirectory?: string;
   privacyScan?: (payload: string) => Promise<PrivacyScanGate>;
+  agentIdentity?: AgentRunIdentity;
   now?: Date;
 }
 
@@ -166,6 +169,7 @@ export async function generateEvidenceAttestation(
             workspacePath: params.workspacePath,
           },
         },
+        agentIdentity: params.agentIdentity ?? unsignedEvidencePack.agentIdentity,
         metadata: {
           buildStartedOn: unsignedEvidencePack.generatedAt,
           buildFinishedOn: generatedAt,

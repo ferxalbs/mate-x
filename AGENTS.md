@@ -164,3 +164,13 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - **No Product Boxing / Product-Grade Classification**: MaTE X analyzes arbitrary third-party repositories, not only this repo. Never hardcode MaTE-specific paths, filenames, fixtures, scanner internals, or repository assumptions into analysis logic unless the code explicitly gates them to MaTE X self-diagnostics. Tools must use strong semantic classification, not generic checklist behavior: identify framework, runtime surface, trust boundaries, data flow, environment, source role (runtime code, docs, tests, examples, generated files, scanner rules), and evidence confidence. Keep active findings separate from reference signals so real user repositories are not misreported, while still using every available semantic signal to produce specific, high-quality analysis and fixes.
 - Optimize: security first, then responsiveness and low overhead.
 - Avoid platform regressions on macOS x86/ARM and Windows 10+.
+
+## Compliance & Attestations
+
+- Every completed agent run may create local compliance artifacts under `.matex/evidence/<taskId>/`.
+- Evidence Pack attestations use in-toto Statement v1 with SLSA provenance predicates and local Ed25519 signing keys.
+- Agent Run Identity is local-first and persisted under `.matex/config/agent-identity.json`; never send it to Rainy API or any report sink without explicit user consent.
+- Evidence Packs, attestations, compliance ZIPs, manifests, and Agent Runbooks must include `agentIdentity` when available.
+- Compliance ZIPs must include `evidence-pack.json`, `attestation.intoto.json`, `compliance-report.pdf`, `audit-log.json`, `policy-applied.md`, `agent-runbook.json`, `agent-runbook.md`, and `manifest.json`.
+- Privacy Firewall gates signing trust. Never sign or export sensitive raw secret payloads as trusted evidence.
+- Policy hashes must derive from relevant local policy sources such as `AGENTS.md` and `RULES.md`; keep hashes stable and deterministic.

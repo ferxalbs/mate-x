@@ -75,6 +75,15 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
                 ? "Export failed"
                 : "Generate Compliance Report"}
         </button>
+        <button
+          className="rounded-full border border-[var(--panel-border)]/35 bg-background/30 px-2.5 py-1 text-[10px] text-foreground/80 transition hover:bg-background/42 disabled:opacity-60"
+          disabled={exportState === "exporting"}
+          onClick={() => void generateReport()}
+          title="Export Agent Runbook"
+          type="button"
+        >
+          Export Agent Runbook
+        </button>
       </div>
 
       <p className="text-[12px] text-foreground/90">

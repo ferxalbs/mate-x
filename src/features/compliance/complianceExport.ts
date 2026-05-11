@@ -4,6 +4,11 @@ import { basename, join } from "node:path";
 
 import type { EvidencePack } from "../../contracts/chat";
 import { canonicalJson, sha256Hex } from "./attestation";
+import {
+  buildAgentRunbook,
+  renderAgentRunbookMarkdown,
+  resolveAgentRunIdentity,
+} from "./agentIdentity";
 
 export interface ComplianceExportRequest {
   evidencePack: EvidencePack;
@@ -41,6 +46,7 @@ export interface EncryptedCompliancePackage {
 interface ZipEntry {
   path: string;
   content: Buffer;
+  date?: Date;
 }
 
 const ZIP_EOCD_SIGNATURE = 0x06054b50;
@@ -63,6 +69,20 @@ export async function generateComplianceExport(
   const attestationJson = await loadAttestation(request.workspacePath, request.evidencePack);
   const auditLogJson = Buffer.from(`${canonicalJson(buildAuditLog(request, generatedAt))}\n`, "utf8");
   const policyAppliedMd = Buffer.from(buildPolicyAppliedMarkdown(request, generatedAt), "utf8");
+  const agentIdentity =
+    request.evidencePack.agentIdentity ??
+    (await resolveAgentRunIdentity({
+      workspacePath: request.workspacePath,
+      now: request.now,
+    }));
+  const agentRunbook = buildAgentRunbook({
+    evidencePack: request.evidencePack,
+    agentIdentity,
+    policyApplied: request.policyApplied,
+    generatedAt,
+  });
+  const agentRunbookJson = Buffer.from(`${canonicalJson(agentRunbook)}\n`, "utf8");
+  const agentRunbookMd = Buffer.from(renderAgentRunbookMarkdown(agentRunbook), "utf8");
   const complianceReportPdf = buildComplianceReportPdf(request.evidencePack, generatedAt);
 
   const manifestDraft = {
@@ -71,6 +91,7 @@ export async function generateComplianceExport(
     taskId,
     userId: request.userId ?? "local-user",
     workspacePath: request.workspacePath,
+    agentIdentity,
     controls: ["SOC2_CC6.1", "SOC2_PI1.2", "AI_GOVERNANCE"],
     files: {
       "evidence-pack.json": sha256Hex(evidencePackJson),
@@ -78,16 +99,21 @@ export async function generateComplianceExport(
       "compliance-report.pdf": sha256Hex(complianceReportPdf),
       "audit-log.json": sha256Hex(auditLogJson),
       "policy-applied.md": sha256Hex(policyAppliedMd),
+      "agent-runbook.json": sha256Hex(agentRunbookJson),
+      "agent-runbook.md": sha256Hex(agentRunbookMd),
     },
   };
   const manifestJson = Buffer.from(`${canonicalJson(manifestDraft)}\n`, "utf8");
+  const zipDate = new Date(generatedAt);
   const entries: ZipEntry[] = [
-    { path: "evidence-pack.json", content: evidencePackJson },
-    { path: "attestation.intoto.json", content: attestationJson },
-    { path: "compliance-report.pdf", content: complianceReportPdf },
-    { path: "audit-log.json", content: auditLogJson },
-    { path: "policy-applied.md", content: policyAppliedMd },
-    { path: "manifest.json", content: manifestJson },
+    { path: "evidence-pack.json", content: evidencePackJson, date: zipDate },
+    { path: "attestation.intoto.json", content: attestationJson, date: zipDate },
+    { path: "compliance-report.pdf", content: complianceReportPdf, date: zipDate },
+    { path: "audit-log.json", content: auditLogJson, date: zipDate },
+    { path: "policy-applied.md", content: policyAppliedMd, date: zipDate },
+    { path: "agent-runbook.json", content: agentRunbookJson, date: zipDate },
+    { path: "agent-runbook.md", content: agentRunbookMd, date: zipDate },
+    { path: "manifest.json", content: manifestJson, date: zipDate },
   ];
   const zipBuffer = buildZip(entries);
   await writeFile(manifestPath, manifestJson);
@@ -128,6 +154,7 @@ export function buildAuditLog(request: ComplianceExportRequest, generatedAt: str
       workspacePath: request.workspacePath,
       verifiedTaskScore: evidencePack.verifiedTaskScore?.score ?? null,
       attestationStatus: evidencePack.attestation?.status ?? "missing",
+      agentIdentity: evidencePack.agentIdentity ?? null,
     },
     controls: [
       {
@@ -169,6 +196,7 @@ export function buildPolicyAppliedMarkdown(request: ComplianceExportRequest, gen
     "- SOC 2 CC6.1: command, tool, and Evidence Pack audit evidence preserved.",
     "- SOC 2 PI1.2: file digests and Verified Task Score preserve processing-integrity evidence.",
     "- AI Governance: agent run output is bound to in-toto/SLSA provenance when attestation is signed.",
+    "- Agent Identity: persistent local identity and policy hash bind the run to workspace policy.",
     "",
     "## Applied MaTE X Rules",
     "",
@@ -176,6 +204,7 @@ export function buildPolicyAppliedMarkdown(request: ComplianceExportRequest, gen
     "- Privacy Firewall blocks signing before secret-bearing payloads are trusted.",
     "- Rainy API v3.5 orchestration remains required for managed agent runs.",
     "- Evidence Pack and attestation hashes included in manifest.json.",
+    "- Agent Runbook exported as Markdown and JSON for procurement review.",
     "",
   ].join("\n");
 }
@@ -201,6 +230,7 @@ export function buildComplianceReportPdf(evidencePack: EvidencePack, generatedAt
     "CC6.1: Audit log and command evidence included.",
     "PI1.2: File hashes and Verified Task Score included.",
     "AI Governance: Agent action provenance included.",
+    `Agent Identity: ${evidencePack.agentIdentity?.id ?? "unbound"}`,
   ];
 
   return createMinimalPdf(lines);
@@ -215,12 +245,13 @@ export function buildZip(entries: ZipEntry[]): Buffer {
     const name = Buffer.from(entry.path, "utf8");
     const crc = crc32(entry.content);
     const local = Buffer.alloc(30);
+    const dos = dosDateTime(entry.date ?? new Date());
     local.writeUInt32LE(ZIP_LOCAL_FILE_SIGNATURE, 0);
     local.writeUInt16LE(20, 4);
     local.writeUInt16LE(0, 6);
     local.writeUInt16LE(0, 8);
-    local.writeUInt16LE(0, 10);
-    local.writeUInt16LE(0, 12);
+    local.writeUInt16LE(dos.time, 10);
+    local.writeUInt16LE(dos.date, 12);
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(entry.content.byteLength, 18);
     local.writeUInt32LE(entry.content.byteLength, 22);
@@ -234,8 +265,8 @@ export function buildZip(entries: ZipEntry[]): Buffer {
     central.writeUInt16LE(20, 6);
     central.writeUInt16LE(0, 8);
     central.writeUInt16LE(0, 10);
-    central.writeUInt16LE(0, 12);
-    central.writeUInt16LE(0, 14);
+    central.writeUInt16LE(dos.time, 12);
+    central.writeUInt16LE(dos.date, 14);
     central.writeUInt32LE(crc, 16);
     central.writeUInt32LE(entry.content.byteLength, 20);
     central.writeUInt32LE(entry.content.byteLength, 24);
@@ -354,6 +385,20 @@ function crc32(buffer: Buffer) {
     }
   }
   return (crc ^ 0xffffffff) >>> 0;
+}
+
+function dosDateTime(date: Date) {
+  const year = Math.min(Math.max(date.getFullYear(), 1980), 2107);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = Math.floor(date.getSeconds() / 2);
+
+  return {
+    date: ((year - 1980) << 9) | (month << 5) | day,
+    time: (hours << 11) | (minutes << 5) | seconds,
+  };
 }
 
 export function packageDisplayName(result: Pick<ComplianceExportResult, "zipPath" | "fileName">) {

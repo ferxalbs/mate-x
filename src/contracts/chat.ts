@@ -198,11 +198,19 @@ export interface EvidencePackAttestation {
   generatedAt: string;
 }
 
+export interface EvidencePackAgentIdentity {
+  id: string;
+  createdAt: string;
+  boundToUser: boolean;
+  policyHash: string;
+}
+
 export interface EvidencePack {
   status: EvidencePackStatus;
   verdict: EvidencePackVerdict;
   verifiedTaskScore?: VerifiedTaskScore;
   attestation?: EvidencePackAttestation;
+  agentIdentity?: EvidencePackAgentIdentity;
   filesModified?: EvidencePackFileChange[];
   commandsExecuted?: EvidencePackCommand[];
   toolsUsed?: EvidencePackToolUsage[];
