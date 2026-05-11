@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.11 (2) [Demo Responsiveness and Rainy Catalog Fast Path]
+
+- Coalesced assistant progress IPC events in the main process, dropped duplicate progress payloads, and preserved immediate terminal-state delivery so long streaming runs wake the renderer less often.
+- Optimized Rainy model loading to use the catalog endpoint first and only fall back to the broader models endpoint when needed, reducing cold-path network work for the composer model picker.
+- Reduced streaming UI churn by memoizing message rows, avoiding smooth-scroll animation during active streams, using cached model catalog state on composer mount, and skipping thread timestamp updates until runs finish.
+- Verified with `bun run lint` and `bun run typecheck`.
+
 ## Unreleased - 2026.05.11 (1) [Sandbox Performance and Progress Stability]
 
 - Reworked `sandbox_run` isolated-copy preparation to copy only relevant workspace files while skipping generated/heavy artifacts, reducing startup cost for validation sandboxes on large repositories.
