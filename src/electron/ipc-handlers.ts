@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 
-import type { AssistantRunOptions } from "../contracts/chat";
+import type { AssistantRunOptions, EvidencePack } from "../contracts/chat";
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
 import type { WorkspaceMemoryFileKind } from "../contracts/workspace";
@@ -36,6 +36,7 @@ import { tursoService } from "./turso-service";
 import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
+import { generateComplianceExport } from "../features/compliance/complianceExport";
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
@@ -104,6 +105,18 @@ export function registerIpcHandlers() {
   );
 
   ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
+  ipcMain.handle(
+    "repo:generate-compliance-report",
+    async (_event, evidencePack: EvidencePack) => {
+      const workspace = await resolveActiveWorkspace();
+      return generateComplianceExport({
+        evidencePack,
+        workspacePath: workspace.path,
+        userId: workspace.id,
+        policyApplied: "workspace-trust-contract",
+      });
+    },
+  );
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());
   ipcMain.handle("repo:get-workspace-summary", async () =>
     getWorkspaceSummary(),

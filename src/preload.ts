@@ -73,6 +73,8 @@ const repoApi: RepoInspectorApi = {
     ipcRenderer.invoke("repo:get-agent-routing-recommendation", task, workspaceId),
   runAssistant: (prompt, history, options, runId) =>
     ipcRenderer.invoke("repo:run-assistant", prompt, history, options, runId),
+  generateComplianceReport: (evidencePack) =>
+    ipcRenderer.invoke("repo:generate-compliance-report", evidencePack),
   onAssistantProgress: (listener) => {
     const handleProgress = (
       _event: Electron.IpcRendererEvent,

@@ -1,4 +1,4 @@
-import type { GitApi, PolicyApi, PrivacyApi, RepoInspectorApi, SettingsApi } from './contracts/ipc';
+import type { GitApi, PolicyApi, PrivacyApi, RepoInspectorApi, SettingsApi, UiApi } from './contracts/ipc';
 
 declare global {
   interface Window {
@@ -8,6 +8,7 @@ declare global {
       settings: SettingsApi;
       policy: PolicyApi;
       privacy: PrivacyApi;
+      ui: UiApi;
     };
   }
 }

@@ -1,8 +1,42 @@
+import { useState } from "react";
+
 import type { EvidencePack } from "../../../contracts/chat";
 
 export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack }) {
+  const [exportState, setExportState] = useState<"idle" | "exporting" | "ready" | "failed">("idle");
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+
+  async function generateReport() {
+    setContextMenuOpen(false);
+    setExportState("exporting");
+    try {
+      await window.mate.repo.generateComplianceReport(evidencePack);
+      setExportState("ready");
+    } catch {
+      setExportState("failed");
+    }
+  }
+
   return (
-    <section className="rounded-2xl border border-border/65 bg-[var(--surface)]/78 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+    <section
+      className="relative rounded-2xl border border-border/65 bg-[var(--surface)]/78 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setContextMenuOpen(true);
+      }}
+    >
+      {contextMenuOpen ? (
+        <div className="absolute right-3 top-10 z-20 rounded-2xl border border-[var(--panel-border)]/45 bg-[var(--panel)]/95 p-1.5 backdrop-blur-xl">
+          <button
+            className="rounded-xl px-3 py-2 text-left text-[11px] text-foreground/85 hover:bg-background/28"
+            onClick={() => void generateReport()}
+            title="Export SOC 2 / Procurement Package"
+            type="button"
+          >
+            Generate Compliance Report
+          </button>
+        </div>
+      ) : null}
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="rounded-md border border-border/60 bg-background/45 px-2 py-1 text-[10px] font-medium text-foreground/90">
           Evidence Pack
@@ -26,6 +60,21 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
             Attestation: {evidencePack.attestation.status}
           </span>
         ) : null}
+        <button
+          className="rounded-full border border-[var(--panel-border)]/45 bg-[var(--panel)]/70 px-2.5 py-1 text-[10px] text-foreground/85 transition hover:bg-[var(--panel)]/90 disabled:opacity-60"
+          disabled={exportState === "exporting"}
+          onClick={() => void generateReport()}
+          title="Export SOC 2 / Procurement Package"
+          type="button"
+        >
+          {exportState === "exporting"
+            ? "Generating..."
+            : exportState === "ready"
+              ? "Report ready"
+              : exportState === "failed"
+                ? "Export failed"
+                : "Generate Compliance Report"}
+        </button>
       </div>
 
       <p className="text-[12px] text-foreground/90">
