@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { powerSaveBlocker } from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
@@ -20,6 +20,8 @@ const IGNORED_COPY_NAMES = new Set([
   "out",
   "target",
 ]);
+const IGNORED_COPY_SUFFIXES = [".log", ".map"];
+const sandboxRunQueues = new Map<string, Promise<void>>();
 type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
 type SandboxExecutionMode = "direct" | "isolated-copy";
 type SandboxStatus =
@@ -173,6 +175,33 @@ function stopPowerSaveBlocker(id: number | undefined) {
   }
 }
 
+async function acquireSandboxRunSlot(workspacePath: string) {
+  const previousRun = sandboxRunQueues.get(workspacePath) ?? Promise.resolve();
+  let releaseCurrentRun: () => void = () => undefined;
+  const currentRun = new Promise<void>((resolve) => {
+    releaseCurrentRun = resolve;
+  });
+  const queuedRun = previousRun.catch(() => undefined).then(() => currentRun);
+
+  sandboxRunQueues.set(workspacePath, queuedRun);
+  await previousRun.catch(() => undefined);
+
+  let released = false;
+  return () => {
+    if (released) {
+      return;
+    }
+
+    released = true;
+    releaseCurrentRun();
+    void queuedRun.finally(() => {
+      if (sandboxRunQueues.get(workspacePath) === queuedRun) {
+        sandboxRunQueues.delete(workspacePath);
+      }
+    });
+  };
+}
+
 function killProcessTree(childPid: number | undefined) {
   if (typeof childPid !== "number") {
     return;
@@ -212,6 +241,10 @@ export function buildSandboxReport(input: {
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
   pid?: number;
+  prepareDurationMs?: number;
+  cleanupDurationMs?: number;
+  copiedFileCount?: number;
+  copiedBytes?: number;
 }) {
   const durationMs = Date.now() - input.startedAt;
   const exitLine =
@@ -232,6 +265,18 @@ export function buildSandboxReport(input: {
     `NODE_ENV: ${input.nodeEnv}`,
     `Keep awake: ${input.keepAwake}`,
     `Power save blocker: ${typeof input.powerBlockerId === "number" ? input.powerSaveBlockerType : "not_active"}`,
+    typeof input.prepareDurationMs === "number"
+      ? `Prepare duration ms: ${input.prepareDurationMs}`
+      : undefined,
+    typeof input.cleanupDurationMs === "number"
+      ? `Cleanup duration ms: ${input.cleanupDurationMs}`
+      : undefined,
+    typeof input.copiedFileCount === "number"
+      ? `Copied files: ${input.copiedFileCount}`
+      : undefined,
+    typeof input.copiedBytes === "number"
+      ? `Copied bytes: ${input.copiedBytes}`
+      : undefined,
     `Output:\n${input.output}`,
   ].filter(Boolean).join("\n");
 }
@@ -247,28 +292,64 @@ export async function prepareSandboxWorkspace(input: {
   if (input.executionMode === "direct") {
     return {
       runPath: input.workspacePath,
-      cleanup: async () => "not_required",
+      prepareDurationMs: 0,
+      copiedFileCount: 0,
+      copiedBytes: 0,
+      cleanup: async () => ({ status: "not_required", durationMs: 0 }),
     };
   }
 
+  const prepareStartedAt = Date.now();
   const runPath = await mkdtemp(join(tmpdir(), "mate-x-sandbox-"));
-  await cp(input.workspacePath, runPath, {
-    recursive: true,
-    filter: (source) => {
-      const name = source.split(/[\\/]/).pop() ?? "";
-      return (
-        !IGNORED_COPY_NAMES.has(name) &&
-        !name.endsWith(".log") &&
-        !name.endsWith(".map")
-      );
-    },
-  });
+  let copiedFileCount = 0;
+  let copiedBytes = 0;
+
+  const copyEntries = async (sourceDir: string) => {
+    const entries = await readdir(sourceDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (
+        IGNORED_COPY_NAMES.has(entry.name) ||
+        IGNORED_COPY_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))
+      ) {
+        continue;
+      }
+
+      const sourcePath = join(sourceDir, entry.name);
+      const targetPath = join(runPath, relative(input.workspacePath, sourcePath));
+
+      if (entry.isDirectory()) {
+        await copyEntries(sourcePath);
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const sourceStat = await stat(sourcePath);
+      await mkdir(dirname(targetPath), { recursive: true });
+      await copyFile(sourcePath, targetPath);
+      copiedFileCount++;
+      copiedBytes += sourceStat.size;
+    }
+  };
+
+  await copyEntries(input.workspacePath);
+  const prepareDurationMs = Date.now() - prepareStartedAt;
 
   return {
     runPath,
+    prepareDurationMs,
+    copiedFileCount,
+    copiedBytes,
     cleanup: async () => {
+      const cleanupStartedAt = Date.now();
       await rm(runPath, { force: true, recursive: true });
-      return "removed_isolated_copy";
+      return {
+        status: "removed_isolated_copy",
+        durationMs: Date.now() - cleanupStartedAt,
+      };
     },
   };
 }
@@ -386,6 +467,7 @@ export const sandboxRunnerTool: Tool = {
         ].join("\n")
       : "";
 
+    const releaseSandboxRunSlot = await acquireSandboxRunSlot(workspacePath);
     let preparedWorkspace: Awaited<ReturnType<typeof prepareSandboxWorkspace>>;
     try {
       preparedWorkspace = await prepareSandboxWorkspace({
@@ -393,10 +475,12 @@ export const sandboxRunnerTool: Tool = {
         workspacePath,
       });
     } catch (error) {
+      releaseSandboxRunSlot();
       return buildSandboxReport({
         status: "START_FAILED",
         executionMode,
         cleanupStatus: "not_started",
+        prepareDurationMs: 0,
         output: error instanceof Error ? error.message : "Failed to prepare sandbox workspace.",
         timeoutSeconds,
         port,
@@ -450,11 +534,15 @@ export const sandboxRunnerTool: Tool = {
         clearTimeout(timer);
         stopPowerSaveBlocker(powerBlockerId);
         let cleanupStatus: string;
+        let cleanupDurationMs = 0;
         try {
-          cleanupStatus = await preparedWorkspace.cleanup();
+          const cleanup = await preparedWorkspace.cleanup();
+          cleanupStatus = cleanup.status;
+          cleanupDurationMs = cleanup.durationMs;
         } catch (error) {
           cleanupStatus = `failed: ${error instanceof Error ? error.message : "unknown"}`;
         }
+        releaseSandboxRunSlot();
 
         if (activeWorkspaceId) {
           persistSandboxOutcomeSoon({
@@ -470,6 +558,10 @@ export const sandboxRunnerTool: Tool = {
         resolve(`${priorWarning}${buildSandboxReport({
           ...reportInput,
           cleanupStatus,
+          cleanupDurationMs,
+          prepareDurationMs: preparedWorkspace.prepareDurationMs,
+          copiedFileCount: preparedWorkspace.copiedFileCount,
+          copiedBytes: preparedWorkspace.copiedBytes,
         })}`);
       };
 

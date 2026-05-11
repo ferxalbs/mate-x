@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.11 (1) [Sandbox Performance and Progress Stability]
+
+- Reworked `sandbox_run` isolated-copy preparation to copy only relevant workspace files while skipping generated/heavy artifacts, reducing startup cost for validation sandboxes on large repositories.
+- Added sandbox preparation, cleanup, copied-file, and copied-byte metrics to execution reports so slow runs expose where time is spent.
+- Serialized `sandbox_run` execution per workspace to avoid concurrent command trees racing over the same repository, ports, or cleanup lifecycle.
+- Throttled assistant progress updates in the chat store, skipped duplicate payloads, and preserved immediate terminal-state flushes to reduce renderer churn during long tool-heavy runs.
+- Verified with `bun run typecheck`.
+
 ## Unreleased - 2026.05.10 (1) [Sandbox Isolation Hardening]
 
 - Hardened `sandbox_run` with process-tree timeout termination, deterministic status reporting, and async failure-memory persistence so validation runs finish faster and avoid false crash labels from stderr text.

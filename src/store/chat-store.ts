@@ -63,6 +63,22 @@ interface ChatState {
 }
 
 let assistantProgressUnsubscribe: (() => void) | null = null;
+const ASSISTANT_PROGRESS_FLUSH_MS = 120;
+const TERMINAL_RUN_STATUSES = new Set<RunStatus>(["completed", "failed"]);
+
+type AssistantProgressPayload = Parameters<
+  Parameters<typeof onAssistantProgress>[0]
+>[0];
+type ChatStateSetter = (
+  partial:
+    | ChatState
+    | Partial<ChatState>
+    | ((state: ChatState) => ChatState | Partial<ChatState>),
+) => void;
+
+let pendingAssistantProgress: AssistantProgressPayload | null = null;
+let assistantProgressFlushTimer: ReturnType<typeof setTimeout> | null = null;
+let lastAssistantProgressSignature: string | null = null;
 
 function createEmptyConversation(
   partial?: Partial<Conversation>,
@@ -177,6 +193,77 @@ function redactSensitiveText(value: string) {
     .replace(/(sk-[a-z0-9_-]{16,})/gi, "[REDACTED_API_KEY]")
     .replace(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi, "[REDACTED_EMAIL]")
     .replace(/(token|api[_-]?key|secret|password)\s*[:=]\s*["']?[^"'\s]+/gi, "$1=[REDACTED]");
+}
+
+function getAssistantProgressSignature(progress: AssistantProgressPayload) {
+  return [
+    progress.runId,
+    progress.status,
+    progress.content,
+    progress.thought ?? "",
+    progress.events?.length ?? 0,
+    progress.events?.at(-1)?.id ?? "",
+    progress.events?.at(-1)?.status ?? "",
+    progress.artifacts?.length ?? 0,
+  ].join("\u001f");
+}
+
+function applyAssistantProgress(
+  progress: AssistantProgressPayload,
+  set: ChatStateSetter,
+) {
+  const nextSignature = getAssistantProgressSignature(progress);
+  if (nextSignature === lastAssistantProgressSignature) {
+    return;
+  }
+  lastAssistantProgressSignature = nextSignature;
+
+  set((state) => {
+    const activeRun = state.activeRun;
+    if (!activeRun || activeRun.runId !== progress.runId) {
+      return state;
+    }
+
+    const nextThreadsByWorkspace = {
+      ...state.threadsByWorkspace,
+      [activeRun.workspaceId]: (
+        state.threadsByWorkspace[activeRun.workspaceId] ?? []
+      ).map((thread) =>
+        thread.id !== activeRun.threadId
+          ? thread
+          : {
+              ...thread,
+              lastUpdatedAt: new Date().toISOString(),
+              messages: thread.messages.map((message) =>
+                message.id !== activeRun.messageId
+                  ? message
+                  : {
+                      ...message,
+                      content: progress.content,
+                      thought: progress.thought,
+                      events: progress.events,
+                      artifacts: progress.artifacts,
+                    },
+              ),
+              runs: (thread.runs ?? []).map((run) =>
+                run.id !== activeRun.reproducibleRunId
+                  ? run
+                  : {
+                      ...run,
+                      status: progress.status,
+                      events: progress.events,
+                      artifacts: progress.artifacts,
+                    },
+              ),
+            },
+      ),
+    };
+
+    return {
+      runStatus: progress.status,
+      threadsByWorkspace: nextThreadsByWorkspace,
+    };
+  });
 }
 
 function redactRun(run: ReproducibleRun): ReproducibleRun {
@@ -307,52 +394,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (!assistantProgressUnsubscribe) {
       assistantProgressUnsubscribe = onAssistantProgress((progress) => {
-        set((state) => {
-          const activeRun = state.activeRun;
-          if (!activeRun || activeRun.runId !== progress.runId) {
-            return state;
+        if (TERMINAL_RUN_STATUSES.has(progress.status)) {
+          if (assistantProgressFlushTimer) {
+            clearTimeout(assistantProgressFlushTimer);
+            assistantProgressFlushTimer = null;
           }
+          pendingAssistantProgress = null;
+          applyAssistantProgress(progress, set);
+          return;
+        }
 
-          const nextThreadsByWorkspace = {
-            ...state.threadsByWorkspace,
-            [activeRun.workspaceId]: (
-              state.threadsByWorkspace[activeRun.workspaceId] ?? []
-            ).map((thread) =>
-              thread.id !== activeRun.threadId
-                ? thread
-                : {
-                    ...thread,
-                    lastUpdatedAt: new Date().toISOString(),
-                    messages: thread.messages.map((message) =>
-                      message.id !== activeRun.messageId
-                        ? message
-                        : {
-                            ...message,
-                            content: progress.content,
-                            thought: progress.thought,
-                            events: progress.events,
-                            artifacts: progress.artifacts,
-                          },
-                    ),
-                    runs: (thread.runs ?? []).map((run) =>
-                      run.id !== activeRun.reproducibleRunId
-                        ? run
-                        : {
-                            ...run,
-                            status: progress.status,
-                            events: progress.events,
-                            artifacts: progress.artifacts,
-                          },
-                    ),
-                  },
-            ),
-          };
+        pendingAssistantProgress = progress;
+        if (assistantProgressFlushTimer) {
+          return;
+        }
 
-          return {
-            runStatus: progress.status,
-            threadsByWorkspace: nextThreadsByWorkspace,
-          };
-        });
+        assistantProgressFlushTimer = setTimeout(() => {
+          assistantProgressFlushTimer = null;
+          const nextProgress = pendingAssistantProgress;
+          pendingAssistantProgress = null;
+          if (nextProgress) {
+            applyAssistantProgress(nextProgress, set);
+          }
+        }, ASSISTANT_PROGRESS_FLUSH_MS);
       });
     }
 
