@@ -12,6 +12,7 @@ import {
   ShieldCheckIcon,
 } from "lucide-react";
 import {
+  memo,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -110,7 +111,7 @@ export function MessageStream({
 
     element.scrollTo({
       top: element.scrollHeight,
-      behavior: messages.length > 0 ? "smooth" : "auto",
+      behavior: isRunning ? "auto" : messages.length > 0 ? "smooth" : "auto",
     });
   }, [messages, isRunning]);
 
@@ -287,7 +288,7 @@ function FeatureChip({
   );
 }
 
-function MessageEntry({
+const MessageEntry = memo(function MessageEntry({
   message,
   isStreaming,
   canUndo,
@@ -437,7 +438,7 @@ function MessageEntry({
       </div>
     </article>
   );
-}
+});
 
 function InterleavedMessageContent({
   content,
