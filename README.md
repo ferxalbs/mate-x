@@ -37,6 +37,12 @@ All sensitive operations — including file system access, Git commands, and API
 
 Before transmitting any repository context, tool outputs, workspace memory, or prompts to a cloud model, MaTE X Privacy scans the payload locally using deterministic secret-detection rules and an ONNX classification model. Sensitive spans are replaced with typed placeholders; originals are encrypted in a local vault. Cloud models receive enough structure to reason over the codebase, but never the raw secrets.
 
+### Compliance & Attestations
+
+Each completed agent run can produce local-first compliance evidence under `.matex/evidence/<taskId>/`. MaTE X generates signed in-toto/SLSA provenance for Evidence Packs, then exports a SOC 2 / procurement ZIP containing `evidence-pack.json`, `attestation.intoto.json`, `compliance-report.pdf`, `audit-log.json`, `policy-applied.md`, and `manifest.json` with SHA-256 hashes.
+
+The export is built on-device. Privacy Firewall checks run before attestation trust is added, and native report delivery integrations receive only encrypted ZIP payloads when explicitly enabled.
+
 ## Tech Stack
 
 | Component | Technology |

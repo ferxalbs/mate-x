@@ -2,6 +2,7 @@ import {
   ActivityIcon,
   CheckCircle2Icon,
   ClipboardCheckIcon,
+  FileArchiveIcon,
   FileSearchIcon,
   FileTextIcon,
   RadarIcon,
@@ -234,6 +235,7 @@ export function EvidencePackSection({
   score: number | null;
   summary: ImpactSummary;
 }) {
+  const canExportCompliance = Boolean(evidencePack);
   const filesCount = evidenceFiles.length || changedFiles.length;
   const commandCount = evidencePack?.commandsExecuted?.length ?? commands.length;
   const verdict = evidencePack?.verdict.label ?? "Pending verified run";
@@ -329,6 +331,21 @@ export function EvidencePackSection({
             : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
+      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--panel)]/55 p-2.5">
+        <p className="text-[10px] uppercase text-muted-foreground">Compliance Actions</p>
+        <button
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-background/24 px-3 py-2 text-[11px] font-medium text-foreground/85 transition hover:bg-background/36 disabled:opacity-55"
+          disabled={!canExportCompliance}
+          onClick={() => {
+            if (evidencePack) void window.mate.repo.generateComplianceReport(evidencePack);
+          }}
+          title="Export SOC 2 / Procurement Package"
+          type="button"
+        >
+          <FileArchiveIcon className="size-3.5" />
+          Generate Compliance Report
+        </button>
+      </div>
     </section>
   );
 }

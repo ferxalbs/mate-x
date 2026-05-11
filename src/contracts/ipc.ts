@@ -3,6 +3,7 @@ import type {
   AssistantRunOptions,
   AssistantRunProgress,
   Conversation,
+  EvidencePack,
 } from "./chat";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
 import type {
@@ -72,6 +73,9 @@ export interface RepoInspectorApi {
     options?: AssistantRunOptions,
     runId?: string,
   ) => Promise<AssistantExecution>;
+  generateComplianceReport: (
+    evidencePack: EvidencePack,
+  ) => Promise<ComplianceExportResult>;
   onAssistantProgress: (
     listener: (progress: AssistantRunProgress) => void,
   ) => () => void;
@@ -86,6 +90,16 @@ export interface RepoInspectorApi {
     target: "folder" | "vscode" | "terminal",
   ) => Promise<void>;
   graph: RepoGraphApi;
+}
+
+export interface ComplianceExportResult {
+  zipPath: string;
+  manifestPath: string;
+  fileName: string;
+  sizeBytes: number;
+  sha256: string;
+  generatedAt: string;
+  deliveredTo: string[];
 }
 
 export interface GitApi {
