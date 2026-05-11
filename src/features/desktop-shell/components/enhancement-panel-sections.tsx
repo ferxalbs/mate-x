@@ -294,6 +294,15 @@ export function EvidencePackSection({
         value={getConfidenceLabel(score, verdict)}
       />
       <EvidenceRow
+        label="Compliance"
+        tone={evidencePack?.attestation?.status === "signed" ? "good" : evidencePack?.attestation ? "warn" : "muted"}
+        value={
+          evidencePack?.attestation?.status === "signed"
+            ? "Attestation ready"
+            : evidencePack?.attestation?.status ?? "Pending"
+        }
+      />
+      <EvidenceRow
         label="Blast radius"
         tone={impactTone(blastRadius)}
         value={blastRadius}

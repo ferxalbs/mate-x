@@ -18,6 +18,14 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
             Verified Task Score: {evidencePack.verifiedTaskScore.score}/100 · {evidencePack.verifiedTaskScore.status}
           </span>
         ) : null}
+        {evidencePack.attestation ? (
+          <span
+            className="rounded-2xl border border-[var(--panel-border)]/45 bg-[var(--panel)]/70 px-2 py-1 text-[10px] text-foreground/85"
+            title="Compliance Attestation Ready"
+          >
+            Attestation: {evidencePack.attestation.status}
+          </span>
+        ) : null}
       </div>
 
       <p className="text-[12px] text-foreground/90">
