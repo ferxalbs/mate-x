@@ -256,10 +256,14 @@ export async function listRainyModels(params: {
     return cachedCatalog.models;
   }
 
-  const [catalogModels, publicModels] = await Promise.all([
-    requestRainyModelList(RAINY_CATALOG_ENDPOINTS, trimmedApiKey),
-    requestRainyModelList(RAINY_MODELS_ENDPOINTS, trimmedApiKey),
-  ]);
+  const catalogModels = await requestRainyModelList(
+    RAINY_CATALOG_ENDPOINTS,
+    trimmedApiKey,
+  );
+  const publicModels =
+    catalogModels.models.length > 0
+      ? { models: [] as RainyModelCatalogEntry[], error: null }
+      : await requestRainyModelList(RAINY_MODELS_ENDPOINTS, trimmedApiKey);
 
   // `/models` has historically been the most complete source. Catalog may enrich it,
   // but it must not suppress providers if the backend returns only a partial allowlist.

@@ -37,6 +37,9 @@ import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
 
+const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
+const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
+
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
 
@@ -252,8 +255,72 @@ export function registerIpcHandlers() {
       history: string[],
       options?: AssistantRunOptions,
       runId?: string,
-    ) =>
-      runAssistant(
+    ) => {
+      let pendingProgress: {
+        runId: string;
+        status: string;
+        content: string;
+        thought?: string;
+        events?: Array<{ id?: string; status?: string }>;
+        artifacts?: unknown[];
+      } | null = null;
+      let progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastProgressSignature = "";
+
+      const flushProgress = () => {
+        if (progressFlushTimer) {
+          clearTimeout(progressFlushTimer);
+          progressFlushTimer = null;
+        }
+
+        if (!pendingProgress || event.sender.isDestroyed()) {
+          pendingProgress = null;
+          return;
+        }
+
+        event.sender.send("repo:assistant-progress", pendingProgress);
+        pendingProgress = null;
+      };
+
+      const emitProgress = (
+        progress: NonNullable<Parameters<typeof runAssistant>[4]>["emit"] extends (
+          value: infer T,
+        ) => void
+          ? T
+          : never,
+      ) => {
+        const lastEvent = progress.events?.at(-1);
+        const signature = [
+          progress.runId,
+          progress.status,
+          progress.content,
+          progress.thought ?? "",
+          progress.events?.length ?? 0,
+          lastEvent?.id ?? "",
+          lastEvent?.status ?? "",
+          progress.artifacts?.length ?? 0,
+        ].join("\u001f");
+
+        if (signature === lastProgressSignature) {
+          return;
+        }
+
+        lastProgressSignature = signature;
+        pendingProgress = progress;
+
+        if (ASSISTANT_PROGRESS_TERMINAL_STATUSES.has(progress.status)) {
+          flushProgress();
+          return;
+        }
+
+        progressFlushTimer ??= setTimeout(
+          flushProgress,
+          ASSISTANT_PROGRESS_IPC_FLUSH_MS,
+        );
+      };
+
+      try {
+        return await runAssistant(
         prompt,
         history,
         undefined,
@@ -261,14 +328,14 @@ export function registerIpcHandlers() {
         runId
           ? {
               runId,
-              emit: (progress) => {
-                if (!event.sender.isDestroyed()) {
-                  event.sender.send("repo:assistant-progress", progress);
-                }
-              },
+              emit: emitProgress,
             }
           : undefined,
-      ),
+        );
+      } finally {
+        flushProgress();
+      }
+    },
   );
 
   ipcMain.handle("repo-graph:refresh", async () => {
