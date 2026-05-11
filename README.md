@@ -1,12 +1,10 @@
 <p align="center">
-  <img src="assets/matex.png" width="96" alt="MaTE X" />
+  <img src="assets/matex-banner.png" alt="MaTE X" />
 </p>
 
-<h1 align="center">MaTE X</h1>
-
 <p align="center">
-  <strong>AI-powered security review agent for local repositories.</strong><br/>
-  Built by <a href="https://enosis.dev">Enosis Labs</a>.
+  <i><strong>AI-powered security review agent for local repositories.</strong></i><br/>
+  Built by <a href="https://enosislabs.com">Enosis Labs</a>.
 </p>
 
 <p align="center">
