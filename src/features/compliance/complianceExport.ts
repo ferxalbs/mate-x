@@ -58,7 +58,7 @@ export async function generateComplianceExport(
 ): Promise<ComplianceExportResult> {
   const generatedAt = (request.now ?? new Date()).toISOString();
   const taskId = request.evidencePack.attestation?.taskId ?? `task-${Date.now()}`;
-  const evidenceDirectory = join(request.workspacePath, ".matex", "evidence", taskId);
+  const evidenceDirectory = join(request.workspacePath, ".mate-x", "evidence", taskId);
   const fileName = `mate-x-compliance-${taskId}.zip`;
   const zipPath = join(evidenceDirectory, fileName);
   const manifestPath = join(evidenceDirectory, "manifest.json");

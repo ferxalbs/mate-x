@@ -179,7 +179,7 @@ function evidencePack(overrides: Partial<EvidencePack> = {}): EvidencePack {
     attestation: {
       status: "signed",
       taskId: "task-1",
-      path: ".matex/evidence/task-1/attestation.intoto.json",
+      path: ".mate-x/evidence/task-1/attestation.intoto.json",
       statementDigest: "sha256:abc",
       keyId: "sha256:key",
       generatedAt: "2026-05-10T09:00:01.000Z",

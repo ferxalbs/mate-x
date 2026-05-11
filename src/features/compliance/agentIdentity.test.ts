@@ -29,7 +29,7 @@ describe("agent run identity", () => {
       policySources: [{ path: "AGENTS.md", content: "policy" }],
       now: new Date("2026-05-11T00:00:00.000Z"),
     });
-    const saved = await readFile(join(workspacePath, ".matex", "config", "agent-identity.json"), "utf8");
+    const saved = await readFile(join(workspacePath, ".mate-x", "config", "agent-identity.json"), "utf8");
 
     assert.match(identity.id, /^[0-9a-f-]{36}$/);
     assert.equal(identity.boundToUser, false);
@@ -167,7 +167,7 @@ function evidencePack(overrides: Partial<EvidencePack> = {}): EvidencePack {
     attestation: {
       status: "signed",
       taskId: "task-1",
-      path: ".matex/evidence/task-1/attestation.intoto.json",
+      path: ".mate-x/evidence/task-1/attestation.intoto.json",
       generatedAt: "2026-05-11T00:00:00.000Z",
     },
     commandsExecuted: [{ command: "sandbox_run", exitCode: 0 }],
