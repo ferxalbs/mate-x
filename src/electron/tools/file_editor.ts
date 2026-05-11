@@ -1,5 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { relative } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, relative } from "node:path";
 import type { Tool } from "../tool-service";
 import {
   analyzePatchAfter,
@@ -43,49 +43,106 @@ export const fileEditorTool: Tool = {
         description:
           "Set true only after explicit user confirmation when PATCH_IMPACT_DECISION requires confirmation.",
       },
+      impactAnalysis: {
+        type: "string",
+        enum: ["none", "before", "full"],
+        description:
+          "RepoGraph impact analysis level. Defaults to none for fast, precise edits on new or large files. Use full when dependency/risk summary is required.",
+      },
     },
     required: ["path", "startLine", "endLine", "newContent"],
   },
   async execute(args, { workspacePath }) {
     const { path, startLine, endLine, newContent, expectedContent, allowHighImpact = false } = args;
+    const impactAnalysis = args.impactAnalysis === "before" || args.impactAnalysis === "full"
+      ? args.impactAnalysis
+      : "none";
     if (startLine < 1 || endLine < startLine) return "Invalid line numbers.";
     
     const targetFile = resolveWorkspacePath(workspacePath, path);
 
     try {
-      const content = await readFile(targetFile, "utf8");
-      const impactBefore = await analyzePatchBefore(workspacePath, String(path));
-      const decision = assessPatchBeforeWrite(impactBefore);
-      const lines = content.split('\n');
-      
-      if (startLine > lines.length) return `startLine is beyond file length (${lines.length} lines).`;
-      
-      const zeroStart = startLine - 1;
-      const zeroEnd = endLine; // exclusive when slicing
-      
-      const before = lines.slice(0, zeroStart);
-      const after = lines.slice(zeroEnd);
-      const currentRange = lines.slice(zeroStart, zeroEnd).join('\n');
+      let content = "";
+      let fileExists = true;
+      try {
+        content = await readFile(targetFile, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        fileExists = false;
+      }
+
+      if (!fileExists && (startLine !== 1 || endLine !== 1)) {
+        return "File does not exist. To create a new file, replace lines 1-1 with the full file content.";
+      }
+
+      const range = locateLineRange(content, startLine, endLine);
+      if (!range) return `startLine is beyond file length (${countLines(content)} lines).`;
+
+      const currentRange = content.slice(range.startOffset, range.endOffset);
       if (typeof expectedContent === "string" && currentRange !== expectedContent) {
         return `Edit rejected for ${relative(workspacePath, targetFile)}. expectedContent did not match lines ${startLine}-${endLine}. No file was changed.`;
       }
-      
-      const newLines = newContent.split('\n');
-      const finalContent = [...before, ...newLines, ...after].join('\n');
-      if (finalContent === content) {
-        return formatPatchImpactSkipped(impactBefore.targetFile, decision, impactBefore.summary);
-      }
-      if (decision.requiresConfirmation && allowHighImpact !== true) {
+
+      const impactBefore = impactAnalysis === "none"
+        ? null
+        : await analyzePatchBefore(workspacePath, String(path));
+      const decision = impactBefore ? assessPatchBeforeWrite(impactBefore) : null;
+      if (impactBefore && decision?.requiresConfirmation && allowHighImpact !== true) {
         return formatPatchImpactBlocked(impactBefore.targetFile, decision, impactBefore.summary);
       }
 
+      const finalContent = `${content.slice(0, range.startOffset)}${newContent}${content.slice(range.endOffset)}`;
+      if (finalContent === content) {
+        return impactBefore && decision
+          ? formatPatchImpactSkipped(impactBefore.targetFile, decision, impactBefore.summary)
+          : `Edit skipped for ${relative(workspacePath, targetFile)}. Replacement would not change the file.`;
+      }
+
+      if (!fileExists) {
+        await mkdir(dirname(targetFile), { recursive: true });
+      }
       await writeFile(targetFile, finalContent, "utf8");
-      const impactSummary = await analyzePatchAfter(impactBefore);
 
       const rel = relative(workspacePath, targetFile);
-      return `File ${rel} successfully edited lines ${startLine}-${endLine}.\nNo backup file was created.\n${formatPatchImpactSummary(impactSummary)}`;
+      const impactSummary = impactAnalysis === "full" && impactBefore
+        ? `\n${formatPatchImpactSummary(await analyzePatchAfter(impactBefore))}`
+        : impactAnalysis === "before" && impactBefore && decision
+          ? `\nPATCH_IMPACT_DECISION\nRisk: ${decision.level.toUpperCase()}\nValidation: ${decision.validationCommands.join(", ")}`
+          : "\nImpact analysis skipped for speed. Set impactAnalysis to full when dependency impact is required.";
+      return `File ${rel} successfully ${fileExists ? "edited" : "created"} lines ${startLine}-${endLine}.\nNo backup file was created.${impactSummary}`;
     } catch (error) {
       return `Error editing file: ${(error as Error).message}`;
     }
   },
 };
+
+function countLines(content: string) {
+  if (!content) return 0;
+  let lines = 1;
+  for (let index = 0; index < content.length; index++) {
+    if (content.charCodeAt(index) === 10) lines++;
+  }
+  return lines;
+}
+
+function locateLineRange(content: string, startLine: number, endLine: number) {
+  if (!content) return startLine === 1 ? { startOffset: 0, endOffset: 0 } : null;
+
+  let currentLine = 1;
+  let startOffset = startLine === 1 ? 0 : -1;
+  let endOffset = content.length;
+
+  for (let index = 0; index < content.length; index++) {
+    if (content.charCodeAt(index) !== 10) continue;
+    if (currentLine + 1 === startLine) startOffset = index + 1;
+    if (currentLine === endLine) {
+      endOffset = index;
+      break;
+    }
+    currentLine++;
+  }
+
+  if (startOffset < 0) return null;
+  if (endLine > currentLine && endOffset === content.length) return null;
+  return { startOffset, endOffset };
+}
