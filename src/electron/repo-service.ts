@@ -4,6 +4,8 @@ import { access, readdir, readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
+import { generateEvidenceAttestation } from "../features/compliance/attestation";
+import { privacyFirewall } from "./privacy/privacy-firewall-service";
 import {
   appendVerificationWarnings,
   buildCriticReviewPrompt,
@@ -713,13 +715,35 @@ export async function runAssistant(
     emitProgress();
   }
 
-  const evidencePack = await buildEvidencePack({
+  const taskId = `task-${Date.now()}`;
+  const baseEvidencePack = await buildEvidencePack({
     workspacePath: snapshot.workspace.path,
     events,
     content,
     toolExecutions,
     runbookId: resolvedOptions.runbookId,
     initialStatusLines: snapshot.statusLines,
+  });
+  const { evidencePack } = await generateEvidenceAttestation({
+    evidencePack: baseEvidencePack,
+    workspacePath: snapshot.workspace.path,
+    taskId,
+    policyApplied: resolvedOptions.runbookId ?? "workspace-trust-contract",
+    privacyScan: async (payload) => {
+      const scan = await privacyFirewall.scanTextSafe(payload);
+      const hasSecrets = scan.spans.some(
+        (span) =>
+          span.risk === "p0" ||
+          span.label === "secret" ||
+          span.label === "repo_secret",
+      );
+      return {
+        hasSecrets,
+        reason: hasSecrets
+          ? "Privacy Firewall detected secret material in Evidence Pack payload."
+          : undefined,
+      };
+    },
   });
   if (configuredModel) {
     await tursoService.recordAgentCapabilityRun(

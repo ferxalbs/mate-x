@@ -188,10 +188,21 @@ export interface VerifiedTaskScore {
   generatedAt: string;
 }
 
+export interface EvidencePackAttestation {
+  status: "signed" | "blocked" | "failed";
+  taskId: string;
+  path?: string;
+  statementDigest?: string;
+  keyId?: string;
+  reason?: string;
+  generatedAt: string;
+}
+
 export interface EvidencePack {
   status: EvidencePackStatus;
   verdict: EvidencePackVerdict;
   verifiedTaskScore?: VerifiedTaskScore;
+  attestation?: EvidencePackAttestation;
   filesModified?: EvidencePackFileChange[];
   commandsExecuted?: EvidencePackCommand[];
   toolsUsed?: EvidencePackToolUsage[];
