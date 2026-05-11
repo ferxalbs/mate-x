@@ -164,7 +164,7 @@ export function renderAgentRunbookMarkdown(runbook: AgentRunbook) {
 }
 
 function agentIdentityPath(workspacePath: string) {
-  return join(workspacePath, ".matex", "config", "agent-identity.json");
+  return join(workspacePath, ".mate-x", "config", "agent-identity.json");
 }
 
 async function readIdentity(path: string): Promise<AgentRunIdentity | null> {

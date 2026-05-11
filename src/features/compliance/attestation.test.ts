@@ -75,7 +75,7 @@ describe("compliance attestation", () => {
     });
 
     const attestation = await readFile(join(workspacePath, result.evidencePack.attestation?.path ?? ""), "utf8");
-    const evidence = await readFile(join(workspacePath, ".matex", "evidence", "task-2", "evidence-pack.json"), "utf8");
+    const evidence = await readFile(join(workspacePath, ".mate-x", "evidence", "task-2", "evidence-pack.json"), "utf8");
     assert.match(attestation, /"predicateType":"https:\/\/slsa\.dev\/provenance\/v1"/);
     assert.match(evidence, /"verifiedTaskScore"/);
   });

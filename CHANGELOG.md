@@ -2,7 +2,7 @@
 
 ## Unreleased - 2026.05.11 (5) [Agent Identity Binding and Runbook Export]
 
-- Added persistent local Agent Run Identity under `.matex/config/agent-identity.json`, including identity UUID, creation timestamp, user-binding flag, and deterministic policy hash from local policy sources.
+- Added persistent local Agent Run Identity under `.mate-x/config/agent-identity.json`, including identity UUID, creation timestamp, user-binding flag, and deterministic policy hash from local policy sources.
 - Bound Evidence Packs, in-toto/SLSA attestations, compliance manifests, and procurement exports to `agentIdentity` without sending identity data to Rainy API.
 - Added Agent Runbook export artifacts (`agent-runbook.json` and `agent-runbook.md`) with identity, policy hash, approvals, traceability, Verified Task Score, files, commands, risks, and attestation link.
 - Added Agent Runbook export actions to the Evidence Pack card and Live Enhancement Panel, reusing the local compliance ZIP path.
@@ -21,7 +21,7 @@
 
 ## Unreleased - 2026.05.11 (3) [In-toto SLSA Evidence Attestations]
 
-- Added automatic in-toto Statement v1 / SLSA Provenance v1 attestations for generated Evidence Packs, written under `.matex/evidence/<taskId>/attestation.intoto.json`.
+- Added automatic in-toto Statement v1 / SLSA Provenance v1 attestations for generated Evidence Packs, written under `.mate-x/evidence/<taskId>/attestation.intoto.json`.
 - Added local Ed25519 signing-key creation and reuse for Evidence Pack attestations, keeping private key material on device.
 - Added canonical JSON hashing for Evidence Packs and modified files so attestations include the Evidence Pack digest plus material file digests.
 - Gated attestation signing through the Privacy Firewall so secret-bearing Evidence Pack payloads are blocked from becoming trusted signed evidence.

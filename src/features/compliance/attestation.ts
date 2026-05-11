@@ -186,7 +186,7 @@ export async function generateEvidenceAttestation(
         algorithm: "Ed25519",
       },
     };
-    const evidenceDirectory = join(params.workspacePath, ".matex", "evidence", params.taskId);
+    const evidenceDirectory = join(params.workspacePath, ".mate-x", "evidence", params.taskId);
     const evidencePackPath = join(evidenceDirectory, "evidence-pack.json");
     const attestationPath = join(evidenceDirectory, "attestation.intoto.json");
 
@@ -270,7 +270,7 @@ async function loadOrCreateLocalSigningKey(keyDirectory = defaultKeyDirectory())
 }
 
 function defaultKeyDirectory() {
-  return join(homedir(), ".matex", "keys");
+  return join(homedir(), ".mate-x", "keys");
 }
 
 function withAttestationStatus(
