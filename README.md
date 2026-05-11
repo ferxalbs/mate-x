@@ -101,7 +101,7 @@ It must not be sent to Rainy API or report sinks without explicit user consent.
 
 | Layer | Technology |
 | --- | --- |
-| Desktop runtime | Electron 41 |
+| Desktop runtime | Electron 42 |
 | Renderer | React 19 |
 | Styling | Tailwind CSS v4 |
 | Routing | TanStack Router |
@@ -109,7 +109,7 @@ It must not be sent to Rainy API or report sinks without explicit user consent.
 | State | Zustand |
 | Local database | libSQL / Turso |
 | Toolchain | Bun |
-| AI backend | Rainy API v3 |
+| AI backend | Rainy API v3+ |
 
 ## Requirements
 
@@ -139,27 +139,6 @@ Packaging:
 bun run package
 bun run make
 ```
-
-## Repository Rules
-
-- Renderer files use double quotes and trailing commas.
-- Main-process files use single quotes.
-- Components use `PascalCase`.
-- Functions and store actions use `camelCase`.
-- Feature folders use `kebab-case`.
-- Settings live inside the main app shell, not a detached settings app or modal.
-- New settings values must update normalization in `src/electron/turso-service.ts`.
-- Analysis logic must not hardcode MaTE X repository assumptions unless explicitly scoped to MaTE X self-diagnostics.
-
-## Changelog
-
-Follow `RULES.md` for every changelog entry:
-
-```text
-# Unreleased - YYYY.MM.DD (N) [Entry Name]
-```
-
-Dates are zero-padded. `(N)` is the daily sequence number. Entry name is required.
 
 ## License
 
