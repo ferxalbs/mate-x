@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.11 (5) [Agent Identity Binding and Runbook Export]
+
+- Added persistent local Agent Run Identity under `.matex/config/agent-identity.json`, including identity UUID, creation timestamp, user-binding flag, and deterministic policy hash from local policy sources.
+- Bound Evidence Packs, in-toto/SLSA attestations, compliance manifests, and procurement exports to `agentIdentity` without sending identity data to Rainy API.
+- Added Agent Runbook export artifacts (`agent-runbook.json` and `agent-runbook.md`) with identity, policy hash, approvals, traceability, Verified Task Score, files, commands, risks, and attestation link.
+- Added Agent Runbook export actions to the Evidence Pack card and Live Enhancement Panel, reusing the local compliance ZIP path.
+- Fixed compliance ZIP entry timestamps so archive tools show real generated dates instead of `00-00-1980`.
+- Documented compliance and attestation rules in `README.md`, `AGENTS.md`, and `RULES.md`.
+- Verified with `bun test src/features/compliance/attestation.test.ts src/features/compliance/complianceExport.test.ts src/features/compliance/agentIdentity.test.ts`, `bun run lint`, and `bun run typecheck`.
+
+## Unreleased - 2026.05.11 (4) [SOC 2 Compliance Export Package]
+
+- Added local SOC 2 / procurement ZIP export for Evidence Packs with `evidence-pack.json`, `attestation.intoto.json`, `compliance-report.pdf`, `audit-log.json`, `policy-applied.md`, and `manifest.json`.
+- Added a typed compliance export IPC path so the renderer can request report generation while main-process code owns workspace file writes.
+- Added SIEM-compatible audit logs with SOC 2 CC6.1, PI1.2, and AI governance control evidence.
+- Added lightweight PDF generation, deterministic manifest SHA-256 hashes, and encrypted ZIP delivery hooks for future Slack, WhatsApp, Linear, and Telegram report integrations.
+- Added “Generate Compliance Report” actions to the Live Enhancement Panel and Evidence Pack card, plus right-click card context action.
+- Verified with `bun test src/features/compliance/attestation.test.ts src/features/compliance/complianceExport.test.ts`, `bun run lint`, and `bun run typecheck`.
+
+## Unreleased - 2026.05.11 (3) [In-toto SLSA Evidence Attestations]
+
+- Added automatic in-toto Statement v1 / SLSA Provenance v1 attestations for generated Evidence Packs, written under `.matex/evidence/<taskId>/attestation.intoto.json`.
+- Added local Ed25519 signing-key creation and reuse for Evidence Pack attestations, keeping private key material on device.
+- Added canonical JSON hashing for Evidence Packs and modified files so attestations include the Evidence Pack digest plus material file digests.
+- Gated attestation signing through the Privacy Firewall so secret-bearing Evidence Pack payloads are blocked from becoming trusted signed evidence.
+- Extended Evidence Pack contracts and UI to expose attestation signed/blocked/failed status in the Evidence Pack card and Live Enhancement Panel.
+- Verified with `bun test src/features/compliance/attestation.test.ts`, `bun run lint`, and `bun run typecheck`.
+
 ## Unreleased - 2026.05.11 (2) [Demo Responsiveness and Rainy Catalog Fast Path]
 
 - Coalesced assistant progress IPC events in the main process, dropped duplicate progress payloads, and preserved immediate terminal-state delivery so long streaming runs wake the renderer less often.
