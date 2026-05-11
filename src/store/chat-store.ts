@@ -233,7 +233,9 @@ function applyAssistantProgress(
           ? thread
           : {
               ...thread,
-              lastUpdatedAt: new Date().toISOString(),
+              lastUpdatedAt: TERMINAL_RUN_STATUSES.has(progress.status)
+                ? new Date().toISOString()
+                : thread.lastUpdatedAt,
               messages: thread.messages.map((message) =>
                 message.id !== activeRun.messageId
                   ? message

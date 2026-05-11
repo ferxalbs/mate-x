@@ -184,7 +184,7 @@ export function ComposerPanel({
       }
     }
 
-    void loadModelState(true);
+    void loadModelState(false);
 
     return () => {
       cancelled = true;
