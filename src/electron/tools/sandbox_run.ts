@@ -174,10 +174,10 @@ async function acquireSandboxRunSlot(workspacePath: string) {
   const currentRun = new Promise<void>((resolve) => {
     releaseCurrentRun = resolve;
   });
-  const queuedRun = previousRun.catch(() => undefined).then(() => currentRun);
+  const queuedRun = previousRun.catch((): undefined => undefined).then(() => currentRun);
 
   sandboxRunQueues.set(workspacePath, queuedRun);
-  await previousRun.catch(() => undefined);
+  await previousRun.catch((): undefined => undefined);
 
   let released = false;
   return () => {
@@ -251,7 +251,7 @@ export function buildSandboxReport(input: {
 }
 
 function persistSandboxOutcomeSoon(input: Parameters<typeof persistSandboxOutcome>[0]) {
-  void persistSandboxOutcome(input).catch(() => undefined);
+  void persistSandboxOutcome(input).catch((): undefined => undefined);
 }
 
 export async function prepareSandboxWorkspace(input: {
