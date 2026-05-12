@@ -4,13 +4,37 @@ import { BrowserWindow } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
-import { killProcessTree } from "./process";
+import { killProcessTree, parseDirectCommand } from "./process";
 
 const TEST_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_SUMMARY_CHARS = 120_000;
 
 function appendOutputSummary(current: string, next: string) {
   return `${current}${next}`.slice(-MAX_OUTPUT_SUMMARY_CHARS);
+}
+
+function quoteDisplayArg(value: string) {
+  return /[\s"'$`|&;<>]/.test(value)
+    ? `"${value.replace(/(["\\])/g, "\\$1")}"`
+    : value;
+}
+
+function parseOptionalArgs(value: string | undefined) {
+  if (!value?.trim()) {
+    return { args: [] as string[], fallback: "" };
+  }
+
+  try {
+    return {
+      args: parseDirectCommand(`matex ${value}`).cmdArgs,
+      fallback: "",
+    };
+  } catch {
+    return {
+      args: [] as string[],
+      fallback: ` ${value}`,
+    };
+  }
 }
 
 export const runTestsTool: Tool = {
@@ -54,18 +78,21 @@ export const runTestsTool: Tool = {
     const selectedPlanCommand = args.plannedCommand === "fallback"
       ? validationPlan?.fallback
       : validationPlan?.primary;
-    let command = selectedPlanCommand?.command ?? profile?.testCommand;
+    const baseCommand = selectedPlanCommand?.command ?? profile?.testCommand;
     const plannedCommandReason = selectedPlanCommand?.reason;
-    if (!command) {
+    if (!baseCommand) {
       return JSON.stringify({ error: "No validation command available." });
     }
+
+    const commandArgs: string[] = [];
+    let shellFallbackSuffix = "";
 
     // If a validation plan exists, it is authoritative for command selection.
     if (!validationPlan && args.scope === "specific-path" && args.specificPath) {
       if (/[\n|&;<>`$()]/.test(args.specificPath)) {
         return JSON.stringify({ error: "Invalid characters in specificPath. Shell operators are not allowed." });
       }
-      command += ` "${args.specificPath.replace(/"/g, '\\"')}"`;
+      commandArgs.push(args.specificPath);
     } else if (!validationPlan && args.scope === "rerun-failed") {
       // Get the last validation run's failing tests if available
       const runs = await tursoService.getRecentValidationRuns(activeWorkspaceId, 1);
@@ -75,26 +102,32 @@ export const runTestsTool: Tool = {
         const sanitizedTests = failingTests.filter(test => !/[`$]/.test(test));
         if (sanitizedTests.length > 0) {
           if (profile?.testFramework === "vitest" || profile?.testFramework === "jest") {
-              // Quote and escape appropriately for safety
-              command += ` -t "${sanitizedTests.join('|').replace(/"/g, '\\"')}"`;
+              commandArgs.push("-t", sanitizedTests.join("|"));
           } else if (profile?.testFramework === "pytest") {
-              command += ` ${sanitizedTests.map(test => `"${test.replace(/"/g, '\\"')}"`).join(' ')}`;
+              commandArgs.push(...sanitizedTests);
           }
         }
       }
       // If we don't know how to pass failing tests specifically, just run the command.
     } else if (!validationPlan && args.scope === "changed-files") {
       if (profile?.testFramework === "jest") {
-        command += " --onlyChanged";
+        commandArgs.push("--onlyChanged");
       } else if (profile?.testFramework === "vitest") {
-        command += " changed";
+        commandArgs.push("changed");
       }
     }
 
     // Include flags
     if (!validationPlan && profile?.flags) {
-      command += ` ${profile.flags}`;
+      const parsedFlags = parseOptionalArgs(profile.flags);
+      commandArgs.push(...parsedFlags.args);
+      shellFallbackSuffix += parsedFlags.fallback;
     }
+
+    const command = [
+      baseCommand,
+      ...commandArgs.map(quoteDisplayArg),
+    ].join(" ") + shellFallbackSuffix;
 
     // Attempt to broadcast stream chunk to UI
     const broadcastStream = (chunk: string) => {
@@ -131,17 +164,32 @@ export const runTestsTool: Tool = {
       let timedOut = false;
       let finished = false;
 
-      // Determine shell based on profile or platform defaults
       const isWindows = process.platform === "win32";
-      const shellToUse = profile?.shell || (isWindows ? "cmd.exe" : "/bin/sh");
+      let child;
 
-      const child = spawn(command, {
-        cwd: context.workspacePath,
-        shell: shellToUse,
-        env: { ...process.env, FORCE_COLOR: "0" }, // Request no color for simpler output parsing
-        detached: !isWindows,
-        windowsHide: true,
-      });
+      try {
+        if (profile?.shell || shellFallbackSuffix) {
+          child = spawn(command, {
+            cwd: context.workspacePath,
+            shell: profile?.shell || (isWindows ? "cmd.exe" : "/bin/sh"),
+            env: { ...process.env, FORCE_COLOR: "0" },
+            detached: !isWindows,
+            windowsHide: true,
+          });
+        } else {
+          const parsedCommand = parseDirectCommand(baseCommand);
+          child = spawn(parsedCommand.cmd, [...parsedCommand.cmdArgs, ...commandArgs], {
+            cwd: context.workspacePath,
+            shell: isWindows,
+            env: { ...process.env, FORCE_COLOR: "0" },
+            detached: !isWindows,
+            windowsHide: true,
+          });
+        }
+      } catch (error) {
+        resolve(JSON.stringify({ error: (error as Error).message }));
+        return;
+      }
 
       child.stdout.on("data", (data) => {
         const str = data.toString();
