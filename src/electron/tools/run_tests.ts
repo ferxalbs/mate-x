@@ -4,6 +4,7 @@ import { BrowserWindow } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
+import { killProcessTree } from "./process";
 
 const TEST_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_SUMMARY_CHARS = 120_000;
@@ -128,6 +129,7 @@ export const runTestsTool: Tool = {
     return new Promise((resolve) => {
       let outputSummary = "";
       let timedOut = false;
+      let finished = false;
 
       // Determine shell based on profile or platform defaults
       const isWindows = process.platform === "win32";
@@ -136,7 +138,9 @@ export const runTestsTool: Tool = {
       const child = spawn(command, {
         cwd: context.workspacePath,
         shell: shellToUse,
-        env: { ...process.env, FORCE_COLOR: "0" } // Request no color for simpler output parsing
+        env: { ...process.env, FORCE_COLOR: "0" }, // Request no color for simpler output parsing
+        detached: !isWindows,
+        windowsHide: true,
       });
 
       child.stdout.on("data", (data) => {
@@ -154,10 +158,23 @@ export const runTestsTool: Tool = {
       const timeout = setTimeout(() => {
         timedOut = true;
         broadcastStream(`\n--- Tests timed out after ${TEST_RUN_TIMEOUT_MS / 1000} seconds ---\n`);
-        child.kill("SIGKILL");
+        killProcessTree(child.pid);
       }, TEST_RUN_TIMEOUT_MS);
 
+      child.on("error", (error) => {
+        if (finished) {
+          return;
+        }
+
+        outputSummary = appendOutputSummary(outputSummary, `\n${error.message}`);
+      });
+
       child.on("close", async (code) => {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
         clearTimeout(timeout);
         broadcastStream(`\n--- Tests completed with exit code ${code} ---\n`);
 
