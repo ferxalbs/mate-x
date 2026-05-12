@@ -13,8 +13,15 @@ const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
 const LONG_RUNNING_TIMEOUT_SECONDS = 60;
 const DEFAULT_EXECUTION_MODE = "direct";
+const MAX_ISOLATED_COPY_BYTES = 500 * 1024 * 1024;
+const MAX_ISOLATED_COPY_FILES = 50_000;
 const IGNORED_COPY_NAMES = new Set([
+  ".cache",
   ".git",
+  ".next",
+  ".turbo",
+  ".venv",
+  ".vite",
   "coverage",
   "dist",
   "node_modules",
@@ -337,14 +344,36 @@ export async function prepareSandboxWorkspace(input: {
       }
 
       const sourceStat = await stat(sourcePath);
+      const nextFileCount = copiedFileCount + 1;
+      const nextByteCount = copiedBytes + sourceStat.size;
+      if (
+        nextFileCount > MAX_ISOLATED_COPY_FILES ||
+        nextByteCount > MAX_ISOLATED_COPY_BYTES
+      ) {
+        throw new Error(
+          [
+            "Isolated copy budget exceeded.",
+            `Copied files: ${copiedFileCount}/${MAX_ISOLATED_COPY_FILES}.`,
+            `Copied bytes: ${copiedBytes}/${MAX_ISOLATED_COPY_BYTES}.`,
+            "Use executionMode direct or narrow the workspace before retrying.",
+          ].join(" "),
+        );
+      }
+
       await mkdir(dirname(targetPath), { recursive: true });
       await copyFile(sourcePath, targetPath);
-      copiedFileCount++;
-      copiedBytes += sourceStat.size;
+      copiedFileCount = nextFileCount;
+      copiedBytes = nextByteCount;
     }
   };
 
-  await copyEntries(input.workspacePath);
+  try {
+    await copyEntries(input.workspacePath);
+  } catch (error) {
+    await rm(runPath, { force: true, recursive: true });
+    throw error;
+  }
+
   const prepareDurationMs = Date.now() - prepareStartedAt;
 
   return {
