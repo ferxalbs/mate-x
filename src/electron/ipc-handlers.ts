@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { AssistantRunOptions, EvidencePack } from "../contracts/chat";
@@ -52,6 +53,10 @@ function normalizeRainyApiKey(apiKey: string) {
   }
 
   return trimmedApiKey;
+}
+
+function shellSingleQuote(value: string) {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 async function resolveActiveWorkspacePath() {
@@ -198,7 +203,6 @@ export function registerIpcHandlers() {
       }
 
       const workspacePath = await resolveActiveWorkspacePath();
-      const encodedWorkspacePath = encodeURI(workspacePath);
 
       if (target === "folder") {
         await shell.openPath(workspacePath);
@@ -206,13 +210,18 @@ export function registerIpcHandlers() {
       }
 
       if (target === "vscode") {
-        await shell.openExternal(`vscode://file/${encodedWorkspacePath}`);
+        await shell.openExternal(`vscode://file/${pathToFileURL(workspacePath).pathname}`);
         return;
       }
 
       if (target === "terminal") {
         if (process.platform === "darwin") {
-          const terminal = spawn("open", ["-a", "Terminal", workspacePath], {
+          const terminal = spawn("osascript", [
+            "-e",
+            `tell application "Terminal" to do script "cd ${shellSingleQuote(workspacePath)}"`,
+            "-e",
+            `tell application "Terminal" to activate`,
+          ], {
             detached: true,
             stdio: "ignore",
           });
