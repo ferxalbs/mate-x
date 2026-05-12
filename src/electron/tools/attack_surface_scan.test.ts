@@ -4,6 +4,7 @@ import { describe, it } from "vitest";
 
 import {
   batchFilesForRg,
+  classifyDynamicCodeEvidenceSeverity,
   classifyEgressEvidenceSeverity,
   classifySqlEvidenceSeverity,
   classifyWeakCryptoEvidenceSeverity,
@@ -21,14 +22,14 @@ describe("attack surface scan SQL triage", () => {
   it("keeps static SQL tagged templates below high priority", () => {
     assert.equal(
       classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM models_registry`)"),
-      "medium",
+      "info",
     );
   });
 
-  it("keeps interpolated SQL as high signal", () => {
+  it("treats Drizzle-style SQL interpolation as parameterized unless raw helpers are used", () => {
     assert.equal(
       classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM users WHERE id = ${userId}`)", "src/api/v1/users/routes.ts"),
-      "high",
+      "info",
     );
   });
 
@@ -39,10 +40,10 @@ describe("attack surface scan SQL triage", () => {
     );
   });
 
-  it("keeps non-route SQL tag interpolation medium until source proof exists", () => {
+  it("keeps non-route SQL tag interpolation as audit context", () => {
     assert.equal(
       classifySqlEvidenceSeverity("const result = await db.execute(sql`SELECT * FROM users WHERE id = ${userId}`)", "src/lib/models/registry.ts"),
-      "medium",
+      "info",
     );
   });
 
@@ -57,6 +58,22 @@ describe("attack surface scan SQL triage", () => {
     assert.equal(
       classifyWeakCryptoEvidenceSeverity("const token = Math.random().toString(36).slice(2)"),
       "high",
+    );
+  });
+});
+
+describe("attack surface scan dynamic execution triage", () => {
+  it("downgrades hardcoded Redis Lua using KEYS and ARGV", () => {
+    assert.equal(
+      classifyDynamicCodeEvidenceSeverity("await redis.eval(`redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])`, [key], [now])"),
+      "info",
+    );
+  });
+
+  it("keeps dynamic Redis eval as review-worthy", () => {
+    assert.equal(
+      classifyDynamicCodeEvidenceSeverity("await redis.eval(scriptFromRequest, [key], [value])"),
+      "medium",
     );
   });
 });

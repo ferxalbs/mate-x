@@ -188,6 +188,8 @@ function effectiveSeverity(matcher: Matcher, sourceRole: SourceRole, evidence: s
     severity = classifyEgressEvidenceSeverity(evidence, file);
   } else if (matcher.slug === 'weak-crypto') {
     severity = classifyWeakCryptoEvidenceSeverity(evidence);
+  } else if (matcher.slug === 'dynamic-code') {
+    severity = classifyDynamicCodeEvidenceSeverity(evidence);
   }
 
   return adjustSeverity(severity, sourceRole);
@@ -204,10 +206,22 @@ export function classifySqlEvidenceSeverity(evidence: string, file = ''): Severi
   const isApiSurface = /(?:^|\/)(?:api|routes?|controllers?|handlers?)(?:\/|\.|$)/i.test(lowerFile);
 
   if (isStaticDdl && !hasInterpolation && !hasConcatenation) return 'info';
+  if (usesSqlTag && !hasUnsafeRaw) return 'info';
   if (hasUnsafeRaw || hasConcatenation) return 'high';
   if (hasInterpolation && isApiSurface) return 'high';
   if (hasInterpolation) return 'medium';
-  if (usesSqlTag && !hasInterpolation && !hasConcatenation) return 'medium';
+  return 'high';
+}
+
+export function classifyDynamicCodeEvidenceSeverity(evidence: string): Severity {
+  const normalized = evidence.trim();
+  const usesRedisEval = /\bredis\.eval\s*\(/i.test(normalized);
+  const startsHardcodedRedisLua = /\bredis\.eval\s*\(\s*`/.test(normalized);
+  const hasLuaRedisCall = /\bredis\.call\s*\(\s*['"`]/i.test(normalized);
+  const hasDynamicAssembly = /\$\{|\+\s*[\w"'`]/.test(normalized);
+
+  if (usesRedisEval && startsHardcodedRedisLua && hasLuaRedisCall && !hasDynamicAssembly) return 'info';
+  if (usesRedisEval) return 'medium';
   return 'high';
 }
 
@@ -245,6 +259,7 @@ export function classifyEgressEvidenceSeverity(evidence: string, file = ''): Sev
 function confidenceFor(matcher: Matcher, sourceRole: SourceRole, evidence: string, file: string): Candidate['confidence'] {
   if (sourceRole !== 'active') return 'low';
   if (matcher.slug === 'sql-construction' && classifySqlEvidenceSeverity(evidence, file) === 'info') return 'low';
+  if (matcher.slug === 'dynamic-code' && classifyDynamicCodeEvidenceSeverity(evidence) === 'info') return 'low';
   if (matcher.slug === 'ssrf-egress' && classifyEgressEvidenceSeverity(evidence, file) === 'info') return 'low';
   if (matcher.slug === 'weak-crypto' && classifyWeakCryptoEvidenceSeverity(evidence) === 'info') return 'low';
   if (/\bsql`/.test(evidence) && !/\$\{|\+/.test(evidence)) return 'medium';
