@@ -55,8 +55,17 @@ function normalizeRainyApiKey(apiKey: string) {
   return trimmedApiKey;
 }
 
-function shellSingleQuote(value: string) {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
+function appleScriptString(value: string) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function vscodeFileUri(value: string) {
+  const fileUrl = pathToFileURL(value);
+  const workspacePath = fileUrl.host
+    ? `/${fileUrl.host}${fileUrl.pathname}`
+    : fileUrl.pathname;
+
+  return `vscode://file${workspacePath}`;
 }
 
 async function resolveActiveWorkspacePath() {
@@ -210,7 +219,7 @@ export function registerIpcHandlers() {
       }
 
       if (target === "vscode") {
-        await shell.openExternal(`vscode://file/${pathToFileURL(workspacePath).pathname}`);
+        await shell.openExternal(vscodeFileUri(workspacePath));
         return;
       }
 
@@ -218,7 +227,7 @@ export function registerIpcHandlers() {
         if (process.platform === "darwin") {
           const terminal = spawn("osascript", [
             "-e",
-            `tell application "Terminal" to do script "cd ${shellSingleQuote(workspacePath)}"`,
+            `tell application "Terminal" to do script "cd " & quoted form of ${appleScriptString(workspacePath)}`,
             "-e",
             `tell application "Terminal" to activate`,
           ], {
