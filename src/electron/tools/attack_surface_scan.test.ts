@@ -7,6 +7,7 @@ import {
   classifyEgressEvidenceSeverity,
   classifySqlEvidenceSeverity,
   classifyWeakCryptoEvidenceSeverity,
+  sourceRoleFor,
 } from "./attack_surface_scan";
 
 describe("attack surface scan SQL triage", () => {
@@ -102,6 +103,29 @@ describe("attack surface scan rg batching", () => {
     assert.deepEqual(
       batchFilesForRg(["src/a.ts", "src/b.ts"], 80),
       [["src/a.ts", "src/b.ts"]],
+    );
+  });
+});
+
+describe("attack surface scan source roles", () => {
+  it("classifies root deployment scripts as tooling, not active runtime code", () => {
+    assert.equal(
+      sourceRoleFor("scripts/deploy/deploy-cloudrun.ts", "const result = Bun.spawnSync(args)"),
+      "tooling",
+    );
+  });
+
+  it("classifies root load-test scripts as tooling", () => {
+    assert.equal(
+      sourceRoleFor("scripts/loadtest/run.ts", "const response = await fetch(config.url)"),
+      "tooling",
+    );
+  });
+
+  it("keeps application tool implementations active", () => {
+    assert.equal(
+      sourceRoleFor("src/electron/tools/sandbox_run.ts", "const child = spawn(cmd, cmdArgs)"),
+      "active",
     );
   });
 });
