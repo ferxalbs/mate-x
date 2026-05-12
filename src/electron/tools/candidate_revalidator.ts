@@ -51,13 +51,35 @@ function collectSignals(lines: string[], patterns: RegExp[], label: string, reas
     : [];
 }
 
+function collectSafePatternSignals(lines: string[]): Signal[] {
+  const context = lines.join('\n');
+  const redisEvalMatch = /\bredis\.eval\s*\(\s*`([\s\S]*?)`/.exec(context);
+  if (!redisEvalMatch) return [];
+
+  const luaScript = redisEvalMatch[1];
+  const hasRedisCalls = /\bredis\.call\s*\(\s*['"`]/.test(luaScript);
+  const usesRedisArgs = /\b(?:KEYS|ARGV)\s*\[\s*\d+\s*\]/.test(luaScript);
+  const interpolatesIntoScript = /\$\{/.test(luaScript);
+
+  if (hasRedisCalls && usesRedisArgs && !interpolatesIntoScript) {
+    return [{
+      label: 'safe-pattern',
+      reason: 'Redis Lua script is static and passes data through KEYS/ARGV instead of interpolating code',
+    }];
+  }
+
+  return [];
+}
+
 function resolveVerdict(params: {
   sourceSignals: Signal[];
   sinkSignals: Signal[];
   mitigationSignals: Signal[];
   referenceSignals: Signal[];
+  safePatternSignals: Signal[];
 }): Verdict {
-  const { sourceSignals, sinkSignals, mitigationSignals, referenceSignals } = params;
+  const { sourceSignals, sinkSignals, mitigationSignals, referenceSignals, safePatternSignals } = params;
+  if (safePatternSignals.length > 0) return 'likely_false_positive';
   if (referenceSignals.length > 0 && sourceSignals.length === 0) return 'likely_false_positive';
   if (sourceSignals.length > 0 && sinkSignals.length > 0 && mitigationSignals.length === 0) return 'confirmed_candidate';
   return 'needs_context';
@@ -112,7 +134,8 @@ export const candidateRevalidatorTool: Tool = {
       const sinkSignals = collectSignals([candidateLine, evidence, ...contextLines], SINK_HINTS, 'sink', 'candidate context contains security-sensitive sink');
       const mitigationSignals = collectSignals(contextLines, MITIGATION_HINTS, 'mitigation', 'nearby validation, sanitization, auth, allowlist, or parameterization signal');
       const referenceSignals = collectSignals([file, candidateLine, evidence], REFERENCE_HINTS, 'reference', 'candidate appears in test, docs, scanner, fixture, or matcher context');
-      const verdict = resolveVerdict({ sourceSignals, sinkSignals, mitigationSignals, referenceSignals });
+      const safePatternSignals = collectSafePatternSignals(contextLines);
+      const verdict = resolveVerdict({ sourceSignals, sinkSignals, mitigationSignals, referenceSignals, safePatternSignals });
 
       let report = 'Candidate Revalidation\n======================\n';
       report += `Candidate: ${title}\n`;
@@ -122,7 +145,7 @@ export const candidateRevalidatorTool: Tool = {
       report += 'Important: this verdict is heuristic. Confirmed candidate still needs data-flow proof before becoming a vulnerability finding.\n';
 
       report += '\nSignals\n-------\n';
-      const signals = [...sourceSignals, ...sinkSignals, ...mitigationSignals, ...referenceSignals];
+      const signals = [...sourceSignals, ...sinkSignals, ...mitigationSignals, ...referenceSignals, ...safePatternSignals];
       if (signals.length === 0) {
         report += '- No strong local signals found.\n';
       } else {
