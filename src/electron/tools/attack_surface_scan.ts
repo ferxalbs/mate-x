@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 const RG_MAX_BUFFER = 1024 * 1024 * 12;
 const RG_FILE_BATCH_CHAR_LIMIT = process.platform === 'win32' ? 24_000 : 120_000;
 
-export type SourceRole = 'active' | 'test' | 'docs' | 'example' | 'scanner' | 'generated';
+export type SourceRole = 'active' | 'test' | 'docs' | 'example' | 'scanner' | 'generated' | 'tooling';
 export type Severity = 'critical' | 'high' | 'medium' | 'info';
 
 export type Matcher = {
@@ -160,13 +160,14 @@ export function batchFilesForRg(files: string[], charLimit = RG_FILE_BATCH_CHAR_
   return batches;
 }
 
-function sourceRoleFor(file: string, evidence: string): SourceRole {
+export function sourceRoleFor(file: string, evidence: string): SourceRole {
   const lower = normalizePathForScan(file).toLowerCase();
   const line = evidence.toLowerCase();
   if (lower.endsWith('.generated.ts') || lower.endsWith('.d.ts')) return 'generated';
   if (/(scanner|canary|fuzzer|prober|poison|audit|security-trace)/.test(lower)) return 'scanner';
   if (lower.includes('/docs/') || lower.endsWith('.md') || lower.endsWith('.mdx')) return 'docs';
   if (lower.includes('/test/') || lower.includes('/tests/') || lower.includes('.test.') || lower.includes('.spec.')) return 'test';
+  if (/^(?:scripts|bin|ci|deploy|loadtest)\//.test(lower) || lower.includes('/.github/workflows/')) return 'tooling';
   if (lower.includes('/example') || lower.includes('/examples/') || lower.includes('/fixtures/') || lower.includes('/demo/')) return 'example';
   if (line.includes('example') || line.includes('fixture')) return 'example';
   return 'active';
