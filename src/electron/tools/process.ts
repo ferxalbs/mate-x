@@ -1,5 +1,38 @@
 import { spawn } from "node:child_process";
 
+const SAFE_TOOL_ENV_KEYS = [
+  'APPDATA',
+  'HOME',
+  'LOCALAPPDATA',
+  'PATH',
+  'Path',
+  'PATHEXT',
+  'SystemRoot',
+  'TEMP',
+  'TERM',
+  'TMP',
+  'USERPROFILE',
+  'windir',
+] as const;
+
+export function buildToolProcessEnv(
+  overrides: Record<string, string | undefined> = {},
+) {
+  const env: NodeJS.ProcessEnv = {};
+
+  for (const key of SAFE_TOOL_ENV_KEYS) {
+    const value = process.env[key];
+    if (value) {
+      env[key] = value;
+    }
+  }
+
+  return {
+    ...env,
+    ...overrides,
+  };
+}
+
 export function parseDirectCommand(command: string) {
   const tokens: string[] = [];
   let current = "";

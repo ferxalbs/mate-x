@@ -4,7 +4,7 @@ import { BrowserWindow } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
-import { killProcessTree, parseDirectCommand } from "./process";
+import { buildToolProcessEnv, killProcessTree, parseDirectCommand } from "./process";
 
 const TEST_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_SUMMARY_CHARS = 120_000;
@@ -172,7 +172,7 @@ export const runTestsTool: Tool = {
           child = spawn(command, {
             cwd: context.workspacePath,
             shell: profile?.shell || (isWindows ? "cmd.exe" : "/bin/sh"),
-            env: { ...process.env, FORCE_COLOR: "0" },
+            env: buildToolProcessEnv({ FORCE_COLOR: "0" }),
             detached: !isWindows,
             windowsHide: true,
           });
@@ -181,7 +181,7 @@ export const runTestsTool: Tool = {
           child = spawn(parsedCommand.cmd, [...parsedCommand.cmdArgs, ...commandArgs], {
             cwd: context.workspacePath,
             shell: isWindows,
-            env: { ...process.env, FORCE_COLOR: "0" },
+            env: buildToolProcessEnv({ FORCE_COLOR: "0" }),
             detached: !isWindows,
             windowsHide: true,
           });
@@ -214,18 +214,15 @@ export const runTestsTool: Tool = {
           return;
         }
 
-        outputSummary = appendOutputSummary(outputSummary, `\n${error.message}`);
-      });
-
-      child.on("close", async (code) => {
-        if (finished) {
-          return;
-        }
-
         finished = true;
         clearTimeout(timeout);
-        broadcastStream(`\n--- Tests completed with exit code ${code} ---\n`);
+        outputSummary = appendOutputSummary(outputSummary, `\n${error.message}`);
+        const errorMessage = `Failed to start process: ${error.message}`;
+        broadcastStream(`\n${errorMessage}\n`);
+        resolve(JSON.stringify({ error: errorMessage }));
+      });
 
+      const persistRun = async (code: number | null) => {
         // Simple heuristic to extract failing tests
         const failingTests: string[] = [];
         if (code !== 0) {
@@ -311,13 +308,17 @@ export const runTestsTool: Tool = {
             ? "Same failure repeated in this workspace. Warn user and change approach before retrying."
             : undefined,
         }, null, 2));
-      });
+      };
 
-      child.on("error", (error) => {
-         clearTimeout(timeout);
-         const errorMessage = `Failed to start process: ${error.message}`;
-         broadcastStream(`\n${errorMessage}\n`);
-         resolve(JSON.stringify({ error: errorMessage }));
+      child.on("close", async (code) => {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+        clearTimeout(timeout);
+        broadcastStream(`\n--- Tests completed with exit code ${code} ---\n`);
+        await persistRun(code);
       });
     });
   },
