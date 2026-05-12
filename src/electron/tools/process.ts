@@ -4,40 +4,63 @@ export function parseDirectCommand(command: string) {
   const tokens: string[] = [];
   let current = "";
   let quote: "'" | "\"" | null = null;
+  let escaping = false;
+  let tokenStarted = false;
 
   for (const char of command) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      tokenStarted = true;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      escaping = true;
+      tokenStarted = true;
+      continue;
+    }
+
     if ((char === "'" || char === "\"") && !quote) {
       quote = char;
+      tokenStarted = true;
       continue;
     }
 
     if (char === quote) {
       quote = null;
+      tokenStarted = true;
       continue;
     }
 
-    if (!quote && /[|&;<>`$]/.test(char)) {
+    if (!quote && /[|&;<>`$\r\n]/.test(char)) {
       throw new Error(
         "Shell operators are not supported. Provide a direct command and arguments only.",
       );
     }
 
     if (!quote && /\s/.test(char)) {
-      if (current) {
+      if (tokenStarted) {
         tokens.push(current);
         current = "";
+        tokenStarted = false;
       }
       continue;
     }
 
     current += char;
+    tokenStarted = true;
+  }
+
+  if (escaping) {
+    current += "\\";
   }
 
   if (quote) {
     throw new Error("Unclosed quote in command.");
   }
 
-  if (current) {
+  if (tokenStarted) {
     tokens.push(current);
   }
 
@@ -58,10 +81,11 @@ export function killProcessTree(childPid: number | undefined) {
 
   try {
     if (process.platform === "win32") {
-      spawn("taskkill", ["/pid", String(childPid), "/T", "/F"], {
+      const killer = spawn("taskkill", ["/pid", String(childPid), "/T", "/F"], {
         stdio: "ignore",
         windowsHide: true,
       });
+      killer.unref();
       return;
     }
 

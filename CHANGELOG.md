@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.12 (1) [Workspace Launcher and Command Parser Hardening]
+
+- Hardened macOS workspace Terminal launching by escaping paths as AppleScript strings and letting AppleScript apply POSIX shell quoting before running `cd`.
+- Fixed VS Code workspace URI construction so Windows UNC paths preserve host/share authority when opening a repository from the app shell.
+- Strengthened direct command parsing for validation tools by preserving empty quoted arguments, supporting escaped characters, rejecting newline shell injection, and avoiding shell execution for direct commands.
+- Detached Windows `taskkill` cleanup so cancellation of spawned validation processes does not keep MaTE X waiting on the cleanup helper.
+- Verified the parser behavior with a focused `bunx tsx` import check.
+
 ## Unreleased - 2026.05.11 (5) [Agent Identity Binding and Runbook Export]
 
 - Added persistent local Agent Run Identity under `.mate-x/config/agent-identity.json`, including identity UUID, creation timestamp, user-binding flag, and deterministic policy hash from local policy sources.
