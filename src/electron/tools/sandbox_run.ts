@@ -7,7 +7,7 @@ import { powerSaveBlocker } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
-import { killProcessTree, parseDirectCommand } from "./process";
+import { buildToolProcessEnv, killProcessTree, parseDirectCommand } from "./process";
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
@@ -504,7 +504,7 @@ export const sandboxRunnerTool: Tool = {
 
       const child = spawn(cmd, cmdArgs, {
         cwd: preparedWorkspace.runPath,
-        env: { ...process.env, PORT: port, NODE_ENV: nodeEnv },
+        env: buildToolProcessEnv({ PORT: port, NODE_ENV: nodeEnv }),
         detached: process.platform !== "win32",
         windowsHide: true,
       });

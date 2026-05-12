@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.12 (2) [Tool Process Environment Hardening]
+
+- Added a shared minimal tool process environment for validation and sandbox execution so repository commands receive only cross-platform runtime essentials instead of the full MaTE X app environment.
+- Reduced secret and credential exposure risk when running security-review commands against untrusted workspaces while preserving macOS Intel/Apple Silicon and Windows 10/11 process compatibility.
+- Cleaned up validation process start-failure handling so failed launches resolve once without racing timeout or close handlers.
+- Verified with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.05.12 (1) [Workspace Launcher and Command Parser Hardening]
 
 - Hardened macOS workspace Terminal launching by escaping paths as AppleScript strings and letting AppleScript apply POSIX shell quoting before running `cd`.
