@@ -7,7 +7,7 @@ import { powerSaveBlocker } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
-import { killProcessTree } from "./process";
+import { killProcessTree, parseDirectCommand } from "./process";
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
@@ -40,54 +40,7 @@ type SandboxStatus =
   | "TERMINATED";
 
 export function parseSandboxCommand(command: string) {
-  const tokens: string[] = [];
-  let current = "";
-  let quote: "'" | "\"" | null = null;
-
-  for (const char of command) {
-    if ((char === "'" || char === "\"") && !quote) {
-      quote = char;
-      continue;
-    }
-
-    if (char === quote) {
-      quote = null;
-      continue;
-    }
-
-    if (!quote && /[|&;<>`$]/.test(char)) {
-      throw new Error(
-        "Shell operators are not supported. Provide a direct command and arguments only.",
-      );
-    }
-
-    if (!quote && /\s/.test(char)) {
-      if (current) {
-        tokens.push(current);
-        current = "";
-      }
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (quote) {
-    throw new Error("Unclosed quote in command.");
-  }
-
-  if (current) {
-    tokens.push(current);
-  }
-
-  if (tokens.length === 0) {
-    throw new Error("Command is required.");
-  }
-
-  return {
-    cmd: tokens[0],
-    cmdArgs: tokens.slice(1),
-  };
+  return parseDirectCommand(command);
 }
 
 function resolveSandboxCommand(input: { command: unknown; args: unknown }) {
