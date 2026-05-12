@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
 
 const execFileAsync = promisify(execFile);
+const RG_MAX_BUFFER = 1024 * 1024 * 12;
+const RG_FILE_BATCH_CHAR_LIMIT = process.platform === 'win32' ? 24_000 : 120_000;
 
 export type SourceRole = 'active' | 'test' | 'docs' | 'example' | 'scanner' | 'generated';
 export type Severity = 'critical' | 'high' | 'medium' | 'info';
@@ -105,20 +107,61 @@ const MATCHERS: Matcher[] = [
 
 export const SEVERITY_RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, info: 3 };
 
-const shouldSkipFile = (file: string) => (
-  file.includes('node_modules/')
-  || file.includes('.git/')
-  || file.includes('dist/')
-  || file.includes('.next/')
-  || file.includes('out/')
-  || file.includes('target/')
-  || file.includes('coverage/')
-  || file.endsWith('.lock')
-  || file.endsWith('.map')
-);
+function shouldSkipFile(file: string) {
+  const normalized = normalizePathForScan(file);
+  return (
+    normalized.includes('node_modules/')
+    || normalized.includes('.git/')
+    || normalized.includes('dist/')
+    || normalized.includes('.next/')
+    || normalized.includes('out/')
+    || normalized.includes('target/')
+    || normalized.includes('coverage/')
+    || normalized.endsWith('.lock')
+    || normalized.endsWith('.map')
+    || normalized.endsWith('.d.ts')
+  );
+}
+
+function normalizePathForScan(file: string) {
+  return file.replace(/\\/g, '/');
+}
+
+function resolveWorkspaceScope(workspacePath: string, relativePath: string) {
+  if (relativePath.split(/[\\/]+/).includes('..')) {
+    throw new Error('Scan path must stay inside the selected workspace.');
+  }
+  const workspaceRoot = resolve(workspacePath);
+  const targetPath = resolve(workspaceRoot, relativePath || '.');
+  const scopedPath = relative(workspaceRoot, targetPath);
+  if (scopedPath.startsWith('..')) {
+    throw new Error('Scan path must stay inside the selected workspace.');
+  }
+  return scopedPath === '' ? '.' : scopedPath;
+}
+
+export function batchFilesForRg(files: string[], charLimit = RG_FILE_BATCH_CHAR_LIMIT) {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let currentSize = 0;
+
+  for (const file of files) {
+    const fileSize = file.length + 1;
+    if (current.length > 0 && currentSize + fileSize > charLimit) {
+      batches.push(current);
+      current = [];
+      currentSize = 0;
+    }
+    current.push(file);
+    currentSize += fileSize;
+  }
+
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
 
 function sourceRoleFor(file: string, evidence: string): SourceRole {
-  const lower = file.toLowerCase();
+  const lower = normalizePathForScan(file).toLowerCase();
   const line = evidence.toLowerCase();
   if (lower.endsWith('.generated.ts') || lower.endsWith('.d.ts')) return 'generated';
   if (/(scanner|canary|fuzzer|prober|poison|audit|security-trace)/.test(lower)) return 'scanner';
@@ -269,20 +312,29 @@ export async function scanAttackSurfaceCandidates(params: {
   relativePath: string;
 }): Promise<{ scannedFiles: string[]; candidates: Candidate[] }> {
   const { workspacePath, relativePath } = params;
-  const targetStat = await stat(join(workspacePath, relativePath));
+  const safeRelativePath = resolveWorkspaceScope(workspacePath, relativePath);
+  const targetStat = await stat(resolve(workspacePath, safeRelativePath));
   const files = targetStat.isFile()
-    ? [relativePath]
-    : (await execFileAsync('rg', ['--files', '--', relativePath], { cwd: workspacePath })).stdout.split('\n').filter(Boolean);
+    ? [safeRelativePath]
+    : (await execFileAsync('rg', ['--files', '--', safeRelativePath], { cwd: workspacePath })).stdout.split('\n').filter(Boolean);
   const scannedFiles = files.filter((file) => !shouldSkipFile(file));
   const scannedFileSet = new Set(scannedFiles);
   const searchPattern = MATCHERS.map((matcher) => `(?:${matcher.search})`).join('|');
-  const { stdout } = scannedFiles.length === 0
-    ? { stdout: '' }
-    : await execFileAsync(
-      'rg',
-      ['-n', '--no-heading', '-e', searchPattern, '--', ...scannedFiles],
-      { cwd: workspacePath, maxBuffer: 1024 * 1024 * 12 },
-    ).catch(() => ({ stdout: '' }));
+  const stdout = scannedFiles.length === 0
+    ? ''
+    : (await Promise.all(batchFilesForRg(scannedFiles).map(async (batch) => {
+      try {
+        const result = await execFileAsync(
+          'rg',
+          ['-n', '--no-heading', '-e', searchPattern, '--', ...batch],
+          { cwd: workspacePath, maxBuffer: RG_MAX_BUFFER },
+        );
+        return result.stdout;
+      } catch (error) {
+        const stdoutFromError = (error as { stdout?: unknown }).stdout;
+        return typeof stdoutFromError === 'string' ? stdoutFromError : '';
+      }
+    }))).join('\n');
 
   const candidates = uniqueCandidates(parseRgRows(stdout, scannedFileSet)).sort((a, b) => (
     SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]

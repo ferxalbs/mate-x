@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
 import {
+  batchFilesForRg,
   classifyEgressEvidenceSeverity,
   classifySqlEvidenceSeverity,
   classifyWeakCryptoEvidenceSeverity,
@@ -85,6 +86,22 @@ describe("attack surface scan egress triage", () => {
     assert.equal(
       classifyEgressEvidenceSeverity("const response = await fetch(safeEndpoint, {", "src/lib/tools/runtime.ts"),
       "medium",
+    );
+  });
+});
+
+describe("attack surface scan rg batching", () => {
+  it("splits file arguments before they exceed the configured limit", () => {
+    assert.deepEqual(
+      batchFilesForRg(["src/a.ts", "src/bbbbb.ts", "src/c.ts"], 18),
+      [["src/a.ts"], ["src/bbbbb.ts"], ["src/c.ts"]],
+    );
+  });
+
+  it("keeps small file sets in one rg invocation", () => {
+    assert.deepEqual(
+      batchFilesForRg(["src/a.ts", "src/b.ts"], 80),
+      [["src/a.ts", "src/b.ts"]],
     );
   });
 });
