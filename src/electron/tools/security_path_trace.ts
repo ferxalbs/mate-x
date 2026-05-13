@@ -1,11 +1,23 @@
+import { isAbsolute, relative, resolve } from 'node:path';
 import type { Tool } from '../tool-service';
 import { formatSecurityTraces } from '../security-trace/format';
 import { traceSecurityPaths } from '../security-trace/scanner';
 
+const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
+  const relativePath = relative(workspacePath, targetPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
+};
+
+const toPositiveInteger = (value: unknown, fallback: number, max: number, min = 1) => {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < min) return fallback;
+  return Math.min(Math.floor(numberValue), max);
+};
+
 export const securityPathTraceTool: Tool = {
   name: 'security_path_trace',
   description:
-    'Traces security-relevant source-to-sink flows in TypeScript, JavaScript, and Electron code. Produces precise source -> transform -> sink paths with confidence, evidence, findings, and patch suggestions.',
+    'Traces security-relevant source-to-sink flows in TypeScript, JavaScript, and Electron code with scope guards, caps, confidence, evidence, findings, and patch suggestions.',
   parameters: {
     type: 'object',
     properties: {
@@ -21,20 +33,48 @@ export const securityPathTraceTool: Tool = {
         type: 'number',
         description: 'Maximum traces to return. Defaults to 12.',
       },
+      minConfidence: {
+        type: 'number',
+        description: 'Minimum confidence hint for caller/UI filtering. Scanner support may vary. Defaults to 0.',
+      },
+      mode: {
+        type: 'string',
+        enum: ['summary', 'full'],
+        description: 'Output verbosity. Defaults to full.',
+      },
     },
     required: [],
   },
   async execute(args, { workspacePath }) {
     const scope = typeof args.scope === 'string' && args.scope.trim() ? args.scope : '.';
-    const maxFiles = Math.max(10, Math.min(1000, Number(args.maxFiles) || 250));
-    const maxTraces = Math.max(1, Math.min(50, Number(args.maxTraces) || 12));
+    const resolvedScope = resolve(workspacePath, scope);
+    const maxFiles = toPositiveInteger(args.maxFiles, 250, 1000, 10);
+    const maxTraces = toPositiveInteger(args.maxTraces, 12, 50);
+    const minConfidence = Math.max(0, Math.min(1, Number(args.minConfidence) || 0));
+    const mode = args.mode === 'summary' ? 'summary' : 'full';
+
+    if (!isInsideWorkspace(workspacePath, resolvedScope)) {
+      return 'Refusing to trace outside the workspace.';
+    }
 
     try {
       const traces = await traceSecurityPaths(workspacePath, { scope, maxFiles, maxTraces });
-      return formatSecurityTraces(traces);
+      const filteredTraces =
+        minConfidence > 0
+          ? traces.filter((trace) => typeof trace.confidence !== 'number' || trace.confidence >= minConfidence)
+          : traces;
+      const formatted = formatSecurityTraces(filteredTraces);
+
+      if (mode === 'summary') {
+        return [
+          `Security path trace summary: ${filteredTraces.length} trace(s), scope=${scope}, maxFiles=${maxFiles}, maxTraces=${maxTraces}`,
+          formatted.split('\n').slice(0, 40).join('\n'),
+        ].join('\n');
+      }
+
+      return `Security path trace complete: ${filteredTraces.length} trace(s), scope=${scope}\n${formatted}`;
     } catch (error) {
       return `Error tracing security paths: ${(error as Error).message}`;
     }
   },
 };
-
