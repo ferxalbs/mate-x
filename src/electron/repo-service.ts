@@ -2186,6 +2186,12 @@ ${repoGraphSummary}
 You are running in an agent loop, not a single reply.
 First, use the working set, workspace metadata, git status, prompt-linked matches, and conversation history already provided here.
 Before broad file search, use Repo Intelligence Graph APIs for entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
+Security tool playbook:
+- For secret exposure, call secret_scan first. Keep evidence redacted; use source_map_analyzer for built bundles/maps and client env leakage.
+- For broad repo triage, use attack_surface_scan or deep_analysis_pipeline, then candidate_revalidator before calling a finding confirmed.
+- For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
+- For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
+- For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
 Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
 Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.
 Reproduction harness contract:
