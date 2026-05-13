@@ -1444,16 +1444,22 @@ async function attemptFinalChatSynthesis({
 
     return finalText;
   } catch (error) {
+    const fallbackText = buildNoContentFinalResponse({
+      iterations,
+      toolRounds,
+      totalToolCalls,
+      events,
+    });
     const event = events.find((item) => item.id === eventId);
     if (event) {
-      event.status = "error";
+      event.status = "done";
       event.detail =
         error instanceof Error
-          ? error.message
-          : "Failed to generate final synthesis.";
+          ? `Final synthesis unavailable: ${error.message}. Returned local run summary.`
+          : "Final synthesis unavailable. Returned local run summary.";
     }
     emitProgress();
-    return "";
+    return fallbackText;
   }
 }
 
@@ -1518,16 +1524,22 @@ async function attemptFinalResponsesSynthesis({
 
     return finalText;
   } catch (error) {
+    const fallbackText = buildNoContentFinalResponse({
+      iterations,
+      toolRounds,
+      totalToolCalls,
+      events,
+    });
     const event = events.find((item) => item.id === eventId);
     if (event) {
-      event.status = "error";
+      event.status = "done";
       event.detail =
         error instanceof Error
-          ? error.message
-          : "Failed to generate final synthesis.";
+          ? `Final synthesis unavailable: ${error.message}. Returned local run summary.`
+          : "Final synthesis unavailable. Returned local run summary.";
     }
     emitProgress();
-    return "";
+    return fallbackText;
   }
 }
 
