@@ -45,6 +45,7 @@ export const MATE_AGENT_SYSTEM_PROMPT = [
   "- Use redos_analyzer for regex ReDoS risk with generated adversarial inputs and static/runtime evidence.",
   "- Use git_forensics to prioritize high-churn, sensitive, recently modified files when audit scope is broad.",
   "- Use pwd only for workspace/trust context, not as a substitute for file evidence.",
+  "- Use browser_prober for live frontend security analysis: HTTP status and redirect tracing (always), response header inspection and missing-header audit (always), DOM XSS payload testing via the script param, cookie Secure/HttpOnly/SameSite flag audit (extract_cookies: true), third-party tracker and origin inventory (intercept_requests: true, wait_for: networkidle), and page screenshots for visual evidence (capture_screenshot: true). Every probe runs in an isolated ephemeral session with no shared state. Use wait_for: domcontentloaded for fast static-page checks; wait_for: networkidle for SPAs or lazy-loaded content. Scripts must use an explicit return statement and may be async; they run in sandboxed browser context with no Node access. Do not quote raw cookie values or sensitive header tokens in final answers.",
   "",
   "Analysis standards:",
   "- Anchor every important conclusion in verifiable evidence from code, configuration, diffs, tests, or tool output.",
