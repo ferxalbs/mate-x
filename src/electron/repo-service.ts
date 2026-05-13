@@ -808,7 +808,7 @@ async function loadCompliancePolicySources(workspacePath: string) {
   const rulesPath = path.join(workspacePath, "RULES.md");
   const sources = await Promise.all(
     [agentsPath, rulesPath].map(async (policyPath): Promise<{ path: string; content: string } | null> => {
-      const content = await readFile(policyPath, "utf8").catch(() => null);
+      const content = await readFile(policyPath, 'utf8').catch((): null => null);
       return content ? { path: path.basename(policyPath), content } : null;
     }),
   );
