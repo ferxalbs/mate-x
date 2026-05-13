@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { initializeUpdater } from './electron/updater';
@@ -47,6 +47,45 @@ if (started) {
   app.quit();
 }
 
+const isTrustedAppUrl = (url: string) => {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return false;
+  }
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return parsedUrl.origin === new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin;
+  }
+
+  return parsedUrl.protocol === 'file:';
+};
+
+const hardenWindow = (window: BrowserWindow) => {
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('mailto:')) {
+      void shell.openExternal(url);
+    }
+
+    return { action: 'deny' };
+  });
+
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedAppUrl(url)) {
+      event.preventDefault();
+      if (url.startsWith('https://')) {
+        void shell.openExternal(url);
+      }
+    }
+  });
+
+  window.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+};
+
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1275,
@@ -67,6 +106,8 @@ const createWindow = () => {
     },
   });
 
+  hardenWindow(mainWindow);
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -77,13 +118,15 @@ const createWindow = () => {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    setTimeout(() => {
+      initializeUpdater();
+    }, 2500);
   });
 };
 
 app.on('ready', () => {
   registerIpcHandlers();
   createWindow();
-  initializeUpdater();
 });
 
 app.on('window-all-closed', () => {
