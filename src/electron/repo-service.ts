@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { access, readdir, readFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import { promisify } from "node:util";
 
 import { buildEvidencePack, type ToolExecutionRecord } from "./evidence-pack";
@@ -806,7 +807,7 @@ async function loadCompliancePolicySources(workspacePath: string) {
   const agentsPath = path.join(workspacePath, "AGENTS.md");
   const rulesPath = path.join(workspacePath, "RULES.md");
   const sources = await Promise.all(
-    [agentsPath, rulesPath].map(async (policyPath) => {
+    [agentsPath, rulesPath].map(async (policyPath): Promise<{ path: string; content: string } | null> => {
       const content = await readFile(policyPath, "utf8").catch(() => null);
       return content ? { path: path.basename(policyPath), content } : null;
     }),
@@ -1073,7 +1074,7 @@ async function listWorkspaceFilesFallback(
     const current = queue.shift()!;
     const entries = await readdir(path.join(workspacePath, current), {
       withFileTypes: true,
-    }).catch(() => []);
+    }).catch((): Dirent[] => []);
 
     for (const entry of entries) {
       if (files.length >= limit) break;
