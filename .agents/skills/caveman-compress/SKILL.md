@@ -25,7 +25,7 @@ Compress natural language files (CLAUDE.md, todos, preferences) into caveman-spe
 
 python3 -m scripts <absolute_filepath>
 
-1. The CLI will:
+3. The CLI will:
 
 - detect file type (no tokens)
 - call Claude to compress
@@ -34,7 +34,7 @@ python3 -m scripts <absolute_filepath>
 - retry up to 2 times
 - if still failing after 2 retries: report error to user, leave original file untouched
 
-1. Return result to user
+4. Return result to user
 
 ## Compression Rules
 

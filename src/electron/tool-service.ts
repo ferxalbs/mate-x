@@ -87,6 +87,7 @@ export interface Tool {
 
 export class ToolService {
   private tools: Map<string, Tool> = new Map();
+  private governedDescriptionCache: Map<string, string> = new Map();
   private chatToolDefinitionsCache: OpenAI.Chat.Completions.ChatCompletionTool[] =
     [];
   private responsesToolDefinitionsCache: ResponsesFunctionTool[] = [];
@@ -162,6 +163,7 @@ export class ToolService {
     this.tools.set(tool.name, tool);
     this.chatToolDefinitionsCache = [];
     this.responsesToolDefinitionsCache = [];
+    this.governedDescriptionCache.delete(tool.name);
   }
 
   getChatToolDefinitions(): OpenAI.Chat.Completions.ChatCompletionTool[] {
@@ -174,7 +176,7 @@ export class ToolService {
         type: "function" as const,
         function: {
           name: tool.name,
-          description: buildGovernedToolDescription(tool),
+          description: this.getGovernedToolDescription(tool),
           parameters: toStrictObjectSchema(tool.parameters),
         },
       }),
@@ -192,7 +194,7 @@ export class ToolService {
       (tool) => ({
         type: "function" as const,
         name: tool.name,
-        description: buildGovernedToolDescription(tool),
+        description: this.getGovernedToolDescription(tool),
         parameters: toStrictObjectSchema(tool.parameters),
         strict: true,
       }),
@@ -252,6 +254,17 @@ export class ToolService {
 
   hasTools() {
     return this.tools.size > 0;
+  }
+
+  private getGovernedToolDescription(tool: Tool) {
+    const cached = this.governedDescriptionCache.get(tool.name);
+    if (cached) {
+      return cached;
+    }
+
+    const description = buildGovernedToolDescription(tool);
+    this.governedDescriptionCache.set(tool.name, description);
+    return description;
   }
 }
 
@@ -398,6 +411,35 @@ function validateValueAgainstSchema(
       if (value === null || typeof value !== "object" || Array.isArray(value)) {
         return `"${keyPath}" must be an object.`;
       }
+
+      if (schema.properties && typeof schema.properties === "object") {
+        const objectValue = value as Record<string, unknown>;
+        const properties = schema.properties as Record<string, unknown>;
+        const required = Array.isArray(schema.required) ? schema.required : [];
+
+        for (const requiredKey of required) {
+          if (!(requiredKey in objectValue)) {
+            return `Missing required argument "${keyPath}.${requiredKey}".`;
+          }
+        }
+
+        for (const childKey of Object.keys(objectValue)) {
+          const childSchema = properties[childKey];
+          if (!childSchema) {
+            return `Unexpected argument "${keyPath}.${childKey}".`;
+          }
+
+          const childError = validateValueAgainstSchema(
+            objectValue[childKey],
+            childSchema,
+            `${keyPath}.${childKey}`,
+          );
+          if (childError) {
+            return childError;
+          }
+        }
+      }
+
       return null;
     default:
       return null;
