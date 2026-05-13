@@ -1418,7 +1418,9 @@ async function attemptFinalChatSynthesis({
   messages.push({
     role: "user",
     content:
-      "Provide the final answer now using the collected tool evidence. Do not call tools. Return only the final synthesis.",
+      "Tool use is now disabled. You must write the final answer using only the evidence already collected above. " +
+      "Do not request any tool calls. Structure your response with: a one-line verdict, key findings with evidence references, " +
+      "unresolved risks, and recommended next steps. Begin your answer now.",
   });
 
   try {
@@ -1443,7 +1445,10 @@ async function attemptFinalChatSynthesis({
     }
     emitProgress();
 
-    return finalText;
+    return (
+      finalText ||
+      buildNoContentFinalResponse({ iterations, toolRounds, totalToolCalls, events })
+    );
   } catch (error) {
     const fallbackText = buildNoContentFinalResponse({
       iterations,
@@ -1506,7 +1511,10 @@ async function attemptFinalResponsesSynthesis({
           content: [
             {
               type: "input_text",
-              text: "Provide the final answer now using the collected tool evidence. Do not call tools. Return only the final synthesis.",
+              text:
+                "Tool use is now disabled. You must write the final answer using only the evidence already collected above. " +
+                "Do not request any tool calls. Structure your response with: a one-line verdict, key findings with evidence references, " +
+                "unresolved risks, and recommended next steps. Begin your answer now.",
             },
           ],
         },
@@ -1523,7 +1531,10 @@ async function attemptFinalResponsesSynthesis({
     }
     emitProgress();
 
-    return finalText;
+    return (
+      finalText ||
+      buildNoContentFinalResponse({ iterations, toolRounds, totalToolCalls, events })
+    );
   } catch (error) {
     const fallbackText = buildNoContentFinalResponse({
       iterations,
