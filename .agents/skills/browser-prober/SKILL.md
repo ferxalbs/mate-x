@@ -55,6 +55,7 @@ Even with no optional flags, every probe returns:
 ## Usage Recipes
 
 ### 1 — Basic security header audit (no script needed)
+
 ```json
 {
   "url": "https://example.com"
@@ -62,6 +63,7 @@ Even with no optional flags, every probe returns:
 ```
 
 ### 2 — Full cookie security audit
+
 ```json
 {
   "url": "https://example.com",
@@ -71,6 +73,7 @@ Even with no optional flags, every probe returns:
 Report flags cookies missing `Secure`, `HttpOnly`, or `SameSite`.
 
 ### 3 — Third-party tracker / request detection
+
 ```json
 {
   "url": "https://example.com",
@@ -81,6 +84,7 @@ Report flags cookies missing `Secure`, `HttpOnly`, or `SameSite`.
 Report groups requests by resource type and lists all third-party origins contacted.
 
 ### 4 — DOM XSS probe with custom script
+
 ```json
 {
   "url": "https://example.com/search?q=<script>alert(1)</script>",
@@ -89,6 +93,7 @@ Report groups requests by resource type and lists all third-party origins contac
 ```
 
 ### 5 — Extract CSP from a page that sets it via meta tag
+
 ```json
 {
   "url": "https://example.com",
@@ -97,6 +102,7 @@ Report groups requests by resource type and lists all third-party origins contac
 ```
 
 ### 6 — Full probe with screenshot
+
 ```json
 {
   "url": "https://example.com",
@@ -109,6 +115,7 @@ Report groups requests by resource type and lists all third-party origins contac
 ```
 
 ### 7 — Redirect chain audit
+
 ```json
 {
   "url": "http://example.com"
