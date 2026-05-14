@@ -9,6 +9,7 @@
   --sidebar: #f1f5f9;
   --sidebar-accent: #e2e8f0;
   --surface: #f8fafc;
+  --surface-soft: #e2e8f0;
   --panel: #f8fafc;
   --titlebar: #f1f5f9;
   --border: color-mix(in srgb, #3b82f6 15%, #cbd5e1);
@@ -28,6 +29,7 @@
     --sidebar: #0d1426;
     --sidebar-accent: #1e293b;
     --surface: #141e33;
+    --surface-soft: #1a2744;
     --panel: #141e33;
     --titlebar: #0d1426;
     --border: color-mix(in srgb, #3b82f6 15%, transparent);

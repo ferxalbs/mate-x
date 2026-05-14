@@ -11,7 +11,6 @@
   --surface: #ecf9f0;
   --surface-soft: #dff5e7;
   --panel: #f6fcf8;
-  --panel-border: color-mix(in srgb, #059669 22%, #bbf7d0);
   --titlebar: #f0fdf4;
   --border: color-mix(in srgb, #059669 15%, #d1fae5);
   --input: color-mix(in srgb, #059669 20%, #d1fae5);
@@ -30,6 +29,7 @@
     --sidebar: #050f0a;
     --sidebar-accent: #0f291e;
     --surface: #0a2418;
+    --surface-soft: #0e3020;
     --panel: #0a2418;
     --titlebar: #050f0a;
     --border: color-mix(in srgb, #10b981 12%, transparent);

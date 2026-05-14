@@ -38,15 +38,15 @@
   --code-tag: #ff6188;
   --code-class: #78dce8;
   --app-chrome-background: #0f1011;
-  --app-frame-border: color-mix(in srgb, white 6%, transparent);
+  --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
   --sidebar: color-mix(in srgb, #141517 97%, black 3%);
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: color-mix(in srgb, white 7%, transparent);
+  --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
   --sidebar-accent: color-mix(in srgb, white 4%, #191b20 96%);
   --surface: color-mix(in srgb, #1b1c1f 97%, black 3%);
   --surface-soft: color-mix(in srgb, white 2%, #121316 98%);
   --panel: color-mix(in srgb, #17181b 97%, black 3%);
-  --panel-border: color-mix(in srgb, white 7%, transparent);
+  --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
   --titlebar: color-mix(in srgb, #151618 97%, black 3%);
-  --titlebar-border: color-mix(in srgb, white 7%, transparent);
+  --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 }

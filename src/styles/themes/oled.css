@@ -16,10 +16,12 @@
   @variant dark {
     --background: #000000;
     --app-chrome-background: #000000;
+    --foreground: #f8f9fa;
     --card: #080808;
     --popover: #080808;
     --sidebar: #020202;
     --surface: #050505;
+    --surface-soft: #0a0a0a;
     --panel: #050505;
     --titlebar: #020202;
     --border: color-mix(in srgb, white 6%, transparent);
