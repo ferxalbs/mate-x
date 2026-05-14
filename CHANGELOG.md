@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.14 (1) [Sidebar Repository Removal Safety]
+
+- Removed public Source Control/Git controls from the app sidebar while keeping Git-backed tools and services available internally.
+- Added collapsible project history with a visible thread cap and "Show older" control to reduce sidebar load for large conversation histories.
+- Added a destructive confirmation dialog before removing repositories from MaTE X, with copy clarifying that MaTE X database and userData records are deleted while the repository folder remains on disk.
+- Expanded repository removal cleanup to clear workspace-memory local data and all known workspace-scoped database rows.
+- Fixed a repo graph indexing race where stale watcher/embedding work could write after repository removal and trigger foreign-key constraint failures.
+- Verified with `bun run typecheck` and `react-doctor`.
+
 ## Unreleased - 2026.05.12 (2) [Tool Process Environment Hardening]
 
 - Added a shared minimal tool process environment for validation and sandbox execution so repository commands receive only cross-platform runtime essentials instead of the full MaTE X app environment.
