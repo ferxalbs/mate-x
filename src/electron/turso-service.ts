@@ -334,6 +334,54 @@ export class TursoService {
     await this.getClient().batch(
       [
         {
+          sql: `DELETE FROM app_state WHERE key = ?`,
+          args: [`latest_validation_plan:${workspaceId}`],
+        },
+        {
+          sql: `DELETE FROM privacy_scan_events WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM privacy_secret_vault WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM repo_embeddings WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM repo_graph_edges WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM repo_graph_nodes WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM repo_graph_snapshots WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM failure_memory WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM validation_runs WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM agent_capability_profiles WHERE scope = 'workspace' AND workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM workspace_profiles WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
+          sql: `DELETE FROM workspace_trust_contracts WHERE workspace_id = ?`,
+          args: [workspaceId],
+        },
+        {
           sql: `DELETE FROM workspace_sessions WHERE workspace_id = ?`,
           args: [workspaceId],
         },

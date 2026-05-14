@@ -3,8 +3,7 @@ import {
   ArrowLeftIcon,
   ChevronDown,
   FileTextIcon,
-  FolderGit2Icon,
-  GitBranchIcon,
+  FolderIcon,
   ListChecksIcon,
   PlusIcon,
   RouteIcon,
@@ -16,9 +15,17 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
-import { GitPanel } from "./git-panel";
-import { useGitStore } from "../../../store/git-store";
 import { useChatStore } from "../../../store/chat-store";
+import { Button } from "../../../components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../../components/ui/alert-dialog";
 
 import {
   Sidebar,
@@ -40,6 +47,8 @@ import type { Theme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ThreadMenuItem } from "./thread-menu-item";
+
+const COLLAPSED_THREAD_LIMIT = 10;
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -87,45 +96,6 @@ function getThreadStatusLabel(
   };
 }
 
-function GitSidebarSection() {
-  const [open, setOpen] = useState(true);
-  const status = useGitStore((s) => s.status);
-  const changeCount = status?.files.length ?? 0;
-
-  return (
-    <SidebarGroup className="px-2 py-1">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="mb-0.5 flex w-full items-center justify-between rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/40"
-      >
-        <div className="flex items-center gap-1.5">
-          <GitBranchIcon className="size-3 text-muted-foreground/50" />
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-            Source Control
-          </span>
-          {changeCount > 0 && (
-            <span className="rounded-full bg-amber-500/20 px-1.5 py-px text-[9px] font-semibold text-amber-400">
-              {changeCount}
-            </span>
-          )}
-        </div>
-        <ChevronDown
-          className={cn(
-            "size-3 text-muted-foreground/40 transition-transform duration-200",
-            open ? "rotate-0" : "-rotate-90",
-          )}
-        />
-      </button>
-
-      {open && (
-        <div className="overflow-hidden">
-          <GitPanel />
-        </div>
-      )}
-    </SidebarGroup>
-  );
-}
-
 export function AppSidebar({
   workspaces,
   workspace,
@@ -142,6 +112,10 @@ export function AppSidebar({
   onSelectThread,
   onRenameThread,
 }: AppSidebarProps) {
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
+  const [showAllThreads, setShowAllThreads] = useState(false);
+  const [workspacePendingRemoval, setWorkspacePendingRemoval] =
+    useState<WorkspaceEntry | null>(null);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -348,7 +322,7 @@ export function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="sm"
-                  className="gap-2 px-2 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="gap-2 p-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                   render={<Link to="/" />}
                 >
                   <ArrowLeftIcon className="size-4" />
@@ -361,7 +335,7 @@ export function AppSidebar({
       ) : (
         <>
           <SidebarContent className="no-drag gap-0">
-            <SidebarGroup className="px-2 py-2">
+            <SidebarGroup className="p-2">
               <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                   Projects
@@ -378,23 +352,50 @@ export function AppSidebar({
               <SidebarMenu>
                 {workspaces.map((project) => {
                   const isWorkspaceActive = project.id === activeWorkspaceId;
+                  const isProjectOpen = expandedWorkspaces[project.id] ?? true;
+                  const activeThreads = isWorkspaceActive
+                    ? threads.filter((t) => !t.isArchived)
+                    : [];
+                  const visibleThreads = showAllThreads
+                    ? activeThreads
+                    : activeThreads.slice(0, COLLAPSED_THREAD_LIMIT);
+                  const hiddenThreadCount = activeThreads.length - visibleThreads.length;
 
                   return (
-                    <SidebarMenuItem key={project.id} className="rounded-md">
+                    <SidebarMenuItem key={project.id} className="rounded-2xl">
                       <div className="group/project flex items-center gap-1">
                         <SidebarMenuButton
                           size="sm"
-                          className="gap-2 px-2 text-[12px] font-medium"
+                          className="gap-2 rounded-2xl px-2 text-[12px] font-medium"
                           isActive={isWorkspaceActive}
                           onClick={() => void onActivateWorkspace(project.id)}
                         >
-                          <FolderGit2Icon className="size-3.5 shrink-0 text-muted-foreground/60" />
+                          <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/60" />
                           <span className="truncate">{project.name}</span>
                         </SidebarMenuButton>
+                        {isWorkspaceActive ? (
+                          <button
+                            onClick={() =>
+                              setExpandedWorkspaces((current) => ({
+                                ...current,
+                                [project.id]: !isProjectOpen,
+                              }))
+                            }
+                            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/45 transition-colors hover:bg-accent hover:text-foreground"
+                            title={isProjectOpen ? "Collapse history" : "Expand history"}
+                          >
+                            <ChevronDown
+                              className={cn(
+                                "size-3 transition-transform duration-200",
+                                isProjectOpen ? "rotate-0" : "-rotate-90",
+                              )}
+                            />
+                          </button>
+                        ) : null}
                         {workspaces.length > 1 ? (
                           <button
-                            onClick={() => void onRemoveWorkspace(project.id)}
-                            className="hidden rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
+                            onClick={() => setWorkspacePendingRemoval(project)}
+                            className="hidden rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
                             title={`Remove ${project.name}`}
                           >
                             <Trash2Icon className="size-3" />
@@ -402,28 +403,23 @@ export function AppSidebar({
                         ) : null}
                       </div>
 
-                      {isWorkspaceActive ? (
+                      {isWorkspaceActive && isProjectOpen ? (
                         <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
                           <div className="flex items-start justify-between gap-2 px-2 pb-1 text-[10px] text-muted-foreground/40">
                             <div className="min-w-0">
                               <div className="truncate">{workspace?.path}</div>
-                              <div className="truncate">
-                                {workspace?.branch === "not-a-repo"
-                                  ? "No git repository"
-                                  : `Branch ${workspace?.branch ?? "unknown"}`}
-                              </div>
+                              <div className="truncate">{activeThreads.length} saved threads</div>
                             </div>
                             <button
                               onClick={onCreateThread}
-                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
                               title="New thread"
                             >
                               <PlusIcon className="size-3" />
                             </button>
                           </div>
 
-                          {threads
-                            .filter((t) => !t.isArchived)
+                          {visibleThreads
                             .map((thread) => (
                               <ThreadMenuItem
                                 key={thread.id}
@@ -443,6 +439,14 @@ export function AppSidebar({
                                 getThreadStatusLabel={getThreadStatusLabel}
                               />
                             ))}
+                          {hiddenThreadCount > 0 ? (
+                            <button
+                              onClick={() => setShowAllThreads(true)}
+                              className="ml-2 mt-1 inline-flex h-7 items-center justify-center rounded-full px-3 text-[11px] text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+                            >
+                              Show {hiddenThreadCount} older
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </SidebarMenuItem>
@@ -456,9 +460,6 @@ export function AppSidebar({
                 ) : null}
               </SidebarMenu>
             </SidebarGroup>
-            <SidebarSeparator />
-
-            {activeWorkspaceId ? <GitSidebarSection /> : null}
           </SidebarContent>
 
           <SidebarSeparator className="mt-0" />
@@ -499,6 +500,47 @@ export function AppSidebar({
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarFooter>
+          <AlertDialog
+            open={workspacePendingRemoval !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setWorkspacePendingRemoval(null);
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Repository</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Remove "{workspacePendingRemoval?.name}" from MaTE X? This
+                  deletes its workspace session from the database and removes
+                  MaTE X internal local data stored under the app userData
+                  folder. The repository folder on disk is not deleted. This
+                  cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogClose render={<Button variant="ghost" size="sm" />}>
+                  Cancel
+                </AlertDialogClose>
+                <AlertDialogClose
+                  render={
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (workspacePendingRemoval) {
+                          void onRemoveWorkspace(workspacePendingRemoval.id);
+                        }
+                      }}
+                    />
+                  }
+                >
+                  Remove
+                </AlertDialogClose>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </Sidebar>
