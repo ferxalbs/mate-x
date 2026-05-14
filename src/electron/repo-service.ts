@@ -392,6 +392,13 @@ export async function addWorkspace(
 export async function removeWorkspace(
   workspaceId: string,
 ): Promise<WorkspaceSnapshot> {
+  const workspace = (await tursoService.getWorkspaces()).find(
+    (entry) => entry.id === workspaceId,
+  );
+  if (workspace) {
+    await workspaceMemoryService.clearWorkspaceMemory(workspace.id, workspace.path);
+  }
+
   await tursoService.removeWorkspace(workspaceId);
   const remaining = await getValidWorkspaces();
 
