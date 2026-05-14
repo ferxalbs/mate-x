@@ -396,6 +396,7 @@ export async function removeWorkspace(
     (entry) => entry.id === workspaceId,
   );
   if (workspace) {
+    repoGraphService.forgetWorkspace(workspace.id);
     await workspaceMemoryService.clearWorkspaceMemory(workspace.id, workspace.path);
   }
 
