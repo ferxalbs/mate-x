@@ -79,12 +79,14 @@ export class RepoGraphService {
   private refreshTimers = new Map<string, NodeJS.Timeout>();
   private inFlightRefreshes = new Map<string, Promise<RepoGraphSnapshot>>();
   private pendingWatcherChanges = new Map<string, Set<string>>();
+  private removedWorkspaceIds = new Set<string>();
 
   async refreshWorkspace(
     workspace: RepoGraphWorkspace,
     onEmbeddingProgress?: RepoGraphEmbeddingProgressReporter,
     forceRefresh = false,
   ): Promise<RepoGraphSnapshot> {
+    this.removedWorkspaceIds.delete(workspace.id);
     const existing = this.inFlightRefreshes.get(workspace.id);
     if (existing && !forceRefresh) {
       return existing;
@@ -98,6 +100,7 @@ export class RepoGraphService {
   }
 
   async ensureWorkspaceGraph(workspace: RepoGraphWorkspace): Promise<RepoGraphSnapshot> {
+    this.removedWorkspaceIds.delete(workspace.id);
     this.ensureWatcher(workspace);
     const snapshot = await tursoService.getRepoGraphSnapshot(workspace.id);
     return snapshot ?? this.refreshWorkspace(workspace);
@@ -391,13 +394,42 @@ export class RepoGraphService {
 
     inferEntrypoints(builder, fileContents);
     const { nodes, edges } = builder.snapshot();
+    if (this.removedWorkspaceIds.has(workspace.id)) {
+      return {
+        workspaceId: workspace.id,
+        indexedAt: new Date().toISOString(),
+        nodeCount: 0,
+        edgeCount: 0,
+      };
+    }
     const snapshot = await tursoService.replaceRepoGraph(workspace.id, nodes, edges);
+    if (this.removedWorkspaceIds.has(workspace.id)) {
+      return snapshot;
+    }
     try {
       await indexRepoGraphEmbeddings(workspace.id, nodes, fileContents, onEmbeddingProgress);
     } catch (error) {
       console.warn('RepoGraph embedding index failed:', error);
     }
     return snapshot;
+  }
+
+  forgetWorkspace(workspaceId: string) {
+    this.removedWorkspaceIds.add(workspaceId);
+
+    const watcher = this.watchers.get(workspaceId);
+    if (watcher) {
+      watcher.close();
+      this.watchers.delete(workspaceId);
+    }
+
+    const timer = this.refreshTimers.get(workspaceId);
+    if (timer) {
+      clearTimeout(timer);
+      this.refreshTimers.delete(workspaceId);
+    }
+
+    this.pendingWatcherChanges.delete(workspaceId);
   }
 
   private async loadFileGraph(workspaceId: string) {

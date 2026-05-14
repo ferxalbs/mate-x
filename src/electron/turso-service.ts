@@ -402,6 +402,15 @@ export class TursoService {
     }
   }
 
+  async workspaceExists(workspaceId: string): Promise<boolean> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT id FROM workspaces WHERE id = ? LIMIT 1`,
+      args: [workspaceId],
+    });
+    return Boolean(result.rows[0]?.id);
+  }
+
   async getWorkspaceSession(workspaceId: string): Promise<WorkspaceSessionRecord> {
     await this.initialize();
     await this.ensureWorkspaceSession(workspaceId);
@@ -995,6 +1004,14 @@ export class TursoService {
   ): Promise<RepoGraphSnapshot> {
     await this.initialize();
     const indexedAt = new Date().toISOString();
+    if (!(await this.workspaceExists(workspaceId))) {
+      return {
+        workspaceId,
+        indexedAt,
+        nodeCount: 0,
+        edgeCount: 0,
+      };
+    }
     const statements = [
       { sql: `DELETE FROM repo_graph_edges WHERE workspace_id = ?`, args: [workspaceId] },
       { sql: `DELETE FROM repo_graph_nodes WHERE workspace_id = ?`, args: [workspaceId] },
@@ -1078,6 +1095,9 @@ export class TursoService {
     }>,
   ): Promise<void> {
     await this.initialize();
+    if (!(await this.workspaceExists(workspaceId))) {
+      return;
+    }
     const indexedAt = new Date().toISOString();
     const statements = [
       { sql: `DELETE FROM repo_embeddings WHERE workspace_id = ?`, args: [workspaceId] },

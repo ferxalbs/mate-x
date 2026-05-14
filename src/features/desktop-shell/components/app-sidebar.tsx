@@ -163,8 +163,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "general" }}
+                        to="/settings/general"
                       />
                     }
                   >
@@ -183,8 +182,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "connections" }}
+                        to="/settings/connections"
                       />
                     }
                   >
@@ -203,8 +201,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "trust" }}
+                        to="/settings/trust"
                       />
                     }
                   >
@@ -223,8 +220,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "privacy" }}
+                        to="/settings/privacy"
                       />
                     }
                   >
@@ -243,8 +239,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "workspace-memory" }}
+                        to="/settings/workspace-memory"
                       />
                     }
                   >
@@ -263,8 +258,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "agent-profiler" }}
+                        to="/settings/agent-profiler"
                       />
                     }
                   >
@@ -283,8 +277,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "integrations" }}
+                        to="/settings/integrations"
                       />
                     }
                   >
@@ -303,8 +296,7 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/$section"
-                        params={{ section: "archive" }}
+                        to="/settings/archive"
                       />
                     }
                   >
@@ -478,8 +470,7 @@ export function AppSidebar({
                 </div>
                 <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
                   <Link
-                    to="/settings/$section"
-                    params={{ section: "general" }}
+                    to="/settings/general"
                     className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
