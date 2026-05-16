@@ -105,13 +105,17 @@ export function MessageStream({
   useEffect(() => {
     const element = scrollerRef.current;
     if (!element) return;
+    if (messages.length === 0) {
+      element.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
     if (!shouldStickToBottomRef.current && messages.length > 0) {
       return;
     }
 
     element.scrollTo({
       top: element.scrollHeight,
-      behavior: isRunning ? "auto" : messages.length > 0 ? "smooth" : "auto",
+      behavior: isRunning ? "auto" : "smooth",
     });
   }, [messages, isRunning]);
 
@@ -186,22 +190,25 @@ function EmptyState({
       : `What should we build in ${workspace?.name ?? "mate-x"}?`;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-0 pb-16 pt-[6vh] transition-all duration-300 sm:px-4 sm:pb-24 sm:pt-[8vh]">
-      <div className="flex w-full max-w-[820px] flex-col items-center">
-        <h1 className="mb-5 max-w-[min(100%,760px)] text-center text-2xl font-medium text-foreground/90 transition-all sm:mb-6 sm:text-[32px]">
-          {title}
-        </h1>
-
-        {lastError || !isBootstrapped ? (
+    <div className="relative flex-1 px-0 py-8 transition-all duration-300 sm:px-4">
+      {lastError || !isBootstrapped ? (
+        <div className="absolute left-1/2 top-1/2 w-full max-w-[820px] -translate-x-1/2 -translate-y-1/2">
+          <h1 className="mx-auto max-w-[min(100%,760px)] text-center text-2xl font-medium text-foreground/90 transition-all sm:text-[32px]">
+            {title}
+          </h1>
           <p className="mt-2 text-center text-[14px] leading-relaxed text-muted-foreground/70">
             {lastError ??
               "MaTE X is restoring your previous session and checking local workspace state."}
           </p>
-        ) : (
-          <div className="flex w-full flex-col items-center space-y-4">
-            <div className="w-full max-w-[760px] min-w-0">{composer}</div>
+        </div>
+      ) : (
+        <>
+          <div className="absolute left-1/2 top-1/2 w-full max-w-[820px] -translate-x-1/2 -translate-y-[calc(50%+132px)] px-0 sm:px-4">
+            <h1 className="mx-auto max-w-[min(100%,760px)] text-center text-2xl font-medium text-foreground/90 transition-all sm:text-[32px]">
+              {title}
+            </h1>
 
-            <div className="grid w-full max-w-[760px] grid-cols-2 gap-2 px-0 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-2.5 sm:px-4">
+            <div className="mt-8 grid w-full max-w-[760px] grid-cols-2 gap-2 px-0 sm:mx-auto sm:flex sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5 sm:px-4">
               <FeatureChip
                 icon={<ShieldCheckIcon className="size-3.5 text-emerald-500" />}
                 label="Security Audit"
@@ -244,8 +251,12 @@ function EmptyState({
               />
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="absolute left-1/2 top-1/2 w-full max-w-[760px] -translate-x-1/2 -translate-y-1/2 px-0 sm:px-4">
+            {composer}
+          </div>
+        </>
+      )}
     </div>
   );
 }
