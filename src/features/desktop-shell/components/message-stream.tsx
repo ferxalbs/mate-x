@@ -1,15 +1,12 @@
 import {
   AlertCircleIcon,
-  BrainIcon,
   CheckCircle2Icon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
-  ExternalLinkIcon,
   FileTextIcon,
   LoaderCircle,
-  ShieldCheckIcon,
 } from "lucide-react";
 import {
   memo,
@@ -27,18 +24,11 @@ import type {
   MessageArtifact,
   ToolEvent,
 } from "../../../contracts/chat";
-import type { WorkspaceSummary } from "../../../contracts/workspace";
 import { formatTimestamp } from "../../../lib/time";
 import { cn } from "../../../lib/utils";
 import { ChatMarkdown } from "./chat-markdown";
 import { EvidencePackCard } from "./evidence-pack-card";
 import { useChatStore } from "../../../store/chat-store";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../../../components/ui/tooltip";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -46,14 +36,9 @@ interface MessageStreamProps {
   isRunning: boolean;
   traceVersion: "v1" | "v2";
   traceV2InlineEvents: boolean;
-  workspace: WorkspaceSummary | null;
-  isBootstrapped: boolean;
-  lastError: string | null;
   onUndoLastTurn: () => Promise<string | null>;
   onVisibilityChange: (visible: boolean) => void;
-  onSelectPrompt: (prompt: string) => void;
   scrollerRef: RefObject<HTMLDivElement | null>;
-  composer?: ReactNode;
 }
 
 export function MessageStream({
@@ -62,14 +47,9 @@ export function MessageStream({
   isRunning,
   traceVersion,
   traceV2InlineEvents,
-  workspace,
-  isBootstrapped,
-  lastError,
   onUndoLastTurn,
   onVisibilityChange,
-  onSelectPrompt,
   scrollerRef,
-  composer,
 }: MessageStreamProps) {
   const settings = useChatStore((state) => state.settings);
   const shouldStickToBottomRef = useRef(true);
@@ -133,16 +113,6 @@ export function MessageStream({
         )}
       >
         <div className="flex flex-1 flex-col gap-7">
-          {messages.length === 0 ? (
-            <EmptyState
-              isBootstrapped={isBootstrapped}
-              lastError={lastError}
-              onSelectPrompt={onSelectPrompt}
-              workspace={workspace}
-              composer={composer}
-            />
-          ) : null}
-
           {messages.map((message, index) => (
             <MessageEntry
               key={message.id}
@@ -167,135 +137,6 @@ export function MessageStream({
         </div>
       </div>
     </div>
-  );
-}
-
-function EmptyState({
-  isBootstrapped,
-  lastError,
-  onSelectPrompt,
-  workspace,
-  composer,
-}: {
-  isBootstrapped: boolean;
-  lastError: string | null;
-  onSelectPrompt: (prompt: string) => void;
-  workspace: WorkspaceSummary | null;
-  composer?: ReactNode;
-}) {
-  const title = lastError
-    ? "Something needs attention"
-    : !isBootstrapped
-      ? "Loading workspace"
-      : `What should we build in ${workspace?.name ?? "mate-x"}?`;
-
-  return (
-    <div className="relative flex-1 px-0 py-8 transition-all duration-300 sm:px-4">
-      {lastError || !isBootstrapped ? (
-        <div className="absolute left-1/2 top-1/2 w-full max-w-[820px] -translate-x-1/2 -translate-y-1/2">
-          <h1 className="mx-auto max-w-[min(100%,760px)] text-center text-2xl font-medium text-foreground/90 transition-all sm:text-[32px]">
-            {title}
-          </h1>
-          <p className="mt-2 text-center text-[14px] leading-relaxed text-muted-foreground/70">
-            {lastError ??
-              "MaTE X is restoring your previous session and checking local workspace state."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="absolute left-1/2 top-1/2 w-full max-w-[820px] -translate-x-1/2 -translate-y-[calc(50%+132px)] px-0 sm:px-4">
-            <h1 className="mx-auto max-w-[min(100%,760px)] text-center text-2xl font-medium text-foreground/90 transition-all sm:text-[32px]">
-              {title}
-            </h1>
-
-            <div className="mt-8 grid w-full max-w-[760px] grid-cols-2 gap-2 px-0 sm:mx-auto sm:flex sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5 sm:px-4">
-              <FeatureChip
-                icon={<ShieldCheckIcon className="size-3.5 text-emerald-500" />}
-                label="Security Audit"
-                prompt="Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks."
-                onClick={() =>
-                  onSelectPrompt(
-                    "Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks.",
-                  )
-                }
-              />
-              <FeatureChip
-                icon={<BrainIcon className="size-3.5 text-purple-500" />}
-                label="Bug Hunting"
-                prompt="Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases."
-                onClick={() =>
-                  onSelectPrompt(
-                    "Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases.",
-                  )
-                }
-              />
-              <FeatureChip
-                icon={<FileTextIcon className="size-3.5 text-blue-500" />}
-                label="Compliance"
-                prompt="Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies."
-                onClick={() =>
-                  onSelectPrompt(
-                    "Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies.",
-                  )
-                }
-              />
-              <FeatureChip
-                icon={<ExternalLinkIcon className="size-3.5 text-amber-500" />}
-                label="Arch Review"
-                prompt="Review the system architecture. Map the data flows between components and identify potential trust boundary issues."
-                onClick={() =>
-                  onSelectPrompt(
-                    "Review the system architecture. Map the data flows between components and identify potential trust boundary issues.",
-                  )
-                }
-              />
-            </div>
-          </div>
-
-          <div className="absolute left-1/2 top-1/2 w-full max-w-[760px] -translate-x-1/2 -translate-y-1/2 px-0 sm:px-4">
-            {composer}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function FeatureChip({
-  icon,
-  label,
-  prompt,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  prompt: string;
-  onClick: () => void;
-}) {
-  return (
-    <TooltipProvider delay={200}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              onClick={onClick}
-              className="group flex h-9 min-w-0 items-center justify-center gap-2 rounded-lg border border-border/60 bg-[var(--panel)]/72 px-3 text-[12px] font-medium text-muted-foreground/85 backdrop-blur-md transition-all duration-300 hover:border-border hover:bg-[var(--panel)] hover:text-foreground hover:shadow-sm sm:justify-start sm:px-3.5"
-            />
-          }
-        >
-          <div className="flex items-center justify-center text-foreground/70 transition-colors group-hover:text-foreground">
-            {icon}
-          </div>
-          <span className="truncate">{label}</span>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={8} className="max-w-[280px]">
-          <p className="text-center leading-relaxed text-muted-foreground">
-            {prompt}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
 

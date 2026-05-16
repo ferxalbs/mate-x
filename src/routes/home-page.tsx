@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../hooks/use-theme';
 import { useChatStore } from '../store/chat-store';
 import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
+import { ChatWorkspace } from '../features/desktop-shell/components/chat-workspace';
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
-import { MessageStream } from '../features/desktop-shell/components/message-stream';
 import { getAppSettings } from '../services/settings-client';
 import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
 import type { AppSettings } from '../contracts/settings';
@@ -29,14 +29,12 @@ export function HomePage() {
   const createThread = useChatStore((state) => state.createThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
   const undoLastTurn = useChatStore((state) => state.undoLastTurn);
-  const settings = useChatStore((state) => state.settings);
   const { resolvedTheme, setAppearance } = useTheme();
 
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const activeThreadId = activeWorkspaceId ? (activeThreadIds[activeWorkspaceId] ?? '') : '';
   const selectedThread = threads.find((thread) => thread.id === activeThreadId) ?? null;
   const messages = selectedThread?.messages ?? [];
-  const hasMessages = messages.length > 0;
   const canUndoLastTurn =
     runStatus !== 'running' &&
     messages.some((message) => message.role === 'user');
@@ -50,19 +48,12 @@ export function HomePage() {
     <ComposerPanel
       canUndoLastTurn={canUndoLastTurn}
       isRunning={runStatus === 'running'}
-      onScrollToBottom={() =>
-        messageScrollerRef.current?.scrollTo({
-          top: messageScrollerRef.current.scrollHeight,
-          behavior: 'smooth',
-        })
-      }
       onSubmit={submitPrompt}
       onResolvePolicyStop={handleResolvePolicyStop}
       onUndoLastTurn={undoLastTurn}
       pendingPolicyStop={pendingPolicyStop}
       trustContract={trustContract}
       workspace={workspace}
-      showScrollButton={showScrollButton}
       prompt={composerPrompt}
       onPromptChange={setComposerPrompt}
     />
@@ -141,36 +132,28 @@ export function HomePage() {
         runStatus={runStatus}
         workspace={workspace}
       />
-      {/*
-        padding-bottom (border-box) shrinks the flex content area by the panel
-        height — MessageStream fills only the reduced area so content never
-        falls behind the floating panel. The gradient overlay in the padding
-        zone gives the glass panel real colors to blur against.
-      */}
-      <div
-        className="relative flex min-h-0 flex-1 flex-col bg-transparent pt-0"
-        style={{ paddingBottom: hasMessages && settings.floatingInput ? 152 : 0 }}
-      >
-        <MessageStream
-          canUndoLastTurn={canUndoLastTurn}
-          isRunning={runStatus === 'running'}
-          isBootstrapped={isBootstrapped}
-          lastError={lastError}
-          messages={messages}
-          onUndoLastTurn={undoLastTurn}
-          onVisibilityChange={setShowScrollButton}
-          onSelectPrompt={setComposerPrompt}
-          scrollerRef={messageScrollerRef}
-          traceVersion={traceVersion}
-          traceV2InlineEvents={traceV2InlineEvents}
-          workspace={workspace}
-          composer={!hasMessages ? composer : null}
-        />
-        {hasMessages && settings.floatingInput ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[152px] bg-transparent" />
-        ) : null}
-      </div>
-      {hasMessages ? composer : null}
+      <ChatWorkspace
+        canUndoLastTurn={canUndoLastTurn}
+        composer={composer}
+        isBootstrapped={isBootstrapped}
+        isRunning={runStatus === 'running'}
+        lastError={lastError}
+        messages={messages}
+        onScrollToBottom={() =>
+          messageScrollerRef.current?.scrollTo({
+            top: messageScrollerRef.current.scrollHeight,
+            behavior: 'smooth',
+          })
+        }
+        onSelectPrompt={setComposerPrompt}
+        onUndoLastTurn={undoLastTurn}
+        onVisibilityChange={setShowScrollButton}
+        scrollerRef={messageScrollerRef}
+        showScrollButton={showScrollButton}
+        traceVersion={traceVersion}
+        traceV2InlineEvents={traceV2InlineEvents}
+        workspace={workspace}
+      />
     </section>
   );
 }
