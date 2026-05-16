@@ -729,15 +729,6 @@ export function ComposerPanel({
             </div>
           </div>
         </div>
-      <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
-        <span className="truncate">
-          Scope {trustContract?.allowedPaths.slice(0, 3).join(", ") ?? "loading"}
-        </span>
-        <span className="max-w-[42%] truncate text-right">
-          {workspace?.branch ?? "main"} / blocked{" "}
-          {trustContract?.blockedActions.slice(0, 2).join(", ") ?? "loading"}
-        </span>
-      </div>
     </>
   );
 }
