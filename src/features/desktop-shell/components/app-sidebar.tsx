@@ -18,6 +18,7 @@ import {
 
 import { useChatStore } from "../../../store/chat-store";
 import { Button } from "../../../components/ui/button";
+import { Kbd, KbdGroup } from "../../../components/ui/kbd";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -166,7 +167,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/general"
+                        params={{ section: "general" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -185,7 +187,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/connections"
+                        params={{ section: "connections" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -204,7 +207,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/trust"
+                        params={{ section: "trust" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -223,7 +227,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/privacy"
+                        params={{ section: "privacy" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -242,7 +247,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/workspace-memory"
+                        params={{ section: "workspace-memory" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -261,7 +267,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/agent-profiler"
+                        params={{ section: "agent-profiler" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -280,7 +287,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/integrations"
+                        params={{ section: "integrations" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -299,7 +307,8 @@ export function AppSidebar({
                     }
                     render={
                       <Link
-                        to="/settings/archive"
+                        params={{ section: "archive" }}
+                        to="/settings/$section"
                       />
                     }
                   >
@@ -340,6 +349,14 @@ export function AppSidebar({
                   >
                     <SearchIcon className="size-3.5 shrink-0" />
                     <span>Search</span>
+                    <KbdGroup className="ml-auto gap-0.5 opacity-65">
+                      <Kbd className="h-5 min-w-5 rounded-md bg-muted/55 px-1 text-[10px]">
+                        ⌘
+                      </Kbd>
+                      <Kbd className="h-5 min-w-5 rounded-md bg-muted/55 px-1 text-[10px]">
+                        K
+                      </Kbd>
+                    </KbdGroup>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -485,7 +502,8 @@ export function AppSidebar({
                 </div>
                 <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
                   <Link
-                    to="/settings/general"
+                    params={{ section: "general" }}
+                    to="/settings/$section"
                     className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
