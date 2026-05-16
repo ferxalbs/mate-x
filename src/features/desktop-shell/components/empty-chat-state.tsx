@@ -87,21 +87,22 @@ export function EmptyChatState({
           <h1 className="text-center text-2xl font-medium text-foreground/90 sm:text-[32px]">
             {title}
           </h1>
-          <div className="mx-auto mt-7 grid w-full max-w-[760px] grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5">
-            {quickPrompts.map((item) => (
-              <FeatureChip
-                icon={item.icon}
-                key={item.label}
-                label={item.label}
-                prompt={item.prompt}
-                onClick={() => onSelectPrompt(item.prompt)}
-              />
-            ))}
-          </div>
         </div>
       </div>
       <div className="mx-auto w-full max-w-[820px]">{composer}</div>
-      <div />
+      <div className="flex items-start justify-center pt-7">
+        <div className="grid w-full max-w-[760px] grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5">
+          {quickPrompts.map((item) => (
+            <FeatureChip
+              icon={item.icon}
+              key={item.label}
+              label={item.label}
+              prompt={item.prompt}
+              onClick={() => onSelectPrompt(item.prompt)}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
