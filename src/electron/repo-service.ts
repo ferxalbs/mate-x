@@ -39,6 +39,21 @@ import {
   renderWorkingSetForPrompt,
   workingSetCompiler,
 } from "./working-set-compiler";
+import {
+  buildWorkPlan,
+  buildWorkPlanMetadata,
+  renderWorkPlanForPrompt,
+} from "./work-engine/work-engine";
+import { runPrivacyPreflight } from "./work-engine/privacy-preflight";
+import {
+  appendValidationGateWarning,
+  evaluateValidationGate,
+} from "./work-engine/validation-gate";
+import { buildSecurityProofRules } from "./work-engine/security-proof-gate";
+import { renderFailureMemoryInstruction } from "./work-engine/failure-memory-gate";
+import type { WorkPlan } from "./work-engine/types";
+import { deriveWorkStages } from "./work-engine/stages";
+import { finalizeWorkRun } from "./work-engine/finalizer";
 import { workspaceMemoryService } from "./workspace-memory-service";
 import { createTokenEstimator } from "./token-estimator";
 import type {
@@ -516,10 +531,23 @@ export async function runAssistant(
     promptMatches: snapshot.promptMatches,
     memoryContext: snapshot.memoryContext,
   });
+  const workPlan = await buildWorkPlan({
+    prompt,
+    workspace: snapshot.workspace,
+    gitStatus: snapshot.statusLines,
+    workingSet,
+  });
   const runbookDefinition = resolveRunbookDefinition(
-    resolvedOptions.runbookId ?? "patch_test_verify",
+    resolvedOptions.runbookId ?? toAssistantRunbookId(workPlan.runbook),
   );
+  const initialWorkPlanMetadata = buildWorkPlanMetadata(workPlan, "pending");
   const events: ToolEvent[] = [
+    {
+      id: "step-work-engine",
+      label: "Create WorkPlan",
+      detail: JSON.stringify(initialWorkPlanMetadata),
+      status: "done",
+    },
     {
       id: "step-working-set",
       label: "Compile working set",
@@ -550,7 +578,7 @@ export async function runAssistant(
     {
       id: "step-runbook",
       label: "Resolve runbook",
-      detail: `Using structured runbook: ${runbookDefinition.name}.`,
+      detail: `Using structured runbook: ${runbookDefinition.name} from WorkPlan ${workPlan.id}.`,
       status: "done",
     },
   ];
@@ -576,6 +604,35 @@ export async function runAssistant(
     configuredModel,
     resolvedOptions,
   );
+  const privacyPreflight =
+    hasRainyConfig && workPlan.privacyPlan.requireSanitization
+      ? await runPrivacyPreflight(
+          {
+            prompt,
+            workingSet: renderWorkingSetForPrompt(workingSet),
+            memory: snapshot.memoryContext?.context,
+            workPlan,
+          },
+          {
+            workspaceId: snapshot.workspace.id,
+            runId: progressReporter?.runId,
+            inputKind: "work_engine_model_context",
+          },
+        )
+      : null;
+  if (privacyPreflight) {
+    const privacyWorkPlanMetadata = buildWorkPlanMetadata(
+      workPlan,
+      privacyPreflight.status,
+      privacyPreflight.status === "blocked" ? "blocked" : "pending",
+    );
+    events.push({
+      id: "step-privacy-preflight",
+      label: "Privacy Sentinel preflight",
+      detail: `${privacyPreflight.reason} Redactions: ${privacyPreflight.redactionCount}; P0: ${privacyPreflight.p0Count}. ${JSON.stringify(privacyWorkPlanMetadata)}`,
+      status: privacyPreflight.status === "blocked" ? "error" : "done",
+    });
+  }
   const createdAt = new Date().toISOString();
   let thought = "";
   let content = "";
@@ -667,6 +724,19 @@ export async function runAssistant(
 
   if (handledDirectTool) {
     // Continue to evidence pack and memory persistence.
+  } else if (apiKey && configuredModel && rainyHostAllowed && privacyPreflight?.status === "blocked") {
+    content = [
+      "Privacy Sentinel blocked cloud model use for this run.",
+      privacyPreflight.reason,
+      "Narrow context or remove raw P0 secret material before retry.",
+    ].join("\n");
+    events.push({
+      id: "step-privacy-cloud-block",
+      label: "Cloud send blocked",
+      detail: privacyPreflight.reason,
+      status: "error",
+    });
+    emitProgress(content);
   } else if (apiKey && configuredModel && rainyHostAllowed) {
     try {
       const result = await requestRainyAgenticResponse({
@@ -679,6 +749,7 @@ export async function runAssistant(
         prompt,
         snapshot,
         workingSet,
+        workPlan,
         events,
         options: resolvedOptions,
         runbookDefinition,
@@ -728,6 +799,29 @@ export async function runAssistant(
     emitProgress();
   }
 
+  const validationGate = evaluateValidationGate(workPlan, toolExecutions, content);
+  content = appendValidationGateWarning(content, validationGate);
+  const noPatchNeeded = /\b(no patch|patch not needed|no code change|read-only)\b/i.test(content);
+  const workStages = deriveWorkStages({
+    workPlan,
+    events,
+    toolExecutions,
+    privacyBlocked: privacyPreflight?.status === "blocked",
+    evidenceAttached: false,
+    noPatchNeeded,
+  });
+  const finalWorkPlanMetadata = buildWorkPlanMetadata(
+    workPlan,
+    privacyPreflight?.status ?? "pending",
+    validationGate.allowed ? "completed" : "blocked",
+  );
+  events.push({
+    id: "step-work-engine-final",
+    label: "WorkPlan final gate",
+    detail: JSON.stringify({ ...finalWorkPlanMetadata, stages: workStages }),
+    status: validationGate.allowed ? "done" : "error",
+  });
+
   const taskId = `task-${Date.now()}`;
   const baseEvidencePack = await buildEvidencePack({
     workspacePath: snapshot.workspace.path,
@@ -763,6 +857,28 @@ export async function runAssistant(
           : undefined,
       };
     },
+  });
+  const evidenceStages = deriveWorkStages({
+    workPlan,
+    events,
+    toolExecutions,
+    privacyBlocked: privacyPreflight?.status === "blocked",
+    evidenceAttached: true,
+    noPatchNeeded,
+  });
+  const evidenceFinalization = finalizeWorkRun({
+    workPlan,
+    stages: evidenceStages,
+    toolExecutions,
+    content,
+    evidenceAttached: true,
+  });
+  content = evidenceFinalization.content;
+  events.push({
+    id: "step-work-engine-evidence",
+    label: "WorkPlan evidence gate",
+    detail: JSON.stringify({ stages: evidenceStages, verdict: evidenceFinalization.verdict }),
+    status: evidenceFinalization.verdict === "success" ? "done" : "error",
   });
   if (configuredModel) {
     await tursoService.recordAgentCapabilityRun(
@@ -1221,6 +1337,25 @@ function resolveRunbookDefinition(
   runbookId: AssistantRunbookId,
 ): AssistantRunbookDefinition {
   return RUNBOOK_DEFINITIONS[runbookId];
+}
+
+function toAssistantRunbookId(runbook: WorkPlan["runbook"]): AssistantRunbookId {
+  switch (runbook) {
+    case "audit_reproduce_remediate":
+      return "audit_reproduce_remediate";
+    case "scan_contain_report":
+    case "evidence_only":
+      return "scan_contain_report";
+    case "review_classify_summarize":
+    case "answer_from_context":
+    case "inspect_explain":
+    case "trace_source_to_sink":
+    case "validate_only":
+      return "review_classify_summarize";
+    case "patch_test_verify":
+    default:
+      return "patch_test_verify";
+  }
 }
 
 function renderRunbookForPrompt(runbook: AssistantRunbookDefinition): string {
@@ -2044,6 +2179,24 @@ async function executeAgentToolCall({
         policyService.markStopCompleted(policyStop.id);
       }
     }
+    if (outputIndicatesFailure && (toolName === "run_tests" || toolName === "sandbox_run")) {
+      await failureMemoryEngine.recordFailure({
+        workspaceId: snapshot.workspace.id,
+        command: String(toolArgs.command ?? toolArgs.script ?? toolName),
+        output: normalizedResult,
+      }).catch((error) => {
+        console.warn("Failure memory record failed:", error);
+      });
+    }
+    if (!outputIndicatesFailure && (toolName === "run_tests" || toolName === "sandbox_run")) {
+      await failureMemoryEngine.recordResolution({
+        workspaceId: snapshot.workspace.id,
+        command: String(toolArgs.command ?? toolArgs.script ?? toolName),
+        retryFixed: true,
+      }).catch((error) => {
+        console.warn("Failure memory resolution failed:", error);
+      });
+    }
     emitProgress();
 
     return {
@@ -2095,6 +2248,7 @@ async function requestRainyAgenticResponse({
   prompt,
   snapshot,
   workingSet,
+  workPlan,
   events,
   options,
   runbookDefinition,
@@ -2111,6 +2265,7 @@ async function requestRainyAgenticResponse({
   prompt: string;
   snapshot: RepoSnapshot;
   workingSet: import("../contracts/working-set").WorkingSet;
+  workPlan: WorkPlan;
   events: ToolEvent[];
   options: AssistantRunOptions;
   runbookDefinition: AssistantRunbookDefinition;
@@ -2150,8 +2305,10 @@ async function requestRainyAgenticResponse({
     output: prompt,
     limit: 1,
   });
-  const failureMemoryContext =
-    failureMemoryEngine.renderPromptSection(similarFailures);
+  const failureMemoryContext = [
+    failureMemoryEngine.renderPromptSection(similarFailures),
+    renderFailureMemoryInstruction(similarFailures),
+  ].filter(Boolean).join("\n\n");
 
   const systemPrompt = `${MATE_AGENT_SYSTEM_PROMPT}
 
@@ -2179,6 +2336,21 @@ Runtime truth and permissions:
 
 Working Set:
 ${renderWorkingSetForPrompt(workingSet)}
+
+WorkPlan:
+${renderWorkPlanForPrompt(workPlan)}
+
+Work Engine mandatory gates:
+- Intent: ${workPlan.intent}; runbook: ${workPlan.runbook}; risk: ${workPlan.risk}.
+- Follow WorkPlan working set before any broad search.
+- Validation required: ${workPlan.validationPlan.required ? "yes" : "no"}. Primary: ${workPlan.validationPlan.primaryCommand ?? "none"}. Fallback: ${workPlan.validationPlan.fallbackCommand ?? "none"}.
+- Evidence required: ${workPlan.evidencePlan.required ? "yes" : "no"}. Missing evidence must be named in final response.
+- Privacy preflight is mandatory before repo context, tool output, memory, or evidence crosses cloud boundary.
+- Final fixed/ready/works/merge-ready claims require runtime validation evidence and validation persistence.
+- Evidence-only runbook can package existing runtime records only; never invent evidence.
+
+Security proof rules:
+${buildSecurityProofRules().map((rule) => `- ${rule}`).join("\n")}
 
 Working set discipline:
 - Treat the working set as the authoritative starting context for this run.
