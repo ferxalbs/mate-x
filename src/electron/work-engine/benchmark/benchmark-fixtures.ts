@@ -479,7 +479,7 @@ function stages(
         : "skipped"),
     source: "runtime",
     reason: "benchmark",
-    relatedToolEventIds: [],
+    relatedToolEventIds: [] as string[],
   }));
 }
 
