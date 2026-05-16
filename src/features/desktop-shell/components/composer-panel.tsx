@@ -1,7 +1,6 @@
 import {
   ArrowUpIcon,
   BrainIcon,
-  ChevronDownIcon,
   FileIcon,
   ImageIcon,
   LoaderCircle,
@@ -59,12 +58,10 @@ import {
   setEmbeddingModel,
   setModel,
 } from "../../../services/settings-client";
-import { useChatStore } from "../../../store/chat-store";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
   isRunning: boolean;
-  onScrollToBottom: () => void;
   onResolvePolicyStop: (
     stop: PolicyStop,
     action: PolicyStopAction,
@@ -72,7 +69,6 @@ interface ComposerPanelProps {
   workspace: WorkspaceSummary | null;
   onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
-  showScrollButton: boolean;
   pendingPolicyStop: PolicyStop | null;
   trustContract: WorkspaceTrustContract | null;
   prompt?: string;
@@ -82,12 +78,10 @@ interface ComposerPanelProps {
 export function ComposerPanel({
   canUndoLastTurn,
   isRunning,
-  onScrollToBottom,
   onResolvePolicyStop,
   workspace,
   onSubmit,
   onUndoLastTurn,
-  showScrollButton,
   pendingPolicyStop,
   trustContract,
   prompt: externalPrompt,
@@ -132,7 +126,6 @@ export function ComposerPanel({
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
   const hasWorkspace = Boolean(workspace);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const settings = useChatStore((state) => state.settings);
 
   useEffect(() => {
     let cancelled = false;
@@ -432,47 +425,7 @@ export function ComposerPanel({
   }
 
   return (
-    <div
-      className={cn(
-        "transition-all duration-300 bg-transparent",
-        settings.floatingInput
-          ? // Truly float: exit flex flow, sit above message content.
-            // pointer-events-none on wrapper so transparent area is click-through.
-            "pointer-events-none absolute bottom-0 inset-x-0 z-40 pb-4"
-          : "pb-6 px-8 bg-transparent",
-      )}
-    >
-      {/* Soft gradient fade above the panel */}
-      {settings.floatingInput ? (
-        <div className="pointer-events-none absolute inset-x-0 bg-transparent" />
-      ) : null}
-
-      <div
-        className={cn(
-          "mx-auto w-full transition-all duration-300 bg-transparent",
-          // Re-enable pointer events only on the actual panel area.
-          settings.floatingInput ? "pointer-events-auto px-4" : "relative",
-          settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
-        )}
-      >
-        {showScrollButton ? (
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-x-0 z-10 flex justify-center transition-all",
-              settings.floatingInput ? "-top-12" : "-top-11",
-            )}
-          >
-            <Button
-              className="pointer-events-auto h-8 rounded-full border-border/60 bg-background/88 px-3 text-[11px] text-muted-foreground backdrop-blur-xl hover:bg-accent"
-              onClick={onScrollToBottom}
-              size="xs"
-              variant="outline"
-            >
-              <ChevronDownIcon className="size-3.5" />
-              Scroll to bottom
-            </Button>
-          </div>
-        ) : null}
+    <>
         <div
           className={cn(
             "rounded-[32px] border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 transition-all duration-300 glass",
@@ -776,21 +729,16 @@ export function ComposerPanel({
             </div>
           </div>
         </div>
-        {!settings.floatingInput ? (
-          <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
-            <span className="truncate">
-              Scope{" "}
-              {trustContract?.allowedPaths.slice(0, 3).join(", ") ?? "loading"}
-            </span>
-            <span className="max-w-[42%] truncate text-right">
-              {workspace?.branch ?? "main"} / blocked{" "}
-              {trustContract?.blockedActions.slice(0, 2).join(", ") ??
-                "loading"}
-            </span>
-          </div>
-        ) : null}
+      <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground/45">
+        <span className="truncate">
+          Scope {trustContract?.allowedPaths.slice(0, 3).join(", ") ?? "loading"}
+        </span>
+        <span className="max-w-[42%] truncate text-right">
+          {workspace?.branch ?? "main"} / blocked{" "}
+          {trustContract?.blockedActions.slice(0, 2).join(", ") ?? "loading"}
+        </span>
       </div>
-    </div>
+    </>
   );
 }
 
