@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.16 (1) [Chat Shell Layout Rebuild]
+
+- Split chat layout ownership into `ChatWorkspace`, `EmptyChatState`, and `ComposerDock` so `HomePage` stays focused on data wiring and `MessageStream` stays stream-focused.
+- Moved empty-thread composer centering into a stable grid layout with quick prompt chips below the input.
+- Removed the composer scope/footer text from the chat input surface.
+- Verified with `bun run lint` and `bun run typecheck`.
+
 ## Unreleased - 2026.05.14 (1) [Sidebar Repository Removal Safety]
 
 - Removed public Source Control/Git controls from the app sidebar while keeping Git-backed tools and services available internally.
