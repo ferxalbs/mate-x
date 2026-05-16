@@ -69,6 +69,7 @@ bun run lint         # ESLint on *.ts / *.tsx
 bun run typecheck    # tsc --noEmit
 bun run package      # local packaged build
 bun run make         # distributables via Electron Forge
+bun run publish      # Electron Forge publish; release workflow only
 ```
 
 Always run `bun run lint && bun run typecheck` before opening a PR.
