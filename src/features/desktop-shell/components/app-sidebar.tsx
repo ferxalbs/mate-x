@@ -12,6 +12,7 @@ import {
   SettingsIcon,
   WaypointsIcon,
   PuzzleIcon,
+  SearchIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -62,6 +63,7 @@ interface AppSidebarProps {
   onImportWorkspace: () => void;
   onActivateWorkspace: (workspaceId: string) => Promise<void>;
   onRemoveWorkspace: (workspaceId: string) => Promise<void>;
+  onOpenSearch: () => void;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
   onRenameThread: (threadId: string, title: string) => Promise<void>;
@@ -108,6 +110,7 @@ export function AppSidebar({
   onImportWorkspace,
   onActivateWorkspace,
   onRemoveWorkspace,
+  onOpenSearch,
   onCreateThread,
   onSelectThread,
   onRenameThread,
@@ -328,6 +331,18 @@ export function AppSidebar({
         <>
           <SidebarContent className="no-drag gap-0">
             <SidebarGroup className="p-2">
+              <SidebarMenu className="mb-3">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    size="sm"
+                    className="gap-2 rounded-2xl px-2 text-[12px] text-muted-foreground hover:text-foreground"
+                    onClick={onOpenSearch}
+                  >
+                    <SearchIcon className="size-3.5 shrink-0" />
+                    <span>Search</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
               <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                   Projects
