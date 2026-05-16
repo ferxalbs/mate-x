@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "@tanstack/react-router";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
@@ -10,6 +10,7 @@ import {
 import { useChatStore } from "../../store/chat-store";
 import { EnhancementPanel } from "./components/enhancement-panel";
 import { AppSidebar } from "./components/app-sidebar";
+import { SearchModal } from "./components/search-modal";
 
 export function DesktopShell() {
   const workspaces = useChatStore((state) => state.workspaces);
@@ -18,6 +19,7 @@ export function DesktopShell() {
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
   const activeThreadIds = useChatStore((state) => state.activeThreadIds);
   const runStatus = useChatStore((state) => state.runStatus);
+  const [searchOpen, setSearchOpen] = useState(false);
   const bootstrap = useChatStore((state) => state.bootstrap);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
   const activateWorkspace = useChatStore((state) => state.activateWorkspace);
@@ -36,6 +38,17 @@ export function DesktopShell() {
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +78,7 @@ export function DesktopShell() {
             onActivateWorkspace={activateWorkspace}
             onCreateThread={createThread}
             onImportWorkspace={importWorkspace}
+            onOpenSearch={() => setSearchOpen(true)}
             onRemoveWorkspace={removeWorkspace}
             onSelectThread={selectThread}
             onRenameThread={renameThread}
@@ -74,6 +88,14 @@ export function DesktopShell() {
             workspaces={workspaces}
             workspace={workspace}
             runStatus={runStatus}
+          />
+          <SearchModal
+            activeThreadId={activeThreadId}
+            onOpenChange={setSearchOpen}
+            onSelectThread={selectThread}
+            open={searchOpen}
+            threads={threads}
+            workspaceName={workspace?.name ?? "Current project"}
           />
 
           <div className="relative flex min-w-0 flex-1 overflow-hidden">
