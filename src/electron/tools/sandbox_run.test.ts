@@ -1,46 +1,106 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, it } from "vitest";
+// @ts-expect-error Bun exposes mock at runtime; installed TS types omit it.
+import { describe, mock, test } from "bun:test";
 
-import {
+mock.module("electron", () => ({
+  powerSaveBlocker: {
+    isStarted: () => false,
+    start: () => 1,
+    stop: () => undefined,
+  },
+}));
+
+mock.module("../failure-memory-engine", () => ({
+  failureMemoryEngine: {
+    findSimilarFailures: async () => [],
+    recordFailure: async () => undefined,
+    recordResolution: async () => undefined,
+  },
+}));
+
+mock.module("../turso-service", () => ({
+  tursoService: {
+    getActiveWorkspaceId: async () => null,
+    getWorkspaceProfile: async () => null,
+  },
+}));
+
+const {
   buildSandboxReport,
   isPackageManagerMutationCommand,
   parseSandboxCommand,
   prepareSandboxWorkspace,
+  resolveSandboxExecutable,
   resolveSandboxExecutionMode,
-} from "./sandbox_run";
+  sandboxRunnerTool,
+} = await import("./sandbox_run");
 
 describe("sandbox_run command parsing", () => {
-  it("parses a direct command with quoted args", () => {
+  test("parses a direct command with quoted args", () => {
     assert.deepEqual(parseSandboxCommand('bun run test "src/foo bar.test.ts"'), {
       cmd: "bun",
       cmdArgs: ["run", "test", "src/foo bar.test.ts"],
     });
   });
 
-  it("rejects shell operators", () => {
+  test("rejects shell operators", () => {
     assert.throws(
       () => parseSandboxCommand("bun test && rm -rf dist"),
       /Shell operators are not supported/,
     );
   });
 
-  it("rejects empty commands", () => {
+  test("rejects empty commands", () => {
     assert.throws(() => parseSandboxCommand("   "), /Command is required/);
+  });
+
+  test("parses bun validation commands as executable plus args", () => {
+    assert.deepEqual(parseSandboxCommand("bun run lint"), {
+      cmd: "bun",
+      cmdArgs: ["run", "lint"],
+    });
+  });
+});
+
+describe("sandbox_run executable resolution", () => {
+  test("prefers a real bun binary over a local node_modules shim", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-bun-resolve-${Date.now()}`);
+    const localBin = join(workspacePath, "node_modules", ".bin");
+    const realBin = join(workspacePath, "real-bin");
+    await mkdir(localBin, { recursive: true });
+    await mkdir(realBin, { recursive: true });
+    const brokenShim = join(localBin, "bun");
+    const realBun = join(realBin, "bun");
+    await writeFile(brokenShim, "not a native executable");
+    await writeFile(realBun, "#!/bin/sh\nexit 0\n");
+    await chmod(brokenShim, 0o755);
+    await chmod(realBun, 0o755);
+
+    const resolved = await resolveSandboxExecutable({
+      cmd: "bun",
+      env: {
+        PATH: `${localBin}:${realBin}`,
+      },
+    });
+
+    assert.equal(resolved.executable, realBun);
+    assert.equal(resolved.packageManager, "bun");
+    await rm(workspacePath, { force: true, recursive: true });
   });
 });
 
 describe("sandbox_run command risk detection", () => {
-  it("detects package-manager mutations", () => {
+  test("detects package-manager mutations", () => {
     assert.equal(isPackageManagerMutationCommand("bun add lodash"), true);
     assert.equal(isPackageManagerMutationCommand("npm install react"), true);
     assert.equal(isPackageManagerMutationCommand("pnpm test"), false);
   });
 
-  it("defaults package mutations to isolated-copy unless caller explicitly selects direct", () => {
+  test("defaults package mutations to isolated-copy unless caller explicitly selects direct", () => {
     assert.equal(
       resolveSandboxExecutionMode({
         command: "bun add lodash",
@@ -59,7 +119,7 @@ describe("sandbox_run command risk detection", () => {
 });
 
 describe("sandbox_run reporting", () => {
-  it("keeps stderr text out of status classification", () => {
+  test("keeps stderr text out of status classification", () => {
     const report = buildSandboxReport({
       status: "PASSED",
       output: "\n[STDERR] warning: error text from tool",
@@ -78,7 +138,7 @@ describe("sandbox_run reporting", () => {
     assert.match(report, /\[STDERR\] warning: error text from tool/);
   });
 
-  it("reports timeout with stable diagnostics", () => {
+  test("reports timeout with stable diagnostics", () => {
     const report = buildSandboxReport({
       status: "TIMED_OUT",
       output: "stalled",
@@ -98,8 +158,64 @@ describe("sandbox_run reporting", () => {
   });
 });
 
+describe("sandbox_run execution failures", () => {
+  test("returns immediately on ENOEXEC and does not timeout", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-enoexec-${Date.now()}`);
+    await mkdir(workspacePath, { recursive: true });
+    const badExecutable = join(workspacePath, "bad-exec");
+    await writeFile(badExecutable, "not a script");
+    await chmod(badExecutable, 0o755);
+
+    const startedAt = Date.now();
+    const result = await sandboxRunnerTool.execute(
+      { command: badExecutable, timeoutSeconds: 30 },
+      { workspacePath } as any,
+    );
+
+    assert.equal(Date.now() - startedAt < 2000, true);
+    assert.match(result, /Status: START_FAILED/);
+    assert.match(result, /Spawn error code: ENOEXEC/);
+    assert.match(result, /Timed out: false/);
+    assert.doesNotMatch(result, /Status: TIMED_OUT/);
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+
+  test("returns immediately on ENOENT and does not timeout", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-enoent-${Date.now()}`);
+    await mkdir(workspacePath, { recursive: true });
+
+    const startedAt = Date.now();
+    const result = await sandboxRunnerTool.execute(
+      { command: "mate-x-missing-command", timeoutSeconds: 30 },
+      { workspacePath } as any,
+    );
+
+    assert.equal(Date.now() - startedAt < 2000, true);
+    assert.match(result, /Status: START_FAILED/);
+    assert.match(result, /Spawn error code: ENOENT/);
+    assert.match(result, /Timed out: false/);
+    assert.doesNotMatch(result, /Status: TIMED_OUT/);
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+
+  test("runs a successful bun validation command", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-bun-success-${Date.now()}`);
+    await mkdir(workspacePath, { recursive: true });
+
+    const result = await sandboxRunnerTool.execute(
+      { command: "bun --version", timeoutSeconds: 30 },
+      { workspacePath } as any,
+    );
+
+    assert.match(result, /Status: PASSED/);
+    assert.match(result, /Package manager: bun/);
+    assert.match(result, /Args: \["--version"\]/);
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+});
+
 describe("sandbox_run isolated workspace", () => {
-  it("runs from a temporary copy without mutating the original workspace", async () => {
+  test("runs from a temporary copy without mutating the original workspace", async () => {
     const workspacePath = join(tmpdir(), `mate-x-source-${Date.now()}`);
     await mkdir(workspacePath, { recursive: true });
     await writeFile(join(workspacePath, "file.txt"), "original");
@@ -111,12 +227,14 @@ describe("sandbox_run isolated workspace", () => {
     await writeFile(join(prepared.runPath, "file.txt"), "mutated");
 
     assert.equal(await readFile(join(workspacePath, "file.txt"), "utf8"), "original");
-    assert.equal(await prepared.cleanup(), "removed_isolated_copy");
+    const cleanup = await prepared.cleanup();
+    assert.equal(cleanup.status, "removed_isolated_copy");
+    assert.equal(typeof cleanup.durationMs, "number");
     await assert.rejects(() => stat(prepared.runPath));
     await rm(workspacePath, { force: true, recursive: true });
   });
 
-  it("skips heavy generated directories while copying", async () => {
+  test("skips heavy generated directories while copying", async () => {
     const workspacePath = join(tmpdir(), `mate-x-source-${Date.now()}`);
     await mkdir(join(workspacePath, "node_modules"), { recursive: true });
     await mkdir(join(workspacePath, ".git"), { recursive: true });
