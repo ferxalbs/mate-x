@@ -31,15 +31,23 @@ export function evaluateValidationGate(
       String(execution.output).includes(workPlan.validationPlan.fallbackCommand ?? "\u0000"),
     );
 
-  const warnings: string[] = [];
-  if (!ranValidation) warnings.push("Validation required by WorkPlan but no validation tool result exists.");
-  if (!persisted) warnings.push("Validation result was not verified as persisted.");
-  if (!ranFallback) warnings.push("High-risk WorkPlan requires fallback validation evidence.");
-  if (warnings.length > 0 && UNSUPPORTED_DONE_RE.test(finalContent)) {
+  // Hard blockers: validation tool didn't run at all, or high-risk fallback is missing.
+  const hardBlockers: string[] = [];
+  if (!ranValidation) hardBlockers.push("Validation required by WorkPlan but no validation tool result exists.");
+  if (!ranFallback) hardBlockers.push("High-risk WorkPlan requires fallback validation evidence.");
+
+  // Soft advisories: informational, never block the gate on their own.
+  const softWarnings: string[] = [];
+  if (!persisted) softWarnings.push("Validation result was not verified as persisted.");
+
+  const warnings = [...hardBlockers, ...softWarnings];
+  const blocked = hardBlockers.length > 0;
+
+  if (blocked && UNSUPPORTED_DONE_RE.test(finalContent)) {
     warnings.push("Final confidence wording must be downgraded; runtime evidence is incomplete.");
   }
 
-  return { allowed: warnings.length === 0, warnings };
+  return { allowed: !blocked, warnings };
 }
 
 export function appendValidationGateWarning(content: string, gate: ValidationGateResult) {
