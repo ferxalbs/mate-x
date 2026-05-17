@@ -75,7 +75,7 @@ export function deriveWorkStages(input: {
   if (hasAny(toolNames, PATCH_TOOLS)) {
     pass(stages, "patch_attempted", "runtime", "Patch/edit tool ran.", idsFor(eventIdsByTool, PATCH_TOOLS));
   } else if (input.noPatchNeeded) {
-    skip(stages, "patch_attempted", "model_claim", "Run explicitly concluded no patch was needed.");
+    skip(stages, "patch_attempted", "deterministic", "Run explicitly concluded no patch was needed.");
   }
 
   if (hasAny(toolNames, VALIDATION_PLAN_TOOLS)) {

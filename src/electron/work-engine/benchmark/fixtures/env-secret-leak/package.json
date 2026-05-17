@@ -1,0 +1,9 @@
+{
+  "name": "env-secret-leak",
+  "type": "module",
+  "scripts": {
+    "test": "bun --print \"'test ok'\"",
+    "typecheck": "bun --print \"'typecheck ok'\"",
+    "lint": "bun --print \"'lint ok'\""
+  }
+}
