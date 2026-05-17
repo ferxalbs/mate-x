@@ -3,6 +3,14 @@ import type { WorkPlan } from "./types";
 
 const UNSUPPORTED_DONE_RE = /\b(fixed|ready|works|no warnings|merge-ready|merge ready|done)\b/i;
 
+/**
+ * Matches agent conclusions that mean "there is nothing to validate".
+ * In these cases the validation hard-blocker must not fire — the agent
+ * correctly skipped validation tools because there was no work to verify.
+ */
+const NO_VALIDATION_NEEDED_RE =
+  /\b(no changes?(?:\s+(?:detected|to\s+review|found))?|nothing\s+to\s+(?:validate|review|check)|no\s+(?:patch|code\s+change)|patch\s+not\s+needed|read[\s-]?only|clean\s+working\s+(?:tree|directory)|0\s+(?:insertions?|deletions?)|no\s+(?:uncommitted|unstaged)\s+changes?)\b/i;
+
 export interface ValidationGateResult {
   allowed: boolean;
   warnings: string[];
@@ -32,13 +40,17 @@ export function evaluateValidationGate(
     );
 
   // Hard blockers: validation tool didn't run at all, or high-risk fallback is missing.
+  // Exception: if the agent concluded there is nothing to validate (no git changes, read-only
+  // review, etc.) then missing validation is expected and must not block the gate.
+  const noValidationNeeded = NO_VALIDATION_NEEDED_RE.test(finalContent);
   const hardBlockers: string[] = [];
-  if (!ranValidation) hardBlockers.push("Validation required by WorkPlan but no validation tool result exists.");
+  if (!ranValidation && !noValidationNeeded) hardBlockers.push("Validation required by WorkPlan but no validation tool result exists.");
   if (!ranFallback) hardBlockers.push("High-risk WorkPlan requires fallback validation evidence.");
 
   // Soft advisories: informational, never block the gate on their own.
   const softWarnings: string[] = [];
   if (!persisted) softWarnings.push("Validation result was not verified as persisted.");
+  if (!ranValidation && noValidationNeeded) softWarnings.push("Validation skipped: agent concluded there is nothing to validate.");
 
   const warnings = [...hardBlockers, ...softWarnings];
   const blocked = hardBlockers.length > 0;
