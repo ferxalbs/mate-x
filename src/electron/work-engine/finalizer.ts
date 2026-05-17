@@ -62,7 +62,7 @@ export function finalizeWorkRun(input: {
   evidenceAttached: boolean;
 }): WorkEngineFinalization {
   const warnings: string[] = [];
-  const missingRequired = requiredStages(input.workPlan)
+  const missingRequired = requiredStages(input.workPlan, input.stages)
     .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
   const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
   const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
@@ -104,19 +104,23 @@ export function finalizeWorkRun(input: {
   return { verdict, content: appendHonestStatus(content, verdict, warnings), warnings };
 }
 
-function requiredStages(workPlan: WorkPlan): WorkStageId[] {
+function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] {
+  const noPatchNeeded =
+    stageStatus(stages, "patch_attempted") === "skipped" &&
+    stages.find((stage) => stage.id === "patch_attempted")?.source !== "model_claim" &&
+    /no patch (?:was )?needed/i.test(stages.find((stage) => stage.id === "patch_attempted")?.reason ?? "");
   switch (workPlan.runbook) {
     case "patch_test_verify":
-      return [
+      return compactStages([
         "context_compiled",
         "files_inspected",
         "patch_attempted",
-        "validation_planned",
-        "validation_executed",
+        workPlan.validationPlan.required && !noPatchNeeded ? "validation_planned" : null,
+        workPlan.validationPlan.required && !noPatchNeeded ? "validation_executed" : null,
         "failure_memory_checked",
         "privacy_preflight_passed",
         "evidence_attached",
-      ];
+      ]);
     case "audit_reproduce_remediate":
       return ["context_compiled", "security_proof_checked", "privacy_preflight_passed", "evidence_attached"];
     case "trace_source_to_sink":
@@ -128,6 +132,10 @@ function requiredStages(workPlan: WorkPlan): WorkStageId[] {
     default:
       return ["context_compiled", "privacy_preflight_passed"];
   }
+}
+
+function compactStages(stages: Array<WorkStageId | null>): WorkStageId[] {
+  return stages.filter((stage): stage is WorkStageId => Boolean(stage));
 }
 
 function stagePassedOrSkipped(stages: WorkStage[], id: WorkStageId) {

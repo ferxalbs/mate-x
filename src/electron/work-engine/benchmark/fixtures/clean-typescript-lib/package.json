@@ -1,0 +1,9 @@
+{
+  "name": "clean-typescript-lib",
+  "type": "module",
+  "scripts": {
+    "test": "bun test tests/index.test.ts",
+    "typecheck": "bun --print \"'typecheck ok'\"",
+    "lint": "bun --print \"'lint ok'\""
+  }
+}
