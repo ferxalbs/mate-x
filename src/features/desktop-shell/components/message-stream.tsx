@@ -1013,14 +1013,26 @@ function extractInlineTraceTarget(detail: string) {
   }
 }
 
+function tryPrettyJson(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null;
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return null;
+  }
+}
+
 function TimelineEventRow({ event }: { event: ToolEvent }) {
   const command = extractCommandFromEvent(event);
-  const hasExtra = Boolean(command) || event.detail.length > 180;
+  const prettyJson = !command ? tryPrettyJson(event.detail) : null;
+  const displayDetail = prettyJson ?? event.detail;
+  const hasExtra = Boolean(command) || displayDetail.length > 180;
   const [expanded, setExpanded] = useState(event.status === "active");
   const preview =
-    event.detail.length > 180
-      ? `${event.detail.slice(0, 177).trimEnd()}...`
-      : event.detail;
+    displayDetail.length > 180
+      ? `${displayDetail.slice(0, 177).trimEnd()}...`
+      : displayDetail;
 
   return (
     <div className="rounded-lg border border-border/45 bg-background/38 px-2.5 py-2">
@@ -1045,8 +1057,13 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
               </button>
             ) : null}
           </div>
-          <div className="mt-0.5 text-[11px] leading-5 text-muted-foreground">
-            {expanded ? event.detail : preview}
+          <div
+            className={cn(
+              "mt-0.5 text-[11px] leading-5 text-muted-foreground",
+              prettyJson && "whitespace-pre-wrap font-mono text-[10px]",
+            )}
+          >
+            {expanded ? displayDetail : preview}
           </div>
           {event.policy ? <ToolPolicyBadges event={event} /> : null}
           {command ? (
@@ -1171,6 +1188,16 @@ function isProgressTranscript(content: string) {
     "executing ",
     "continue investigation",
     "response complete",
+    // WorkPlan / gate patterns from Rainy agent runtime
+    "workplan",
+    "work-plan",
+    "workplanid",
+    "gate failed",
+    "gate passed",
+    "ran 2 actions",
+    "ran 1 action",
+    "\"stages\":",
+    "\"verdict\":",
   ];
 
   return signals.some((signal) => lowered.includes(signal));
