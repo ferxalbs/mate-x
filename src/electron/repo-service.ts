@@ -3048,12 +3048,15 @@ async function requestRainyChatAgenticResponse({
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
+    const currentChangeReview = isCurrentChangeReviewPrompt(prompt.toLowerCase());
     const cleanCurrentChangeReview = isCleanCurrentChangeReview(prompt, snapshot);
     const executableToolCalls = toolCalls.slice(
       0,
       Math.max(remainingBudget, 0),
     ).filter((toolCall) =>
-      !cleanCurrentChangeReview || isAllowedCleanReviewToolCall(toolCall),
+      cleanCurrentChangeReview
+        ? isAllowedCleanReviewToolCall(toolCall)
+        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall),
     );
 
     if (executableToolCalls.length === 0) {
@@ -3070,6 +3073,15 @@ async function requestRainyChatAgenticResponse({
           toolExecutions,
           content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
         };
+      }
+
+      if (currentChangeReview) {
+        messages.push({
+          role: "user",
+          content:
+            "Extra tools outside current-change review scope were skipped. Synthesize the git diff and file-read evidence already collected; do not call more tools.",
+        });
+        continue;
       }
 
       messages.push({
@@ -3372,12 +3384,15 @@ async function requestRainyResponsesAgenticResponse({
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
+    const currentChangeReview = isCurrentChangeReviewPrompt(prompt.toLowerCase());
     const cleanCurrentChangeReview = isCleanCurrentChangeReview(prompt, snapshot);
     const executableToolCalls = toolCalls.slice(
       0,
       Math.max(remainingBudget, 0),
     ).filter((toolCall) =>
-      !cleanCurrentChangeReview || isAllowedCleanReviewToolCall(toolCall),
+      cleanCurrentChangeReview
+        ? isAllowedCleanReviewToolCall(toolCall)
+        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall),
     );
 
     if (executableToolCalls.length === 0) {
@@ -3395,6 +3410,22 @@ async function requestRainyResponsesAgenticResponse({
           toolExecutions,
           content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
         };
+      }
+
+      if (currentChangeReview) {
+        nextInput = [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: "Extra tools outside current-change review scope were skipped. Synthesize the git diff and file-read evidence already collected; do not call more tools.",
+              },
+            ],
+          },
+        ];
+        continue;
       }
 
       nextInput = [
