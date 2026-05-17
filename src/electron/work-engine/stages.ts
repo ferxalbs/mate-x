@@ -159,18 +159,35 @@ function idsFor(eventIdsByTool: Map<string, string[]>, tools: Set<string>) {
   return [...tools].flatMap((tool) => eventIdsByTool.get(tool) ?? []);
 }
 
+/**
+ * Strips the "Known similar failure" preamble that sandbox_run prepends so
+ * it never poisons Status/Exit-code detection or the fallback regex.
+ * The preamble ends at the first blank line that precedes the structured report.
+ */
+function stripSandboxPreamble(text: string): string {
+  // The structured report always starts with "Sandbox Report:"
+  const reportStart = text.indexOf("Sandbox Report:");
+  return reportStart > 0 ? text.slice(reportStart) : text;
+}
+
 function toolFailed(output: unknown) {
-  const text = String(output ?? "");
-  const sandboxStatus = text.match(/^Status:\s*(PASSED|FAILED|TIMED_OUT|START_FAILED|TERMINATED)$/im)?.[1];
+  const raw = String(output ?? "");
+  // Strip priorWarning preamble so structured-report lines are unambiguous.
+  const text = stripSandboxPreamble(raw);
+
+  // Structured sandbox report: Status line takes priority.
+  const sandboxStatus = text.match(/^Status:\s*(PASSED|READY|FAILED|TIMED_OUT|START_FAILED|TERMINATED)$/im)?.[1];
   if (sandboxStatus) {
-    return sandboxStatus !== "PASSED";
+    return sandboxStatus !== "PASSED" && sandboxStatus !== "READY";
   }
 
+  // Structured sandbox report: explicit exit code.
   const sandboxExitCode = text.match(/^Exit code:\s*(-?\d+)$/im)?.[1];
   if (sandboxExitCode) {
     return Number(sandboxExitCode) !== 0;
   }
 
+  // JSON-returning tools (non-sandbox).
   try {
     const parsed = JSON.parse(text) as { status?: unknown; exitCode?: unknown; error?: unknown; verdict?: unknown };
     if (typeof parsed.error === "string" && parsed.error.trim()) {
@@ -179,15 +196,24 @@ function toolFailed(output: unknown) {
     if (typeof parsed.exitCode === "number") {
       return parsed.exitCode !== 0;
     }
-    if (parsed.status === "success" || parsed.status === "passed") {
+    if (parsed.status === "success" || parsed.status === "passed" || parsed.status === "ready") {
       return false;
     }
     if (parsed.status === "failed" || parsed.status === "blocked" || parsed.status === "timed_out") {
+      return true;
+    }
+    // verdict field (some tools emit this instead of status).
+    if (parsed.verdict === "success" || parsed.verdict === "passed") {
+      return false;
+    }
+    if (parsed.verdict === "failed" || parsed.verdict === "blocked") {
       return true;
     }
   } catch {
     // Fall through to legacy text heuristic for unstructured tools.
   }
 
+  // Fallback heuristic on the preamble-stripped text.
+  // Use \bfailed\b (verb) — does NOT match the noun "failure".
   return /(?:^|\b)(failed|error|exit code [1-9]|not ok|blocked)\b/i.test(text);
 }
