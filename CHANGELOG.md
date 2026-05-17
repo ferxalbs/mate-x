@@ -1,19 +1,5 @@
 # CHANGELOG
 
-## Unreleased - 2026.05.16 (3) [Work Engine Production Boundary]
-
-- Kept Work Engine benchmark, fixture, self-smoke, and test infrastructure out of production runtime imports.
-- Added Electron Forge packaging ignores for Work Engine tests, benchmarks, fixtures, and `__tests__` folders so packaged app resources only carry runtime code.
-- Verified with `bun run typecheck`, `bun run lint`, and `bun run test:work-engine`.
-
-## Unreleased - 2026.05.16 (2) [Work Engine Enforcement and Benchmarks]
-
-- Added Work Engine internal enforcement around WorkPlans, WorkStages, FinalRunVerdict, claim downgrades, validation gates, security proof rules, Privacy Sentinel preflight, and failure-memory discipline.
-- Added deterministic Work Engine benchmark suites covering mocked repository-work scenarios, adversarial claim bypasses, and fixture repositories with real files and local validation commands.
-- Added `test:work-engine` to run the Work Engine regression suite in one command.
-- Documented Work Engine concepts, enforcement gates, benchmark coverage, and test commands in `docs/work-engine.md`.
-- Verified with `bun run typecheck`, `bun run lint`, and `bun run test:work-engine`.
-
 ## Unreleased - 2026.05.16 (1) [Chat Shell Layout Rebuild]
 
 - Split chat layout ownership into `ChatWorkspace`, `EmptyChatState`, and `ComposerDock` so `HomePage` stays focused on data wiring and `MessageStream` stays stream-focused.

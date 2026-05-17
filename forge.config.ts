@@ -57,7 +57,6 @@ const config: ForgeConfig = {
       unpack: '**/*.node',
     },
     ignore: [
-      /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\]benchmark([/\\]|$)/,
       /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\].*\.test\.ts$/,
       /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\].*[/\\]__tests__([/\\]|$)/,
       /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\].*[/\\]fixtures([/\\]|$)/,

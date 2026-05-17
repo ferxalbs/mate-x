@@ -42,6 +42,7 @@ export class WorkingSetCompiler {
     const fileKeys = new Set(
       nodes
         .filter((node) => node.kind === "file" || node.kind === "test")
+        .filter((node) => !isRuntimeIgnoredPath(node.key))
         .map((node) => node.key),
     );
     const primary = new Map<string, RankedFile>();
@@ -139,14 +140,16 @@ export class WorkingSetCompiler {
       relevantPackageScripts: scripts,
       gitDiffSnippets: diffSnippets,
       relatedContractsTypes: sortRanked(contracts).slice(0, 6),
-      recentFailureContext: failures.map((failure) => ({
-        command: failure.command,
-        status: failure.status,
-        exitCode: failure.exitCode,
-        summary: failure.outputSummary,
-        failingTests: failure.failingTests,
-        ranAt: failure.ranAt,
-      })),
+      recentFailureContext: failures
+        .filter((failure) => !isRuntimePollutionText(`${failure.command}\n${failure.outputSummary}\n${failure.failingTests.join("\n")}`))
+        .map((failure) => ({
+          command: failure.command,
+          status: failure.status,
+          exitCode: failure.exitCode,
+          summary: failure.outputSummary,
+          failingTests: failure.failingTests.filter((testName) => !isRuntimePollutionText(testName)),
+          ranAt: failure.ranAt,
+        })),
       workspacePlaybookNotes: splitPlaybookNotes(input.memoryContext?.context),
     };
 
@@ -205,6 +208,7 @@ function isContractOrTypeFile(file: string) {
 }
 
 function rankScript(scriptName: string, prompt: string, runMode: AssistantRunOptions["mode"]): WorkingSetScript | null {
+  if (isRuntimePollutionText(scriptName)) return null;
   const lowerPrompt = prompt.toLowerCase();
   const lowerName = scriptName.toLowerCase();
   let score = 0;
@@ -220,6 +224,14 @@ function rankScript(scriptName: string, prompt: string, runMode: AssistantRunOpt
     reasons.push("build mode verification");
   }
   return score > 0 ? { name: scriptName, command: `bun run ${scriptName}`, score, reasons } : null;
+}
+
+function isRuntimeIgnoredPath(file: string) {
+  return /(^|\/)__tests__\/|(^|\/)fixtures\/|(\.test|\.spec)\.[tj]sx?$|(^|\/)src\/electron\/work-engine\/bench/.test(normalizePath(file));
+}
+
+function isRuntimePollutionText(text: string) {
+  return /(?:^|\s)test:[^\s]*work[^\s]*engine\b|work-engine\/bench|bench[^\s]*\/fixtures|fixture-repo|enforcement-advers|self.?smoke/i.test(text);
 }
 
 async function collectGitDiffSnippets(workspacePath: string, gitState: string[], limit: number) {
