@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type { Tool } from '../tool-service';
 import { resolveWorkspacePath } from "./tool-utils";
@@ -28,6 +28,20 @@ export const lsTool: Tool = {
     const recursive = args.recursive || false;
 
     try {
+      const targetStats = await stat(targetDir);
+      if (targetStats.isFile()) {
+        return [
+          'Path is a file; use read to inspect contents.',
+          `File: ${relative(workspacePath, targetDir) || relativePath}`,
+          `Size: ${targetStats.size} bytes`,
+          `Modified: ${targetStats.mtime.toISOString()}`,
+        ].join('\n');
+      }
+
+      if (!targetStats.isDirectory()) {
+        return `Path is not a directory: ${relative(workspacePath, targetDir) || relativePath}`;
+      }
+
       if (recursive) {
         const results: string[] = [];
         await walk(targetDir, workspacePath, results);

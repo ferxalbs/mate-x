@@ -36,7 +36,14 @@ export const gitTool: Tool = {
             .join('\n');
         }
         case 'show': {
-          if (!commitHash) return 'Error: commitHash is required for show operation.';
+          if (!commitHash) {
+            return JSON.stringify({
+              ok: false,
+              fatal: false,
+              skipped: true,
+              error: 'commitHash is required for show operation.',
+            });
+          }
           // simple-git doesn't have a direct 'show' in our service yet, 
           // but we can use the internal git instance or extend it.
           // For now, let's just return commit details from log if found.
