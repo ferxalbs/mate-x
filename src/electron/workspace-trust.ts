@@ -124,7 +124,7 @@ export function evaluateTrustForToolCall({
 
   const pathValues = extractPathValues(args, toolName);
   for (const pathValue of pathValues) {
-    const pathError = evaluatePath(pathValue, normalizedContract);
+    const pathError = evaluatePath(pathValue, normalizedContract, toolName);
     if (pathError) {
       return `Workspace Trust Contract blocks ${toolName}: ${pathError}`;
     }
@@ -270,7 +270,11 @@ function extractPathValues(args: Record<string, unknown>, toolName: string) {
   return [...scalarPaths, ...arrayPaths];
 }
 
-function evaluatePath(pathValue: string, contract: WorkspaceTrustContract) {
+function evaluatePath(
+  pathValue: string,
+  contract: WorkspaceTrustContract,
+  toolName: string,
+) {
   const candidate = normalizeWorkspaceRelativePath(pathValue);
   if (!candidate) {
     return "path must remain within the active workspace.";
@@ -278,6 +282,10 @@ function evaluatePath(pathValue: string, contract: WorkspaceTrustContract) {
 
   if (matchesAnyPath(candidate, contract.forbiddenPaths)) {
     return `"${pathValue}" matches a forbidden path.`;
+  }
+
+  if (toolName === "ls" && candidate === ".") {
+    return null;
   }
 
   if (
