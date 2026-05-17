@@ -23,23 +23,34 @@ export function resolveWorkRunbook(intent: WorkIntent, _risk: WorkRisk): WorkRun
   }
 }
 
-export function runbookRequiresValidation(runbook: WorkRunbook, risk: WorkRisk) {
-  return (
-    runbook === "patch_test_verify" ||
-    runbook === "validate_only" ||
-    (runbook === "review_classify_summarize" && risk !== "low")
-  );
+export function runbookRequiresValidation(runbook: WorkRunbook, risk: WorkRisk, changedFiles: string[] = []) {
+  // patch_test_verify and validate_only always require validation.
+  if (runbook === "patch_test_verify" || runbook === "validate_only") return true;
+  // review_classify_summarize: only require validation when files were actually changed at medium/high risk.
+  if (runbook === "review_classify_summarize") {
+    return changedFiles.length > 0 && risk !== "low";
+  }
+  return false;
 }
 
-export function runbookRequiresEvidence(runbook: WorkRunbook) {
-  return [
-    "patch_test_verify",
-    "audit_reproduce_remediate",
-    "trace_source_to_sink",
-    "validate_only",
-    "review_classify_summarize",
-    "evidence_only",
-  ].includes(runbook);
+export function runbookRequiresEvidence(runbook: WorkRunbook, changedFiles: string[] = []) {
+  // Evidence-heavy runbooks always require it regardless of file count.
+  if (
+    [
+      "patch_test_verify",
+      "audit_reproduce_remediate",
+      "trace_source_to_sink",
+      "validate_only",
+      "evidence_only",
+    ].includes(runbook)
+  ) {
+    return true;
+  }
+  // For a read-only review with no changed files, no evidence artifact is needed.
+  if (runbook === "review_classify_summarize") {
+    return changedFiles.length > 0;
+  }
+  return false;
 }
 
 export function runbookStopConditions(runbook: WorkRunbook) {
