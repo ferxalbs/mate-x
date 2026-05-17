@@ -295,7 +295,12 @@ function evaluatePath(pathValue: string, contract: WorkspaceTrustContract) {
 }
 
 function normalizeWorkspaceRelativePath(pathValue: string) {
-  const normalized = normalize(pathValue.trim()).replaceAll("\\", "/");
+  const trimmed = pathValue.trim();
+  if (trimmed === "" || trimmed === "." || trimmed === "./") {
+    return ".";
+  }
+
+  const normalized = normalize(trimmed).replaceAll("\\", "/");
   if (
     normalized === ".." ||
     normalized.startsWith("../") ||
@@ -316,6 +321,10 @@ function matchesPathPattern(candidate: string, pattern: string) {
   const normalizedPattern = normalizeWorkspaceRelativePath(pattern);
   if (!normalizedPattern) {
     return false;
+  }
+
+  if (normalizedPattern === ".") {
+    return candidate === "." || !candidate.startsWith("../");
   }
 
   if (normalizedPattern.endsWith(".*")) {

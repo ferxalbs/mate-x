@@ -1597,6 +1597,72 @@ function summarizeToolOutput(content: unknown) {
     : `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
+function isCleanCurrentChangeReview(prompt: string, snapshot: RepoSnapshot) {
+  const normalizedPrompt = prompt.toLowerCase();
+  const asksForCurrentChangeReview =
+    /\breview\b/.test(normalizedPrompt) &&
+    /\bcurrent changes?\b/.test(normalizedPrompt) &&
+    /\brisk\b/.test(normalizedPrompt);
+  if (!asksForCurrentChangeReview) return false;
+
+  return snapshot.statusLines.every((line) => {
+    const trimmed = line.trim();
+    return (
+      trimmed.length === 0 ||
+      /\b(clean|no changes?|nothing to commit|working tree clean)\b/i.test(trimmed)
+    );
+  });
+}
+
+function isAllowedCleanReviewToolCall(toolCall: AgentToolCall) {
+  if (toolCall.name !== "git_diag") return false;
+  const args = parseToolCallArguments(toolCall.arguments);
+  return args?.operation === "diff";
+}
+
+function isCleanGitDiffToolResult(result: {
+  toolExecution: ToolExecutionRecord;
+  content: string;
+}) {
+  if (result.toolExecution.toolName !== "git_diag") return false;
+  const args = result.toolExecution.args as { operation?: unknown };
+  if (args.operation !== "diff") return false;
+
+  const parsed = tryParseJsonObject(result.content);
+  if (!parsed) return false;
+
+  const changedFiles = Array.isArray(parsed.files) ? parsed.files.length : 0;
+  return (
+    changedFiles === 0 &&
+    Number(parsed.insertions ?? 0) === 0 &&
+    Number(parsed.deletions ?? 0) === 0
+  );
+}
+
+function buildCleanCurrentChangeReviewAnswer() {
+  return [
+    "Verdict: no current changes to review.",
+    "Verdict summary: git status/diff show 0 changed files, 0 insertions, and 0 deletions.",
+    "Confidence: high.",
+    "Final recommendation: risk N/A; no validation or extra inspection needed for a clean current-change review.",
+  ].join("\n");
+}
+
+function parseToolCallArguments(argumentsJson?: string) {
+  return tryParseJsonObject(argumentsJson || "{}");
+}
+
+function tryParseJsonObject(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeAssistantText(content: unknown): string {
   if (typeof content === "string") {
     return content;
@@ -2515,6 +2581,7 @@ Security tool playbook:
 - For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
 - For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
 Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
+For review current changes/classify risk tasks with a clean git status and zero diff churn, stop after git status/diff evidence. Do not call plan_validation, run_tests, sandbox_run, git show, or extra ls/read tools for clean current-change review.
 Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.
 Reproduction harness contract:
 - Before patching suspicious behavior or a bug, attempt the smallest useful reproduction first.
@@ -2967,12 +3034,30 @@ async function requestRainyChatAgenticResponse({
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
+    const cleanCurrentChangeReview = isCleanCurrentChangeReview(prompt, snapshot);
     const executableToolCalls = toolCalls.slice(
       0,
       Math.max(remainingBudget, 0),
+    ).filter((toolCall) =>
+      !cleanCurrentChangeReview || isAllowedCleanReviewToolCall(toolCall),
     );
 
     if (executableToolCalls.length === 0) {
+      if (cleanCurrentChangeReview) {
+        events.push({
+          id: `step-clean-review-stop-${iterations}`,
+          label: "Clean current-change review",
+          detail: "Git status/diff evidence shows no current changes. Stopping without extra inspection.",
+          status: "done",
+        });
+        emitProgress();
+
+        return {
+          toolExecutions,
+          content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
+        };
+      }
+
       messages.push({
         role: "user",
         content:
@@ -3014,6 +3099,24 @@ async function requestRainyChatAgenticResponse({
 
     totalToolCalls += toolResults.length;
     toolExecutions.push(...toolResults.map((result) => result.toolExecution));
+
+    if (
+      cleanCurrentChangeReview &&
+      toolResults.some((result) => isCleanGitDiffToolResult(result))
+    ) {
+      events.push({
+        id: `step-clean-review-stop-${iterations}`,
+        label: "Clean current-change review",
+        detail: "Git diff confirms zero changed files, insertions, and deletions. Stopping without validation or extra inspection.",
+        status: "done",
+      });
+      emitProgress();
+
+      return {
+        toolExecutions,
+        content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
+      };
+    }
 
     for (const result of toolResults) {
       messages.push({
@@ -3255,12 +3358,31 @@ async function requestRainyResponsesAgenticResponse({
 
     toolRounds++;
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
+    const cleanCurrentChangeReview = isCleanCurrentChangeReview(prompt, snapshot);
     const executableToolCalls = toolCalls.slice(
       0,
       Math.max(remainingBudget, 0),
+    ).filter((toolCall) =>
+      !cleanCurrentChangeReview || isAllowedCleanReviewToolCall(toolCall),
     );
 
     if (executableToolCalls.length === 0) {
+      if (cleanCurrentChangeReview) {
+        events.push({
+          id: `step-clean-review-stop-${iterations}`,
+          label: "Clean current-change review",
+          detail: "Git status/diff evidence shows no current changes. Stopping without extra inspection.",
+          status: "done",
+        });
+        emitProgress();
+
+        return {
+          thought: lastThought,
+          toolExecutions,
+          content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
+        };
+      }
+
       nextInput = [
         {
           type: "message",
@@ -3309,6 +3431,24 @@ async function requestRainyResponsesAgenticResponse({
 
     totalToolCalls += toolResults.length;
     toolExecutions.push(...toolResults.map((result) => result.toolExecution));
+    if (
+      cleanCurrentChangeReview &&
+      toolResults.some((result) => isCleanGitDiffToolResult(result))
+    ) {
+      events.push({
+        id: `step-clean-review-stop-${iterations}`,
+        label: "Clean current-change review",
+        detail: "Git diff confirms zero changed files, insertions, and deletions. Stopping without validation or extra inspection.",
+        status: "done",
+      });
+      emitProgress();
+
+      return {
+        thought: lastThought,
+        toolExecutions,
+        content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
+      };
+    }
     nextInput = toolResults.map((result) => ({
       type: "function_call_output" as const,
       call_id: result.toolCallId,
