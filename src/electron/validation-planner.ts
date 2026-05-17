@@ -76,7 +76,7 @@ export class ValidationPlanner {
     framework?: string,
   ): ValidationPlanCommand {
     const previousFailureCommand = input.previousFailures.find((run) =>
-      run.status === 'failed' && run.command,
+      run.status === 'failed' && run.command && isAllowedValidationCommand(run.command),
     )?.command;
     if (previousFailureCommand) {
       return {
@@ -87,10 +87,11 @@ export class ValidationPlanner {
       };
     }
 
-    const directTest = changedFiles.find((file) => TEST_FILE_PATTERN.test(file));
-    if (directTest && input.profile?.testCommand) {
+    const profileTestCommand = profileCommand(input.profile?.testCommand);
+    const directTest = changedFiles.find((file) => TEST_FILE_PATTERN.test(file) && !isRuntimeIgnoredPath(file));
+    if (directTest && profileTestCommand) {
       return {
-        command: `${input.profile.testCommand} ${quotePath(directTest)}`,
+        command: `${profileTestCommand} ${quotePath(directTest)}`,
         reason: 'A changed test file is available, so the narrowest useful check is that test path.',
         estimatedCost: 'cheap',
         expectedSignal: 'Direct unit or integration coverage for the edited behavior.',
@@ -98,16 +99,16 @@ export class ValidationPlanner {
     }
 
     const colocatedTest = findLikelyTestPath(changedFiles, impactedFiles);
-    if (colocatedTest && input.profile?.testCommand) {
+    if (colocatedTest && profileTestCommand) {
       return {
-        command: `${input.profile.testCommand} ${quotePath(colocatedTest)}`,
+        command: `${profileTestCommand} ${quotePath(colocatedTest)}`,
         reason: 'RepoGraph impact is limited and a likely colocated test exists for the touched code.',
         estimatedCost: 'cheap',
         expectedSignal: 'Focused regression coverage near the changed module.',
       };
     }
 
-    const checkCommand = input.profile?.typecheckCommand ?? scriptCommand(input, 'typecheck');
+    const checkCommand = profileCommand(input.profile?.typecheckCommand) ?? scriptCommand(input, 'typecheck');
     if (checkCommand && isTypeScriptFramework(framework, changedFiles)) {
       return {
         command: checkCommand,
@@ -117,7 +118,7 @@ export class ValidationPlanner {
       };
     }
 
-    const lintCommand = input.profile?.lintCommand ?? scriptCommand(input, 'lint');
+    const lintCommand = profileCommand(input.profile?.lintCommand) ?? scriptCommand(input, 'lint');
     if (lintCommand && changedFiles.some((file) => UI_FILE_PATTERN.test(file))) {
       return {
         command: lintCommand,
@@ -127,7 +128,7 @@ export class ValidationPlanner {
       };
     }
 
-    const testCommand = input.profile?.testCommand ?? scriptCommand(input, 'test');
+    const testCommand = profileTestCommand ?? scriptCommand(input, 'test');
     if (testCommand) {
       return {
         command: testCommand,
@@ -151,13 +152,13 @@ export class ValidationPlanner {
     reason = 'Config, dependency, shared contract, or entrypoint changes can affect broad runtime behavior, so full validation is required.',
   ): ValidationPlanCommand {
     const command =
-      input.profile?.testCommand ??
+      profileCommand(input.profile?.testCommand) ??
       scriptCommand(input, 'test') ??
-      input.profile?.typecheckCommand ??
+      profileCommand(input.profile?.typecheckCommand) ??
       scriptCommand(input, 'typecheck') ??
-      input.profile?.buildCommand ??
+      profileCommand(input.profile?.buildCommand) ??
       scriptCommand(input, 'build') ??
-      input.profile?.lintCommand ??
+      profileCommand(input.profile?.lintCommand) ??
       scriptCommand(input, 'lint') ??
       'echo "No validation command detected"';
 
@@ -171,11 +172,11 @@ export class ValidationPlanner {
 
   private fallbackAfterFullSuite(input: ValidationPlannerInput): ValidationPlanCommand {
     const command =
-      input.profile?.buildCommand ??
+      profileCommand(input.profile?.buildCommand) ??
       scriptCommand(input, 'build') ??
-      input.profile?.typecheckCommand ??
+      profileCommand(input.profile?.typecheckCommand) ??
       scriptCommand(input, 'typecheck') ??
-      input.profile?.lintCommand ??
+      profileCommand(input.profile?.lintCommand) ??
       scriptCommand(input, 'lint') ??
       this.fullSuiteCommand(input).command;
 
@@ -198,24 +199,24 @@ export class ValidationPlanner {
     }
 
     const alternatives: ValidationPlanCommand[] = [
-      commandFromProfile(input.profile?.buildCommand ?? scriptCommand(input, 'build'), {
+      commandFromProfile(profileCommand(input.profile?.buildCommand) ?? scriptCommand(input, 'build'), {
         reason: 'Selected build because it provides packaging and bundler/runtime integration signal distinct from the primary command.',
         estimatedCost: 'expensive',
         expectedSignal: 'Bundler, packaging, and entrypoint regressions not caught by the primary command.',
       }),
-      commandFromProfile(input.profile?.lintCommand ?? scriptCommand(input, 'lint'), {
+      commandFromProfile(profileCommand(input.profile?.lintCommand) ?? scriptCommand(input, 'lint'), {
         reason: 'Selected lint because it provides static quality and correctness signal distinct from the primary command.',
         estimatedCost: 'cheap',
         expectedSignal: 'Import, style, React hook, and static rule violations.',
       }),
-      commandFromProfile(input.profile?.typecheckCommand ?? scriptCommand(input, 'typecheck'), {
+      commandFromProfile(profileCommand(input.profile?.typecheckCommand) ?? scriptCommand(input, 'typecheck'), {
         reason: 'Selected typecheck because it provides contract and cross-module compile signal distinct from the primary command.',
         estimatedCost: 'cheap',
         expectedSignal: 'Type, contract, and cross-module compile errors.',
       }),
-      commandFromProfile(input.profile?.testCommand ?? scriptCommand(input, 'test'), {
+      commandFromProfile(profileCommand(input.profile?.testCommand) ?? scriptCommand(input, 'test'), {
         reason: 'Selected full test command because it provides broader regression signal distinct from the primary command.',
-        estimatedCost: estimateCost(input.profile?.testCommand ?? scriptCommand(input, 'test') ?? '', framework),
+        estimatedCost: estimateCost(profileCommand(input.profile?.testCommand) ?? scriptCommand(input, 'test') ?? '', framework),
         expectedSignal: 'Automated test failures outside targeted coverage.',
       }),
     ].filter((candidate): candidate is ValidationPlanCommand =>
@@ -238,12 +239,13 @@ function normalizeFiles(files: string[]) {
 }
 
 function scriptCommand(input: ValidationPlannerInput, script: string) {
+  if (!['lint', 'typecheck', 'test', 'build'].includes(script)) return undefined;
   if (!input.packageScripts[script]) return undefined;
   return `${input.profile?.packageManager ?? 'npm'} run ${script}`;
 }
 
 function findLikelyTestPath(changedFiles: string[], impactedFiles: string[]) {
-  const allFiles = [...changedFiles, ...impactedFiles];
+  const allFiles = [...changedFiles, ...impactedFiles].filter((file) => !isRuntimeIgnoredPath(file));
   const directTest = allFiles.find((file) => TEST_FILE_PATTERN.test(file));
   if (directTest) return directTest;
 
@@ -275,7 +277,19 @@ function commandFromProfile(
   command: string | undefined,
   metadata: Omit<ValidationPlanCommand, 'command'>,
 ) {
-  return command ? { command, ...metadata } : undefined;
+  return command && isAllowedValidationCommand(command) ? { command, ...metadata } : undefined;
+}
+
+function profileCommand(command?: string) {
+  return command && isAllowedValidationCommand(command) ? command : undefined;
+}
+
+function isAllowedValidationCommand(command: string) {
+  return !/(?:^|\s)test:[^\s]*work[^\s]*engine\b|work-engine\/bench|bench[^\s]*\/fixtures|fixture-repo|enforcement-advers|self.?smoke/i.test(command);
+}
+
+function isRuntimeIgnoredPath(file: string) {
+  return /(^|\/)__tests__\/|(^|\/)fixtures\/|(\.test|\.spec)\.[tj]sx?$|(^|\/)src\/electron\/work-engine\/bench/.test(file);
 }
 
 function estimateRisk(changedFiles: string[], impactedFiles: string[], fullSuiteRequired: boolean) {

@@ -83,12 +83,14 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
         files: surface.files,
         reason: surface.reason,
       })),
-      relevantScripts: (snapshot.scripts ?? []).map((script) => ({
-        name: script.name,
-        command: script.command,
-        reason: `${script.signal} script from workspace snapshot.`,
-      })),
-      knownFailures: snapshot.failures ?? [],
+      relevantScripts: (snapshot.scripts ?? [])
+        .filter((script) => !isRuntimePollutionText(`${script.name}\n${script.command}`))
+        .map((script) => ({
+          name: script.name,
+          command: script.command,
+          reason: `${script.signal} script from workspace snapshot.`,
+        })),
+      knownFailures: (snapshot.failures ?? []).filter((failure) => !isRuntimePollutionText(`${failure.command}\n${failure.signature}`)),
     },
     validationPlan: {
       required: validationRequired,
@@ -195,9 +197,14 @@ function selectScript(
 ) {
   return scripts.find(
     (script) =>
+      !isRuntimePollutionText(`${script.name}\n${script.command}`) &&
       script.command !== excludeCommand &&
       (names.includes(script.signal) || names.some((name) => script.name.toLowerCase().includes(name))),
   );
+}
+
+function isRuntimePollutionText(text: string) {
+  return /(?:^|\s)test:[^\s]*work[^\s]*engine\b|work-engine\/bench|bench[^\s]*\/fixtures|fixture-repo|enforcement-advers|self.?smoke/i.test(text);
 }
 
 function normalizeSensitiveSurfaceKind(kind: string): SensitiveSurfaceKind {

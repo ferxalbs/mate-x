@@ -15,8 +15,7 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test:work-engine": "PATH=\"$BUN_INSTALL/bin:$PATH\" bun test src/electron/work-engine/work-engine.test.ts src/electron/work-engine/enforcement-adversarial.test.ts src/electron/work-engine/benchmark/benchmark.test.ts src/electron/work-engine/benchmark/fixture-repo-benchmark.test.ts src/electron/work-engine/self-smoke.test.ts src/electron/work-engine/run-artifact.test.ts src/electron/work-engine/run-artifact-runtime.test.ts"
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": {
