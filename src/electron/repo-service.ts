@@ -1599,11 +1599,7 @@ function summarizeToolOutput(content: unknown) {
 
 function isCleanCurrentChangeReview(prompt: string, snapshot: RepoSnapshot) {
   const normalizedPrompt = prompt.toLowerCase();
-  const asksForCurrentChangeReview =
-    /\breview\b/.test(normalizedPrompt) &&
-    /\bcurrent changes?\b/.test(normalizedPrompt) &&
-    /\brisk\b/.test(normalizedPrompt);
-  if (!asksForCurrentChangeReview) return false;
+  if (!isCurrentChangeReviewPrompt(normalizedPrompt)) return false;
 
   return snapshot.statusLines.every((line) => {
     const trimmed = line.trim();
@@ -1614,10 +1610,27 @@ function isCleanCurrentChangeReview(prompt: string, snapshot: RepoSnapshot) {
   });
 }
 
+function isCurrentChangeReviewPrompt(prompt: string) {
+  return (
+    /\breview\b/.test(prompt) &&
+    /\bcurrent changes?\b/.test(prompt) &&
+    /\brisk\b/.test(prompt)
+  );
+}
+
 function isAllowedCleanReviewToolCall(toolCall: AgentToolCall) {
   if (toolCall.name !== "git_diag") return false;
   const args = parseToolCallArguments(toolCall.arguments);
   return args?.operation === "diff";
+}
+
+function isAllowedCurrentChangeReviewToolCall(toolCall: AgentToolCall) {
+  if (toolCall.name === "git_diag") {
+    const args = parseToolCallArguments(toolCall.arguments);
+    return args?.operation === "diff";
+  }
+
+  return toolCall.name === "read" || toolCall.name === "read_many" || toolCall.name === "rg";
 }
 
 function isCleanGitDiffToolResult(result: {
@@ -2580,6 +2593,7 @@ Security tool playbook:
 - For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
 - For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
 - For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
+For review_classify_summarize, stay read-only: inspect git diff/status and needed file context, classify risk, then stop. Do not call plan_validation, run_tests, sandbox_run, evidence_pack, or patch tools for a pure current-change review.
 Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
 For review current changes/classify risk tasks with a clean git status and zero diff churn, stop after git status/diff evidence. Do not call plan_validation, run_tests, sandbox_run, git show, or extra ls/read tools for clean current-change review.
 Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.

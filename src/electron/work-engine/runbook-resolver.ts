@@ -23,17 +23,22 @@ export function resolveWorkRunbook(intent: WorkIntent, _risk: WorkRisk): WorkRun
   }
 }
 
-export function runbookRequiresValidation(runbook: WorkRunbook, risk: WorkRisk, changedFiles: string[] = []) {
+export function runbookRequiresValidation(
+  runbook: WorkRunbook,
+  _risk: WorkRisk,
+  _changedFiles: string[] = [],
+) {
   // patch_test_verify and validate_only always require validation.
   if (runbook === "patch_test_verify" || runbook === "validate_only") return true;
-  // review_classify_summarize: only require validation when files were actually changed at medium/high risk.
-  if (runbook === "review_classify_summarize") {
-    return changedFiles.length > 0 && risk !== "low";
-  }
+  // review_classify_summarize is read-only. It classifies current diff risk; it does not patch or validate.
+  if (runbook === "review_classify_summarize") return false;
   return false;
 }
 
-export function runbookRequiresEvidence(runbook: WorkRunbook, changedFiles: string[] = []) {
+export function runbookRequiresEvidence(
+  runbook: WorkRunbook,
+  _changedFiles: string[] = [],
+) {
   // Evidence-heavy runbooks always require it regardless of file count.
   if (
     [
@@ -46,10 +51,8 @@ export function runbookRequiresEvidence(runbook: WorkRunbook, changedFiles: stri
   ) {
     return true;
   }
-  // For a read-only review with no changed files, no evidence artifact is needed.
-  if (runbook === "review_classify_summarize") {
-    return changedFiles.length > 0;
-  }
+  // Read-only review evidence is the working set/tool trace, not an Evidence Pack artifact.
+  if (runbook === "review_classify_summarize") return false;
   return false;
 }
 
