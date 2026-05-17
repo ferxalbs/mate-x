@@ -160,5 +160,34 @@ function idsFor(eventIdsByTool: Map<string, string[]>, tools: Set<string>) {
 }
 
 function toolFailed(output: unknown) {
-  return /(?:^|\b)(failed|error|exit code [1-9]|not ok|blocked)\b/i.test(String(output ?? ""));
+  const text = String(output ?? "");
+  const sandboxStatus = text.match(/^Status:\s*(PASSED|FAILED|TIMED_OUT|START_FAILED|TERMINATED)$/im)?.[1];
+  if (sandboxStatus) {
+    return sandboxStatus !== "PASSED";
+  }
+
+  const sandboxExitCode = text.match(/^Exit code:\s*(-?\d+)$/im)?.[1];
+  if (sandboxExitCode) {
+    return Number(sandboxExitCode) !== 0;
+  }
+
+  try {
+    const parsed = JSON.parse(text) as { status?: unknown; exitCode?: unknown; error?: unknown; verdict?: unknown };
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
+      return true;
+    }
+    if (typeof parsed.exitCode === "number") {
+      return parsed.exitCode !== 0;
+    }
+    if (parsed.status === "success" || parsed.status === "passed") {
+      return false;
+    }
+    if (parsed.status === "failed" || parsed.status === "blocked" || parsed.status === "timed_out") {
+      return true;
+    }
+  } catch {
+    // Fall through to legacy text heuristic for unstructured tools.
+  }
+
+  return /(?:^|\b)(failed|error|exit code [1-9]|not ok|blocked)\b/i.test(text);
 }
