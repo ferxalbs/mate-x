@@ -132,6 +132,35 @@ export function GitPanel() {
   const canPush = (status?.ahead ?? 0) > 0 && !isRunning;
   const canPull = !isRunning;
 
+  useEffect(() => {
+    const handleGitAction = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+
+      if (action === 'commit' || action === 'commit-push') {
+        if (!canCommit) {
+          textareaRef.current?.focus();
+          return;
+        }
+
+        void (async () => {
+          await commit();
+          await refresh();
+          if (action === 'commit-push') {
+            await push();
+          }
+        })();
+        return;
+      }
+
+      if (action === 'push-pr') {
+        void push();
+      }
+    };
+
+    window.addEventListener('mate:git-action', handleGitAction);
+    return () => window.removeEventListener('mate:git-action', handleGitAction);
+  }, [canCommit, commit, push, refresh]);
+
   return (
     <div className="flex flex-col gap-0">
       {/* Branch header */}

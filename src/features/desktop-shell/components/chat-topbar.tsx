@@ -79,6 +79,13 @@ export function ChatTopbar({
   const sendLiveCommand = (detail: { action?: 'open' | 'scan'; view?: 'trace' | 'impact' | 'validation' | 'evidence' }) => {
     window.dispatchEvent(new CustomEvent('mate:enhancement-panel-command', { detail }));
   };
+  const openSelectedTarget = () => {
+    void openWorkspacePath(openTarget as 'folder' | 'vscode' | 'terminal');
+  };
+  const runGitAction = () => {
+    window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: gitAction } }));
+    window.dispatchEvent(new Event('mate:toggle-git-panel'));
+  };
 
   return (
     <header
@@ -147,7 +154,7 @@ export function ChatTopbar({
           </MenuPopup>
         </Menu>
         <Menu>
-          <MenuTrigger render={<TitlebarButton onClick={() => undefined} />}>
+          <MenuTrigger render={<TitlebarButton onClick={openSelectedTarget} />}>
             <ExternalLinkIcon className="size-3.5" />
             {openTarget === 'folder' ? 'Open' : openTarget === 'vscode' ? 'VS Code' : 'Terminal'}
             <ChevronDownIcon className="size-3.5 text-muted-foreground" />
@@ -180,7 +187,7 @@ export function ChatTopbar({
           </MenuPopup>
         </Menu>
         <Menu>
-          <MenuTrigger render={<TitlebarButton onClick={() => undefined} />}>
+          <MenuTrigger render={<TitlebarButton onClick={runGitAction} />}>
             <GitBranchIcon className="size-3.5" />
             {gitAction === 'commit-push'
               ? 'Commit & push'
@@ -190,9 +197,30 @@ export function ChatTopbar({
             <ChevronDownIcon className="size-3.5 text-muted-foreground" />
           </MenuTrigger>
           <MenuPopup align="end">
-            <MenuItem onClick={() => setGitAction('commit')}>Commit</MenuItem>
-            <MenuItem onClick={() => setGitAction('commit-push')}>Commit &amp; push</MenuItem>
-            <MenuItem onClick={() => setGitAction('push-pr')}>Push &amp; PR</MenuItem>
+            <MenuItem
+              onClick={() => {
+                setGitAction('commit');
+                window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: 'commit' } }));
+              }}
+            >
+              Commit
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setGitAction('commit-push');
+                window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: 'commit-push' } }));
+              }}
+            >
+              Commit &amp; push
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setGitAction('push-pr');
+                window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: 'push-pr' } }));
+              }}
+            >
+              Push &amp; PR
+            </MenuItem>
           </MenuPopup>
         </Menu>
         <Button

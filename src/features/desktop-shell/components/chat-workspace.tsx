@@ -25,7 +25,7 @@ interface ChatWorkspaceProps {
   workspace: WorkspaceSummary | null;
 }
 
-const floatingComposerHeight = 152;
+const floatingComposerHeight = 228;
 
 export function ChatWorkspace({
   canUndoLastTurn,
@@ -49,9 +49,9 @@ export function ChatWorkspace({
   const reserveFloatingSpace = hasMessages && settings.floatingInput;
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-transparent">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
       <div
-        className="relative flex min-h-0 flex-1 flex-col bg-transparent"
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent"
         style={{
           paddingBottom: reserveFloatingSpace ? floatingComposerHeight : 0,
         }}
