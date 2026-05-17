@@ -23,6 +23,7 @@ const CLAIM_PATTERNS = [
   /\bsafe to merge\b/gi,
   /\bvalidated\b/gi,
   /\bvalidated by inspection\b/gi,
+  /\btests passed\b/gi,
   /\btested\b/gi,
   /\btests appear fine\b/gi,
   /\bsafe\b/gi,
@@ -65,6 +66,11 @@ export function finalizeWorkRun(input: {
   const missingRequired = requiredStages(input.workPlan, input.stages)
     .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
   const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
+  const failedValidationHardBlocker = shouldFailedValidationBlock({
+    workPlan: input.workPlan,
+    stages: input.stages,
+    failedValidation,
+  });
   const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
   const blocked = input.stages.some((stage) => stage.status === "blocked");
 
@@ -81,19 +87,22 @@ export function finalizeWorkRun(input: {
     warnings.push("Evidence-only run has no runtime Evidence Pack to package.");
   }
   if (
-    (input.workPlan.runbook === "audit_reproduce_remediate" || input.workPlan.runbook === "trace_source_to_sink") &&
+    securityProofRequired(input.workPlan) &&
     !stagePassedOrSkipped(input.stages, "security_proof_checked") &&
     /\bvulnerability\b/i.test(input.content)
   ) {
     warnings.push("Confirmed vulnerability wording unsupported by security proof stage.");
   }
+  if (failedValidation && !failedValidationHardBlocker) {
+    warnings.push("Validation command failed but validation was not required for this run.");
+  }
   if (failedValidation && /\b(passed|validated|works|complete|ready)\b/i.test(input.content)) {
-    warnings.push("Validation failed; pass/ready wording unsupported.");
+    warnings.push("Validation failed; unsupported validation success wording was downgraded.");
   }
 
   const verdict = resolveVerdict({
     missingRequired,
-    failedValidation,
+    failedValidationHardBlocker,
     fallbackMissing,
     blocked,
     evidenceRequired: input.workPlan.evidencePlan.required,
@@ -102,6 +111,34 @@ export function finalizeWorkRun(input: {
   const content = rewriteUnsupportedClaims(input.content, input.stages, warnings);
 
   return { verdict, content: appendHonestStatus(content, verdict, warnings), warnings };
+}
+
+function shouldFailedValidationBlock(input: {
+  workPlan: WorkPlan;
+  stages: WorkStage[];
+  failedValidation: boolean;
+}) {
+  if (!input.failedValidation) return false;
+  if (isReadOnlyNoChangeReview(input.workPlan, input.stages)) return false;
+  if (input.workPlan.validationPlan.required) return true;
+  if (input.workPlan.intent === "validate") return true;
+  if (input.workPlan.runbook === "patch_test_verify") return true;
+  if (stageStatus(input.stages, "patch_attempted") === "passed") return true;
+  if (securityProofRequired(input.workPlan)) return true;
+  return false;
+}
+
+function isReadOnlyNoChangeReview(workPlan: WorkPlan, stages: WorkStage[]) {
+  return (
+    workPlan.validationPlan.required === false &&
+    workPlan.intent === "review_changes" &&
+    workPlan.workingSet.changedFiles.length === 0 &&
+    stageStatus(stages, "patch_attempted") === "skipped"
+  );
+}
+
+function securityProofRequired(workPlan: WorkPlan) {
+  return workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
 }
 
 function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] {
@@ -174,14 +211,14 @@ function fallbackRequiredButMissing(workPlan: WorkPlan, toolExecutions: ToolExec
 
 function resolveVerdict(input: {
   missingRequired: WorkStageId[];
-  failedValidation: boolean;
+  failedValidationHardBlocker: boolean;
   fallbackMissing: boolean;
   blocked: boolean;
   evidenceRequired: boolean;
   evidenceAttached: boolean;
 }): FinalRunVerdict {
   if (input.blocked) return "blocked";
-  if (input.failedValidation) return "failed";
+  if (input.failedValidationHardBlocker) return "failed";
   if (input.fallbackMissing) return "needs_validation";
   if (input.missingRequired.includes("validation_executed")) return "needs_validation";
   if (input.evidenceRequired && !input.evidenceAttached) return "needs_evidence";
@@ -198,8 +235,9 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
     next = next
       .replace(/\bshould be fixed\b/gi, "may be patched, validation pending")
       .replace(/\blooks good\b/gi, "looks unverified")
-      .replace(/\bsafe to merge\b/gi, "not merge-ready")
+      .replace(/\bsafe to merge\b/gi, "merge safety not proven")
       .replace(/\bvalidated by inspection\b/gi, "reviewed by inspection; runtime validation pending")
+      .replace(/\btests passed\b/gi, "runtime checks not proven")
       .replace(/\btests appear fine\b/gi, "tests not proven by runtime evidence")
       .replace(/\bno obvious issue\b/gi, "no proven issue from available evidence")
       .replace(/\bresolved\b/gi, "resolution unverified")
@@ -208,11 +246,11 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
       .replace(/\bverified manually\b/gi, "manual verification claim unsupported")
       .replace(/\bpatch is correct\b/gi, "patch correctness not proven")
       .replace(/\bfixed\b/gi, "patched with validation pending")
-      .replace(/\bvalidated\b/gi, "not yet validated")
-      .replace(/\btested\b/gi, "not yet tested")
-      .replace(/\bmerge-ready\b/gi, "not merge-ready")
-      .replace(/\bmerge ready\b/gi, "not merge-ready")
-      .replace(/\bcomplete\b/gi, "partially complete");
+      .replace(/\bvalidated\b/gi, "validation not proven")
+      .replace(/\btested\b/gi, "runtime checks not proven")
+      .replace(/\bmerge-ready\b/gi, "merge safety not proven")
+      .replace(/\bmerge ready\b/gi, "merge safety not proven")
+      .replace(/\bcomplete\b/gi, "incomplete");
   }
   if (!proofOk) {
     next = next
