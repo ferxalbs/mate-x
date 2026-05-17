@@ -229,6 +229,18 @@ describe("Work Engine enforcement finalizer", () => {
     assert.match(result.content, /Validation failed/);
   });
 
+  test("patch_test_verify fails when validation command failed", () => {
+    const result = finalizeWorkRun({
+      workPlan: makeWorkPlan({ required: true }),
+      stages: makeStages({ validation_planned: "passed", validation_executed: "failed", evidence_attached: "passed" }),
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" }],
+      content: "patch applied",
+      evidenceAttached: true,
+    });
+
+    assert.equal(result.verdict, "failed");
+  });
+
   test("failure memory checked before repeated failed command", () => {
     const result = finalizeWorkRun({
       workPlan: makeWorkPlan({ required: true }),
@@ -397,6 +409,57 @@ describe("review_changes with changedFiles=0 — WorkPlan semantics", () => {
     assert.notEqual(result.verdict, "needs_evidence");
   });
 
+  test("failed optional validation is advisory for review_changes + changedFiles=0", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" } as any],
+      privacyBlocked: false,
+      evidenceAttached: false,
+      noPatchNeeded: true,
+    });
+    const result = finalizeWorkRun({
+      workPlan: plan,
+      stages,
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" } as any],
+      content: "No changes found. Risk Classification: N/A.",
+      evidenceAttached: false,
+    });
+
+    assert.equal(stages.find((s) => s.id === "validation_executed")?.status, "failed");
+    assert.notEqual(result.verdict, "failed");
+    assert.notEqual(result.verdict, "needs_validation");
+    assert.notEqual(result.verdict, "needs_evidence");
+    assert.match(result.content, /Validation command failed but validation was not required/);
+    assert.doesNotMatch(result.content, /WorkPlan evidence gate failed/);
+  });
+
+  test("failed optional validation still downgrades validation and ready claims", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [{ toolName: "sandbox_run", args: {}, output: "Status: FAILED" } as any],
+      privacyBlocked: false,
+      evidenceAttached: false,
+      noPatchNeeded: true,
+    });
+    const result = finalizeWorkRun({
+      workPlan: plan,
+      stages,
+      toolExecutions: [{ toolName: "sandbox_run", args: {}, output: "Status: FAILED" } as any],
+      content: "validated, tests passed, merge-ready",
+      evidenceAttached: false,
+    });
+
+    assert.notEqual(result.verdict, "failed");
+    assert.doesNotMatch(result.content, /\bvalidated\b/i);
+    assert.doesNotMatch(result.content, /\btests passed\b/i);
+    assert.doesNotMatch(result.content, /\bmerge-ready\b/i);
+    assert.doesNotMatch(result.content, /\bready\b/i);
+  });
+
   test("evidence_attached stage is skipped (not pending/blocked) when evidence not required", () => {
     const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
     const stages = deriveWorkStages({
@@ -434,6 +497,29 @@ describe("review_changes with changedFiles>0 — validation still required", () 
     assert.equal(plan.risk, "medium");
     assert.equal(plan.validationPlan.required, true);
   });
+
+  test("failed validation blocks when changed files require validation", () => {
+    const plan = buildWorkPlanFromSnapshot(
+      makeReviewSnapshot({ changedFiles: ["src/a.ts"] }),
+    );
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" } as any],
+      privacyBlocked: false,
+      evidenceAttached: true,
+      noPatchNeeded: false,
+    });
+    const result = finalizeWorkRun({
+      workPlan: plan,
+      stages,
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" } as any],
+      content: "review complete",
+      evidenceAttached: true,
+    });
+
+    assert.equal(result.verdict, "failed");
+  });
 });
 
 describe("explicit validate prompt — validation required even with changedFiles=0", () => {
@@ -446,6 +532,32 @@ describe("explicit validate prompt — validation required even with changedFile
     });
     assert.equal(plan.intent, "validate");
     assert.equal(plan.validationPlan.required, true);
+  });
+
+  test("failed validation blocks validate intent", () => {
+    const plan = buildWorkPlanFromSnapshot({
+      prompt: "run tests",
+      mode: "build",
+      workspace: { root: "/repo", name: "test-repo" },
+      git: { branch: "main", changedFiles: [], stagedFiles: [], untrackedFiles: [] },
+    });
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" } as any],
+      privacyBlocked: false,
+      evidenceAttached: true,
+      noPatchNeeded: true,
+    });
+    const result = finalizeWorkRun({
+      workPlan: plan,
+      stages,
+      toolExecutions: [{ toolName: "run_tests", args: {}, output: "failed" } as any],
+      content: "validation complete",
+      evidenceAttached: true,
+    });
+
+    assert.equal(result.verdict, "failed");
   });
 });
 
@@ -477,5 +589,25 @@ describe("security_review with confirmed finding — still requires proof", () =
     });
     assert.match(result.content, /candidate issue/);
     assert.equal(/confirmed vulnerability/.test(result.content), false);
+  });
+
+  test("security_review blocks failed validation when proof runbook depends on validation", () => {
+    const result = finalizeWorkRun({
+      workPlan: {
+        ...makeWorkPlan({ required: false }),
+        runbook: "audit_reproduce_remediate",
+        intent: "security_review",
+      },
+      stages: makeStages({
+        security_proof_checked: "passed",
+        validation_executed: "failed",
+        evidence_attached: "passed",
+      }),
+      toolExecutions: [{ toolName: "sandbox_run", args: {}, output: "Status: FAILED" }],
+      content: "candidate issue reviewed",
+      evidenceAttached: true,
+    });
+
+    assert.equal(result.verdict, "failed");
   });
 });
