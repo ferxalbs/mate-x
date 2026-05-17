@@ -26,21 +26,21 @@ export function ComposerDock({
       className={cn(
         "bg-transparent transition-all duration-300",
         floating
-          ? "pointer-events-none absolute inset-x-0 bottom-0 z-40 pb-4"
-          : "px-8 pb-6",
+          ? "pointer-events-none absolute inset-x-0 bottom-0 z-40 px-3 pb-4 sm:px-6"
+          : "px-4 pb-6 sm:px-8",
       )}
     >
       <div
         className={cn(
-          "relative mx-auto w-full bg-transparent transition-all duration-300",
-          floating ? "pointer-events-auto px-4" : "",
+          "relative mx-auto w-full min-w-0 bg-transparent transition-all duration-300",
+          floating ? "pointer-events-auto" : "",
           settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
         )}
       >
         {showScrollButton ? (
-          <div className="pointer-events-none absolute inset-x-0 -top-12 z-10 flex justify-center transition-all">
+          <div className="pointer-events-none absolute inset-x-0 -top-10 z-10 flex justify-center transition-all">
             <Button
-              className="pointer-events-auto h-8 rounded-full border-[var(--panel-border)]/40 bg-[var(--panel)]/88 px-3 text-[11px] text-muted-foreground backdrop-blur-xl hover:bg-accent"
+              className="pointer-events-auto h-8 rounded-full border-[var(--panel-border)]/40 bg-[var(--panel)]/94 px-3 text-[11px] text-muted-foreground shadow-none backdrop-blur-xl hover:bg-accent"
               onClick={onScrollToBottom}
               size="xs"
               variant="outline"
