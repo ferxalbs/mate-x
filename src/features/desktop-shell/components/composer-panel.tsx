@@ -1,15 +1,12 @@
 import {
   ArrowUpIcon,
   BrainIcon,
-  BugIcon,
   FileIcon,
   ImageIcon,
   LoaderCircle,
   PaperclipIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
-  SparklesIcon,
-  TestTube2Icon,
   VideoIcon,
   WrenchIcon,
   XIcon,
@@ -101,9 +98,6 @@ export function ComposerPanel({
   const handlePromptChange = (value: string) => {
     setPrompt(value);
     onPromptChange?.(value);
-  };
-  const applyPreset = (value: string) => {
-    handlePromptChange(value);
   };
   const [modelValue, setModelValue] = useState("");
   const [embeddingModelValue, setEmbeddingModelValue] = useState("");
@@ -485,47 +479,6 @@ export function ComposerPanel({
               }
               value={prompt}
             />
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <button
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--panel-border)]/50 bg-transparent px-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                disabled={!hasWorkspace || isRunning}
-                onClick={() =>
-                  applyPreset(
-                    "Review current changes. Classify risk, find regressions, and propose focused fixes.",
-                  )
-                }
-                type="button"
-              >
-                <BugIcon className="size-3.5" />
-                Review
-              </button>
-              <button
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--panel-border)]/50 bg-transparent px-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                disabled={!hasWorkspace || isRunning}
-                onClick={() =>
-                  applyPreset(
-                    "Fix the broken UI and functions. Keep changes scoped, then run lint and typecheck.",
-                  )
-                }
-                type="button"
-              >
-                <SparklesIcon className="size-3.5" />
-                Fix
-              </button>
-              <button
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--panel-border)]/50 bg-transparent px-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                disabled={!hasWorkspace || isRunning}
-                onClick={() =>
-                  applyPreset(
-                    "Run validation for this repository. Prefer lint, typecheck, and targeted tests; summarize failures with exact next fixes.",
-                  )
-                }
-                type="button"
-              >
-                <TestTube2Icon className="size-3.5" />
-                Test
-              </button>
-            </div>
             {attachments.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {attachments.map((attachment) => (
