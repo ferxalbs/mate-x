@@ -897,7 +897,8 @@ function StatusIcon({ status }: { status: ToolEvent["status"] }) {
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
   const [expanded, setExpanded] = useState(event.status === "error");
   const summary = summarizeInlineTraceEvent(event);
-  const detail = extractCommandFromEvent(event) ?? event.detail;
+  const rawDetail = extractCommandFromEvent(event) ?? event.detail;
+  const detail = tryPrettyJson(rawDetail) ?? rawDetail;
 
   return (
     <div className="text-[12px] leading-5 text-muted-foreground/72">
@@ -981,8 +982,10 @@ function InlineTraceStatusDot({ status }: { status: ToolEvent["status"] }) {
 function summarizeInlineTraceEvent(event: ToolEvent) {
   const label = event.label.replace(/^Executing\s+/i, "").trim() || event.label;
   const target = extractInlineTraceTarget(event.detail);
+  // Don't append "failed" if the label already contains it (e.g. "WorkPlan final gate failed")
+  const alreadyDescribesFail = /fail/i.test(label);
 
-  if (event.status === "error") {
+  if (event.status === "error" && !alreadyDescribesFail) {
     return target ? `${label} failed - ${target}` : `${label} failed`;
   }
 

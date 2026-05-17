@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { constants } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { powerSaveBlocker } from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
@@ -32,6 +33,7 @@ const IGNORED_COPY_SUFFIXES = [".log", ".map"];
 const sandboxRunQueues = new Map<string, Promise<void>>();
 type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
 type SandboxExecutionMode = "direct" | "isolated-copy";
+type PackageManagerName = "bun" | "npm" | "pnpm" | "yarn";
 type SandboxStatus =
   | "PASSED"
   | "FAILED"
@@ -41,6 +43,113 @@ type SandboxStatus =
 
 export function parseSandboxCommand(command: string) {
   return parseDirectCommand(command);
+}
+
+async function isExecutableFile(path: string) {
+  try {
+    await access(path, constants.X_OK);
+    const pathStat = await stat(path);
+    return pathStat.isFile();
+  } catch {
+    return false;
+  }
+}
+
+function pathEnvEntries(env: NodeJS.ProcessEnv) {
+  return (env.PATH ?? env.Path ?? "")
+    .split(process.platform === "win32" ? ";" : ":")
+    .filter(Boolean);
+}
+
+function executableNames(command: string) {
+  if (process.platform !== "win32") {
+    return [command];
+  }
+
+  if (/\.(exe|cmd|bat)$/i.test(command)) {
+    return [command];
+  }
+
+  const extensions = (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM")
+    .split(";")
+    .filter(Boolean);
+  return [command, ...extensions.map((extension) => `${command}${extension.toLowerCase()}`)];
+}
+
+async function lookupExecutableOnPath(command: string, env: NodeJS.ProcessEnv) {
+  if (command.includes("/") || command.includes("\\")) {
+    return await isExecutableFile(command) ? command : undefined;
+  }
+
+  for (const entry of pathEnvEntries(env)) {
+    for (const executableName of executableNames(command)) {
+      const candidate = join(entry, executableName);
+      if (await isExecutableFile(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function lookupBunExecutableOnPath(env: NodeJS.ProcessEnv) {
+  for (const entry of pathEnvEntries(env)) {
+    if (entry.split(/[\\/]/).slice(-2).join("/") === "node_modules/.bin") {
+      continue;
+    }
+
+    const candidate = join(entry, process.platform === "win32" ? "bun.exe" : "bun");
+    if (await isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function packageManagerForCommand(command: string): PackageManagerName | undefined {
+  const name = basename(command).replace(/\.(cmd|exe|bat)$/i, "");
+  return name === "bun" || name === "npm" || name === "pnpm" || name === "yarn"
+    ? name
+    : undefined;
+}
+
+function isBunProcessPath(path: string | undefined) {
+  return path ? basename(path).toLowerCase().startsWith("bun") : false;
+}
+
+export async function resolveSandboxExecutable(input: {
+  cmd: string;
+  env?: NodeJS.ProcessEnv;
+}) {
+  const env = input.env ?? process.env;
+  const packageManager = packageManagerForCommand(input.cmd);
+
+  if (packageManager === "bun") {
+    const bunInstall = env.BUN_INSTALL;
+    const bunInstallCandidate = bunInstall
+      ? join(bunInstall, "bin", process.platform === "win32" ? "bun.exe" : "bun")
+      : undefined;
+    if (bunInstallCandidate && await isExecutableFile(bunInstallCandidate)) {
+      return { executable: bunInstallCandidate, packageManager };
+    }
+
+    const pathCandidate = await lookupBunExecutableOnPath(env);
+    if (pathCandidate) {
+      return { executable: pathCandidate, packageManager };
+    }
+
+    if (isBunProcessPath(process.execPath) && await isExecutableFile(process.execPath)) {
+      return { executable: process.execPath, packageManager };
+    }
+  }
+
+  const executable = await lookupExecutableOnPath(input.cmd, env);
+  return {
+    executable: executable ?? input.cmd,
+    packageManager,
+  };
 }
 
 function resolveSandboxCommand(input: { command: unknown; args: unknown }) {
@@ -214,6 +323,12 @@ export function buildSandboxReport(input: {
   cleanupDurationMs?: number;
   copiedFileCount?: number;
   copiedBytes?: number;
+  resolvedExecutable?: string;
+  args?: string[];
+  cwd?: string;
+  timedOut?: boolean;
+  spawnErrorCode?: string;
+  packageManager?: PackageManagerName;
 }) {
   const durationMs = Date.now() - input.startedAt;
   const exitLine =
@@ -225,6 +340,12 @@ export function buildSandboxReport(input: {
     "Sandbox Report: Execution completed.",
     `Status: ${input.status}`,
     `Execution mode: ${input.executionMode ?? DEFAULT_EXECUTION_MODE}`,
+    input.packageManager ? `Package manager: ${input.packageManager}` : undefined,
+    input.resolvedExecutable ? `Resolved executable: ${input.resolvedExecutable}` : undefined,
+    input.args ? `Args: ${JSON.stringify(input.args)}` : undefined,
+    input.cwd ? `CWD: ${input.cwd}` : undefined,
+    `Timed out: ${input.timedOut ?? input.status === "TIMED_OUT"}`,
+    input.spawnErrorCode ? `Spawn error code: ${input.spawnErrorCode}` : undefined,
     input.cleanupStatus ? `Cleanup: ${input.cleanupStatus}` : undefined,
     exitLine,
     `PID: ${input.pid ?? "unknown"}`,
@@ -442,6 +563,11 @@ export const sandboxRunnerTool: Tool = {
     const powerSaveBlockerType = resolvePowerSaveBlockerType(
       args.powerSaveBlockerType,
     );
+    const childEnv = buildToolProcessEnv({ PORT: port, NODE_ENV: nodeEnv });
+    const resolvedCommand = await resolveSandboxExecutable({
+      cmd,
+      env: childEnv,
+    });
 
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     const profile = activeWorkspaceId
@@ -496,28 +622,12 @@ export const sandboxRunnerTool: Tool = {
       let output = "";
       let finished = false;
       let timedOut = false;
+      const timerRef: { current?: NodeJS.Timeout } = {};
       const startedAt = Date.now();
       const powerBlockerId = startPowerSaveBlocker(
         keepAwake,
         powerSaveBlockerType,
       );
-
-      const child = spawn(cmd, cmdArgs, {
-        cwd: preparedWorkspace.runPath,
-        env: buildToolProcessEnv({ PORT: port, NODE_ENV: nodeEnv }),
-        detached: process.platform !== "win32",
-        windowsHide: true,
-      });
-
-      child.stdout.on("data", (data) => {
-        const text = data.toString();
-        output = appendOutput(output, text, maxOutputChars);
-      });
-
-      child.stderr.on("data", (data) => {
-        const err = data.toString();
-        output = appendOutput(output, `\\n[STDERR] ${err}`, maxOutputChars);
-      });
 
       const finish = async (
         reportInput: Omit<
@@ -531,7 +641,9 @@ export const sandboxRunnerTool: Tool = {
         }
 
         finished = true;
-        clearTimeout(timer);
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+        }
         stopPowerSaveBlocker(powerBlockerId);
         let cleanupStatus: string;
         let cleanupDurationMs = 0;
@@ -565,8 +677,9 @@ export const sandboxRunnerTool: Tool = {
         })}`);
       };
 
-      child.on("error", (error) => {
+      const finishStartFailure = (error: Error, pid?: number) => {
         const failure = formatStartFailure(error, command);
+        const spawnErrorCode = (error as NodeJS.ErrnoException).code;
         output = appendOutput(output, `\n[ERROR] ${failure}`, maxOutputChars);
         void finish(
           {
@@ -581,15 +694,55 @@ export const sandboxRunnerTool: Tool = {
             powerSaveBlockerType,
             startedAt,
             exitCode: 1,
-            pid: child.pid,
+            pid,
+            resolvedExecutable: resolvedCommand.executable,
+            args: cmdArgs,
+            cwd: preparedWorkspace.runPath,
+            timedOut: false,
+            spawnErrorCode,
+            packageManager: resolvedCommand.packageManager,
           },
           1,
         );
+      };
+
+      let childStarted = false;
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = spawn(resolvedCommand.executable, cmdArgs, {
+          cwd: preparedWorkspace.runPath,
+          env: childEnv,
+          detached: process.platform !== "win32",
+          windowsHide: true,
+        });
+      } catch (error) {
+        finishStartFailure(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+
+      child.stdout?.on("data", (data) => {
+        const text = data.toString();
+        output = appendOutput(output, text, maxOutputChars);
       });
 
-      const timer = setTimeout(() => {
+      child.stderr?.on("data", (data) => {
+        const err = data.toString();
+        output = appendOutput(output, `\\n[STDERR] ${err}`, maxOutputChars);
+      });
+
+      child.on("error", (error) => {
+        finishStartFailure(error, child.pid);
+      });
+
+      child.on("spawn", () => {
+        childStarted = true;
+      });
+
+      timerRef.current = setTimeout(() => {
         timedOut = true;
-        killProcessTree(child.pid);
+        if (childStarted) {
+          killProcessTree(child.pid);
+        }
         void finish(
           {
             status: "TIMED_OUT",
@@ -604,6 +757,11 @@ export const sandboxRunnerTool: Tool = {
             startedAt,
             exitCode: 124,
             pid: child.pid,
+            resolvedExecutable: resolvedCommand.executable,
+            args: cmdArgs,
+            cwd: preparedWorkspace.runPath,
+            timedOut: true,
+            packageManager: resolvedCommand.packageManager,
           },
           124,
         );
@@ -632,6 +790,11 @@ export const sandboxRunnerTool: Tool = {
             exitCode: code,
             signal,
             pid: child.pid,
+            resolvedExecutable: resolvedCommand.executable,
+            args: cmdArgs,
+            cwd: preparedWorkspace.runPath,
+            timedOut: false,
+            packageManager: resolvedCommand.packageManager,
           },
           code ?? undefined,
         );
