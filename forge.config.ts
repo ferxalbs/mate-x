@@ -56,6 +56,12 @@ const config: ForgeConfig = {
     asar: {
       unpack: '**/*.node',
     },
+    ignore: [
+      /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\]benchmark([/\\]|$)/,
+      /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\].*\.test\.ts$/,
+      /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\].*[/\\]__tests__([/\\]|$)/,
+      /(^|[/\\])src[/\\]electron[/\\]work-engine[/\\].*[/\\]fixtures([/\\]|$)/,
+    ],
     executableName: 'mate-x',
     ...(process.env.APPLE_ID && {
       osxSign: {},
