@@ -54,9 +54,11 @@ export type WorkPlanInputSnapshot = {
 
 export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): WorkPlan {
   const intent = classifyWorkIntent(snapshot.prompt);
-  const risk = inferRisk(snapshot);
+  const changedFiles = changedFilesFromSnapshot(snapshot);
+  const risk = inferRisk(snapshot, intent, changedFiles);
   const runbook = resolveWorkRunbook(intent, risk);
-  const validationRequired = runbookRequiresValidation(runbook, risk);
+  const validationRequired = runbookRequiresValidation(runbook, risk, changedFiles);
+  const evidenceRequired = runbookRequiresEvidence(runbook, changedFiles);
   const primaryCommand = selectScript(snapshot.scripts ?? [], ["test", "typecheck", "lint", "build"])?.command ?? null;
   const fallbackCommand =
     risk === "high"
@@ -70,10 +72,10 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
     objective: snapshot.prompt,
     runbook,
     workingSet: {
-      primaryFiles: primaryFilesFromSnapshot(snapshot),
+      primaryFiles: primaryFilesFromSnapshot(snapshot, changedFiles),
       relatedFiles: [],
       relatedTests: snapshot.repoGraph?.relatedTests ?? [],
-      changedFiles: changedFilesFromSnapshot(snapshot),
+      changedFiles,
       impactedFiles: snapshot.repoGraph?.impactedFiles ?? [],
       entrypoints: snapshot.repoGraph?.entrypoints ?? [],
       sensitiveSurfaces: (snapshot.repoGraph?.sensitiveSurfaces ?? []).map((surface) => ({
@@ -100,12 +102,12 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
       requireSanitization: intent !== "answer" || (snapshot.privacy?.redactions ?? 0) > 0,
       blockIfP0Unsanitized: snapshot.privacy?.strict ?? true,
       includeRepoContext: intent !== "answer",
-      includeToolOutput: runbookRequiresEvidence(runbook),
+      includeToolOutput: evidenceRequired,
       reason: privacyReason(snapshot),
     },
     evidencePlan: {
-      required: runbookRequiresEvidence(runbook),
-      expectedArtifacts: expectedEvidenceArtifacts(runbook),
+      required: evidenceRequired,
+      expectedArtifacts: expectedEvidenceArtifacts(runbook, changedFiles),
       requiredClaims: requiredEvidenceClaims(runbook),
     },
     stopConditions: runbookStopConditions(runbook),
@@ -142,25 +144,36 @@ export function buildWorkPlanMetadata(
   };
 }
 
-function inferRisk(snapshot: WorkPlanInputSnapshot): WorkRisk {
+function inferRisk(
+  snapshot: WorkPlanInputSnapshot,
+  intent: ReturnType<typeof classifyWorkIntent>,
+  changedFiles: string[],
+): WorkRisk {
+  // Prompt-keyword escalation is always authoritative.
   if (/\b(auth|secret|security|rce|ssrf|injection|payment|database|migration)\b/i.test(snapshot.prompt)) {
     return "high";
   }
+  // Security-review mode with sensitive surfaces in the repo graph.
   if ((snapshot.repoGraph?.sensitiveSurfaces.length ?? 0) > 0 && snapshot.mode === "security_review") {
     return "high";
   }
-  if (changedFilesFromSnapshot(snapshot).length > 8 || (snapshot.repoGraph?.impactedFiles.length ?? 0) > 10) {
+  // For review_changes with no actual changed files, repo-graph surfaces are
+  // advisory context only — they must not drive current-change risk to medium/high.
+  if (intent === "review_changes" && changedFiles.length === 0) {
+    return "low";
+  }
+  // General risk from change volume.
+  if (changedFiles.length > 8 || (snapshot.repoGraph?.impactedFiles.length ?? 0) > 10) {
     return "medium";
   }
-  if (changedFilesFromSnapshot(snapshot).length > 0) {
+  if (changedFiles.length > 0) {
     return "medium";
   }
   return "low";
 }
 
-function primaryFilesFromSnapshot(snapshot: WorkPlanInputSnapshot) {
-  const changed = changedFilesFromSnapshot(snapshot);
-  if (changed.length > 0) return changed.slice(0, 12);
+function primaryFilesFromSnapshot(snapshot: WorkPlanInputSnapshot, changedFiles: string[]) {
+  if (changedFiles.length > 0) return changedFiles.slice(0, 12);
   return [
     ...(snapshot.repoGraph?.entrypoints ?? []).slice(0, 6),
     ...(snapshot.repoGraph?.impactedFiles ?? []).slice(0, 6),
@@ -203,12 +216,14 @@ function privacyReason(snapshot: WorkPlanInputSnapshot) {
   return "Repo context, tool output, memory, and evidence payloads must pass Privacy Sentinel before cloud transit.";
 }
 
-function expectedEvidenceArtifacts(runbook: WorkPlan["runbook"]) {
+function expectedEvidenceArtifacts(runbook: WorkPlan["runbook"], changedFiles: string[]) {
   if (runbook === "evidence_only") return ["existing runtime records", "missing evidence list"];
   if (runbook === "patch_test_verify") return ["files changed", "validation command", "validation persistence"];
   if (runbook === "audit_reproduce_remediate" || runbook === "trace_source_to_sink") {
     return ["source", "path", "sink", "mitigation check", "exploitability proof"];
   }
+  // For a read-only review with no changed files, no evidence artifact is expected.
+  if (runbook === "review_classify_summarize" && changedFiles.length === 0) return [];
   return ["files inspected", "commands run", "unresolved risks"];
 }
 

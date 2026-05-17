@@ -113,6 +113,8 @@ export function deriveWorkStages(input: {
 
   if (input.evidenceAttached || hasAny(toolNames, EVIDENCE_TOOLS)) {
     pass(stages, "evidence_attached", "runtime", "Evidence Pack attached or evidence tool ran.", idsFor(eventIdsByTool, EVIDENCE_TOOLS));
+  } else if (!input.workPlan.evidencePlan.required) {
+    skip(stages, "evidence_attached", "deterministic", "No evidence artifact required for read-only review with no changes.");
   }
 
   return stages;

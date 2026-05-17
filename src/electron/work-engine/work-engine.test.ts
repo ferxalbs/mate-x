@@ -13,6 +13,7 @@ import type { WorkPlan } from "./types";
 import { evaluateValidationGate } from "./validation-gate";
 import { finalizeWorkRun } from "./finalizer";
 import { deriveWorkStages, type WorkStage } from "./stages";
+import { buildWorkPlanFromSnapshot, type WorkPlanInputSnapshot } from "./work-engine-core";
 
 describe("Work Engine intent classifier", () => {
   test("classifies patch intent", () => {
@@ -321,3 +322,160 @@ function makeStages(overrides: Partial<Record<WorkStage["id"], WorkStage["status
     relatedToolEventIds: [],
   }));
 }
+
+// ---------------------------------------------------------------------------
+// review_changes + changedFiles=0 fix
+// ---------------------------------------------------------------------------
+
+function makeReviewSnapshot(opts: {
+  changedFiles?: string[];
+  impactedFiles?: number;
+  sensitiveSurfaces?: number;
+  prompt?: string;
+}): WorkPlanInputSnapshot {
+  return {
+    prompt: opts.prompt ?? "Review current changes. Classify risk.",
+    mode: "build",
+    workspace: { root: "/repo", name: "test-repo" },
+    git: {
+      branch: "main",
+      changedFiles: opts.changedFiles ?? [],
+      stagedFiles: [],
+      untrackedFiles: [],
+    },
+    repoGraph: {
+      status: "ready",
+      entrypoints: ["src/index.ts"],
+      impactedFiles: Array.from({ length: opts.impactedFiles ?? 0 }, (_, i) => `src/file${i}.ts`),
+      relatedTests: [],
+      sensitiveSurfaces: Array.from({ length: opts.sensitiveSurfaces ?? 0 }, (_, i) => ({
+        kind: "ipc",
+        files: [`src/ipc${i}.ts`],
+        reason: "IPC handler",
+      })),
+    },
+  };
+}
+
+describe("review_changes with changedFiles=0 — WorkPlan semantics", () => {
+  test("risk is low when there are no changed files even with many impacted/sensitive surfaces", () => {
+    const plan = buildWorkPlanFromSnapshot(
+      makeReviewSnapshot({ impactedFiles: 20, sensitiveSurfaces: 20 }),
+    );
+    assert.equal(plan.risk, "low");
+  });
+
+  test("validationRequired is false for review_changes + changedFiles=0", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    assert.equal(plan.validationPlan.required, false);
+  });
+
+  test("evidenceRequired is false for review_changes + changedFiles=0", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    assert.equal(plan.evidencePlan.required, false);
+  });
+
+  test("finalizer verdict is not blocked for review_changes + changedFiles=0", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [],
+      privacyBlocked: false,
+      evidenceAttached: false,
+      noPatchNeeded: true,
+    });
+    const result = finalizeWorkRun({
+      workPlan: plan,
+      stages,
+      toolExecutions: [],
+      content: "No changes found. Risk Classification: N/A.",
+      evidenceAttached: false,
+    });
+    assert.notEqual(result.verdict, "blocked");
+    assert.notEqual(result.verdict, "needs_validation");
+    assert.notEqual(result.verdict, "needs_evidence");
+  });
+
+  test("evidence_attached stage is skipped (not pending/blocked) when evidence not required", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [],
+      privacyBlocked: false,
+      evidenceAttached: false,
+      noPatchNeeded: true,
+    });
+    const evidenceStage = stages.find((s) => s.id === "evidence_attached");
+    assert.equal(evidenceStage?.status, "skipped");
+  });
+
+  test("validation_executed stage is skipped (not pending/blocked) when validation not required", () => {
+    const plan = buildWorkPlanFromSnapshot(makeReviewSnapshot({}));
+    const stages = deriveWorkStages({
+      workPlan: plan,
+      events: [],
+      toolExecutions: [],
+      privacyBlocked: false,
+      evidenceAttached: false,
+      noPatchNeeded: true,
+    });
+    const validationStage = stages.find((s) => s.id === "validation_executed");
+    assert.equal(validationStage?.status, "skipped");
+  });
+});
+
+describe("review_changes with changedFiles>0 — validation still required", () => {
+  test("validationRequired is true when there are changed files at medium risk", () => {
+    const plan = buildWorkPlanFromSnapshot(
+      makeReviewSnapshot({ changedFiles: ["src/a.ts", "src/b.ts"] }),
+    );
+    assert.equal(plan.risk, "medium");
+    assert.equal(plan.validationPlan.required, true);
+  });
+});
+
+describe("explicit validate prompt — validation required even with changedFiles=0", () => {
+  test("validate intent requires validation regardless of changed files", () => {
+    const plan = buildWorkPlanFromSnapshot({
+      prompt: "run tests",
+      mode: "build",
+      workspace: { root: "/repo", name: "test-repo" },
+      git: { branch: "main", changedFiles: [], stagedFiles: [], untrackedFiles: [] },
+    });
+    assert.equal(plan.intent, "validate");
+    assert.equal(plan.validationPlan.required, true);
+  });
+});
+
+describe("patch_test_verify with no validation — still needs_validation", () => {
+  test("patch_test_verify cannot succeed without validation_executed", () => {
+    const result = finalizeWorkRun({
+      workPlan: makeWorkPlan({ required: true }),
+      stages: makeStages({ validation_executed: "pending", evidence_attached: "passed" }),
+      toolExecutions: [],
+      content: "patch applied",
+      evidenceAttached: true,
+    });
+    assert.equal(result.verdict, "needs_validation");
+  });
+});
+
+describe("security_review with confirmed finding — still requires proof", () => {
+  test("security_review cannot output confirmed vulnerability without security_proof_checked", () => {
+    const result = finalizeWorkRun({
+      workPlan: {
+        ...makeWorkPlan({ required: false }),
+        runbook: "audit_reproduce_remediate",
+        intent: "security_review",
+      },
+      stages: makeStages({ security_proof_checked: "pending", evidence_attached: "passed" }),
+      toolExecutions: [],
+      content: "confirmed vulnerability in auth module",
+      evidenceAttached: true,
+    });
+    assert.match(result.content, /candidate issue/);
+    assert.equal(/confirmed vulnerability/.test(result.content), false);
+  });
+});
