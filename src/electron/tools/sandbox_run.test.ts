@@ -6,6 +6,10 @@ import { join } from "node:path";
 // @ts-expect-error Bun exposes mock at runtime; installed TS types omit it.
 import { describe, mock, test } from "bun:test";
 
+const validationRuns: any[] = [];
+let activeWorkspaceId: string | null = null;
+let latestValidationPlan: any = null;
+
 mock.module("electron", () => ({
   powerSaveBlocker: {
     isStarted: () => false,
@@ -24,8 +28,14 @@ mock.module("../failure-memory-engine", () => ({
 
 mock.module("../turso-service", () => ({
   tursoService: {
-    getActiveWorkspaceId: async () => null,
+    getActiveWorkspaceId: async () => activeWorkspaceId,
     getWorkspaceProfile: async () => null,
+    getLatestValidationPlan: async () => latestValidationPlan,
+    addValidationRun: async (run: any) => {
+      const savedRun = { ...run, id: `val-${validationRuns.length + 1}` };
+      validationRuns.push(savedRun);
+      return savedRun;
+    },
   },
 }));
 
@@ -210,6 +220,35 @@ describe("sandbox_run execution failures", () => {
     assert.match(result, /Status: PASSED/);
     assert.match(result, /Package manager: bun/);
     assert.match(result, /Args: \["--version"\]/);
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+
+  test("persists planned sandbox validation runs", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-sandbox-persist-${Date.now()}`);
+    await mkdir(workspacePath, { recursive: true });
+    validationRuns.length = 0;
+    activeWorkspaceId = "workspace-test";
+    latestValidationPlan = {
+      id: "plan-test",
+      primary: { command: "bun --version" },
+      fallback: { command: "bun --version" },
+      riskLevel: "medium",
+    };
+
+    const result = await sandboxRunnerTool.execute(
+      { command: "bun --version", timeoutSeconds: 30 },
+      { workspacePath } as any,
+    );
+
+    assert.match(result, /Status: PASSED/);
+    assert.equal(validationRuns.length, 1);
+    assert.equal(validationRuns[0].workspaceId, "workspace-test");
+    assert.equal(validationRuns[0].command, "bun --version");
+    assert.equal(validationRuns[0].scope, "sandbox_run:primary");
+    assert.equal(validationRuns[0].status, "success");
+    assert.equal(validationRuns[0].validationPlan.id, "plan-test");
+    activeWorkspaceId = null;
+    latestValidationPlan = null;
     await rm(workspacePath, { force: true, recursive: true });
   });
 });

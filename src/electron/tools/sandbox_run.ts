@@ -375,6 +375,26 @@ function persistSandboxOutcomeSoon(input: Parameters<typeof persistSandboxOutcom
   void persistSandboxOutcome(input).catch((): undefined => undefined);
 }
 
+function commandMatchesPlannedValidation(
+  command: string,
+  validationPlan: Awaited<ReturnType<typeof tursoService.getLatestValidationPlan>>,
+) {
+  const normalizedCommand = command.trim();
+  if (!validationPlan) {
+    return undefined;
+  }
+
+  if (normalizedCommand === validationPlan.primary.command.trim()) {
+    return "primary" as const;
+  }
+
+  if (normalizedCommand === validationPlan.fallback.command.trim()) {
+    return "fallback" as const;
+  }
+
+  return undefined;
+}
+
 export async function prepareSandboxWorkspace(input: {
   executionMode: SandboxExecutionMode;
   workspacePath: string;
@@ -573,11 +593,18 @@ export const sandboxRunnerTool: Tool = {
     const profile = activeWorkspaceId
       ? await tursoService.getWorkspaceProfile(activeWorkspaceId)
       : null;
+    const validationPlan = activeWorkspaceId
+      ? await tursoService.getLatestValidationPlan(activeWorkspaceId)
+      : null;
+    const plannedValidationCommand = commandMatchesPlannedValidation(
+      command,
+      validationPlan,
+    );
     const priorMatches = activeWorkspaceId
       ? await failureMemoryEngine.findSimilarFailures({
           workspaceId: activeWorkspaceId,
           command,
-          framework: profile?.testFramework,
+          framework: validationPlan?.detectedFramework ?? profile?.testFramework,
           limit: 1,
         })
       : [];
@@ -657,11 +684,24 @@ export const sandboxRunnerTool: Tool = {
         releaseSandboxRunSlot();
 
         if (activeWorkspaceId) {
+          if (plannedValidationCommand) {
+            await tursoService.addValidationRun({
+              workspaceId: activeWorkspaceId,
+              command: command.trim(),
+              scope: `sandbox_run:${plannedValidationCommand}`,
+              exitCode,
+              status: exitCode === 0 ? "success" : "failed",
+              outputSummary: output.slice(0, 5000),
+              failingTests: exitCode === 0 ? [] : [output.slice(0, 500)],
+              validationPlan: validationPlan ?? undefined,
+            });
+          }
+
           persistSandboxOutcomeSoon({
               workspaceId: activeWorkspaceId,
               command,
               exitCode,
-              framework: profile?.testFramework,
+              framework: validationPlan?.detectedFramework ?? profile?.testFramework,
               output,
               priorFailureId: priorMatches[0]?.failure.id,
           });

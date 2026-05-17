@@ -12,7 +12,7 @@ import {
 import type { WorkPlan } from "./types";
 import { evaluateValidationGate } from "./validation-gate";
 import { finalizeWorkRun } from "./finalizer";
-import type { WorkStage } from "./stages";
+import { deriveWorkStages, type WorkStage } from "./stages";
 
 describe("Work Engine intent classifier", () => {
   test("classifies patch intent", () => {
@@ -33,6 +33,35 @@ describe("Work Engine intent classifier", () => {
 
   test("classifies validation intent", () => {
     assert.equal(classifyWorkIntent("run tests"), "validate");
+  });
+});
+
+describe("Work Engine validation stage derivation", () => {
+  test("treats structured passed sandbox reports as passed despite diagnostic words", () => {
+    const stages = deriveWorkStages({
+      workPlan: makeWorkPlan({ required: true }),
+      events: [],
+      toolExecutions: [
+        {
+          toolName: "sandbox_run",
+          output: [
+            "Sandbox Report: Execution completed.",
+            "Status: PASSED",
+            "Exit code: 0",
+            "Output:",
+            "warning: previous error text in diagnostics",
+          ].join("\n"),
+        } as any,
+      ],
+      privacyBlocked: false,
+      evidenceAttached: false,
+      noPatchNeeded: false,
+    });
+
+    assert.equal(
+      stages.find((stage) => stage.id === "validation_executed")?.status,
+      "passed",
+    );
   });
 });
 
