@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.16 (3) [Work Engine Production Boundary]
+
+- Kept Work Engine benchmark, fixture, self-smoke, and test infrastructure out of production runtime imports.
+- Added Electron Forge packaging ignores for Work Engine tests, benchmarks, fixtures, and `__tests__` folders so packaged app resources only carry runtime code.
+- Verified with `bun run typecheck`, `bun run lint`, and `bun run test:work-engine`.
+
 ## Unreleased - 2026.05.16 (2) [Work Engine Enforcement and Benchmarks]
 
 - Added Work Engine internal enforcement around WorkPlans, WorkStages, FinalRunVerdict, claim downgrades, validation gates, security proof rules, Privacy Sentinel preflight, and failure-memory discipline.
