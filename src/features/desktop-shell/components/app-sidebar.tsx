@@ -1,20 +1,23 @@
 import { useState } from "react";
 import {
   ArrowLeftIcon,
-  ChevronDown,
   FileTextIcon,
-  FolderIcon,
   ListChecksIcon,
-  PlusIcon,
   RouteIcon,
   ShieldIcon,
   ShieldCheckIcon,
   SettingsIcon,
   WaypointsIcon,
   PuzzleIcon,
-  SearchIcon,
   Trash2Icon,
 } from "lucide-react";
+import {
+  CaretDownIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  MagnifyingGlassIcon,
+  NotePencilIcon,
+} from "@phosphor-icons/react";
 
 import { useChatStore } from "../../../store/chat-store";
 import { Button } from "../../../components/ui/button";
@@ -339,41 +342,41 @@ export function AppSidebar({
       ) : (
         <>
           <SidebarContent className="no-drag gap-0">
-            <SidebarGroup className="p-2">
-              <SidebarMenu className="mb-3">
+            <SidebarGroup className="px-3 py-3">
+              <SidebarMenu className="mb-5">
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"
-                    className="gap-2 rounded-2xl px-2 text-[12px] text-muted-foreground hover:text-foreground"
+                    className="h-8 gap-2 rounded-full px-0 text-[12px] text-muted-foreground hover:bg-transparent hover:text-foreground"
                     onClick={onOpenSearch}
                   >
-                    <SearchIcon className="size-3.5 shrink-0" />
-                    <span>Search</span>
-                    <KbdGroup className="ml-auto gap-0.5 opacity-65">
-                      <Kbd className="h-5 min-w-5 rounded-md bg-muted/55 px-1 text-[10px]">
-                        ⌘
-                      </Kbd>
-                      <Kbd className="h-5 min-w-5 rounded-md bg-muted/55 px-1 text-[10px]">
-                        K
+                    <span className="flex size-5 shrink-0 items-center justify-center">
+                      <MagnifyingGlassIcon className="size-4" weight="regular" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">Search</span>
+                    <KbdGroup className="shrink-0 gap-0.5 opacity-65">
+                      <Kbd className="h-5 min-w-5 rounded-lg bg-muted/55 px-1 text-[10px]">
+                        ⌘K
                       </Kbd>
                     </KbdGroup>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
-              <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
+              <div className="mb-2 flex h-6 items-center justify-between">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                   Projects
                 </span>
                 <button
                   onClick={onImportWorkspace}
-                  className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+                  className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground/55 transition-colors hover:bg-accent/70 hover:text-foreground"
                   title="Import folder"
+                  type="button"
                 >
-                  <PlusIcon className="size-3.5" />
+                  <FolderPlusIcon className="size-3.5" weight="regular" />
                 </button>
               </div>
 
-              <SidebarMenu>
+              <SidebarMenu className="gap-1">
                 {workspaces.map((project) => {
                   const isWorkspaceActive = project.id === activeWorkspaceId;
                   const isProjectOpen = expandedWorkspaces[project.id] ?? true;
@@ -387,16 +390,22 @@ export function AppSidebar({
 
                   return (
                     <SidebarMenuItem key={project.id} className="rounded-2xl">
-                      <div className="group/project flex items-center gap-1">
-                        <SidebarMenuButton
-                          size="sm"
-                          className="gap-2 rounded-2xl px-2 text-[12px] font-medium"
-                          isActive={isWorkspaceActive}
+                      <div className="group/project grid grid-cols-[1fr_auto_auto] items-center gap-1">
+                        <button
+                          className={cn(
+                            "flex h-7 min-w-0 items-center gap-2 rounded-full px-0 text-left text-[12px] font-medium transition-colors",
+                            isWorkspaceActive
+                              ? "text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
                           onClick={() => void onActivateWorkspace(project.id)}
+                          type="button"
                         >
-                          <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/60" />
-                          <span className="truncate">{project.name}</span>
-                        </SidebarMenuButton>
+                          <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
+                            <FolderIcon className="size-4" weight="regular" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                        </button>
                         {isWorkspaceActive ? (
                           <button
                             onClick={() =>
@@ -407,12 +416,14 @@ export function AppSidebar({
                             }
                             className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/45 transition-colors hover:bg-accent hover:text-foreground"
                             title={isProjectOpen ? "Collapse history" : "Expand history"}
+                            type="button"
                           >
-                            <ChevronDown
+                            <CaretDownIcon
                               className={cn(
                                 "size-3 transition-transform duration-200",
                                 isProjectOpen ? "rotate-0" : "-rotate-90",
                               )}
+                              weight="regular"
                             />
                           </button>
                         ) : null}
@@ -421,6 +432,7 @@ export function AppSidebar({
                             onClick={() => setWorkspacePendingRemoval(project)}
                             className="hidden rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
                             title={`Remove ${project.name}`}
+                            type="button"
                           >
                             <Trash2Icon className="size-3" />
                           </button>
@@ -428,8 +440,8 @@ export function AppSidebar({
                       </div>
 
                       {isWorkspaceActive && isProjectOpen ? (
-                        <div className="mt-1 flex flex-col gap-0.5 pl-4 pr-1">
-                          <div className="flex items-start justify-between gap-2 px-2 pb-1 text-[10px] text-muted-foreground/40">
+                        <div className="ml-2 mt-1 flex flex-col gap-0.5 border-l border-[var(--sidebar-border)]/70 pl-3 pr-0.5">
+                          <div className="flex items-start justify-between gap-2 pb-1 text-[10px] text-muted-foreground/40">
                             <div className="min-w-0">
                               <div className="truncate">{workspace?.path}</div>
                               <div className="truncate">{activeThreads.length} saved threads</div>
@@ -438,8 +450,9 @@ export function AppSidebar({
                               onClick={onCreateThread}
                               className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
                               title="New thread"
+                              type="button"
                             >
-                              <PlusIcon className="size-3" />
+                              <NotePencilIcon className="size-3.5" weight="regular" />
                             </button>
                           </div>
 
@@ -467,6 +480,7 @@ export function AppSidebar({
                             <button
                               onClick={() => setShowAllThreads(true)}
                               className="ml-2 mt-1 inline-flex h-7 items-center justify-center rounded-full px-3 text-[11px] text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+                              type="button"
                             >
                               Show {hiddenThreadCount} older
                             </button>
