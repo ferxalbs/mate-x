@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Desktop security review agent for local repositories.</strong><br/>
-  macOS and Windows. Local-first evidence. Typed Electron boundary.
+  <strong>Secure development agent for local repositories.</strong><br/>
+  See risk earlier. Validate fixes. Keep local-first evidence.
 </p>
 
 <p align="center">
@@ -13,14 +13,15 @@
   <a href="https://mate-x.xyz"><img alt="Website" src="https://img.shields.io/badge/website-mate--x.xyz-171717?labelColor=171717&color=10b981"></a>
 </p>
 
-MaTE X is an Electron desktop application for reviewing arbitrary local repositories with a security-first agent workflow. It opens a local codebase, classifies project surfaces, reasons over trust boundaries and data flow, produces findings with evidence, and can help generate fixes while keeping privileged operations inside the desktop main process.
+MaTE X is an Electron desktop application for writing and reviewing secure code from day one across arbitrary local repositories. It opens a local codebase, classifies project surfaces, reasons over trust boundaries and data flow, prioritizes high-signal vulnerability candidates, and helps validate fixes with evidence while keeping privileged operations inside the desktop main process.
 
-The product is designed for repository security work, not generic chat over files. Analysis must separate runtime code from tests, docs, examples, generated files, scanner rules, and reference material so findings stay grounded in the code that can actually execute.
+The product is designed for repository security work, not generic chat over files. Analysis must separate runtime code from tests, docs, examples, generated files, scanner rules, and reference material so findings stay grounded in the code that can actually execute. The goal is to move security into the development loop: see risk earlier, patch with review, verify remediation, and preserve audit-ready evidence.
 
 ## What MaTE X Does
 
-- Reviews local repositories for security-relevant behavior, configuration risk, dependency risk, unsafe data flow, and trust-boundary violations.
+- Reviews local repositories for security-relevant behavior, configuration risk, dependency risk, unsafe data flow, and trust-boundary violations before they become release blockers.
 - Uses semantic classification before reporting findings: framework, runtime surface, source role, environment, entry points, sinks, and evidence confidence.
+- Prioritizes high-impact issues, supports scoped remediation guidance, and validates fixes with tests, traces, or evidence where available.
 - Keeps file system access, Git operations, local persistence, API key lookup, and other sensitive actions in the Electron main process.
 - Sends only deliberately prepared context to the Rainy API v3 backend after local privacy checks and redaction gates.
 - Stores settings, run state, findings, and compliance artifacts locally.

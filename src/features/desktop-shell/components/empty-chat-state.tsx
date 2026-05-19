@@ -25,27 +25,27 @@ interface EmptyChatStateProps {
 const quickPrompts = [
   {
     icon: <ShieldCheckIcon className="size-3.5 text-emerald-500" />,
-    label: "Security Audit",
+    label: "Risk Review",
     prompt:
-      "Perform a full security audit of the current workspace. Focus on authentication, data validation, and potential secret leaks.",
+      "Review the current workspace for high-impact security risk. Prioritize authentication, trust boundaries, data validation, and secret exposure.",
   },
   {
     icon: <BrainIcon className="size-3.5 text-purple-500" />,
-    label: "Bug Hunting",
+    label: "Vulnerability Triage",
     prompt:
-      "Analyze the recent changes in the workspace and identify potential logical flaws or unhandled edge cases.",
+      "Triage vulnerability candidates in recent changes. Separate active runtime findings from tests, docs, examples, and reference signals.",
   },
   {
     icon: <FileTextIcon className="size-3.5 text-blue-500" />,
-    label: "Compliance",
+    label: "Fix Validation",
     prompt:
-      "Check the current codebase for compliance with industry security standards (OWASP Top 10) and our local security policies.",
+      "Validate recent security fixes with available tests, traces, and evidence. Identify any remaining exploitability conditions or missing mitigations.",
   },
   {
     icon: <ExternalLinkIcon className="size-3.5 text-amber-500" />,
-    label: "Arch Review",
+    label: "Evidence Report",
     prompt:
-      "Review the system architecture. Map the data flows between components and identify potential trust boundary issues.",
+      "Prepare an evidence-ready security report for this workspace. Include prioritized risks, remediation status, and audit-ready local evidence.",
   },
 ];
 
@@ -60,7 +60,7 @@ export function EmptyChatState({
     ? "Something needs attention"
     : !isBootstrapped
       ? "Loading workspace"
-      : `What should we build in ${workspace?.name ?? "mate-x"}?`;
+      : `What should we secure in ${workspace?.name ?? "mate-x"}?`;
   const statusText =
     lastError ??
     "MaTE X is restoring your previous session and checking local workspace state.";

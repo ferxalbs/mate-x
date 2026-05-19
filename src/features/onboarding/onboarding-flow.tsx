@@ -34,7 +34,7 @@ import type { WorkspaceTrustAutonomy, WorkspaceTrustContract } from "../../contr
 import { useTheme } from "../../hooks/use-theme";
 
 const steps = [
-  { id: "welcome", title: "Welcome", description: "Local-first security verification.", cta: "Continue" },
+  { id: "welcome", title: "Welcome", description: "Secure code from day one.", cta: "Continue" },
   { id: "preferences", title: "General setup", description: "Make the interface feel controlled.", cta: "Save preferences" },
   { id: "privacy", title: "Privacy Sentinel", description: "Prepare local secret and PII checks.", cta: "Continue" },
   { id: "api-key", title: "Rainy API", description: "Enable AI reasoning and repo embeddings.", cta: "Continue" },
@@ -43,7 +43,7 @@ const steps = [
   { id: "verification", title: "First verification run", description: "Generate first evidence pack.", cta: "Start verification" },
 ];
 
-const capabilityLine = ["Repo graph", "Privacy Sentinel", "Security Path Trace", "Evidence Pack"];
+const capabilityLine = ["Risk-first review", "Safe patching", "Fix validation", "Evidence Pack"];
 
 export function OnboardingFlow() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -215,7 +215,7 @@ export function OnboardingFlow() {
         className="mt-auto pt-16 pb-2 text-center select-none pointer-events-none"
       >
         <p className="text-[9px] tracking-[0.2em] uppercase font-bold text-muted-foreground max-w-md mx-auto leading-relaxed">
-          Local-first security verification for repo changes, secrets, traces, validation, and evidence packs.
+          See risk earlier, patch with review, validate remediation, and keep local-first evidence.
         </p>
       </motion.div>
     </div>
@@ -270,7 +270,7 @@ function IntroStep() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="text-3xl text-foreground font-bold max-w-lg mx-auto tracking-tight"
         >
-          Verify AI-generated code before it ships.
+          Write secure code from day one.
         </motion.p>
 
       </motion.div>
