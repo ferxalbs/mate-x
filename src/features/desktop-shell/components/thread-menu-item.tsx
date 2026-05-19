@@ -131,21 +131,22 @@ export function ThreadMenuItem({
           void (window as any).mate.ui.showChatContextMenu(thread.id);
         }}
         className={cn(
-          "group relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-[12px] outline-none transition-colors",
+          "group relative grid h-7 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-full px-0 text-left text-[12px] outline-none transition-colors",
           isActive
-            ? "bg-accent text-accent-foreground font-medium"
-            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            ? "bg-accent/70 text-accent-foreground font-medium"
+            : "text-muted-foreground hover:bg-accent/45 hover:text-foreground",
         )}
+        type="button"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-2 pl-2">
           <span
             className={cn(
-              "size-1.5 rounded-full",
+              "size-1.5 shrink-0 rounded-full",
               status.dotClass,
               status.pulse ? "animate-pulse" : "",
             )}
           />
-          <span className="flex-1 truncate">
+          <span className="min-w-0 flex-1 truncate">
             {isRenaming ? (
               <input
                 ref={inputRef}
@@ -170,8 +171,8 @@ export function ThreadMenuItem({
         </div>
 
         {!isRenaming && (
-          <div className="flex shrink-0 items-center justify-end">
-            <span className="hidden text-[10px] text-muted-foreground/40 group-hover:inline-block">
+          <div className="flex h-full w-[44px] shrink-0 items-center justify-end pr-2">
+            <span className="text-[10px] text-muted-foreground/40">
               {formatRelativeTimestamp(thread.lastUpdatedAt)}
             </span>
           </div>
