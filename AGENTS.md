@@ -119,6 +119,8 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 
 "Leave it better than you found it." Resolve all issues in files you touch. No broken windows, no half-finished work, no accumulated debt in modified files.
 
+**Modularization First:** New code must be highly modular and maintainable. Keep files focused, extract reusable helpers/components/services early, avoid large mixed-responsibility files, and split growing pages or APIs before they become difficult to review.
+
 ***
 
 ## UI & Shell Design Rules
