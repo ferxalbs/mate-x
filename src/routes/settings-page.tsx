@@ -11,8 +11,8 @@ import {
   RefreshCcwIcon,
   ServerIcon,
   Settings2Icon,
-  ShieldIcon,
   ShieldCheckIcon,
+  ShieldIcon,
   WaypointsIcon,
 } from 'lucide-react';
 
@@ -36,10 +36,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
-import type {
-  WorkspaceTrustAutonomy,
-  WorkspaceTrustContract,
-} from '../contracts/workspace';
+import type { WorkspaceTrustContract } from '../contracts/workspace';
 import {
   DEFAULT_APP_SETTINGS,
   type AgentTraceVersion,
@@ -69,6 +66,13 @@ import {
   updateAppSettings,
 } from '../services/settings-client';
 import { useChatStore } from '../store/chat-store';
+import {
+  isValidRainyApiKey,
+  maskKey,
+  serializeAppSettings,
+  serializeTrustContract,
+} from './settings-page-utils';
+import { SettingsTrustSection } from './settings-trust-section';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type SettingsSectionId =
@@ -80,11 +84,6 @@ type SettingsSectionId =
   | 'integrations'
   | 'agent-profiler'
   | 'workspace-memory';
-
-function maskKey(key: string) {
-  if (key.length <= 8) return '••••••••';
-  return key.slice(0, 4) + '•'.repeat(Math.min(key.length - 8, 24)) + key.slice(-4);
-}
 
 export function SettingsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -817,111 +816,12 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'trust' ? (
-              <SettingsSection title="Workspace Trust Contract" icon={<ShieldCheckIcon className="size-3.5" />}>
-                {trustDraft ? (
-                  <>
-                    <SettingsRow
-                      title="Operational profile"
-                      description={`Versioned contract for ${activeWorkspace?.name ?? 'the active workspace'}. This profile is sent into each run and enforced before tool execution.`}
-                      status={`Updated ${formatDateTime(trustDraft.updatedAt)}`}
-                      control={
-                        <Select
-                          value={trustDraft.autonomy}
-                          onValueChange={(value) => {
-                            const nextAutonomy = value as WorkspaceTrustAutonomy;
-                            if (nextAutonomy === 'unrestricted') {
-                              setIsUnrestrictedDialogOpen(true);
-                              return;
-                            }
-
-                            setTrustDraft((draft) =>
-                              draft
-                                ? {
-                                    ...draft,
-                                    autonomy: nextAutonomy,
-                                  }
-                                : draft,
-                            );
-                          }}
-                        >
-                          <SelectTrigger className="w-[190px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="plan-only">Plan only</SelectItem>
-                            <SelectItem value="approval-required">Approval required</SelectItem>
-                            <SelectItem value="trusted-patch">Trusted patch</SelectItem>
-                            <SelectItem value="unrestricted">Unrestricted</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Scope"
-                      description="Folders and files the agent can inspect or modify when a tool accepts a path."
-                      value={trustDraft.allowedPaths}
-                      onChange={(allowedPaths) =>
-                        setTrustDraft((draft) => draft ? { ...draft, allowedPaths } : draft)
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Forbidden"
-                      description="Paths that remain blocked even when they sit under an allowed folder."
-                      value={trustDraft.forbiddenPaths}
-                      onChange={(forbiddenPaths) =>
-                        setTrustDraft((draft) => draft ? { ...draft, forbiddenPaths } : draft)
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Commands"
-                      description="Exact command prefixes allowed for controlled execution tools."
-                      value={trustDraft.allowedCommands}
-                      onChange={(allowedCommands) =>
-                        setTrustDraft((draft) => draft ? { ...draft, allowedCommands } : draft)
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Network"
-                      description="Domains the main process may query during governed runs."
-                      value={trustDraft.allowedDomains}
-                      onChange={(allowedDomains) =>
-                        setTrustDraft((draft) => draft ? { ...draft, allowedDomains } : draft)
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Secrets"
-                      description="Secret labels available to runs. Empty means no workspace secrets are released."
-                      value={trustDraft.allowedSecrets}
-                      placeholder="none"
-                      onChange={(allowedSecrets) =>
-                        setTrustDraft((draft) => draft ? { ...draft, allowedSecrets } : draft)
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Allowed actions"
-                      description="Action classes the tool loop may perform inside this workspace."
-                      value={trustDraft.allowedActions}
-                      onChange={(allowedActions) =>
-                        setTrustDraft((draft) => draft ? { ...draft, allowedActions } : draft)
-                      }
-                    />
-                    <TrustTextareaRow
-                      title="Blocked actions"
-                      description="High-risk action classes the contract rejects before execution."
-                      value={trustDraft.blockedActions}
-                      onChange={(blockedActions) =>
-                        setTrustDraft((draft) => draft ? { ...draft, blockedActions } : draft)
-                      }
-                    />
-                  </>
-                ) : (
-                  <SettingsRow
-                    title="No active workspace"
-                    description="Import or activate a workspace before editing its trust contract."
-                    control={null}
-                  />
-                )}
-              </SettingsSection>
+              <SettingsTrustSection
+                activeWorkspaceName={activeWorkspace?.name}
+                trustDraft={trustDraft}
+                setTrustDraft={setTrustDraft}
+                setIsUnrestrictedDialogOpen={setIsUnrestrictedDialogOpen}
+              />
             ) : null}
 
             {section === 'privacy' ? (
@@ -1412,79 +1312,4 @@ export function SettingsPage() {
       </AlertDialog>
     </>
   );
-}
-
-function isValidRainyApiKey(value: string) {
-  return value.startsWith('ra-') || value.startsWith('rk_live_');
-}
-
-function TrustTextareaRow({
-  title,
-  description,
-  value,
-  placeholder,
-  onChange,
-}: {
-  title: string;
-  description: string;
-  value: string[];
-  placeholder?: string;
-  onChange: (value: string[]) => void;
-}) {
-  return (
-    <SettingsRow
-      title={title}
-      description={description}
-      control={
-        <textarea
-          className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/50 focus-visible:border-ring sm:w-[360px]"
-          value={value.join('\n')}
-          placeholder={placeholder}
-          onChange={(event) => onChange(parseLines(event.target.value))}
-        />
-      }
-    />
-  );
-}
-
-function parseLines(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
-function serializeAppSettings(settings: AppSettings) {
-  return JSON.stringify(settings);
-}
-
-function serializeTrustContract(contract: WorkspaceTrustContract) {
-  return JSON.stringify({
-    name: contract.name,
-    version: contract.version,
-    autonomy: contract.autonomy,
-    allowedPaths: contract.allowedPaths,
-    forbiddenPaths: contract.forbiddenPaths,
-    allowedCommands: contract.allowedCommands,
-    allowedDomains: contract.allowedDomains,
-    allowedSecrets: contract.allowedSecrets,
-    allowedActions: contract.allowedActions,
-    blockedActions: contract.blockedActions,
-  });
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'unknown';
-  }
-
-  return date.toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
 }
