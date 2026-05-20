@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.20 (1) [Agent Tool Performance and Search Guidance]
+
+- Optimized tool definition startup by deduplicating concurrent lazy tool imports and in-flight chat/responses tool definition builds.
+- Expanded `rg` into a faster guided search tool with multi-path search, context lines, result/output caps, max-file-size skipping, hidden-file control, stable path sorting, smart-case matching, workspace path validation, and generated-output exclusions.
+- Updated the agent system prompt to prefer scoped `rg` searches and `read_many` follow-up reads so repository investigation uses fewer broad scans and fewer tool round-trips.
+- Verified with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.05.16 (1) [Chat Shell Layout Rebuild]
 
 - Split chat layout ownership into `ChatWorkspace`, `EmptyChatState`, and `ComposerDock` so `HomePage` stays focused on data wiring and `MessageStream` stays stream-focused.
