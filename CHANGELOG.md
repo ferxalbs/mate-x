@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.20 (2) [Tool Service Modularization]
+
+- Split `tool-service.ts` into focused modules for shared tool types, lazy tool registration, policy-governed descriptions, and schema validation.
+- Kept `ToolService` focused on tool loading, definition caching, trust checks, and execution orchestration.
+- Verified with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.05.20 (1) [Agent Tool Performance and Search Guidance]
 
 - Optimized tool definition startup by deduplicating concurrent lazy tool imports and in-flight chat/responses tool definition builds.
