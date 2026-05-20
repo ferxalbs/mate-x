@@ -141,13 +141,13 @@ export class WorkingSetCompiler {
       gitDiffSnippets: diffSnippets,
       relatedContractsTypes: sortRanked(contracts).slice(0, 6),
       recentFailureContext: failures
-        .filter((failure) => !isRuntimePollutionText(`${failure.command}\n${failure.outputSummary}\n${failure.failingTests.join("\n")}`))
+        .filter((failure) => !isRuntimePollutionText(`${failure.command}\n${failure.outputSummary}\n${failure.failingTests?.join("\n") ?? ""}`))
         .map((failure) => ({
           command: failure.command,
           status: failure.status,
           exitCode: failure.exitCode,
           summary: failure.outputSummary,
-          failingTests: failure.failingTests.filter((testName) => !isRuntimePollutionText(testName)),
+          failingTests: failure.failingTests?.filter((testName) => !isRuntimePollutionText(testName)) ?? [],
           ranAt: failure.ranAt,
         })),
       workspacePlaybookNotes: splitPlaybookNotes(input.memoryContext?.context),
