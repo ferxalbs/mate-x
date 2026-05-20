@@ -2276,6 +2276,12 @@ Security tool playbook:
 - For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
 - For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
 - For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
+Fast search/read playbook:
+- Use rg before read when you need exact symbols, text, imports, config keys, or error strings. Prefer path/paths and include to keep search scoped.
+- Use rg maxResults and maxOutputChars for broad terms; raise them only after narrowing. Use contextLines 1-3 for nearby evidence, sort path only when stable output matters.
+- Use rg paths for multiple likely directories/files in one call instead of repeated single-path searches.
+- Use read_many after rg when you need several files or line ranges. Prefer one read_many call over many read calls.
+- Avoid ls/tree/find for code discovery when rg, RepoGraph, glob, or read_many can answer faster.
 For review_classify_summarize, stay read-only: inspect git diff/status and needed file context, classify risk, then stop. Do not call plan_validation, run_tests, sandbox_run, evidence_pack, or patch tools for a pure current-change review.
 Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
 For review current changes/classify risk tasks with a clean git status and zero diff churn, stop after git status/diff evidence. Do not call plan_validation, run_tests, sandbox_run, git show, or extra ls/read tools for clean current-change review.
@@ -2303,7 +2309,7 @@ Stop investigating once you can give a grounded answer. Do not continue until th
 If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
 In your final answer, include these explicit headings when applicable: "Verdict:", "Verdict summary:", "Confidence:", "Warnings:", "Unresolved risks:", and "Final recommendation:".
 When a bug, suspicious behavior, or code patch is involved, include "Reproduction:" with lines: "Type:", "Status:", "Existed before patch:", "Pre-patch outcome:", "Post-patch outcome:", "Location:", "Command:", and "Summary:".
-When you need to search for something, use the 'rg' tool first.
+When you need to search for something, use the rg tool first with the narrowest path/include you know, then read_many only the matched files or line ranges.
 
 Structured runbook contract (must follow):
 ${renderRunbookForPrompt(runbookDefinition)}`;
