@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
-import glob from "fast-glob"; // We can use fast-glob if available, or a manual walk. Wait, glob tool uses fast-glob? Let's check or do a robust manual walk or use standard fs/promises. Let's do fs/promises recursive read or similar.
-import { readdir, stat } from "node:fs/promises";
 import type { Tool } from "../tool-service";
 import { resolveWorkspacePath } from "./tool-utils";
 
@@ -50,27 +48,33 @@ const SECURITY_HOTSPOTS = [
   {
     id: "hardcoded-credentials",
     severity: "CRITICAL",
-    pattern: /\b(secret|passwd|password|api_key|apikey|private_key|token|auth_token)\s*[:=]\s*["'][a-zA-Z0-9_\-]{16,}["']/gi,
+    pattern: /\b(secret|passwd|password|api_key|apikey|private_key|token|auth_token)\s*[:=]\s*["'][a-zA-Z0-9_-]{16,}["']/gi,
     description: "Possible hardcoded credential or API secret token. Restructure using process.env or secure vault.",
   },
 ];
 
-async function* getFilesRecursively(dir: string): AsyncGenerator<string> {
-  const dirents = await readdir(dir, { withFileTypes: true });
+async function getFilesRecursively(dir: string): Promise<string[]> {
+  const files: string[] = [];
+  const dirents = await readdir(dir, { recursive: true, withFileTypes: true });
   for (const dirent of dirents) {
-    const res = resolve(dir, dirent.name);
-    if (dirent.isDirectory()) {
-      if (dirent.name === "node_modules" || dirent.name === ".git" || dirent.name === "dist" || dirent.name === "build") {
-        continue;
-      }
-      yield* getFilesRecursively(res);
-    } else {
-      const ext = dirent.name.split(".").pop() || "";
+    if (dirent.isFile()) {
+      const name = dirent.name;
+      const ext = name.split(".").pop() || "";
       if (["js", "ts", "jsx", "tsx", "py", "go", "java", "rb", "php"].includes(ext)) {
-        yield res;
+        const parentPath = dirent.parentPath || (dirent as any).path || "";
+        if (
+          parentPath.includes("node_modules") ||
+          parentPath.includes(".git") ||
+          parentPath.includes("dist") ||
+          parentPath.includes("build")
+        ) {
+          continue;
+        }
+        files.push(resolve(parentPath, name));
       }
     }
   }
+  return files;
 }
 
 export const semgrepScanTool: Tool = {
@@ -145,7 +149,7 @@ export const semgrepScanTool: Tool = {
         });
         
         return report;
-      } catch (err: any) {
+      } catch (_err: any) {
         // Semgrep not installed or exited with error; proceed to high-performance fallback
       }
     }
@@ -168,9 +172,8 @@ export const semgrepScanTool: Tool = {
       if (pathStat.isFile()) {
         filesToScan.push(targetPath);
       } else {
-        for await (const file of getFilesRecursively(targetPath)) {
-          filesToScan.push(file);
-        }
+        const foundFiles = await getFilesRecursively(targetPath);
+        filesToScan.push(...foundFiles);
       }
 
       for (const file of filesToScan) {
