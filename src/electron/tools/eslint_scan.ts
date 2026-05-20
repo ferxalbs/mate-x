@@ -127,7 +127,7 @@ function parseEslintJson(stdout: string, workspacePath: string): string {
     summary += `\nDetailed Issues:\n${detailsReport}`;
 
     return summary;
-  } catch (err: any) {
+  } catch (_err: any) {
     // If it's not valid JSON, return raw stdout
     return `ESLint output:\n${stdout.substring(0, 10000)}`;
   }
