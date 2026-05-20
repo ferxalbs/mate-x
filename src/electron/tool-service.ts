@@ -31,7 +31,12 @@ export class ToolService {
   private governedDescriptionCache: Map<string, string> = new Map();
   private chatToolDefinitionsCache: OpenAI.Chat.Completions.ChatCompletionTool[] =
     [];
+  private chatToolDefinitionsPromise: Promise<
+    OpenAI.Chat.Completions.ChatCompletionTool[]
+  > | null = null;
   private responsesToolDefinitionsCache: ResponsesFunctionTool[] = [];
+  private responsesToolDefinitionsPromise: Promise<ResponsesFunctionTool[]> | null =
+    null;
 
   constructor() {
     this.registerLazyTool("rg", () => import("./tools/rg").then((m) => m.rgTool));
@@ -104,7 +109,9 @@ export class ToolService {
 
     this.loadedTools.set(tool.name, tool);
     this.chatToolDefinitionsCache = [];
+    this.chatToolDefinitionsPromise = null;
     this.responsesToolDefinitionsCache = [];
+    this.responsesToolDefinitionsPromise = null;
     this.governedDescriptionCache.delete(tool.name);
   }
 
@@ -115,7 +122,9 @@ export class ToolService {
 
     this.loaders.set(name, loader);
     this.chatToolDefinitionsCache = [];
+    this.chatToolDefinitionsPromise = null;
     this.responsesToolDefinitionsCache = [];
+    this.responsesToolDefinitionsPromise = null;
     this.governedDescriptionCache.delete(name);
   }
 
@@ -152,18 +161,28 @@ export class ToolService {
       return this.chatToolDefinitionsCache;
     }
 
-    const allTools = await this.getAllTools();
+    if (!this.chatToolDefinitionsPromise) {
+      this.chatToolDefinitionsPromise = this.getAllTools()
+        .then((allTools) =>
+          allTools.map((tool) => ({
+            type: "function" as const,
+            function: {
+              name: tool.name,
+              description: this.getGovernedToolDescription(tool),
+              parameters: toStrictObjectSchema(tool.parameters),
+            },
+          })),
+        )
+        .then((definitions) => {
+          this.chatToolDefinitionsCache = definitions;
+          return definitions;
+        })
+        .finally(() => {
+          this.chatToolDefinitionsPromise = null;
+        });
+    }
 
-    this.chatToolDefinitionsCache = allTools.map((tool) => ({
-      type: "function" as const,
-      function: {
-        name: tool.name,
-        description: this.getGovernedToolDescription(tool),
-        parameters: toStrictObjectSchema(tool.parameters),
-      },
-    }));
-
-    return this.chatToolDefinitionsCache;
+    return this.chatToolDefinitionsPromise;
   }
 
   async getResponsesToolDefinitions(): Promise<ResponsesFunctionTool[]> {
@@ -171,17 +190,27 @@ export class ToolService {
       return this.responsesToolDefinitionsCache;
     }
 
-    const allTools = await this.getAllTools();
+    if (!this.responsesToolDefinitionsPromise) {
+      this.responsesToolDefinitionsPromise = this.getAllTools()
+        .then((allTools) =>
+          allTools.map((tool) => ({
+            type: "function" as const,
+            name: tool.name,
+            description: this.getGovernedToolDescription(tool),
+            parameters: toStrictObjectSchema(tool.parameters),
+            strict: true,
+          })),
+        )
+        .then((definitions) => {
+          this.responsesToolDefinitionsCache = definitions;
+          return definitions;
+        })
+        .finally(() => {
+          this.responsesToolDefinitionsPromise = null;
+        });
+    }
 
-    this.responsesToolDefinitionsCache = allTools.map((tool) => ({
-      type: "function" as const,
-      name: tool.name,
-      description: this.getGovernedToolDescription(tool),
-      parameters: toStrictObjectSchema(tool.parameters),
-      strict: true,
-    }));
-
-    return this.responsesToolDefinitionsCache;
+    return this.responsesToolDefinitionsPromise;
   }
 
   async callTool(
