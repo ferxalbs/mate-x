@@ -1,67 +1,6 @@
 import type OpenAI from "openai";
 import type { FunctionTool as ResponsesFunctionTool } from "openai/resources/responses/responses";
 
-import { rgTool } from "./tools/rg";
-import { lsTool } from "./tools/ls";
-import { readTool } from "./tools/read";
-import { gitTool } from "./tools/git";
-import { secretScanTool } from "./tools/secrets";
-import { fileMetadataTool } from "./tools/metadata";
-import { projectTreeTool } from "./tools/tree";
-import { securityAuditTool } from "./tools/audit";
-import { dependencyAnalyzerTool } from "./tools/deps";
-import { networkMapTool } from "./tools/network";
-import { sqlAuditTool } from "./tools/sql";
-import { envSafetyTool } from "./tools/env_safety";
-import { containerAuditTool } from "./tools/container";
-import { flowTraceTool } from "./tools/flow";
-import { entropyScannerTool } from "./tools/entropy";
-import { accessControlAuditTool } from "./tools/auth";
-import { securityReportTool } from "./tools/report";
-import { astGrepTool } from "./tools/ast_grep";
-import { gitForensicsTool } from "./tools/git_forensics";
-import { threatModelTool } from "./tools/threat_model";
-import { autoPatchTool } from "./tools/auto_patch";
-import { dynamicFuzzerTool } from "./tools/fuzzer";
-import { cveAuditTool } from "./tools/cve_audit";
-import { mutationTesterTool } from "./tools/mutation";
-import { sandboxRunnerTool } from "./tools/sandbox_run";
-import { trafficPoisonerTool } from "./tools/traffic_poison";
-import { mockPoisonerTool } from "./tools/mock_poison";
-import { readManyTool } from "./tools/read_many";
-import { jsonProbeTool } from "./tools/json_probe";
-import { detectWorkspaceCapabilitiesTool } from "./tools/validation_profile";
-import { validationPlanTool } from "./tools/validation_plan";
-import { validationPersistenceTool } from "./tools/validation_persistence";
-import { runTestsTool } from "./tools/run_tests";
-import {
-  findSimilarFailuresTool,
-  recordFailureTool,
-  recordResolutionTool,
-} from "./tools/failure_memory";
-import { supermemoryTool } from "./tools/supermemory";
-import { pdfReportTool } from "./tools/pdf_report";
-import { globTool } from "./tools/glob";
-import { pwdTool } from "./tools/pwd";
-import { duTool } from "./tools/du";
-import { findTool } from "./tools/find";
-import { packageAuditTool } from "./tools/package_audit";
-import { fileEditorTool } from "./tools/file_editor";
-import { httpProberTool } from "./tools/http_prober";
-import { redosAnalyzerTool } from "./tools/redos_analyzer";
-import { jwtDecoderTool } from "./tools/jwt_decoder";
-import { browserProberTool } from "./tools/browser_prober";
-import { sourceMapAnalyzerTool } from "./tools/source_map_analyzer";
-import { oobListenerTool } from "./tools/oob_listener";
-import { credsValidatorTool } from "./tools/creds_validator";
-import { prototypePollutionFuzzerTool } from "./tools/prototype_pollution_fuzzer";
-import { localNetworkReconTool } from "./tools/local_network_recon";
-import { repoGraphTool } from "./tools/repo_graph";
-import { securityPathTraceTool } from "./tools/security_path_trace";
-import { attackSurfaceScanTool } from "./tools/attack_surface_scan";
-import { candidateRevalidatorTool } from "./tools/candidate_revalidator";
-import { evidencePackTool } from "./tools/evidence_pack";
-import { deepAnalysisPipelineTool } from "./tools/deep_analysis_pipeline";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { AppSettings } from "../contracts/settings";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -86,119 +25,160 @@ export interface Tool {
 }
 
 export class ToolService {
-  private tools: Map<string, Tool> = new Map();
+  private loaders: Map<string, () => Promise<Tool>> = new Map();
+  private loadedTools: Map<string, Tool> = new Map();
   private governedDescriptionCache: Map<string, string> = new Map();
   private chatToolDefinitionsCache: OpenAI.Chat.Completions.ChatCompletionTool[] =
     [];
   private responsesToolDefinitionsCache: ResponsesFunctionTool[] = [];
 
   constructor() {
-    this.registerTool(rgTool);
-    this.registerTool(lsTool);
-    this.registerTool(readTool);
-    this.registerTool(gitTool);
-    this.registerTool(secretScanTool);
-    this.registerTool(fileMetadataTool);
-    this.registerTool(projectTreeTool);
-    this.registerTool(securityAuditTool);
-    this.registerTool(dependencyAnalyzerTool);
-    this.registerTool(networkMapTool);
-    this.registerTool(sqlAuditTool);
-    this.registerTool(envSafetyTool);
-    this.registerTool(containerAuditTool);
-    this.registerTool(flowTraceTool);
-    this.registerTool(entropyScannerTool);
-    this.registerTool(accessControlAuditTool);
-    this.registerTool(securityReportTool);
-    this.registerTool(astGrepTool);
-    this.registerTool(gitForensicsTool);
-    this.registerTool(threatModelTool);
-    this.registerTool(autoPatchTool);
-    this.registerTool(dynamicFuzzerTool);
-    this.registerTool(cveAuditTool);
-    this.registerTool(mutationTesterTool);
-    this.registerTool(sandboxRunnerTool);
-    this.registerTool(trafficPoisonerTool);
-    this.registerTool(mockPoisonerTool);
-    this.registerTool(readManyTool);
-    this.registerTool(jsonProbeTool);
-    this.registerTool(detectWorkspaceCapabilitiesTool);
-    this.registerTool(validationPlanTool);
-    this.registerTool(validationPersistenceTool);
-    this.registerTool(runTestsTool);
-    this.registerTool(findSimilarFailuresTool);
-    this.registerTool(recordFailureTool);
-    this.registerTool(recordResolutionTool);
-    this.registerTool(supermemoryTool);
-    this.registerTool(pdfReportTool);
-    this.registerTool(globTool);
-    this.registerTool(pwdTool);
-    this.registerTool(duTool);
-    this.registerTool(findTool);
-    this.registerTool(packageAuditTool);
-    this.registerTool(fileEditorTool);
-    this.registerTool(httpProberTool);
-    this.registerTool(redosAnalyzerTool);
-    this.registerTool(jwtDecoderTool);
-    this.registerTool(browserProberTool);
-    this.registerTool(sourceMapAnalyzerTool);
-    this.registerTool(oobListenerTool);
-    this.registerTool(credsValidatorTool);
-    this.registerTool(prototypePollutionFuzzerTool);
-    this.registerTool(localNetworkReconTool);
-    this.registerTool(repoGraphTool);
-    this.registerTool(securityPathTraceTool);
-    this.registerTool(attackSurfaceScanTool);
-    this.registerTool(candidateRevalidatorTool);
-    this.registerTool(evidencePackTool);
-    this.registerTool(deepAnalysisPipelineTool);
-    // Future tools can be registered here or dynamically loaded
+    this.registerLazyTool("rg", () => import("./tools/rg").then((m) => m.rgTool));
+    this.registerLazyTool("ls", () => import("./tools/ls").then((m) => m.lsTool));
+    this.registerLazyTool("read", () => import("./tools/read").then((m) => m.readTool));
+    this.registerLazyTool("git", () => import("./tools/git").then((m) => m.gitTool));
+    this.registerLazyTool("secrets", () => import("./tools/secrets").then((m) => m.secretScanTool));
+    this.registerLazyTool("metadata", () => import("./tools/metadata").then((m) => m.fileMetadataTool));
+    this.registerLazyTool("tree", () => import("./tools/tree").then((m) => m.projectTreeTool));
+    this.registerLazyTool("audit", () => import("./tools/audit").then((m) => m.securityAuditTool));
+    this.registerLazyTool("deps", () => import("./tools/deps").then((m) => m.dependencyAnalyzerTool));
+    this.registerLazyTool("network", () => import("./tools/network").then((m) => m.networkMapTool));
+    this.registerLazyTool("sql", () => import("./tools/sql").then((m) => m.sqlAuditTool));
+    this.registerLazyTool("env_safety", () => import("./tools/env_safety").then((m) => m.envSafetyTool));
+    this.registerLazyTool("container", () => import("./tools/container").then((m) => m.containerAuditTool));
+    this.registerLazyTool("flow", () => import("./tools/flow").then((m) => m.flowTraceTool));
+    this.registerLazyTool("entropy", () => import("./tools/entropy").then((m) => m.entropyScannerTool));
+    this.registerLazyTool("auth", () => import("./tools/auth").then((m) => m.accessControlAuditTool));
+    this.registerLazyTool("report", () => import("./tools/report").then((m) => m.securityReportTool));
+    this.registerLazyTool("ast_grep", () => import("./tools/ast_grep").then((m) => m.astGrepTool));
+    this.registerLazyTool("git_forensics", () => import("./tools/git_forensics").then((m) => m.gitForensicsTool));
+    this.registerLazyTool("threat_model", () => import("./tools/threat_model").then((m) => m.threatModelTool));
+    this.registerLazyTool("auto_patch", () => import("./tools/auto_patch").then((m) => m.autoPatchTool));
+    this.registerLazyTool("fuzzer", () => import("./tools/fuzzer").then((m) => m.dynamicFuzzerTool));
+    this.registerLazyTool("cve_audit", () => import("./tools/cve_audit").then((m) => m.cveAuditTool));
+    this.registerLazyTool("mutation", () => import("./tools/mutation").then((m) => m.mutationTesterTool));
+    this.registerLazyTool("sandbox_run", () => import("./tools/sandbox_run").then((m) => m.sandboxRunnerTool));
+    this.registerLazyTool("traffic_poison", () => import("./tools/traffic_poison").then((m) => m.trafficPoisonerTool));
+    this.registerLazyTool("mock_poison", () => import("./tools/mock_poison").then((m) => m.mockPoisonerTool));
+    this.registerLazyTool("read_many", () => import("./tools/read_many").then((m) => m.readManyTool));
+    this.registerLazyTool("json_probe", () => import("./tools/json_probe").then((m) => m.jsonProbeTool));
+    this.registerLazyTool("validation_profile", () => import("./tools/validation_profile").then((m) => m.detectWorkspaceCapabilitiesTool));
+    this.registerLazyTool("validation_plan", () => import("./tools/validation_plan").then((m) => m.validationPlanTool));
+    this.registerLazyTool("validation_persistence", () => import("./tools/validation_persistence").then((m) => m.validationPersistenceTool));
+    this.registerLazyTool("run_tests", () => import("./tools/run_tests").then((m) => m.runTestsTool));
+    this.registerLazyTool("find_similar_failures", () => import("./tools/failure_memory").then((m) => m.findSimilarFailuresTool));
+    this.registerLazyTool("record_failure", () => import("./tools/failure_memory").then((m) => m.recordFailureTool));
+    this.registerLazyTool("record_resolution", () => import("./tools/failure_memory").then((m) => m.recordResolutionTool));
+    this.registerLazyTool("supermemory", () => import("./tools/supermemory").then((m) => m.supermemoryTool));
+    this.registerLazyTool("pdf_report", () => import("./tools/pdf_report").then((m) => m.pdfReportTool));
+    this.registerLazyTool("glob", () => import("./tools/glob").then((m) => m.globTool));
+    this.registerLazyTool("pwd", () => import("./tools/pwd").then((m) => m.pwdTool));
+    this.registerLazyTool("du", () => import("./tools/du").then((m) => m.duTool));
+    this.registerLazyTool("find", () => import("./tools/find").then((m) => m.findTool));
+    this.registerLazyTool("package_audit", () => import("./tools/package_audit").then((m) => m.packageAuditTool));
+    this.registerLazyTool("file_editor", () => import("./tools/file_editor").then((m) => m.fileEditorTool));
+    this.registerLazyTool("http_prober", () => import("./tools/http_prober").then((m) => m.httpProberTool));
+    this.registerLazyTool("redos_analyzer", () => import("./tools/redos_analyzer").then((m) => m.redosAnalyzerTool));
+    this.registerLazyTool("jwt_decoder", () => import("./tools/jwt_decoder").then((m) => m.jwtDecoderTool));
+    this.registerLazyTool("browser_prober", () => import("./tools/browser_prober").then((m) => m.browserProberTool));
+    this.registerLazyTool("source_map_analyzer", () => import("./tools/source_map_analyzer").then((m) => m.sourceMapAnalyzerTool));
+    this.registerLazyTool("oob_listener", () => import("./tools/oob_listener").then((m) => m.oobListenerTool));
+    this.registerLazyTool("creds_validator", () => import("./tools/creds_validator").then((m) => m.credsValidatorTool));
+    this.registerLazyTool("prototype_pollution_fuzzer", () => import("./tools/prototype_pollution_fuzzer").then((m) => m.prototypePollutionFuzzerTool));
+    this.registerLazyTool("local_network_recon", () => import("./tools/local_network_recon").then((m) => m.localNetworkReconTool));
+    this.registerLazyTool("repo_graph", () => import("./tools/repo_graph").then((m) => m.repoGraphTool));
+    this.registerLazyTool("security_path_trace", () => import("./tools/security_path_trace").then((m) => m.securityPathTraceTool));
+    this.registerLazyTool("attack_surface_scan", () => import("./tools/attack_surface_scan").then((m) => m.attackSurfaceScanTool));
+    this.registerLazyTool("candidate_revalidator", () => import("./tools/candidate_revalidator").then((m) => m.candidateRevalidatorTool));
+    this.registerLazyTool("evidence_pack", () => import("./tools/evidence_pack").then((m) => m.evidencePackTool));
+    this.registerLazyTool("deep_analysis_pipeline", () => import("./tools/deep_analysis_pipeline").then((m) => m.deepAnalysisPipelineTool));
+    this.registerLazyTool("semgrep_scan", () => import("./tools/semgrep_scan").then((m) => m.semgrepScanTool));
+    this.registerLazyTool("eslint_scan", () => import("./tools/eslint_scan").then((m) => m.eslintScanTool));
   }
 
   registerTool(tool: Tool) {
-    if (this.tools.has(tool.name)) {
+    if (this.loadedTools.has(tool.name) || this.loaders.has(tool.name)) {
       throw new Error(`Tool "${tool.name}" is already registered.`);
     }
 
-    this.tools.set(tool.name, tool);
+    this.loadedTools.set(tool.name, tool);
     this.chatToolDefinitionsCache = [];
     this.responsesToolDefinitionsCache = [];
     this.governedDescriptionCache.delete(tool.name);
   }
 
-  getChatToolDefinitions(): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  registerLazyTool(name: string, loader: () => Promise<Tool>) {
+    if (this.loadedTools.has(name) || this.loaders.has(name)) {
+      throw new Error(`Tool "${name}" is already registered.`);
+    }
+
+    this.loaders.set(name, loader);
+    this.chatToolDefinitionsCache = [];
+    this.responsesToolDefinitionsCache = [];
+    this.governedDescriptionCache.delete(name);
+  }
+
+  async getTool(name: string): Promise<Tool> {
+    const loaded = this.loadedTools.get(name);
+    if (loaded) {
+      return loaded;
+    }
+
+    const loader = this.loaders.get(name);
+    if (!loader) {
+      throw new Error(`Tool "${name}" not found.`);
+    }
+
+    const tool = await loader();
+    this.loadedTools.set(name, tool);
+    return tool;
+  }
+
+  async getChatToolDefinitions(): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
     if (this.chatToolDefinitionsCache.length > 0) {
       return this.chatToolDefinitionsCache;
     }
 
-    this.chatToolDefinitionsCache = Array.from(this.tools.values()).map(
-      (tool) => ({
-        type: "function" as const,
-        function: {
-          name: tool.name,
-          description: this.getGovernedToolDescription(tool),
-          parameters: toStrictObjectSchema(tool.parameters),
-        },
-      }),
+    const tools = await Promise.all(
+      Array.from(this.loaders.keys()).map((name) => this.getTool(name))
     );
+    const loadedTools = Array.from(this.loadedTools.values());
+    const allTools = [...tools, ...loadedTools].filter(
+      (tool, index, self) => self.findIndex((t) => t.name === tool.name) === index
+    );
+
+    this.chatToolDefinitionsCache = allTools.map((tool) => ({
+      type: "function" as const,
+      function: {
+        name: tool.name,
+        description: this.getGovernedToolDescription(tool),
+        parameters: toStrictObjectSchema(tool.parameters),
+      },
+    }));
 
     return this.chatToolDefinitionsCache;
   }
 
-  getResponsesToolDefinitions(): ResponsesFunctionTool[] {
+  async getResponsesToolDefinitions(): Promise<ResponsesFunctionTool[]> {
     if (this.responsesToolDefinitionsCache.length > 0) {
       return this.responsesToolDefinitionsCache;
     }
 
-    this.responsesToolDefinitionsCache = Array.from(this.tools.values()).map(
-      (tool) => ({
-        type: "function" as const,
-        name: tool.name,
-        description: this.getGovernedToolDescription(tool),
-        parameters: toStrictObjectSchema(tool.parameters),
-        strict: true,
-      }),
+    const tools = await Promise.all(
+      Array.from(this.loaders.keys()).map((name) => this.getTool(name))
     );
+    const loadedTools = Array.from(this.loadedTools.values());
+    const allTools = [...tools, ...loadedTools].filter(
+      (tool, index, self) => self.findIndex((t) => t.name === tool.name) === index
+    );
+
+    this.responsesToolDefinitionsCache = allTools.map((tool) => ({
+      type: "function" as const,
+      name: tool.name,
+      description: this.getGovernedToolDescription(tool),
+      parameters: toStrictObjectSchema(tool.parameters),
+      strict: true,
+    }));
 
     return this.responsesToolDefinitionsCache;
   }
@@ -212,7 +192,7 @@ export class ToolService {
       settings: AppSettings;
     },
   ): Promise<string> {
-    const tool = this.tools.get(name);
+    const tool = await this.getTool(name);
     if (!tool) {
       throw new Error(`Tool "${name}" not found.`);
     }
@@ -253,7 +233,7 @@ export class ToolService {
   }
 
   hasTools() {
-    return this.tools.size > 0;
+    return this.loadedTools.size > 0 || this.loaders.size > 0;
   }
 
   private getGovernedToolDescription(tool: Tool) {
