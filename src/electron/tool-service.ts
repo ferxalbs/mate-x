@@ -27,6 +27,7 @@ export interface Tool {
 export class ToolService {
   private loaders: Map<string, () => Promise<Tool>> = new Map();
   private loadedTools: Map<string, Tool> = new Map();
+  private loadingTools: Map<string, Promise<Tool>> = new Map();
   private governedDescriptionCache: Map<string, string> = new Map();
   private chatToolDefinitionsCache: OpenAI.Chat.Completions.ChatCompletionTool[] =
     [];
@@ -129,9 +130,21 @@ export class ToolService {
       throw new Error(`Tool "${name}" not found.`);
     }
 
-    const tool = await loader();
-    this.loadedTools.set(name, tool);
-    return tool;
+    const loading = this.loadingTools.get(name);
+    if (loading) {
+      return loading;
+    }
+
+    const load = loader()
+      .then((tool) => {
+        this.loadedTools.set(name, tool);
+        return tool;
+      })
+      .finally(() => {
+        this.loadingTools.delete(name);
+      });
+    this.loadingTools.set(name, load);
+    return load;
   }
 
   async getChatToolDefinitions(): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
@@ -139,13 +152,7 @@ export class ToolService {
       return this.chatToolDefinitionsCache;
     }
 
-    const tools = await Promise.all(
-      Array.from(this.loaders.keys()).map((name) => this.getTool(name))
-    );
-    const loadedTools = Array.from(this.loadedTools.values());
-    const allTools = [...tools, ...loadedTools].filter(
-      (tool, index, self) => self.findIndex((t) => t.name === tool.name) === index
-    );
+    const allTools = await this.getAllTools();
 
     this.chatToolDefinitionsCache = allTools.map((tool) => ({
       type: "function" as const,
@@ -164,13 +171,7 @@ export class ToolService {
       return this.responsesToolDefinitionsCache;
     }
 
-    const tools = await Promise.all(
-      Array.from(this.loaders.keys()).map((name) => this.getTool(name))
-    );
-    const loadedTools = Array.from(this.loadedTools.values());
-    const allTools = [...tools, ...loadedTools].filter(
-      (tool, index, self) => self.findIndex((t) => t.name === tool.name) === index
-    );
+    const allTools = await this.getAllTools();
 
     this.responsesToolDefinitionsCache = allTools.map((tool) => ({
       type: "function" as const,
@@ -245,6 +246,18 @@ export class ToolService {
     const description = buildGovernedToolDescription(tool);
     this.governedDescriptionCache.set(tool.name, description);
     return description;
+  }
+
+  private async getAllTools(): Promise<Tool[]> {
+    const loadedTools = Array.from(this.loadedTools.values());
+    const unloadedNames = Array.from(this.loaders.keys()).filter(
+      (name) => !this.loadedTools.has(name),
+    );
+    const tools = await Promise.all(unloadedNames.map((name) => this.getTool(name)));
+
+    return [...loadedTools, ...tools].filter(
+      (tool, index, self) => self.findIndex((t) => t.name === tool.name) === index,
+    );
   }
 }
 

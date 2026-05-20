@@ -2,12 +2,48 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
 import { ripgrepPath } from '../rg-binary';
+import { clampNumber, limitTextOutput, resolveWorkspacePath } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_MAX_RESULTS = 80;
+const MAX_RESULTS = 500;
+const DEFAULT_MAX_OUTPUT_CHARS = 24_000;
+const MAX_OUTPUT_CHARS = 250_000;
+const DEFAULT_MAX_FILESIZE = '2M';
+const FORBIDDEN_DEFAULT_GLOBS = [
+  '!node_modules/**',
+  '!dist/**',
+  '!out/**',
+  '!target/**',
+  '!coverage/**',
+  '!*.lock',
+  '!*.log',
+  '!*.map',
+];
+
+function normalizePathList(path: unknown): string[] {
+  if (Array.isArray(path)) {
+    return path
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  return typeof path === 'string' && path.trim().length > 0 ? [path.trim()] : ['.'];
+}
+
+function normalizeMaxFilesize(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return DEFAULT_MAX_FILESIZE;
+  }
+
+  const normalized = value.trim();
+  return /^\d+[KMG]?$/i.test(normalized) ? normalized : DEFAULT_MAX_FILESIZE;
+}
 
 export const rgTool: Tool = {
   name: 'rg',
-  description: 'High-performance search using ripgrep. Ideal for massive repositories.',
+  description: 'High-performance code search using ripgrep. Use for fast symbol, text, and regex discovery in large repositories before reading files. Defaults skip generated/build output and cap noisy results.',
   parameters: {
     type: 'object',
     properties: {
@@ -37,18 +73,63 @@ export const rgTool: Tool = {
       },
       path: {
         type: 'string',
-        description: 'Optional path or directory to search within. Defaults to the workspace root.',
+        description: 'Optional file or directory path to search within. Defaults to the workspace root.',
+      },
+      paths: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional file or directory paths to search within. Overrides path when provided.',
+      },
+      contextLines: {
+        type: 'number',
+        description: 'Optional matching context lines before and after each match. Defaults to 0; max 8.',
+      },
+      maxResults: {
+        type: 'number',
+        description: 'Maximum result lines returned. Defaults to 80; max 500.',
+      },
+      maxOutputChars: {
+        type: 'number',
+        description: 'Maximum output characters returned. Defaults to 24000; max 120000.',
+      },
+      maxFilesize: {
+        type: 'string',
+        description: 'Skip files larger than this ripgrep size (examples: 512K, 2M, 1G). Defaults to 2M.',
+      },
+      hidden: {
+        type: 'boolean',
+        description: 'Search hidden files and directories. Defaults to false.',
+      },
+      sort: {
+        type: 'string',
+        enum: ['none', 'path'],
+        description: 'Optional deterministic sorting. Use path for stable review output; none is fastest.',
       },
     },
     required: ['query'],
   },
   async execute(args, { workspacePath, trustContract, settings: _settings }) {
-    const { query, isRegex = false, caseSensitive = false, include, exclude, wholeWord = false, path } = args;
-    const requestedPaths = path ? [path] : ['.'];
+    const {
+      query,
+      isRegex = false,
+      caseSensitive = false,
+      include,
+      exclude,
+      wholeWord = false,
+      hidden = false,
+      sort = 'none',
+    } = args;
+    const requestedPaths = normalizePathList(args.paths ?? args.path);
+    for (const requestedPath of requestedPaths) {
+      resolveWorkspacePath(workspacePath, requestedPath);
+    }
     const scopedPaths =
       trustContract && !trustContract.allowedPaths.includes('.')
         ? trustContract.allowedPaths
         : requestedPaths;
+    const contextLines = clampNumber(args.contextLines, 0, 8, 0);
+    const maxResults = clampNumber(args.maxResults, 1, MAX_RESULTS, DEFAULT_MAX_RESULTS);
+    const maxOutputChars = clampNumber(args.maxOutputChars, 1000, MAX_OUTPUT_CHARS, DEFAULT_MAX_OUTPUT_CHARS);
 
     const commandArgs = [
       '--column',
@@ -57,13 +138,19 @@ export const rgTool: Tool = {
       '--color', 'never',
       '--max-columns', '512',
       '--max-columns-preview',
+      '--max-filesize', normalizeMaxFilesize(args.maxFilesize),
     ];
 
-    if (!caseSensitive) commandArgs.push('--ignore-case');
+    if (caseSensitive) commandArgs.push('--case-sensitive');
+    else commandArgs.push('--smart-case');
     if (!isRegex) commandArgs.push('--fixed-strings');
     if (wholeWord) commandArgs.push('--word-regexp');
+    if (contextLines > 0) commandArgs.push('--context', String(contextLines));
+    if (hidden) commandArgs.push('--hidden');
+    if (sort === 'path') commandArgs.push('--sort', 'path');
     if (include) commandArgs.push('--glob', include);
     if (exclude) commandArgs.push('--glob', `!${exclude}`);
+    commandArgs.push(...FORBIDDEN_DEFAULT_GLOBS.flatMap((glob) => ['--glob', glob]));
     for (const forbiddenPath of trustContract?.forbiddenPaths ?? []) {
       commandArgs.push('--glob', `!${forbiddenPath}`);
     }
@@ -75,21 +162,24 @@ export const rgTool: Tool = {
     try {
       const { stdout } = await execFileAsync(ripgrepPath, commandArgs, {
         cwd: workspacePath,
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        maxBuffer: 10 * 1024 * 1024,
       });
 
       if (!stdout.trim()) {
         return 'No matches found.';
       }
 
-      // Limit output to prevent overwhelming the model
       const lines = stdout.split('\n').filter(Boolean);
-      const limit = 100;
-      if (lines.length > limit) {
-        return `${lines.slice(0, limit).join('\n')}\n... (truncated ${lines.length - limit} more matches)`;
+      const cappedLines =
+        lines.length > maxResults
+          ? `${lines.slice(0, maxResults).join('\n')}\n... (truncated ${lines.length - maxResults} more result lines; narrow path/include or raise maxResults)`
+          : stdout;
+      const limited = limitTextOutput(cappedLines, maxOutputChars);
+      if (limited !== cappedLines) {
+        return `${limited}\nTip: narrow path/include or raise maxOutputChars.`;
       }
 
-      return stdout;
+      return cappedLines;
     } catch (error) {
       const execError = error as { stdout?: string; stderr?: string; code?: number };
       if (execError.code === 1 && !execError.stdout) {
