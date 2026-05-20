@@ -2547,7 +2547,7 @@ async function requestRainyChatAgenticResponse({
     ...historyMessages,
     { role: "user", content: buildChatUserContent(prompt, options.attachments) },
   ];
-  const chatTools = toolService.getChatToolDefinitions();
+  const chatTools = await toolService.getChatToolDefinitions();
   const tokenEstimator = createTokenEstimator(model);
   let iterations = 0;
   let toolRounds = 0;
@@ -2914,7 +2914,7 @@ async function requestRainyResponsesAgenticResponse({
     ...buildHistoryMessages(history),
     { role: "user", content: prompt },
   ]);
-  const responseTools = toolService.getResponsesToolDefinitions();
+  const responseTools = await toolService.getResponsesToolDefinitions();
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
