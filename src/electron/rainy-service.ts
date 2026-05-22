@@ -12,7 +12,13 @@ import {
   RAINY_REQUEST_TIMEOUT_MS,
   normalizeRainyApiMode,
 } from "../config/rainy";
-import type { RainyApiMode, RainyModelCatalogEntry } from "../contracts/rainy";
+import {
+  normalizeRainyServiceTier,
+  type RainyApiMode,
+  type RainyModelCatalogEntry,
+  type RainyModelPricing,
+  type RainyServiceTier,
+} from "../contracts/rainy";
 import {
   getAcceptedParameters,
   supportsImageInput,
@@ -119,6 +125,7 @@ export function buildChatCompletionRequest(params: {
   imageConfig?: Record<string, unknown>;
   responseFormat?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
   maxTokens?: number;
+  serviceTier?: RainyServiceTier;
 }) {
   if (
     params.capabilities &&
@@ -142,6 +149,7 @@ export function buildChatCompletionRequest(params: {
     response_format?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
     max_tokens?: number;
     max_completion_tokens?: number;
+    service_tier?: Exclude<RainyServiceTier, "standard">;
   } = {
     model: params.model,
     messages: params.messages,
@@ -178,6 +186,11 @@ export function buildChatCompletionRequest(params: {
 
   if (params.responseFormat && acceptsParameter("response_format")) {
     request.response_format = params.responseFormat;
+  }
+
+  const serviceTier = normalizeRainyServiceTier(params.serviceTier);
+  if (serviceTier !== "standard") {
+    request.service_tier = serviceTier;
   }
 
   if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
@@ -505,6 +518,7 @@ export async function requestRainyChatCompletion(params: {
   model: string;
   tools?: any[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+  serviceTier?: RainyServiceTier;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const client = createRainyClient(params.apiKey);
   const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
@@ -519,6 +533,7 @@ export async function requestRainyChatCompletion(params: {
     messages: sanitized.payload.messages,
     tools: sanitized.payload.tools,
     toolChoice: params.toolChoice,
+    serviceTier: params.serviceTier,
   });
 
   try {
@@ -532,6 +547,7 @@ export async function requestRainyChatCompletion(params: {
           model: params.model,
           messages: sanitized.payload.messages,
           tools: sanitized.payload.tools,
+          serviceTier: params.serviceTier,
         }) as any,
         { timeout: RAINY_REQUEST_TIMEOUT_MS },
       );
@@ -662,6 +678,7 @@ export async function requestRainyChatCompletionStream(params: {
   includeReasoning?: boolean;
   capabilities?: RainyModelCatalogEntry["capabilities"];
   maxTokens?: number;
+  serviceTier?: RainyServiceTier;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = createRainyClient(params.apiKey);
   const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
@@ -680,6 +697,7 @@ export async function requestRainyChatCompletionStream(params: {
     includeReasoning: params.includeReasoning,
     capabilities: params.capabilities,
     maxTokens: params.maxTokens,
+    serviceTier: params.serviceTier,
   });
   const contentChunks: string[] = [];
   const toolCalls: Array<{
@@ -709,6 +727,7 @@ export async function requestRainyChatCompletionStream(params: {
           includeReasoning: params.includeReasoning,
           capabilities: params.capabilities,
           maxTokens: params.maxTokens,
+          serviceTier: params.serviceTier,
         }),
         stream: true,
       } as any,
@@ -770,6 +789,7 @@ export async function requestRainyResponsesCompletion(params: {
   previousResponseId?: string;
   tools?: ResponsesFunctionTool[];
   toolChoice?: "auto" | "required" | "none";
+  serviceTier?: RainyServiceTier;
 }): Promise<OpenAIResponse> {
   const client = createRainyClient(params.apiKey);
   const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
@@ -781,6 +801,7 @@ export async function requestRainyResponsesCompletion(params: {
     throw new Error(sanitized.reason ?? "Privacy Firewall blocked outbound Rainy request.");
   }
 
+  const serviceTier = normalizeRainyServiceTier(params.serviceTier);
   return client.responses.create(
     {
       model: params.model,
@@ -790,7 +811,8 @@ export async function requestRainyResponsesCompletion(params: {
       tools: sanitized.payload.tools,
       tool_choice: params.toolChoice,
       store: false,
-    },
+      ...(serviceTier === "standard" ? {} : { service_tier: serviceTier }),
+    } as any,
     {
       timeout: RAINY_REQUEST_TIMEOUT_MS,
     },
@@ -955,9 +977,33 @@ function normalizeRainyModelItem(item: unknown): RainyModelCatalogEntry | null {
     architecture: extractArchitecture(item),
     topProvider: extractTopProvider(item),
     perRequestLimits: extractPerRequestLimits(item),
+    pricing: extractModelPricing(item),
     supportedParameters: stringArray(item.supported_parameters),
     capabilities: extractModelCapabilities(item),
   };
+}
+
+function extractModelPricing(
+  item: Record<string, unknown>,
+): RainyModelPricing | undefined {
+  if (!isRecord(item.pricing)) {
+    return undefined;
+  }
+
+  const serviceTiers = Array.isArray(item.pricing.service_tiers)
+    ? item.pricing.service_tiers
+        .filter(isRecord)
+        .map((tier) => ({
+          ...tier,
+          tier: normalizeRainyServiceTier(firstString(tier.tier, tier.id, tier.name)),
+        }))
+        .filter((tier) => tier.tier !== "standard")
+    : undefined;
+
+  return {
+    ...item.pricing,
+    service_tiers: serviceTiers,
+  } as RainyModelPricing;
 }
 
 function extractArchitecture(

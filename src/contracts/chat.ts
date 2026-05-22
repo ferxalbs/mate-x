@@ -1,4 +1,5 @@
 import type { ToolPolicyClassification } from "./tool-policy";
+import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
 
 export type MessageRole = "user" | "assistant";
@@ -45,6 +46,7 @@ export interface AssistantRunOptions {
   reasoning: AssistantReasoningLevel;
   mode: AssistantMode;
   access: AssistantAccess;
+  serviceTier?: RainyServiceTier;
   runbookId?: AssistantRunbookId;
   attachments?: AssistantAttachment[];
 }

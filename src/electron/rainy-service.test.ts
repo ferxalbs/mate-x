@@ -16,7 +16,12 @@ import {
   supportsStructuredOutput,
   supportsTools,
 } from "../lib/rainy-model-capabilities";
-import type { RainyModelCapabilities } from "../contracts/rainy";
+import {
+  getRainyServiceTierOptions,
+  modelSupportsServiceTiers,
+  type RainyModelCapabilities,
+  type RainyModelCatalogEntry,
+} from "../contracts/rainy";
 
 describe("listRainyModels", () => {
   it("keeps providers returned by /models even when catalog is partial", async () => {
@@ -173,6 +178,60 @@ describe("listRainyModels", () => {
       }),
       "chat_completions",
     );
+  });
+
+  it("normalizes service tier metadata from model pricing", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/models/catalog")) {
+        return new Response(JSON.stringify({ data: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (url.endsWith("/models")) {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: "provider/tiered",
+                display_name: "Tiered",
+                pricing: {
+                  prompt: "1",
+                  completion: "2",
+                  service_tiers: [
+                    { tier: "flex", prompt: "0.5", completion: "1" },
+                    { tier: "priority", prompt: "2", completion: "4" },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response("not found", { status: 404 });
+    }) as typeof global.fetch;
+
+    try {
+      const models = await listRainyModels({
+        apiKey: "ra-tier-key",
+        forceRefresh: true,
+      });
+
+      assert.deepEqual(getRainyServiceTierOptions(models[0]), [
+        "standard",
+        "flex",
+        "priority",
+      ]);
+      assert.equal(modelSupportsServiceTiers(models[0]), true);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });
 
@@ -379,5 +438,83 @@ describe("buildChatCompletionRequest", () => {
     assert.equal("reasoning" in request, false);
     assert.equal("include_reasoning" in request, false);
     assert.equal("modalities" in request, false);
+  });
+
+  it("omits service_tier for Standard/default requests", () => {
+    const request = buildChatCompletionRequest({
+      model: "tiered",
+      messages: textMessage,
+      serviceTier: "standard",
+    });
+
+    assert.equal("service_tier" in request, false);
+  });
+
+  it("sends Flex and Priority service tiers", () => {
+    const flexRequest = buildChatCompletionRequest({
+      model: "tiered",
+      messages: textMessage,
+      serviceTier: "flex",
+    });
+    const priorityRequest = buildChatCompletionRequest({
+      model: "tiered",
+      messages: textMessage,
+      serviceTier: "priority",
+    });
+
+    assert.equal(flexRequest.service_tier, "flex");
+    assert.equal(priorityRequest.service_tier, "priority");
+  });
+
+  it("keeps non-tiered model requests unchanged", () => {
+    const request = buildChatCompletionRequest({
+      model: "plain",
+      messages: textMessage,
+    });
+
+    assert.deepEqual(request, { model: "plain", messages: textMessage });
+  });
+});
+
+describe("Rainy service tier options", () => {
+  const tieredModel: RainyModelCatalogEntry = {
+    id: "provider/tiered",
+    label: "Tiered",
+    description: null,
+    ownedBy: "provider",
+    supportedApiModes: ["chat_completions"],
+    preferredApiMode: "chat_completions",
+    pricing: {
+      service_tiers: [
+        { tier: "flex" },
+        { tier: "priority" },
+      ],
+    },
+  };
+
+  const plainModel: RainyModelCatalogEntry = {
+    id: "provider/plain",
+    label: "Plain",
+    description: null,
+    ownedBy: "provider",
+    supportedApiModes: ["chat_completions"],
+    preferredApiMode: "chat_completions",
+  };
+
+  it("shows Standard/Flex/Priority for tiered models", () => {
+    assert.deepEqual(getRainyServiceTierOptions(tieredModel), [
+      "standard",
+      "flex",
+      "priority",
+    ]);
+  });
+
+  it("hides selector for non-tiered models", () => {
+    assert.deepEqual(getRainyServiceTierOptions(plainModel), ["standard"]);
+    assert.equal(modelSupportsServiceTiers(plainModel), false);
+  });
+
+  it("model switch clears invalid tier by falling back to Standard options", () => {
+    assert.equal(getRainyServiceTierOptions(plainModel).includes("priority"), false);
   });
 });
