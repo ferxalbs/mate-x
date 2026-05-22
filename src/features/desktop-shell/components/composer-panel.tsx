@@ -35,7 +35,12 @@ import type {
   AssistantRunOptions,
 } from "../../../contracts/chat";
 import type { PolicyStop, PolicyStopAction } from "../../../contracts/policy";
-import type { RainyModelCatalogEntry } from "../../../contracts/rainy";
+import {
+  getRainyServiceTierOptions,
+  modelSupportsServiceTiers,
+  type RainyModelCatalogEntry,
+  type RainyServiceTier,
+} from "../../../contracts/rainy";
 import type { RepoGraphEmbeddingProgress } from "../../../contracts/repo-graph";
 import type {
   WorkspaceSummary,
@@ -120,6 +125,7 @@ export function ComposerPanel({
     useState<AssistantRunOptions["reasoning"]>("high");
   const [modeValue, setModeValue] =
     useState<AssistantRunOptions["mode"]>("build");
+  const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
   const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -211,6 +217,11 @@ export function ComposerPanel({
   const supportsFileInput = modelSupportsFileInput(selectedModel);
   const reasoningSupported = modelSupportsReasoning(selectedModel);
   const toolCallingSupported = supportsTools(selectedModel);
+  const serviceTierOptions = useMemo(
+    () => getRainyServiceTierOptions(selectedModel),
+    [selectedModel],
+  );
+  const showServiceTierSelector = modelSupportsServiceTiers(selectedModel);
   const effortOptions = useMemo(
     () => getReasoningEffortValues(selectedModel),
     [selectedModel],
@@ -250,6 +261,10 @@ export function ComposerPanel({
       return;
     }
 
+    if (!serviceTierOptions.includes(serviceTier)) {
+      setServiceTier("standard");
+    }
+
     const attachmentNotice =
       unsupportedAttachmentKinds.length > 0
         ? `This model does not support ${formatUnsupportedKinds(unsupportedAttachmentKinds)}. Remove unsupported attachments or choose another model.`
@@ -283,6 +298,8 @@ export function ComposerPanel({
     reasoningSupported,
     reasoningValue,
     selectedModel,
+    serviceTier,
+    serviceTierOptions,
     supportsFileInput,
     supportsImageInput,
     supportsReasoningEffort,
@@ -338,6 +355,7 @@ export function ComposerPanel({
       reasoning: reasoningValue,
       mode: modeValue,
       access: accessValue as AssistantRunOptions["access"],
+      serviceTier,
       runbookId: "patch_test_verify",
       attachments,
     });
@@ -370,6 +388,10 @@ export function ComposerPanel({
     try {
       await setModel(nextModel);
       setModelValue(nextModel);
+      const nextEntry = catalog.find((entry) => entry.id === nextModel);
+      if (!getRainyServiceTierOptions(nextEntry).includes(serviceTier)) {
+        setServiceTier("standard");
+      }
     } catch (error) {
       setCatalogError(
         error instanceof Error
@@ -642,6 +664,25 @@ export function ComposerPanel({
                 <SelectItem value="plan">Plan</SelectItem>
                 <SelectItem value="critic_loop">Critic Loop</SelectItem>
               </InlineSelect>
+              {showServiceTierSelector ? (
+                <InlineSelect
+                  value={serviceTier}
+                  onValueChange={(value) => setServiceTier(value as RainyServiceTier)}
+                  label={formatServiceTier(serviceTier)}
+                  title={`Service tier: ${formatServiceTier(serviceTier)}`}
+                >
+                  {serviceTierOptions.map((tier) => (
+                    <SelectItem key={tier} value={tier}>
+                      <div className="flex min-w-0 flex-col">
+                        <span>{formatServiceTier(tier)}</span>
+                        <span className="truncate text-[10px] text-muted-foreground/75">
+                          {formatServiceTierDescription(tier, selectedModel)}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </InlineSelect>
+              ) : null}
               {!supportsImageInput ? (
                 <button
                   aria-label="Images unavailable"
@@ -985,6 +1026,43 @@ function formatAssistantMode(mode: AssistantRunOptions["mode"]) {
     default:
       return "Build";
   }
+}
+
+function formatServiceTier(tier: RainyServiceTier) {
+  switch (tier) {
+    case "flex":
+      return "Flex";
+    case "priority":
+      return "Priority";
+    default:
+      return "Standard";
+  }
+}
+
+function formatServiceTierDescription(
+  tier: RainyServiceTier,
+  model: RainyModelCatalogEntry | null,
+) {
+  const tierPricing = model?.pricing?.service_tiers?.find(
+    (item) => item.tier === tier,
+  );
+  const inputPrice = tierPricing?.input ?? tierPricing?.prompt;
+  const outputPrice = tierPricing?.output ?? tierPricing?.completion;
+  const priceSummary =
+    inputPrice !== undefined || outputPrice !== undefined
+      ? [inputPrice === undefined ? null : `in ${inputPrice}`, outputPrice === undefined ? null : `out ${outputPrice}`]
+          .filter(Boolean)
+          .join(" · ")
+      : "";
+
+  const description =
+    tier === "flex"
+      ? "Cheaper, may be slower/queued"
+      : tier === "priority"
+        ? "Higher cost, faster capacity"
+        : "Default";
+
+  return priceSummary ? `${description} · ${priceSummary}` : description;
 }
 
 function resolveModelValue(

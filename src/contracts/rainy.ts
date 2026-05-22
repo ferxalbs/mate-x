@@ -1,4 +1,23 @@
 export type RainyApiMode = 'chat_completions' | 'responses';
+export type RainyServiceTier = 'standard' | 'flex' | 'priority';
+
+export interface RainyServiceTierPricing {
+  tier: RainyServiceTier;
+  input?: string | number | null;
+  output?: string | number | null;
+  prompt?: string | number | null;
+  completion?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface RainyModelPricing {
+  input?: string | number | null;
+  output?: string | number | null;
+  prompt?: string | number | null;
+  completion?: string | number | null;
+  service_tiers?: RainyServiceTierPricing[];
+  [key: string]: unknown;
+}
 
 export interface RainyModelCapabilities {
   multimodal?: {
@@ -51,6 +70,37 @@ export interface RainyModelCatalogEntry {
     completion_tokens?: number;
     output_tokens?: number;
   };
+  pricing?: RainyModelPricing;
   supportedParameters?: string[];
   capabilities?: RainyModelCapabilities;
+}
+
+export function normalizeRainyServiceTier(
+  value: unknown,
+): RainyServiceTier {
+  return value === 'flex' || value === 'priority' ? value : 'standard';
+}
+
+export function getRainyServiceTierOptions(
+  entry?: RainyModelCatalogEntry | null,
+): RainyServiceTier[] {
+  const tiers = entry?.pricing?.service_tiers;
+  if (!tiers || tiers.length === 0) {
+    return ['standard'];
+  }
+
+  const supported = new Set<RainyServiceTier>(['standard']);
+  for (const tier of tiers) {
+    supported.add(normalizeRainyServiceTier(tier.tier));
+  }
+
+  return (['standard', 'flex', 'priority'] as RainyServiceTier[]).filter(
+    (tier) => supported.has(tier),
+  );
+}
+
+export function modelSupportsServiceTiers(
+  entry?: RainyModelCatalogEntry | null,
+) {
+  return getRainyServiceTierOptions(entry).length > 1;
 }

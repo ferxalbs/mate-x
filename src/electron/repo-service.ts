@@ -21,6 +21,7 @@ import { buildAgentCapabilityRunMetrics, recommendAgentModel } from "./agent-cap
 import { collectRepoSnapshot } from "./repo-service/workspace";
 import { buildArtifacts, buildFallbackResponse, buildWorkspaceMemoryArtifacts, executeAgentToolCall, parseDirectDeepAnalysisPipelineArgs, parseDirectSecurityPathTraceArgs, requestRainyAgenticResponse, resolveDefaultRainyRuntimeConfig } from "./repo-service/agentic-runtime";
 import { buildWorkEngineArtifactSnapshot, loadCompliancePolicySources } from "./repo-service/work-engine-artifacts";
+import { getRainyServiceTierOptions } from "../contracts/rainy";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -124,6 +125,14 @@ export async function runAssistant(
       ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
       : null;
   const configuredModel = runtimeConfig?.model ?? null;
+  if (
+    runtimeConfig?.modelCatalogEntry &&
+    !getRainyServiceTierOptions(runtimeConfig.modelCatalogEntry).includes(
+      resolvedOptions.serviceTier ?? "standard",
+    )
+  ) {
+    resolvedOptions.serviceTier = "standard";
+  }
   const hasRainyConfig = Boolean(apiKey && configuredModel && rainyHostAllowed);
   const artifacts = buildArtifacts(
     snapshot,

@@ -262,6 +262,7 @@ async function attemptFinalChatSynthesis({
   iterations,
   toolRounds,
   totalToolCalls,
+  serviceTier,
   events,
   emitProgress,
 }: {
@@ -271,6 +272,7 @@ async function attemptFinalChatSynthesis({
   iterations: number;
   toolRounds: number;
   totalToolCalls: number;
+  serviceTier?: AssistantRunOptions["serviceTier"];
   events: ToolEvent[];
   emitProgress: () => void;
 }) {
@@ -298,6 +300,7 @@ async function attemptFinalChatSynthesis({
       messages,
       model,
       toolChoice: "none",
+      serviceTier,
     });
     const finalMessage = response.choices[0]?.message;
     if (finalMessage) {
@@ -345,6 +348,7 @@ async function attemptFinalResponsesSynthesis({
   iterations,
   toolRounds,
   totalToolCalls,
+  serviceTier,
   events,
   emitProgress,
 }: {
@@ -354,6 +358,7 @@ async function attemptFinalResponsesSynthesis({
   iterations: number;
   toolRounds: number;
   totalToolCalls: number;
+  serviceTier?: AssistantRunOptions["serviceTier"];
   events: ToolEvent[];
   emitProgress: () => void;
 }) {
@@ -373,6 +378,7 @@ async function attemptFinalResponsesSynthesis({
       model,
       previousResponseId,
       toolChoice: "none",
+      serviceTier,
       input: [
         {
           type: "message",
@@ -1139,6 +1145,7 @@ When you need to search for something, use the rg tool first with the narrowest 
 Structured runbook contract (must follow):
 ${renderRunbookForPrompt(runbookDefinition)}`;
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
+  const serviceTier = options.serviceTier;
 
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({
@@ -1154,6 +1161,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       emitProgress,
       appSettings,
       runId,
+      serviceTier,
     });
   }
 
@@ -1172,6 +1180,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     emitProgress,
     appSettings,
     runId,
+    serviceTier,
   });
 }
 
@@ -1237,6 +1246,7 @@ async function finalizeCriticLoop({
   prompt,
   finalContent,
   emitProgress,
+  serviceTier,
 }: {
   apiKey: string;
   model: string;
@@ -1247,6 +1257,7 @@ async function finalizeCriticLoop({
   prompt: string;
   finalContent: string;
   emitProgress: (content?: string, thought?: string) => void;
+  serviceTier?: AssistantRunOptions["serviceTier"];
 }) {
   if (options.mode !== "critic_loop") {
     return finalContent;
@@ -1275,6 +1286,7 @@ async function finalizeCriticLoop({
       { role: "system", content: "You are a strict internal critic. Do not call tools." },
       { role: "user", content: buildCriticReviewPrompt(criticInput) },
     ],
+    serviceTier,
   });
   const criticNotes = normalizeAssistantText(
     criticResponse.choices[0]?.message?.content,
@@ -1305,6 +1317,7 @@ async function finalizeCriticLoop({
         { role: "system", content: "You revise final answers using only supplied evidence." },
         { role: "user", content: buildCriticRevisionPrompt(finalContent, criticNotes) },
       ],
+      serviceTier,
     });
     reviewedContent =
       normalizeAssistantText(revisionResponse.choices[0]?.message?.content).trim() ||
@@ -1355,6 +1368,7 @@ async function requestRainyChatAgenticResponse({
   emitProgress,
   appSettings,
   runId,
+  serviceTier,
 }: {
   apiKey: string;
   history: string[];
@@ -1370,6 +1384,7 @@ async function requestRainyChatAgenticResponse({
   emitProgress: (content?: string, thought?: string) => void;
   appSettings: AppSettings;
   runId: string;
+  serviceTier?: AssistantRunOptions["serviceTier"];
 }) {
   const historyMessages = buildHistoryMessages(history);
   const rainyReasoning = resolveRainyReasoningPayload(options, capabilities);
@@ -1399,6 +1414,7 @@ async function requestRainyChatAgenticResponse({
       prompt,
       finalContent,
       emitProgress,
+      serviceTier,
     });
 
   while (iterations < runtime.maxIterations) {
@@ -1446,6 +1462,7 @@ async function requestRainyChatAgenticResponse({
       includeReasoning: rainyReasoning.includeReasoning,
       capabilities,
       maxTokens,
+      serviceTier,
       onReasoningDelta: (delta) => {
         streamedThought += delta;
         emitProgress(
@@ -1536,6 +1553,7 @@ async function requestRainyChatAgenticResponse({
             iterations,
             toolRounds,
             totalToolCalls,
+            serviceTier,
             events,
             emitProgress,
           });
@@ -1690,6 +1708,7 @@ async function requestRainyChatAgenticResponse({
     iterations,
     toolRounds,
     totalToolCalls,
+    serviceTier,
     events,
     emitProgress,
   });
@@ -1727,6 +1746,7 @@ async function requestRainyResponsesAgenticResponse({
   emitProgress,
   appSettings,
   runId,
+  serviceTier,
 }: {
   apiKey: string;
   history: string[];
@@ -1740,6 +1760,7 @@ async function requestRainyResponsesAgenticResponse({
   emitProgress: (content?: string, thought?: string) => void;
   appSettings: AppSettings;
   runId: string;
+  serviceTier?: AssistantRunOptions["serviceTier"];
 }) {
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
@@ -1765,6 +1786,7 @@ async function requestRainyResponsesAgenticResponse({
       prompt,
       finalContent,
       emitProgress,
+      serviceTier,
     });
 
   while (iterations < runtime.maxIterations) {
@@ -1796,6 +1818,7 @@ async function requestRainyResponsesAgenticResponse({
           : totalToolCalls >= runtime.maxToolCalls
             ? "none"
             : "auto",
+      serviceTier,
     });
 
     previousResponseId = response.id;
@@ -1876,6 +1899,7 @@ async function requestRainyResponsesAgenticResponse({
             iterations,
             toolRounds,
             totalToolCalls,
+            serviceTier,
             events,
             emitProgress,
           });
@@ -2043,6 +2067,7 @@ async function requestRainyResponsesAgenticResponse({
     iterations,
     toolRounds,
     totalToolCalls,
+    serviceTier,
     events,
     emitProgress,
   });

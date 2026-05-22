@@ -3,6 +3,7 @@ import type {
   AssistantRunbookDefinition,
   AssistantRunbookId,
 } from "../contracts/chat";
+import { normalizeRainyServiceTier } from "../contracts/rainy";
 import type { WorkPlan } from "./work-engine/types";
 
 const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
@@ -257,6 +258,7 @@ export function resolveAssistantRunOptions(
       options?.access === "approval"
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
+    serviceTier: normalizeRainyServiceTier(options?.serviceTier),
     runbookId: resolveRunbookId(options?.runbookId),
     attachments: options?.attachments?.map((attachment) => ({ ...attachment })) ?? [],
   };
