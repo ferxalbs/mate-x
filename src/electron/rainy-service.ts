@@ -18,6 +18,7 @@ import {
   type RainyModelCatalogEntry,
   type RainyModelPricing,
   type RainyServiceTier,
+  type RainyServiceTierPricing,
 } from "../contracts/rainy";
 import {
   getAcceptedParameters,
@@ -40,6 +41,10 @@ const RAINY_MODELS_ENDPOINTS = [
   `${RAINY_BASE_URL}/models`,
 ];
 const MODEL_CACHE_TTL_MS = 60_000;
+
+type ORChatMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam & {
+  reasoning_details?: unknown;
+};
 export const RAINY_REPO_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b";
 export const RAINY_REPO_EMBEDDING_MODELS = [
   {
@@ -115,7 +120,7 @@ export function buildResponsesMessageInput(
 
 export function buildChatCompletionRequest(params: {
   model: string;
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  messages: ORChatMessageParam[];
   tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
   reasoning?: { exclude?: true; effort?: string };
@@ -139,7 +144,7 @@ export function buildChatCompletionRequest(params: {
   const acceptsParameter = (parameter: string) => accepted.includes(parameter);
   const request: {
     model: string;
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    messages: ORChatMessageParam[];
     tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
     tool_choice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
     reasoning?: { exclude?: true; effort?: string };
@@ -206,7 +211,7 @@ export function buildChatCompletionRequest(params: {
 }
 
 function messagesContainImageInput(
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  messages: ORChatMessageParam[],
 ) {
   return messages.some((message) => {
     const content = "content" in message ? message.content : null;
@@ -735,33 +740,58 @@ export async function requestRainyChatCompletionStream(params: {
     )) as unknown as AsyncIterable<any>;
   }
 
-  for await (const chunk of stream) {
-    const delta = chunk.choices?.[0]?.delta;
-    if (!delta) {
-      continue;
+  try {
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) {
+        continue;
+      }
+
+      if (delta.reasoning && params.onReasoningDelta) {
+        params.onReasoningDelta(delta.reasoning);
+      }
+
+      if (delta.content) {
+        contentChunks.push(delta.content);
+        params.onContentDelta(delta.content);
+      }
+
+      for (const toolCallDelta of delta.tool_calls ?? []) {
+        const index = toolCallDelta.index;
+        const current = toolCalls[index] ?? {
+          type: "function" as const,
+          function: { arguments: "" },
+        };
+        current.id = toolCallDelta.id ?? current.id;
+        current.function.name =
+          toolCallDelta.function?.name ?? current.function.name;
+        current.function.arguments += toolCallDelta.function?.arguments ?? "";
+        toolCalls[index] = current;
+      }
+    }
+  } catch (error) {
+    if (contentChunks.length > 0 || toolCalls.some((toolCall) => toolCall.id)) {
+      throw error;
     }
 
-    if (delta.reasoning && params.onReasoningDelta) {
-      params.onReasoningDelta(delta.reasoning);
+    const response = await client.chat.completions.create(request as any, {
+      timeout: RAINY_REQUEST_TIMEOUT_MS,
+    });
+    const message = response.choices[0]?.message;
+    const content = extractTextFromChatPayload(response);
+    if (content) {
+      params.onContentDelta(content);
     }
 
-    if (delta.content) {
-      contentChunks.push(delta.content);
-      params.onContentDelta(delta.content);
-    }
-
-    for (const toolCallDelta of delta.tool_calls ?? []) {
-      const index = toolCallDelta.index;
-      const current = toolCalls[index] ?? {
-        type: "function" as const,
-        function: { arguments: "" },
-      };
-      current.id = toolCallDelta.id ?? current.id;
-      current.function.name =
-        toolCallDelta.function?.name ?? current.function.name;
-      current.function.arguments += toolCallDelta.function?.arguments ?? "";
-      toolCalls[index] = current;
-    }
+    return {
+      role: "assistant",
+      content,
+      refusal: null,
+      tool_calls: message?.tool_calls ?? [],
+      ...(isRecord(message) && "reasoning_details" in message
+        ? { reasoning_details: message.reasoning_details }
+        : {}),
+    } as any;
   }
 
   return {
@@ -990,20 +1020,48 @@ function extractModelPricing(
     return undefined;
   }
 
-  const serviceTiers = Array.isArray(item.pricing.service_tiers)
-    ? item.pricing.service_tiers
-        .filter(isRecord)
-        .map((tier) => ({
-          ...tier,
-          tier: normalizeRainyServiceTier(firstString(tier.tier, tier.id, tier.name)),
-        }))
-        .filter((tier) => tier.tier !== "standard")
-    : undefined;
+  const serviceTiers = extractServiceTierPricing(item.pricing);
 
   return {
     ...item.pricing,
     service_tiers: serviceTiers,
   } as RainyModelPricing;
+}
+
+function extractServiceTierPricing(
+  pricing: Record<string, unknown>,
+): RainyServiceTierPricing[] | undefined {
+  const raw = pricing.service_tiers ?? pricing.serviceTiers ?? pricing.serviceTier;
+  const rows = Array.isArray(raw)
+    ? raw
+    : isRecord(raw)
+      ? Object.entries(raw).map(([tier, value]) => (
+          isRecord(value) ? { ...value, tier } : { tier, price: value }
+        ))
+      : typeof raw === "string"
+        ? [raw]
+        : undefined;
+
+  const serviceTiers = rows
+    ?.map((row) => {
+      if (typeof row === "string") {
+        return { tier: normalizeRainyServiceTier(row) };
+      }
+
+      if (!isRecord(row)) {
+        return null;
+      }
+
+      return {
+        ...row,
+        tier: normalizeRainyServiceTier(firstString(row.tier, row.id, row.name)),
+      };
+    })
+    .filter((tier): tier is RainyServiceTierPricing => (
+      tier !== null && tier.tier !== "standard"
+    ));
+
+  return serviceTiers && serviceTiers.length > 0 ? serviceTiers : undefined;
 }
 
 function extractArchitecture(
