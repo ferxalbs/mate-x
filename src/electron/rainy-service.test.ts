@@ -233,6 +233,59 @@ describe("listRainyModels", () => {
       global.fetch = originalFetch;
     }
   });
+
+  it("normalizes keyed service tier metadata from model pricing", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/models/catalog")) {
+        return new Response(JSON.stringify({ data: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (url.endsWith("/models")) {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: "provider/keyed-tiered",
+                display_name: "Keyed Tiered",
+                pricing: {
+                  prompt: "1",
+                  completion: "2",
+                  service_tiers: {
+                    flex: { prompt: "0.5", completion: "1" },
+                    priority: { prompt: "2", completion: "4" },
+                  },
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response("not found", { status: 404 });
+    }) as typeof global.fetch;
+
+    try {
+      const models = await listRainyModels({
+        apiKey: "ra-keyed-tier-key",
+        forceRefresh: true,
+      });
+
+      assert.deepEqual(getRainyServiceTierOptions(models[0]), [
+        "standard",
+        "flex",
+        "priority",
+      ]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
 
 describe("Rainy model capabilities", () => {
@@ -464,6 +517,28 @@ describe("buildChatCompletionRequest", () => {
 
     assert.equal(flexRequest.service_tier, "flex");
     assert.equal(priorityRequest.service_tier, "priority");
+  });
+
+  it("preserves OpenRouter reasoning details in assistant messages", () => {
+    const assistantMessage = {
+      role: "assistant",
+      content: "There are three r letters.",
+      reasoning_details: [{ type: "reasoning", text: "counted letters" }],
+    } as any;
+    const request = buildChatCompletionRequest({
+      model: "google/gemini-3.5-flash",
+      messages: [
+        { role: "user", content: "How many r's are in strawberry?" },
+        assistantMessage,
+        { role: "user", content: "Are you sure?" },
+      ] as any,
+    });
+
+    assert.equal(request.messages[1], assistantMessage);
+    assert.deepEqual(
+      (request.messages[1] as any).reasoning_details,
+      assistantMessage.reasoning_details,
+    );
   });
 
   it("keeps non-tiered model requests unchanged", () => {

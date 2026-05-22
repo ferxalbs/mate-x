@@ -16,6 +16,7 @@ export interface RainyModelPricing {
   prompt?: string | number | null;
   completion?: string | number | null;
   service_tiers?: RainyServiceTierPricing[];
+  serviceTier?: RainyServiceTierPricing[];
   [key: string]: unknown;
 }
 
@@ -84,7 +85,7 @@ export function normalizeRainyServiceTier(
 export function getRainyServiceTierOptions(
   entry?: RainyModelCatalogEntry | null,
 ): RainyServiceTier[] {
-  const tiers = entry?.pricing?.service_tiers;
+  const tiers = entry?.pricing?.service_tiers ?? entry?.pricing?.serviceTier;
   if (!tiers || tiers.length === 0) {
     return ['standard'];
   }

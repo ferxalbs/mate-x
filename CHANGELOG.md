@@ -5,7 +5,8 @@
 - Added Rainy API v3.5 service-tier support for model metadata, including generic `pricing.service_tiers` detection without provider-specific model IDs.
 - Added optional Standard/Flex/Priority selection in the composer for tiered models, hidden for non-tiered models and reset to Standard when switching to an incompatible model.
 - Threaded non-default service tiers through Chat Completions, Responses, streaming, final synthesis, and critic-loop Rainy request paths while omitting `service_tier` for Standard/default.
-- Added focused tests for tier visibility, default omission, Flex/Priority request payloads, invalid tier reset behavior, and unchanged non-tiered requests.
+- Fixed service-tier detection for keyed tier metadata and preserved OpenRouter `reasoning_details` on assistant messages so follow-up calls can continue reasoning.
+- Added focused tests for tier visibility, keyed tier metadata, default omission, Flex/Priority request payloads, invalid tier reset behavior, reasoning details passthrough, and unchanged non-tiered requests.
 - Verified with `bun run typecheck`, `bun run lint`, and `bunx vitest run src/electron/rainy-service.test.ts -t "service tier|service_tier|Flex|Priority|non-tiered|tiered"`.
 
 ## Unreleased - 2026.05.20 (2) [Tool Service Modularization]
