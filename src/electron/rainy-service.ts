@@ -777,7 +777,7 @@ export async function requestRainyChatCompletionStream(params: {
     const response = await client.chat.completions.create(request as any, {
       timeout: RAINY_REQUEST_TIMEOUT_MS,
     });
-    const message = response.choices[0]?.message;
+    const message = response.choices?.[0]?.message;
     const content = extractTextFromChatPayload(response);
     if (content) {
       params.onContentDelta(content);
