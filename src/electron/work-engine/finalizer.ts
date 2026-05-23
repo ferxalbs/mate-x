@@ -245,8 +245,9 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
       .replace(/\brisk is gone\b/gi, "risk not proven resolved")
       .replace(/\bverified manually\b/gi, "manual verification claim unsupported")
       .replace(/\bpatch is correct\b/gi, "patch correctness not proven")
+      .replace(/\bsuccessfully validated\b/gi, "validation was not proven")
       .replace(/\bfixed\b/gi, "patched with validation pending")
-      .replace(/\bvalidated\b/gi, "validation not proven")
+      .replace(/\bvalidated\b/gi, "validation was not proven")
       .replace(/\btested\b/gi, "runtime checks not proven")
       .replace(/\bmerge-ready\b/gi, "merge safety not proven")
       .replace(/\bmerge ready\b/gi, "merge safety not proven")
@@ -274,7 +275,7 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
     [...CLAIM_PATTERNS, ...SECURITY_OVERCLAIM_PATTERNS].some((pattern) => pattern.test(content)) &&
     next !== content
   ) {
-    warnings.push("Unsupported final claim wording was downgraded by Work Engine.");
+    warnings.push("Final wording was calibrated because runtime evidence did not prove every claim.");
   }
 
   return next;
