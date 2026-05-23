@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.22 (1) [Precise File Editing Operations]
+
+- Expanded `file_editor` from line-range replacement into a precise workspace editor with create, overwrite, append, insert-before, insert-after, delete-range, replace-range, and exact block replacement operations.
+- Preserved backward-compatible line-range calls while adding stronger guards for whole-file, range, and create-if-missing workflows.
+- Verified with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.05.21 (1) [Rainy Service Tiers]
 
 - Added Rainy API v3.5 service-tier support for model metadata, including generic `pricing.service_tiers` detection without provider-specific model IDs.
