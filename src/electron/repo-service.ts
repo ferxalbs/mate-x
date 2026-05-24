@@ -10,7 +10,7 @@ import { renderWorkingSetForPrompt, workingSetCompiler } from "./working-set-com
 import { buildWorkPlan, buildWorkPlanMetadata } from "./work-engine/work-engine";
 import { runPrivacyPreflight } from "./work-engine/privacy-preflight";
 import { appendValidationGateWarning, evaluateValidationGate } from "./work-engine/validation-gate";
-import { deriveWorkStages } from "./work-engine/stages";
+import { deriveWorkStages, preventiveWarningDetail, shouldEmitPreventiveWarning } from "./work-engine/stages";
 import { finalizeWorkRun } from "./work-engine/finalizer";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
 import type { AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
@@ -337,6 +337,14 @@ export async function runAssistant(
 
   const validationGate = evaluateValidationGate(workPlan, toolExecutions, content);
   content = appendValidationGateWarning(content, validationGate);
+  if (shouldEmitPreventiveWarning(workPlan, toolExecutions)) {
+    events.push({
+      id: "step-preventive-guard-warning",
+      label: "Preventive Guard warning",
+      detail: preventiveWarningDetail(workPlan),
+      status: "active",
+    });
+  }
   const noPatchNeeded = /\b(no patch|patch not needed|no code change|read-only)\b/i.test(content);
   const workStages = deriveWorkStages({
     workPlan,

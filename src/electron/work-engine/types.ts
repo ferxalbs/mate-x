@@ -34,6 +34,17 @@ export type SensitiveSurfaceKind =
   | "auth"
   | "unknown";
 
+export type PreventiveRiskArea =
+  | "auth"
+  | "ipc"
+  | "filesystem"
+  | "network"
+  | "database"
+  | "dependency"
+  | "secrets"
+  | "privacy"
+  | "unknown";
+
 export interface WorkPlan {
   id: string;
   intent: WorkIntent;
@@ -71,6 +82,14 @@ export interface WorkPlan {
     blockIfP0Unsanitized: boolean;
     includeRepoContext: boolean;
     includeToolOutput: boolean;
+    reason: string;
+  };
+  preventivePlan: {
+    enabled: boolean;
+    riskAreas: PreventiveRiskArea[];
+    recommendedControls: string[];
+    requiredChecks: string[];
+    strictness: "warn";
     reason: string;
   };
   evidencePlan: {
