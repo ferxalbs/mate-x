@@ -62,6 +62,12 @@ const SECURITY_OVERCLAIM_PATTERNS = [
   /\bexploit is possible\b/gi,
 ];
 
+const PRIVACY_SENTINEL_PLACEHOLDER_RE =
+  /\[(?:SECRET(?:_[A-Z_]+)?|PROMPT_SENSITIVE|PRIVATE_FILE_PATH|INTERNAL_URL|WORKSPACE_IDENTITY|CUSTOMER_DATA|STACKTRACE_SENSITIVE|PRIVATE_EMAIL|PRIVATE_PHONE|ACCOUNT_NUMBER|PAYMENT_TOKEN|PERSONAL_DOCUMENT_ID|PRIVATE_URL|PRIVATE_PERSON|PRIVATE_ADDRESS|PRIVATE_DATE)\]/g;
+
+const PRIVACY_PLACEHOLDER_MISUSE_RE =
+  /\[(?:SECRET(?:_[A-Z_]+)?|PROMPT_SENSITIVE|PRIVATE_FILE_PATH|INTERNAL_URL|WORKSPACE_IDENTITY|CUSTOMER_DATA|STACKTRACE_SENSITIVE|PRIVATE_EMAIL|PRIVATE_PHONE|ACCOUNT_NUMBER|PAYMENT_TOKEN|PERSONAL_DOCUMENT_ID|PRIVATE_URL|PRIVATE_PERSON|PRIVATE_ADDRESS|PRIVATE_DATE)\][\s\S]{0,240}\b(SQL injection|placeholder|replace|template|tenant|route|file|user|org|organization|database|environment corruption|high risk|unsafe|vulnerab|exploit|severity)\b|\b(SQL injection|placeholder|replace|template|tenant|route|file|user|org|organization|database|environment corruption|high risk|unsafe|vulnerab|exploit|severity)[\s\S]{0,240}\[(?:SECRET(?:_[A-Z_]+)?|PROMPT_SENSITIVE|PRIVATE_FILE_PATH|INTERNAL_URL|WORKSPACE_IDENTITY|CUSTOMER_DATA|STACKTRACE_SENSITIVE|PRIVATE_EMAIL|PRIVATE_PHONE|ACCOUNT_NUMBER|PAYMENT_TOKEN|PERSONAL_DOCUMENT_ID|PRIVATE_URL|PRIVATE_PERSON|PRIVATE_ADDRESS|PRIVATE_DATE)\]/i;
+
 export function finalizeWorkRun(input: {
   workPlan: WorkPlan;
   stages: WorkStage[];
@@ -85,6 +91,7 @@ export function finalizeWorkRun(input: {
   const blocked = input.stages.some((stage) => stage.status === "blocked");
   const preparatoryOnly = isPreparatoryOnly(input.content);
   const missingRuntimeEvidence = requiresRuntimeEvidence(input.workPlan) && input.toolExecutions.length === 0;
+  const privacyPlaceholderMisuse = misusesPrivacySentinelPlaceholder(input.content);
 
   if (missingRequired.includes("validation_executed")) {
     warnings.push("Validation evidence missing or blocked; final confidence downgraded.");
@@ -123,6 +130,9 @@ export function finalizeWorkRun(input: {
   if (missingRuntimeEvidence) {
     warnings.push("No repository tool evidence was captured for a tool-backed security workflow.");
   }
+  if (privacyPlaceholderMisuse) {
+    warnings.push("Privacy Sentinel placeholder was treated as source evidence; raw private value was redacted before cloud transit.");
+  }
 
   const verdict = resolveVerdict({
     missingRequired,
@@ -131,6 +141,7 @@ export function finalizeWorkRun(input: {
     blocked,
     preparatoryOnly,
     missingRuntimeEvidence,
+    privacyPlaceholderMisuse,
     evidenceRequired: input.workPlan.evidencePlan.required,
     evidenceAttached: input.evidenceAttached,
   });
@@ -191,6 +202,10 @@ function isPreparatoryOnly(content: string) {
 function hasConfirmedSecurityWording(content: string) {
   return /\b(confirmed vulnerability|vulnerable|vulnerability|exploitable|source-to-sink confirmed|auth bypass|secret leak|critical|high[-\s]severity|brute-force|resource exhaustion|effectively disables)\b/i.test(content) ||
     /\bsecurity of\b[\s\S]{0,80}\bis strictly tied\b/i.test(content);
+}
+
+function misusesPrivacySentinelPlaceholder(content: string) {
+  return PRIVACY_PLACEHOLDER_MISUSE_RE.test(content);
 }
 
 function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] {
@@ -268,6 +283,7 @@ function resolveVerdict(input: {
   blocked: boolean;
   preparatoryOnly: boolean;
   missingRuntimeEvidence: boolean;
+  privacyPlaceholderMisuse: boolean;
   evidenceRequired: boolean;
   evidenceAttached: boolean;
 }): FinalRunVerdict {
@@ -276,7 +292,7 @@ function resolveVerdict(input: {
   if (input.fallbackMissing) return "needs_validation";
   if (input.missingRequired.includes("validation_executed")) return "needs_validation";
   if (input.evidenceRequired && !input.evidenceAttached) return "needs_evidence";
-  if (input.preparatoryOnly || input.missingRuntimeEvidence) return "partial";
+  if (input.preparatoryOnly || input.missingRuntimeEvidence || input.privacyPlaceholderMisuse) return "partial";
   if (input.missingRequired.length > 0) return "partial";
   return "success";
 }
@@ -331,6 +347,7 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
       .replace(/\bvulnerability\b/gi, "candidate issue")
       .replace(/\bno issue\b/gi, "no proven issue");
   }
+  next = rewritePrivacySentinelPlaceholderMisuse(next);
   if (
     [...CLAIM_PATTERNS, ...SECURITY_OVERCLAIM_PATTERNS].some((pattern) => pattern.test(content)) &&
     next !== content
@@ -339,6 +356,17 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
   }
 
   return next;
+}
+
+function rewritePrivacySentinelPlaceholderMisuse(content: string) {
+  if (!PRIVACY_SENTINEL_PLACEHOLDER_RE.test(content)) return content;
+  PRIVACY_SENTINEL_PLACEHOLDER_RE.lastIndex = 0;
+  return content
+    .replace(/\bReplace the \[(?:SECRET(?:_[A-Z_]+)?|PROMPT_SENSITIVE|PRIVATE_FILE_PATH|INTERNAL_URL|WORKSPACE_IDENTITY|CUSTOMER_DATA|STACKTRACE_SENSITIVE|PRIVATE_EMAIL|PRIVATE_PHONE|ACCOUNT_NUMBER|PAYMENT_TOKEN|PERSONAL_DOCUMENT_ID|PRIVATE_URL|PRIVATE_PERSON|PRIVATE_ADDRESS|PRIVATE_DATE)\] placeholders?\b/gi, "Do not treat Privacy Sentinel redaction tokens as raw source values")
+    .replace(/\bThe presence of (\[(?:SECRET(?:_[A-Z_]+)?|PROMPT_SENSITIVE|PRIVATE_FILE_PATH|INTERNAL_URL|WORKSPACE_IDENTITY|CUSTOMER_DATA|STACKTRACE_SENSITIVE|PRIVATE_EMAIL|PRIVATE_PHONE|ACCOUNT_NUMBER|PAYMENT_TOKEN|PERSONAL_DOCUMENT_ID|PRIVATE_URL|PRIVATE_PERSON|PRIVATE_ADDRESS|PRIVATE_DATE)\]) strongly suggests\b/gi, "The Privacy Sentinel redaction token $1 only shows that private data was withheld before cloud transit; it does not prove")
+    .replace(/\b(\[(?:SECRET(?:_[A-Z_]+)?|PROMPT_SENSITIVE|PRIVATE_FILE_PATH|INTERNAL_URL|WORKSPACE_IDENTITY|CUSTOMER_DATA|STACKTRACE_SENSITIVE|PRIVATE_EMAIL|PRIVATE_PHONE|ACCOUNT_NUMBER|PAYMENT_TOKEN|PERSONAL_DOCUMENT_ID|PRIVATE_URL|PRIVATE_PERSON|PRIVATE_ADDRESS|PRIVATE_DATE)\]) placeholders?\b/gi, "$1 Privacy Sentinel redaction token")
+    .replace(/\bdue to (?:severity[-\s]unproven )?SQL Injection Risk in templated code\b/gi, "requires raw-source verification because Privacy Sentinel redacted private values")
+    .replace(/\bDo not rely on text replacement of sensitive identifiers in SQL strings\./gi, "Verify raw local source before concluding that redacted identifiers are literal SQL text.");
 }
 
 function appendHonestStatus(content: string, verdict: FinalRunVerdict, warnings: string[]) {

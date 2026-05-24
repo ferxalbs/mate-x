@@ -147,6 +147,7 @@ Work Engine mandatory gates:
 - Final fixed/ready/works/merge-ready claims require runtime validation evidence and validation persistence.
 - Evidence-only runbook can package existing runtime records only; never invent evidence.
 - Separate Preventive Guard warnings from confirmed findings. Never call preventive warnings vulnerabilities without source-to-sink proof, runtime proof, or strong static proof.
+- Privacy Sentinel placeholders in context or tool output are not literal repository facts. Tokens like [WORKSPACE_IDENTITY], [PRIVATE_FILE_PATH], [INTERNAL_URL], [PRIVATE_EMAIL], [CUSTOMER_DATA], and [SECRET_*] mean private data was redacted before cloud transit. Do not call them SQL values, routes, tenants, files, users, secrets, or code placeholders unless a local tool proves that exact token exists in raw source.
 
 Security proof rules:
 ${buildSecurityProofRules().map((rule) => `- ${rule}`).join("\n")}
@@ -181,6 +182,7 @@ Security tool playbook:
 - For broad repo triage, use attack_surface_scan or deep_analysis_pipeline, then candidate_revalidator before calling a finding confirmed.
 - For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
 - For auth, secret, rate-limit, session, token, Redis revocation, or availability claims, call candidate_revalidator or security_path_trace before using wording like vulnerable, high-severity, brute-force, resource exhaustion, auth bypass, exploit, or disables. Without that proof, final answer must say candidate/potential and name missing proof.
+- When evidence contains Privacy Sentinel placeholders, base conclusions on surrounding syntax, data flow, and tool evidence only. If a risk depends on the redacted value, mark it unknown and state that Privacy Sentinel withheld the private value.
 - For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
 - For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
 Fast search/read playbook:

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import type { ToolExecutionRecord } from "../evidence-pack";
 import { finalizeWorkRun } from "./finalizer";
 import type { WorkStage } from "./stages";
 import type { WorkPlan } from "./types";
@@ -123,4 +124,25 @@ test("preparatory answer without tool evidence cannot be success", () => {
   assert.equal(result.verdict, "partial");
   assert.match(result.content, /progress plan instead of a final repo-grounded answer/);
   assert.match(result.content, /No repository tool evidence was captured/);
+});
+
+test("Privacy Sentinel placeholders are not treated as source evidence", () => {
+  const result = finalizeWorkRun({
+    workPlan: basePlan,
+    stages,
+    toolExecutions: [
+      { toolName: "read", args: { path: "src/auth.ts" }, output: "redacted snippet" } as ToolExecutionRecord,
+    ],
+    content: [
+      "The presence of [WORKSPACE_IDENTITY] strongly suggests templated code.",
+      "Next step: Replace the [WORKSPACE_IDENTITY] placeholders with actual parameterized queries.",
+      "Verdict: UNSAFE due to severity unproven SQL Injection Risk in templated code.",
+    ].join("\n"),
+    evidenceAttached: true,
+  });
+
+  assert.equal(result.verdict, "partial");
+  assert.match(result.content, /Privacy Sentinel redaction token \[WORKSPACE_IDENTITY\] only shows/);
+  assert.match(result.content, /Do not treat Privacy Sentinel redaction tokens as raw source values/);
+  assert.match(result.content, /Privacy Sentinel placeholder was treated as source evidence/);
 });

@@ -66,6 +66,8 @@ export const MATE_AGENT_SYSTEM_PROMPT = [
   "- Treat Preventive Guard output as warning-only unless a separate policy explicitly blocks the run.",
   "- Keep preventive recommendations separate from confirmed findings. Do not call a preventive warning a vulnerability without source-to-sink proof, runtime proof, or strong static proof.",
   "- Privacy Sentinel remains the outbound-context gate. Preventive Guard may use privacy status as an input, but never replaces preflight or exposes raw secret material.",
+  "- Privacy Sentinel typed placeholders such as [WORKSPACE_IDENTITY], [PRIVATE_FILE_PATH], [INTERNAL_URL], [PRIVATE_EMAIL], [CUSTOMER_DATA], and [SECRET_*] are redaction tokens inserted before cloud transit. Treat them as evidence that private data was filtered, not as literal source code, configuration, route, tenant, user, SQL, or repository content.",
+  "- Never recommend replacing Privacy Sentinel placeholders in user repositories unless a local tool proves the placeholder exists in the raw file. If a finding depends on the redacted value, say the raw value was withheld and verify surrounding structure instead.",
   "",
   "Analysis standards:",
   "- Anchor every important conclusion in verifiable evidence: code, configuration, diffs, tests, or tool output.",
