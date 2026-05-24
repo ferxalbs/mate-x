@@ -83,6 +83,8 @@ export function finalizeWorkRun(input: {
   });
   const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
   const blocked = input.stages.some((stage) => stage.status === "blocked");
+  const preparatoryOnly = isPreparatoryOnly(input.content);
+  const missingRuntimeEvidence = requiresRuntimeEvidence(input.workPlan) && input.toolExecutions.length === 0;
 
   if (missingRequired.includes("validation_executed")) {
     warnings.push("Validation evidence missing or blocked; final confidence downgraded.");
@@ -115,12 +117,20 @@ export function finalizeWorkRun(input: {
   if (failedValidation && /\b(passed|validated|works|complete|ready)\b/i.test(input.content)) {
     warnings.push("Validation failed; unsupported validation success wording was downgraded.");
   }
+  if (preparatoryOnly) {
+    warnings.push("Assistant returned a progress plan instead of a final repo-grounded answer.");
+  }
+  if (missingRuntimeEvidence) {
+    warnings.push("No repository tool evidence was captured for a tool-backed security workflow.");
+  }
 
   const verdict = resolveVerdict({
     missingRequired,
     failedValidationHardBlocker,
     fallbackMissing,
     blocked,
+    preparatoryOnly,
+    missingRuntimeEvidence,
     evidenceRequired: input.workPlan.evidencePlan.required,
     evidenceAttached: input.evidenceAttached,
   });
@@ -155,6 +165,27 @@ function isReadOnlyNoChangeReview(workPlan: WorkPlan, stages: WorkStage[]) {
 
 function securityProofRequired(workPlan: WorkPlan) {
   return workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
+}
+
+function requiresRuntimeEvidence(workPlan: WorkPlan) {
+  return (
+    workPlan.intent === "security_review" ||
+    workPlan.intent === "review_changes" ||
+    workPlan.intent === "trace_issue" ||
+    workPlan.runbook === "audit_reproduce_remediate" ||
+    workPlan.runbook === "trace_source_to_sink"
+  );
+}
+
+function isPreparatoryOnly(content: string) {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  const saysWillDoWork =
+    /\b(I will|I'll|I’ll|Let me|I need to|First,?\s+I(?:'ll| will)|I will begin|I'll begin|I will start|I'll start)\b/i.test(normalized) &&
+    /\b(inspect|check|examine|review|run|call|search|read|analy[sz]e|perform|identify)\b/i.test(normalized);
+  const hasFinalSignal =
+    /\b(Verdict:|Verdict summary:|Confidence:|Findings?:|Unresolved risks?:|Final recommendation:|Evidence:|No findings?|Candidate\b)\b/i.test(normalized);
+  return saysWillDoWork && !hasFinalSignal;
 }
 
 function hasConfirmedSecurityWording(content: string) {
@@ -235,6 +266,8 @@ function resolveVerdict(input: {
   failedValidationHardBlocker: boolean;
   fallbackMissing: boolean;
   blocked: boolean;
+  preparatoryOnly: boolean;
+  missingRuntimeEvidence: boolean;
   evidenceRequired: boolean;
   evidenceAttached: boolean;
 }): FinalRunVerdict {
@@ -243,6 +276,7 @@ function resolveVerdict(input: {
   if (input.fallbackMissing) return "needs_validation";
   if (input.missingRequired.includes("validation_executed")) return "needs_validation";
   if (input.evidenceRequired && !input.evidenceAttached) return "needs_evidence";
+  if (input.preparatoryOnly || input.missingRuntimeEvidence) return "partial";
   if (input.missingRequired.length > 0) return "partial";
   return "success";
 }

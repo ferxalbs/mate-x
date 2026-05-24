@@ -140,6 +140,19 @@ export function normalizeAssistantText(content: unknown): string {
   return "";
 }
 
+export function isPreparatoryAssistantText(content: string): boolean {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  const startsWithPlan =
+    /\b(I will|I'll|I’ll|Let me|I need to|I'll begin|I will begin|First,?\s+I(?:'ll| will)|I will start|I'll start|I will inspect|I'll inspect|I will check|I'll check)\b/i.test(normalized);
+  const promisesToolWork =
+    /\b(inspect|check|examine|review|run|call|search|read|analy[sz]e|perform|begin|start)\b/i.test(normalized) &&
+    /\b(git status|git diff|working set|repository state|current state|files?|tool|scan|attack surface|security_path_trace|candidate_revalidator)\b/i.test(normalized);
+  const hasFinalSignal =
+    /\b(Verdict:|Verdict summary:|Confidence:|Findings?:|Unresolved risks?:|Final recommendation:|No findings?|Candidate\b|Evidence:)\b/i.test(normalized);
+  return startsWithPlan && promisesToolWork && !hasFinalSignal;
+}
+
 export function parseJsonObject(value: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(value) as unknown;

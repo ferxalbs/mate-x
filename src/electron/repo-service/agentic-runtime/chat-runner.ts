@@ -32,6 +32,7 @@ import {
   isCleanGitDiffToolResult,
   isCurrentChangeReviewPrompt,
   isRainyConnectionTimeout,
+  isPreparatoryAssistantText,
   mapWithConcurrency,
   normalizeAssistantText,
   summarizeCheckpoint,
@@ -255,6 +256,27 @@ export async function requestRainyChatAgenticResponse({
     }
 
     if (!toolCalls || toolCalls.length === 0) {
+      if (
+        isPreparatoryAssistantText(responseText) &&
+        iterations < runtime.maxIterations &&
+        totalToolCalls < runtime.maxToolCalls
+      ) {
+        events.push({
+          id: `step-agent-preparatory-nudge-${iterations}`,
+          label: "Preparatory answer rejected",
+          detail: "Model returned a plan/progress note without tool evidence. Requesting actual repository tool use.",
+          status: "done",
+        });
+        emitProgress();
+
+        messages.push({
+          role: "user",
+          content:
+            "You described what you will inspect, but you did not call any tools. Call the smallest appropriate repository tools now. Do not provide another progress-only answer.",
+        });
+        continue;
+      }
+
       if (
         toolRounds < runtime.minToolRounds &&
         iterations < runtime.maxIterations &&
