@@ -255,6 +255,37 @@ function buildNoContentFinalResponse(params: {
   ].join("\n");
 }
 
+function isRainyConnectionTimeout(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "APIConnectionTimeoutError" ||
+    /\b(APIConnectionTimeoutError|Request timed out|timeout|timed out)\b/i.test(error.message)
+  );
+}
+
+function buildTimeoutFinalResponse(params: {
+  iterations: number;
+  toolRounds: number;
+  totalToolCalls: number;
+  events: ToolEvent[];
+  lastText: string;
+}) {
+  const collected = params.lastText.trim();
+  if (collected) {
+    return [
+      collected,
+      "",
+      "Rainy request timed out before final synthesis. This is a partial repo-grounded result from evidence already collected.",
+    ].join("\n");
+  }
+
+  return [
+    "Rainy request timed out before final synthesis.",
+    "",
+    buildNoContentFinalResponse(params),
+  ].join("\n");
+}
+
 async function attemptFinalChatSynthesis({
   apiKey,
   model,
@@ -1449,41 +1480,76 @@ async function requestRainyChatAgenticResponse({
     );
     let streamedPassText = "";
     let streamedThought = "";
-    const responseMessage = await requestRainyChatCompletionStream({
-      apiKey,
-      messages,
-      model,
-      tools: chatTools,
-      toolChoice:
-        runtime.requireToolingFirst &&
-        toolRounds < runtime.minToolRounds &&
-        totalToolCalls < runtime.maxToolCalls
-          ? "required"
-          : undefined,
-      reasoning: rainyReasoning.reasoning,
-      includeReasoning: rainyReasoning.includeReasoning,
-      capabilities,
-      maxTokens,
-      serviceTier,
-      onReasoningDelta: (delta) => {
-        streamedThought += delta;
-        emitProgress(
-          lastNonEmptyAssistantText
-            ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
-            : streamedPassText || undefined,
-          streamedThought,
-        );
-      },
-      onContentDelta: (delta) => {
-        streamedPassText += delta;
-        emitProgress(
-          lastNonEmptyAssistantText
-            ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
-            : streamedPassText,
-          streamedThought || undefined,
-        );
-      },
-    });
+    let responseMessage: Awaited<ReturnType<typeof requestRainyChatCompletionStream>>;
+    try {
+      responseMessage = await requestRainyChatCompletionStream({
+        apiKey,
+        messages,
+        model,
+        tools: chatTools,
+        toolChoice:
+          runtime.requireToolingFirst &&
+          toolRounds < runtime.minToolRounds &&
+          totalToolCalls < runtime.maxToolCalls
+            ? "required"
+            : undefined,
+        reasoning: rainyReasoning.reasoning,
+        includeReasoning: rainyReasoning.includeReasoning,
+        capabilities,
+        maxTokens,
+        serviceTier,
+        onReasoningDelta: (delta) => {
+          streamedThought += delta;
+          emitProgress(
+            lastNonEmptyAssistantText
+              ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
+              : streamedPassText || undefined,
+            streamedThought,
+          );
+        },
+        onContentDelta: (delta) => {
+          streamedPassText += delta;
+          emitProgress(
+            lastNonEmptyAssistantText
+              ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
+              : streamedPassText,
+            streamedThought || undefined,
+          );
+        },
+      });
+    } catch (error) {
+      if (!isRainyConnectionTimeout(error)) {
+        throw error;
+      }
+
+      const partialText = [lastNonEmptyAssistantText, streamedPassText]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join("\n\n");
+      events.push({
+        id: `step-agent-timeout-${iterations}`,
+        label: "Rainy timeout recovery",
+        detail:
+          error instanceof Error
+            ? `${error.name || "Error"}: ${error.message}. Returned partial local synthesis.`
+            : "Rainy request timed out. Returned partial local synthesis.",
+        status: "error",
+      });
+      emitProgress(partialText || undefined, streamedThought || undefined);
+
+      return {
+        toolExecutions,
+        content: await finalizeContent(
+          buildTimeoutFinalResponse({
+            iterations,
+            toolRounds,
+            totalToolCalls,
+            events,
+            lastText: partialText,
+          }),
+        ),
+      };
+    }
 
     messages.push(responseMessage);
     const toolCalls = responseMessage.tool_calls
