@@ -58,7 +58,7 @@ const stages: WorkStage[] = [
   { id: "evidence_attached", status: "passed", source: "runtime", reason: "", relatedToolEventIds: [] },
 ];
 
-test("candidate-level security review without proof is warning-only", () => {
+test("candidate-level security review without proof and tools is partial", () => {
   const result = finalizeWorkRun({
     workPlan: basePlan,
     stages,
@@ -67,8 +67,9 @@ test("candidate-level security review without proof is warning-only", () => {
     evidenceAttached: true,
   });
 
-  assert.equal(result.verdict, "success");
+  assert.equal(result.verdict, "partial");
   assert.match(result.content, /Security proof was not run/);
+  assert.match(result.content, /No repository tool evidence was captured/);
 });
 
 test("strong auth risk wording without proof downgrades verdict and wording", () => {
@@ -102,5 +103,24 @@ test("finalizer replaces prior Work Engine verdict instead of duplicating", () =
   });
 
   assert.equal(result.content.match(/Work Engine verdict:/g)?.length, 1);
-  assert.match(result.content, /Work Engine verdict: success\./);
+  assert.match(result.content, /Work Engine verdict: partial\./);
+});
+
+test("preparatory answer without tool evidence cannot be success", () => {
+  const result = finalizeWorkRun({
+    workPlan: basePlan,
+    stages: stages.map((stage) =>
+      stage.id === "security_proof_checked"
+        ? { ...stage, status: "skipped" as const, reason: "Candidate-level only." }
+        : stage,
+    ),
+    toolExecutions: [],
+    content:
+      "I will begin by inspecting the current repository state and identifying the specific files involved in the authentication changes. First, I'll examine the git status and recent changes.",
+    evidenceAttached: true,
+  });
+
+  assert.equal(result.verdict, "partial");
+  assert.match(result.content, /progress plan instead of a final repo-grounded answer/);
+  assert.match(result.content, /No repository tool evidence was captured/);
 });
