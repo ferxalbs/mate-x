@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.24 (1) [Privacy Sentinel Placeholder Awareness]
+
+- Taught the agent runtime and system prompt that Privacy Sentinel typed placeholders such as `[WORKSPACE_IDENTITY]`, `[PRIVATE_FILE_PATH]`, `[INTERNAL_URL]`, `[PRIVATE_EMAIL]`, `[CUSTOMER_DATA]`, and `[SECRET_*]` are outbound redaction tokens, not literal repository facts.
+- Hardened Work Engine finalization so security conclusions that treat Privacy Sentinel placeholders as raw source evidence are downgraded to `partial`, warned, and rewritten toward raw-source verification.
+- Added regression coverage for placeholder misuse alongside the existing finalizer, Preventive Guard, trust-contract, and Privacy Sentinel scanner tests.
+- Verified with `bun run typecheck`, `bun run lint`, and `bun test src/electron/work-engine/finalizer.test.ts src/electron/work-engine/stages.test.ts src/electron/workspace-trust.test.ts src/electron/privacy/privacy-regex-scanner.test.ts`.
+
 ## Unreleased - 2026.05.23 (2) [Preventive Guard and Agentic Evidence Hardening]
 
 - Added Preventive Guard V1 to the Work Engine with preventive risk classification, recommended controls, warning-only validation/proof stages, sanitized run artifacts, and model prompt guidance that keeps Privacy Sentinel as the outbound-context gate.
