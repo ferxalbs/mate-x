@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { AssistantRunOptions, EvidencePack } from "../contracts/chat";
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
@@ -527,6 +527,12 @@ export function registerIpcHandlers() {
       if (window) {
         menu.popup({ window });
       }
+    },
+  );
+  ipcMain.handle(
+    "ui:copy-to-clipboard",
+    async (_event, text: string) => {
+      clipboard.writeText(String(text ?? ""));
     },
   );
 }
