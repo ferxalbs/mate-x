@@ -164,13 +164,13 @@ const MessageEntry = memo(function MessageEntry({
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    if (typeof navigator === "undefined" || !navigator.clipboard) {
-      return;
+    try {
+      await window.mate.ui.copyToClipboard(message.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch (error) {
+      console.error("Failed to copy to clipboard:", error);
     }
-
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
   }
 
   if (isUser) {

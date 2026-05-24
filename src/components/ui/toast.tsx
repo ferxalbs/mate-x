@@ -44,13 +44,13 @@ function CopyErrorButton({ text }: { text: string }) {
   const [isCopied, setIsCopied] = React.useState(false);
 
   const copyToClipboard = async (value: string) => {
-    if (typeof navigator === "undefined" || !navigator.clipboard) {
-      return;
+    try {
+      await window.mate.ui.copyToClipboard(value);
+      setIsCopied(true);
+      window.setTimeout(() => setIsCopied(false), 1500);
+    } catch (error) {
+      console.error("Failed to copy error to clipboard:", error);
     }
-
-    await navigator.clipboard.writeText(value);
-    setIsCopied(true);
-    window.setTimeout(() => setIsCopied(false), 1500);
   };
 
   return (

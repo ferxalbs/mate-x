@@ -32,6 +32,8 @@ const uiApi: UiApi = {
     ipcRenderer.on("chat:delete-thread", handler);
     return () => ipcRenderer.removeListener("chat:delete-thread", handler);
   },
+  copyToClipboard: (text) =>
+    ipcRenderer.invoke("ui:copy-to-clipboard", text),
 };
 
 const repoApi: RepoInspectorApi = {

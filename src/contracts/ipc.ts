@@ -144,6 +144,7 @@ export interface UiApi {
   onRenameThread: (listener: (threadId: string) => void) => () => void;
   onArchiveThread: (listener: (threadId: string) => void) => () => void;
   onDeleteThread: (listener: (threadId: string) => void) => () => void;
+  copyToClipboard: (text: string) => Promise<void>;
 }
 
 export type { PrivacyApi };

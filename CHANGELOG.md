@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.23 (1) [Native Clipboard Copy Integration]
+
+- Implemented a secure, native clipboard writing functionality in the Electron main process via a new `ui:copy-to-clipboard` IPC handler.
+- Exposed `copyToClipboard` in the preload script's `UiApi` context bridge.
+- Replaced standard browser `navigator.clipboard.writeText` calls with the new native API in `MessageStream`, `ChatMarkdown` code blocks, and error toasts to bypass Chrome secure-context restrictions on `file://` protocols.
+- Verified all changes successfully compile with `bun run typecheck` and `bun run lint`.
+
 ## Unreleased - 2026.05.22 (1) [Precise File Editing Operations]
 
 - Expanded `file_editor` from line-range replacement into a precise workspace editor with create, overwrite, append, insert-before, insert-after, delete-range, replace-range, and exact block replacement operations.

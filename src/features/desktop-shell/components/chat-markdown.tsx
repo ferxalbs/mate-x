@@ -87,10 +87,11 @@ function CodeBlock({ className, children }: CodeBlockProps) {
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(content);
+      await window.mate.ui.copyToClipboard(content);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
-    } catch {
+    } catch (error) {
+      console.error("Failed to copy code to clipboard:", error);
       setCopied(false);
     }
   }
