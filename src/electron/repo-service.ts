@@ -422,7 +422,7 @@ export async function runAssistant(
     id: "step-work-engine-evidence",
     label: "WorkPlan evidence gate",
     detail: JSON.stringify({ stages: evidenceStages, verdict: evidenceFinalization.verdict }),
-    status: evidenceFinalization.verdict === "success" ? "done" : "error",
+    status: ["blocked", "failed", "needs_validation", "needs_evidence"].includes(evidenceFinalization.verdict) ? "error" : "done",
   });
   const artifactResult = await persistWorkEngineRunArtifactSafely({
     appDataRoot: app.getPath("userData"),

@@ -63,8 +63,11 @@ export function finalizeWorkRun(input: {
   evidenceAttached: boolean;
 }): WorkEngineFinalization {
   const warnings: string[] = [];
-  const missingRequired = requiredStages(input.workPlan, input.stages)
+  const rawMissingRequired = requiredStages(input.workPlan, input.stages)
     .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
+  const missingRequired = rawMissingRequired.filter(
+    (stageId) => stageId !== "security_proof_checked" || hasConfirmedSecurityWording(input.content),
+  );
   const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
   const failedValidationHardBlocker = shouldFailedValidationBlock({
     workPlan: input.workPlan,
@@ -89,9 +92,15 @@ export function finalizeWorkRun(input: {
   if (
     securityProofRequired(input.workPlan) &&
     !stagePassedOrSkipped(input.stages, "security_proof_checked") &&
-    /\bvulnerability\b/i.test(input.content)
+    hasConfirmedSecurityWording(input.content)
   ) {
     warnings.push("Confirmed vulnerability wording unsupported by security proof stage.");
+  }
+  if (
+    rawMissingRequired.includes("security_proof_checked") &&
+    !missingRequired.includes("security_proof_checked")
+  ) {
+    warnings.push("Security proof was not run; risk language must remain candidate-level.");
   }
   if (failedValidation && !failedValidationHardBlocker) {
     warnings.push("Validation command failed but validation was not required for this run.");
@@ -139,6 +148,10 @@ function isReadOnlyNoChangeReview(workPlan: WorkPlan, stages: WorkStage[]) {
 
 function securityProofRequired(workPlan: WorkPlan) {
   return workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
+}
+
+function hasConfirmedSecurityWording(content: string) {
+  return /\b(confirmed vulnerability|vulnerability|exploitable|source-to-sink confirmed|auth bypass|secret leak|critical|high severity)\b/i.test(content);
 }
 
 function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] {
@@ -283,5 +296,8 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
 
 function appendHonestStatus(content: string, verdict: FinalRunVerdict, warnings: string[]) {
   const warningBlock = warnings.length > 0 ? `\nWarnings:\n${warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
-  return `${content.trim()}\n\nWork Engine verdict: ${verdict}.${warningBlock}`;
+  const cleanContent = content
+    .replace(/\n*Work Engine verdict: (?:success|partial|blocked|failed|needs_validation|needs_evidence)\.[\s\S]*$/i, "")
+    .trim();
+  return `${cleanContent}\n\nWork Engine verdict: ${verdict}.${warningBlock}`;
 }
