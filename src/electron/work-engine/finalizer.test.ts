@@ -71,6 +71,27 @@ test("candidate-level security review without proof is warning-only", () => {
   assert.match(result.content, /Security proof was not run/);
 });
 
+test("strong auth risk wording without proof downgrades verdict and wording", () => {
+  const result = finalizeWorkRun({
+    workPlan: basePlan,
+    stages,
+    toolExecutions: [],
+    content: [
+      "Redis Dependency for Security: logout is strictly tied to Redis availability.",
+      "Rate limiting scope could leave the system vulnerable to brute-force or resource exhaustion attacks.",
+      "Database placeholder is a high-severity concern.",
+    ].join("\n"),
+    evidenceAttached: true,
+  });
+
+  assert.equal(result.verdict, "partial");
+  assert.match(result.content, /potentially exposed/);
+  assert.match(result.content, /automated-abuse candidate/);
+  assert.match(result.content, /resource-exhaustion candidate/);
+  assert.match(result.content, /severity-unproven/);
+  assert.match(result.content, /Confirmed vulnerability wording unsupported by security proof stage/);
+});
+
 test("finalizer replaces prior Work Engine verdict instead of duplicating", () => {
   const result = finalizeWorkRun({
     workPlan: basePlan,
