@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
 import { ripgrepPath } from '../rg-binary';
@@ -127,6 +128,10 @@ export const rgTool: Tool = {
       trustContract && !trustContract.allowedPaths.includes('.')
         ? trustContract.allowedPaths
         : requestedPaths;
+    const existingScopedPaths = scopedPaths.filter((scopedPath) => existsSync(resolveWorkspacePath(workspacePath, scopedPath)));
+    if (existingScopedPaths.length === 0) {
+      return 'No matches found. Search paths do not exist in this workspace.';
+    }
     const contextLines = clampNumber(args.contextLines, 0, 8, 0);
     const maxResults = clampNumber(args.maxResults, 1, MAX_RESULTS, DEFAULT_MAX_RESULTS);
     const maxOutputChars = clampNumber(args.maxOutputChars, 1000, MAX_OUTPUT_CHARS, DEFAULT_MAX_OUTPUT_CHARS);
@@ -157,7 +162,7 @@ export const rgTool: Tool = {
 
     // -- explicitly tells ripgrep that following arguments are patterns or paths, not flags.
     // This prevents an attacker from supplying flags like '--max-filesize' via the query.
-    commandArgs.push('--', query, ...scopedPaths);
+    commandArgs.push('--', query, ...existingScopedPaths);
 
     try {
       const { stdout } = await execFileAsync(ripgrepPath, commandArgs, {

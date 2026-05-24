@@ -9,6 +9,7 @@ export const lazyToolLoaders: Array<[string, ToolLoader]> = [
   ["metadata", () => import("./tools/metadata").then((m) => m.fileMetadataTool)],
   ["tree", () => import("./tools/tree").then((m) => m.projectTreeTool)],
   ["audit", () => import("./tools/audit").then((m) => m.securityAuditTool)],
+  ["security_audit", () => import("./tools/audit").then((m) => m.securityAuditTool)],
   ["deps", () => import("./tools/deps").then((m) => m.dependencyAnalyzerTool)],
   ["network", () => import("./tools/network").then((m) => m.networkMapTool)],
   ["sql", () => import("./tools/sql").then((m) => m.sqlAuditTool)],
