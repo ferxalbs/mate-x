@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.23 (2) [Preventive Guard and Agentic Evidence Hardening]
+
+- Added Preventive Guard V1 to the Work Engine with preventive risk classification, recommended controls, warning-only validation/proof stages, sanitized run artifacts, and model prompt guidance that keeps Privacy Sentinel as the outbound-context gate.
+- Hardened Workspace Trust Contract handling for local compliance artifacts by allowing `.mate-x/evidence` reads for default and normalized scoped contracts.
+- Fixed agent tool routing and search resilience by registering the `security_audit` alias and making `rg` skip missing scoped paths such as absent `.mate-x/evidence` directories instead of hard-failing.
+- Added Rainy timeout recovery for chat-completions agent loops so `APIConnectionTimeoutError` returns a partial repo-grounded result through the Work Engine instead of crashing the run.
+- Strengthened Work Engine finalization so candidate-level security reviews without proof remain warning-only, strong auth/security claims require proof, duplicate verdicts are replaced, preparatory-only answers are rejected or downgraded, and tool-backed security workflows cannot report success with zero repository tool evidence.
+- Updated agent runtime/system guidance to require `candidate_revalidator` or `security_path_trace` before strong auth, token, session, rate-limit, Redis revocation, availability, exploitability, or severity claims.
+- Added focused tests for Preventive Guard stages, evidence-path trust normalization, finalizer verdict calibration, proof-required wording downgrades, duplicate verdict cleanup, and preparatory-answer detection.
+- Verified with `bun run typecheck`, `bun run lint`, `bun test src/electron/work-engine/finalizer.test.ts src/electron/work-engine/stages.test.ts src/electron/workspace-trust.test.ts`, plus smoke checks for `security_audit` registration and missing-path `rg` behavior.
+
 ## Unreleased - 2026.05.23 (1) [Native Clipboard Copy Integration]
 
 - Implemented a secure, native clipboard writing functionality in the Electron main process via a new `ui:copy-to-clipboard` IPC handler.
