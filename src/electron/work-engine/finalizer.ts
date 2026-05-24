@@ -49,8 +49,15 @@ const SECURITY_OVERCLAIM_PATTERNS = [
   /\bSSRF\b/g,
   /\bauth bypass\b/gi,
   /\bsecret leak\b/gi,
+  /\bvulnerable\b/gi,
+  /\bvulnerability\b/gi,
+  /\bhigh-severity\b/gi,
   /\bcritical\b/gi,
   /\bhigh severity\b/gi,
+  /\bbrute-force\b/gi,
+  /\bresource exhaustion\b/gi,
+  /\bsecurity of\b[\s\S]{0,80}\bis strictly tied\b/gi,
+  /\beffectively disables\b/gi,
   /\bsource-to-sink confirmed\b/gi,
   /\bexploit is possible\b/gi,
 ];
@@ -151,7 +158,8 @@ function securityProofRequired(workPlan: WorkPlan) {
 }
 
 function hasConfirmedSecurityWording(content: string) {
-  return /\b(confirmed vulnerability|vulnerability|exploitable|source-to-sink confirmed|auth bypass|secret leak|critical|high severity)\b/i.test(content);
+  return /\b(confirmed vulnerability|vulnerable|vulnerability|exploitable|source-to-sink confirmed|auth bypass|secret leak|critical|high[-\s]severity|brute-force|resource exhaustion|effectively disables)\b/i.test(content) ||
+    /\bsecurity of\b[\s\S]{0,80}\bis strictly tied\b/i.test(content);
 }
 
 function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] {
@@ -276,8 +284,13 @@ function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings
       .replace(/\bSSRF\b/g, "potential SSRF candidate")
       .replace(/\bauth bypass\b/gi, "potential auth bypass candidate")
       .replace(/\bsecret leak\b/gi, "potential secret exposure")
+      .replace(/\bvulnerable\b/gi, "potentially exposed")
+      .replace(/\bhigh-severity\b/gi, "severity-unproven")
       .replace(/\bcritical\b/gi, "severity unproven")
       .replace(/\bhigh severity\b/gi, "severity unproven")
+      .replace(/\bbrute-force\b/gi, "automated-abuse candidate")
+      .replace(/\bresource exhaustion\b/gi, "resource-exhaustion candidate")
+      .replace(/\beffectively disables\b/gi, "may weaken")
       .replace(/\bsource-to-sink confirmed\b/gi, "source-to-sink proof incomplete")
       .replace(/\bexploit is possible\b/gi, "exploitability needs proof")
       .replace(/\bconfirmed vulnerability\b/gi, "candidate issue")

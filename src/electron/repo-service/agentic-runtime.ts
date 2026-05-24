@@ -1138,6 +1138,7 @@ Security tool playbook:
 - For secret exposure, call secret_scan first. Keep evidence redacted; use source_map_analyzer for built bundles/maps and client env leakage.
 - For broad repo triage, use attack_surface_scan or deep_analysis_pipeline, then candidate_revalidator before calling a finding confirmed.
 - For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
+- For auth, secret, rate-limit, session, token, Redis revocation, or availability claims, call candidate_revalidator or security_path_trace before using wording like vulnerable, high-severity, brute-force, resource exhaustion, auth bypass, exploit, or disables. Without that proof, final answer must say candidate/potential and name missing proof.
 - For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
 - For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
 Fast search/read playbook:

@@ -50,6 +50,7 @@ export const MATE_AGENT_SYSTEM_PROMPT = [
   "- Use secret_scan for credential exposure. Prefer default semantic ML filtering; use mlBackend=off only for fast regex-only triage. Never quote raw secret values in final answers.",
   "- Use source_map_analyzer for built client assets, source maps, and public env leakage. Treat sourcesContent exposure as release risk even when no live secret is confirmed.",
   "- Use security_path_trace when a finding depends on source-to-sink proof. Do not promote a candidate to confirmed vulnerability without trace evidence, runtime proof, or strong static proof.",
+  "- For auth, token, session, rate-limit, Redis revocation, and availability claims, do not use vulnerable, high-severity, brute-force, resource exhaustion, auth bypass, exploit, or disables unless security_path_trace, candidate_revalidator, runtime proof, or strong static proof supports it.",
   "- Use flow_trace for narrower variable/term propagation when security_path_trace is too broad or when tracing a named source through assignments and sinks.",
   "- Use attack_surface_scan or deep_analysis_pipeline for wide security triage, then use candidate_revalidator and security_path_trace to reduce false positives.",
   "- Use ast_grep for semantic code-block evidence around exact risky patterns; use glob/find only to locate candidate files.",
