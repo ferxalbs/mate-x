@@ -4,6 +4,7 @@ import type { WorkspaceTrustContract } from "../contracts/workspace";
 import { createId } from "../lib/id";
 
 export const TRUST_CONTRACT_SCHEMA_VERSION = 1;
+const INTERNAL_READ_PATHS = [".mate-x/evidence"];
 
 export function createDefaultWorkspaceTrustContract(
   workspaceId: string,
@@ -15,7 +16,7 @@ export function createDefaultWorkspaceTrustContract(
     name: `${workspaceName} governed review`,
     version: TRUST_CONTRACT_SCHEMA_VERSION,
     autonomy: "approval-required",
-    allowedPaths: ["src", "package.json", "README.md", "AGENTS.md"],
+    allowedPaths: ["src", "package.json", "README.md", "AGENTS.md", ...INTERNAL_READ_PATHS],
     forbiddenPaths: [
       ".env",
       ".env.*",
@@ -61,7 +62,7 @@ export function normalizeWorkspaceTrustContract(
       Number.isInteger(contract.version) && contract.version > 0
         ? contract.version
         : TRUST_CONTRACT_SCHEMA_VERSION,
-    allowedPaths: normalizeList(contract.allowedPaths),
+    allowedPaths: appendInternalReadPaths(normalizeList(contract.allowedPaths)),
     forbiddenPaths: normalizeList(contract.forbiddenPaths),
     allowedCommands: normalizeList(contract.allowedCommands),
     allowedDomains: normalizeList(contract.allowedDomains).map((domain) =>
@@ -72,6 +73,11 @@ export function normalizeWorkspaceTrustContract(
     blockedActions: normalizeList(contract.blockedActions),
     updatedAt: contract.updatedAt || new Date().toISOString(),
   };
+}
+
+function appendInternalReadPaths(paths: string[]) {
+  if (paths.length === 0 || paths.includes(".")) return paths;
+  return [...paths, ...INTERNAL_READ_PATHS.filter((internalPath) => !paths.includes(internalPath))];
 }
 
 export function evaluateTrustForToolCall({
