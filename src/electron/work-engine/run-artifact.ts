@@ -205,6 +205,12 @@ function sanitizeWorkPlan(workPlan: WorkPlan): WorkPlan {
       ...workPlan.privacyPlan,
       reason: sanitizeText(workPlan.privacyPlan.reason),
     },
+    preventivePlan: {
+      ...workPlan.preventivePlan,
+      recommendedControls: sanitizeStringList(workPlan.preventivePlan.recommendedControls),
+      requiredChecks: sanitizeStringList(workPlan.preventivePlan.requiredChecks),
+      reason: sanitizeText(workPlan.preventivePlan.reason),
+    },
   };
 }
 

@@ -1068,10 +1068,12 @@ Work Engine mandatory gates:
 - Intent: ${workPlan.intent}; runbook: ${workPlan.runbook}; risk: ${workPlan.risk}.
 - Follow WorkPlan working set before any broad search.
 - Validation required: ${workPlan.validationPlan.required ? "yes" : "no"}. Primary: ${workPlan.validationPlan.primaryCommand ?? "none"}. Fallback: ${workPlan.validationPlan.fallbackCommand ?? "none"}.
+- Preventive Guard: ${workPlan.preventivePlan.enabled ? "enabled" : "advisory only"}. Risk areas: ${workPlan.preventivePlan.riskAreas.join(", ") || "none"}. Prefer secure defaults, safer APIs, and required checks before edits.
 - Evidence required: ${workPlan.evidencePlan.required ? "yes" : "no"}. Missing evidence must be named in final response.
 - Privacy preflight is mandatory before repo context, tool output, memory, or evidence crosses cloud boundary.
 - Final fixed/ready/works/merge-ready claims require runtime validation evidence and validation persistence.
 - Evidence-only runbook can package existing runtime records only; never invent evidence.
+- Separate Preventive Guard warnings from confirmed findings. Never call preventive warnings vulnerabilities without source-to-sink proof, runtime proof, or strong static proof.
 
 Security proof rules:
 ${buildSecurityProofRules().map((rule) => `- ${rule}`).join("\n")}

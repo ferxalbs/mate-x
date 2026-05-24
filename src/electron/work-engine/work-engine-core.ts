@@ -5,7 +5,7 @@ import {
   runbookRequiresValidation,
   runbookStopConditions,
 } from "./runbook-resolver";
-import type { SensitiveSurfaceKind, WorkPlan, WorkPlanMetadata, WorkRisk } from "./types";
+import type { PreventiveRiskArea, SensitiveSurfaceKind, WorkPlan, WorkPlanMetadata, WorkRisk } from "./types";
 
 export type WorkEngineMode = "build" | "plan" | "critic" | "security_review";
 
@@ -107,6 +107,7 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
       includeToolOutput: evidenceRequired,
       reason: privacyReason(snapshot),
     },
+    preventivePlan: buildPreventivePlan(snapshot, risk, runbook, validationRequired),
     evidencePlan: {
       required: evidenceRequired,
       expectedArtifacts: expectedEvidenceArtifacts(runbook, changedFiles),
@@ -114,6 +115,85 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
     },
     stopConditions: runbookStopConditions(runbook),
   };
+}
+
+function buildPreventivePlan(
+  snapshot: WorkPlanInputSnapshot,
+  risk: WorkRisk,
+  runbook: WorkPlan["runbook"],
+  validationRequired: boolean,
+): WorkPlan["preventivePlan"] {
+  const riskAreas = preventiveRiskAreas(snapshot);
+  const enabled = risk !== "low" || riskAreas.length > 0 || validationRequired;
+  const controls = recommendedPreventiveControls(riskAreas);
+  const requiredChecks = preventiveRequiredChecks(runbook, validationRequired, riskAreas);
+
+  return {
+    enabled,
+    riskAreas,
+    recommendedControls: controls,
+    requiredChecks,
+    strictness: "warn",
+    reason: enabled
+      ? "Preventive Guard will warn on missing secure defaults, proof, or validation before final confidence claims."
+      : "Low-risk workflow with no sensitive surface signal; Preventive Guard remains advisory.",
+  };
+}
+
+function preventiveRiskAreas(snapshot: WorkPlanInputSnapshot): PreventiveRiskArea[] {
+  const areas = new Set<PreventiveRiskArea>();
+  for (const surface of snapshot.repoGraph?.sensitiveSurfaces ?? []) {
+    areas.add(preventiveRiskAreaFromSurface(normalizeSensitiveSurfaceKind(surface.kind)));
+  }
+  if ((snapshot.privacy?.redactions ?? 0) > 0 || snapshot.privacy?.status === "blocked") {
+    areas.add("privacy");
+    areas.add("secrets");
+  }
+  if (/\b(auth|oauth|jwt|permission|role)\b/i.test(snapshot.prompt)) areas.add("auth");
+  if (/\b(secret|token|credential|password|api key)\b/i.test(snapshot.prompt)) areas.add("secrets");
+  if (/\b(sql|database|migration|query)\b/i.test(snapshot.prompt)) areas.add("database");
+  if (/\b(dependency|package|cve|vulnerability)\b/i.test(snapshot.prompt)) areas.add("dependency");
+  return [...areas];
+}
+
+function preventiveRiskAreaFromSurface(kind: SensitiveSurfaceKind): PreventiveRiskArea {
+  if (kind === "env") return "secrets";
+  if (kind === "http") return "network";
+  if (["auth", "ipc", "filesystem", "network", "database", "dependency"].includes(kind)) {
+    return kind as PreventiveRiskArea;
+  }
+  return "unknown";
+}
+
+function recommendedPreventiveControls(riskAreas: PreventiveRiskArea[]) {
+  const controls = new Set<string>();
+  for (const area of riskAreas) {
+    if (area === "auth") controls.add("Preserve deny-by-default authorization and explicit role checks.");
+    if (area === "ipc") controls.add("Validate IPC payloads and keep privileged work in the main process.");
+    if (area === "filesystem") controls.add("Constrain filesystem paths to trusted workspace boundaries.");
+    if (area === "network") controls.add("Use allowlists, timeouts, and response validation at network boundaries.");
+    if (area === "database") controls.add("Use parameterized queries and migration-safe validation.");
+    if (area === "dependency") controls.add("Run dependency audit and prefer patched versions over compensating checks.");
+    if (area === "secrets") controls.add("Avoid logging or exporting raw secret material.");
+    if (area === "privacy") controls.add("Keep Privacy Sentinel redactions before any cloud transit.");
+    if (area === "unknown") controls.add("Document trust boundary assumptions before changing runtime behavior.");
+  }
+  return [...controls];
+}
+
+function preventiveRequiredChecks(
+  runbook: WorkPlan["runbook"],
+  validationRequired: boolean,
+  riskAreas: PreventiveRiskArea[],
+) {
+  const checks = new Set<string>();
+  if (validationRequired) checks.add("Run planned validation before final confidence claims.");
+  if (runbook === "audit_reproduce_remediate" || runbook === "trace_source_to_sink") {
+    checks.add("Prove source-to-sink path before vulnerability wording.");
+  }
+  if (riskAreas.includes("dependency")) checks.add("Run dependency audit for affected package manager.");
+  if (riskAreas.includes("privacy") || riskAreas.includes("secrets")) checks.add("Confirm Privacy Sentinel did not block outbound context.");
+  return [...checks];
 }
 
 export function renderWorkPlanForPrompt(workPlan: WorkPlan) {

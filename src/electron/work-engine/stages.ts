@@ -10,6 +10,9 @@ export type WorkStageId =
   | "validation_executed"
   | "failure_memory_checked"
   | "security_proof_checked"
+  | "preventive_risk_classified"
+  | "preventive_controls_planned"
+  | "preventive_validation_warned"
   | "privacy_preflight_passed"
   | "evidence_attached";
 
@@ -32,6 +35,9 @@ const STAGE_IDS: WorkStageId[] = [
   "validation_executed",
   "failure_memory_checked",
   "security_proof_checked",
+  "preventive_risk_classified",
+  "preventive_controls_planned",
+  "preventive_validation_warned",
   "privacy_preflight_passed",
   "evidence_attached",
 ];
@@ -105,6 +111,8 @@ export function deriveWorkStages(input: {
     pass(stages, "security_proof_checked", "runtime", "Security proof/revalidation tool ran.", idsFor(eventIdsByTool, SECURITY_PROOF_TOOLS));
   }
 
+  derivePreventiveStages(stages, input.workPlan, toolNames, eventIdsByTool);
+
   if (input.privacyBlocked) {
     block(stages, "privacy_preflight_passed", "deterministic", "Privacy Sentinel blocked outbound context.");
   } else {
@@ -118,6 +126,65 @@ export function deriveWorkStages(input: {
   }
 
   return stages;
+}
+
+export function shouldEmitPreventiveWarning(workPlan: WorkPlan, toolExecutions: ToolExecutionRecord[]) {
+  if (!workPlan.preventivePlan.enabled || workPlan.preventivePlan.strictness !== "warn") return false;
+  if (workPlan.workingSet.sensitiveSurfaces.length === 0 && workPlan.preventivePlan.riskAreas.length === 0) return false;
+  const toolNames = new Set(toolExecutions.map((execution) => execution.toolName));
+  const hasValidation = hasAny(toolNames, VALIDATION_EXEC_TOOLS);
+  const needsSecurityProof = workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
+  const hasSecurityProof = hasAny(toolNames, SECURITY_PROOF_TOOLS);
+  return !hasValidation || (needsSecurityProof && !hasSecurityProof);
+}
+
+export function preventiveWarningDetail(workPlan: WorkPlan) {
+  const checks = workPlan.preventivePlan.requiredChecks.length > 0
+    ? workPlan.preventivePlan.requiredChecks.join(" ")
+    : "Review secure defaults before final confidence claims.";
+  return `Preventive Guard warning only: sensitive or high-risk workflow lacks full validation/proof evidence. ${checks}`;
+}
+
+function derivePreventiveStages(
+  stages: WorkStage[],
+  workPlan: WorkPlan,
+  toolNames: Set<string>,
+  eventIdsByTool: Map<string, string[]>,
+) {
+  if (!workPlan.preventivePlan.enabled) {
+    skip(stages, "preventive_risk_classified", "deterministic", workPlan.preventivePlan.reason);
+    skip(stages, "preventive_controls_planned", "deterministic", "Preventive Guard disabled for low-risk workflow.");
+    skip(stages, "preventive_validation_warned", "deterministic", "Preventive Guard warning not needed.");
+    return;
+  }
+
+  pass(
+    stages,
+    "preventive_risk_classified",
+    "deterministic",
+    `Preventive risk areas: ${workPlan.preventivePlan.riskAreas.join(", ") || "unknown"}.`,
+  );
+
+  if (workPlan.preventivePlan.recommendedControls.length > 0) {
+    pass(stages, "preventive_controls_planned", "deterministic", "Preventive controls planned.");
+  } else {
+    skip(stages, "preventive_controls_planned", "deterministic", "No specific preventive controls identified.");
+  }
+
+  const hasValidation = hasAny(toolNames, VALIDATION_EXEC_TOOLS);
+  const needsSecurityProof = workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
+  const hasSecurityProof = hasAny(toolNames, SECURITY_PROOF_TOOLS);
+  if (hasValidation && (!needsSecurityProof || hasSecurityProof)) {
+    pass(
+      stages,
+      "preventive_validation_warned",
+      "runtime",
+      "Preventive validation/proof evidence exists.",
+      [...idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS), ...idsFor(eventIdsByTool, SECURITY_PROOF_TOOLS)],
+    );
+  } else {
+    skip(stages, "preventive_validation_warned", "deterministic", "Warning-only: missing validation or proof evidence must be surfaced, not blocked.");
+  }
 }
 
 function set(stages: WorkStage[], id: WorkStageId, status: WorkStageStatus, source: WorkStageSource, reason: string, relatedToolEventIds: string[] = []) {
