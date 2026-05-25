@@ -19,43 +19,38 @@ interface CodeBlockProps {
 }
 
 const customPrismTheme: { [key: string]: React.CSSProperties } = {
-  "code[class*=\"language-\"]": {
+  'code[class*="language-"]': {
     color: "var(--foreground)",
     fontFamily: "inherit",
   },
-  "pre[class*=\"language-\"]": {
+  'pre[class*="language-"]': {
     background: "transparent",
     padding: 0,
     margin: 0,
   },
-  "keyword": { color: "var(--code-keyword)" },
-  "string": { color: "var(--code-string)" },
-  "function": { color: "var(--code-function)" },
-  "comment": { color: "var(--code-comment)" },
-  "variable": { color: "var(--code-variable)" },
-  "operator": { color: "var(--code-operator)" },
-  "constant": { color: "var(--code-constant)" },
-  "tag": { color: "var(--code-tag)" },
-  "boolean": { color: "var(--code-constant)" },
-  "number": { color: "var(--code-constant)" },
+  keyword: { color: "var(--code-keyword)" },
+  string: { color: "var(--code-string)" },
+  function: { color: "var(--code-function)" },
+  comment: { color: "var(--code-comment)" },
+  variable: { color: "var(--code-variable)" },
+  operator: { color: "var(--code-operator)" },
+  constant: { color: "var(--code-constant)" },
+  tag: { color: "var(--code-tag)" },
+  boolean: { color: "var(--code-constant)" },
+  number: { color: "var(--code-constant)" },
   "attr-name": { color: "var(--code-variable)" },
   "attr-value": { color: "var(--code-string)" },
   "class-name": { color: "var(--code-class)" },
-  "parameter": { color: "var(--code-variable)" },
-  "property": { color: "var(--code-variable)" },
-  "selector": { color: "var(--code-keyword)" },
-  "builtin": { color: "var(--code-class)" },
+  parameter: { color: "var(--code-variable)" },
+  property: { color: "var(--code-variable)" },
+  selector: { color: "var(--code-keyword)" },
+  builtin: { color: "var(--code-class)" },
 };
 
 const markdownComponents: Components = {
   a({ href, children, ...props }) {
     return (
-      <a
-        href={href}
-        rel="noreferrer"
-        target="_blank"
-        {...props}
-      >
+      <a href={href} rel="noreferrer" target="_blank" {...props}>
         {children}
       </a>
     );
@@ -73,9 +68,7 @@ const markdownComponents: Components = {
     }
 
     return (
-      <CodeBlock className={className}>
-        {content.replace(/\n$/, "")}
-      </CodeBlock>
+      <CodeBlock className={className}>{content.replace(/\n$/, "")}</CodeBlock>
     );
   },
 };
@@ -99,9 +92,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   return (
     <div className="chat-markdown-codeblock group">
       {language ? (
-        <div className="chat-markdown-codeblock-label">
-          {language}
-        </div>
+        <div className="chat-markdown-codeblock-label">{language}</div>
       ) : null}
       <button
         type="button"
@@ -109,7 +100,11 @@ function CodeBlock({ className, children }: CodeBlockProps) {
         onClick={() => void handleCopy()}
         aria-label={copied ? "Copied code" : "Copy code"}
       >
-        {copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+        {copied ? (
+          <CheckIcon className="size-3.5" />
+        ) : (
+          <CopyIcon className="size-3.5" />
+        )}
       </button>
       <SyntaxHighlighter
         language={language}
@@ -124,7 +119,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
           style: {
             display: "block",
             paddingTop: language ? "2.2rem" : "0.85rem",
-          }
+          },
         }}
       >
         {content}
@@ -140,9 +135,16 @@ export const ChatMarkdown = memo(function ChatMarkdown({
 }: ChatMarkdownProps) {
   return (
     <div
-      className={cn("chat-markdown", isStreaming ? "chat-markdown-streaming" : "", className)}
+      className={cn(
+        "chat-markdown",
+        isStreaming ? "chat-markdown-streaming" : "",
+        className,
+      )}
     >
-      <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
+      <ReactMarkdown
+        components={markdownComponents}
+        remarkPlugins={[remarkGfm]}
+      >
         {content}
       </ReactMarkdown>
     </div>
