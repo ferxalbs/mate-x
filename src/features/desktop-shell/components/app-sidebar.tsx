@@ -53,6 +53,8 @@ import { cn } from "../../../lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ThreadMenuItem } from "./thread-menu-item";
 
+const SettingsLink = Link as any;
+
 const COLLAPSED_THREAD_LIMIT = 10;
 
 interface AppSidebarProps {
@@ -62,7 +64,7 @@ interface AppSidebarProps {
   activeThreadId: string;
   threads: Conversation[];
   theme: Theme;
-  resolvedTheme: 'light' | 'dark';
+  resolvedTheme: "light" | "dark";
   runStatus: RunStatus;
   onImportWorkspace: () => void;
   onActivateWorkspace: (workspaceId: string) => Promise<void>;
@@ -119,7 +121,9 @@ export function AppSidebar({
   onSelectThread,
   onRenameThread,
 }: AppSidebarProps) {
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<
+    Record<string, boolean>
+  >({});
   const [showAllThreads, setShowAllThreads] = useState(false);
   const [workspacePendingRemoval, setWorkspacePendingRemoval] =
     useState<WorkspaceEntry | null>(null);
@@ -169,7 +173,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "general" }}
                         to="/settings/$section"
                       />
@@ -189,7 +193,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "connections" }}
                         to="/settings/$section"
                       />
@@ -209,7 +213,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "trust" }}
                         to="/settings/$section"
                       />
@@ -229,7 +233,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "privacy" }}
                         to="/settings/$section"
                       />
@@ -249,7 +253,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "workspace-memory" }}
                         to="/settings/$section"
                       />
@@ -269,7 +273,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "agent-profiler" }}
                         to="/settings/$section"
                       />
@@ -289,7 +293,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "integrations" }}
                         to="/settings/$section"
                       />
@@ -309,7 +313,7 @@ export function AppSidebar({
                         : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
-                      <Link
+                      <SettingsLink
                         params={{ section: "archive" }}
                         to="/settings/$section"
                       />
@@ -351,7 +355,10 @@ export function AppSidebar({
                     onClick={onOpenSearch}
                   >
                     <span className="flex size-5 shrink-0 items-center justify-center">
-                      <MagnifyingGlassIcon className="size-4" weight="regular" />
+                      <MagnifyingGlassIcon
+                        className="size-4"
+                        weight="regular"
+                      />
                     </span>
                     <span className="min-w-0 flex-1 truncate">Search</span>
                     <KbdGroup className="shrink-0 gap-0.5 opacity-65">
@@ -386,7 +393,8 @@ export function AppSidebar({
                   const visibleThreads = showAllThreads
                     ? activeThreads
                     : activeThreads.slice(0, COLLAPSED_THREAD_LIMIT);
-                  const hiddenThreadCount = activeThreads.length - visibleThreads.length;
+                  const hiddenThreadCount =
+                    activeThreads.length - visibleThreads.length;
 
                   return (
                     <SidebarMenuItem key={project.id} className="rounded-2xl">
@@ -404,7 +412,9 @@ export function AppSidebar({
                           <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
                             <FolderIcon className="size-4" weight="regular" />
                           </span>
-                          <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {project.name}
+                          </span>
                         </button>
                         {isWorkspaceActive ? (
                           <button
@@ -415,7 +425,11 @@ export function AppSidebar({
                               }))
                             }
                             className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/45 transition-colors hover:bg-accent hover:text-foreground"
-                            title={isProjectOpen ? "Collapse history" : "Expand history"}
+                            title={
+                              isProjectOpen
+                                ? "Collapse history"
+                                : "Expand history"
+                            }
                             type="button"
                           >
                             <CaretDownIcon
@@ -444,7 +458,9 @@ export function AppSidebar({
                           <div className="flex items-start justify-between gap-2 pb-1 text-[10px] text-muted-foreground/40">
                             <div className="min-w-0">
                               <div className="truncate">{workspace?.path}</div>
-                              <div className="truncate">{activeThreads.length} saved threads</div>
+                              <div className="truncate">
+                                {activeThreads.length} saved threads
+                              </div>
                             </div>
                             <button
                               onClick={onCreateThread}
@@ -452,30 +468,30 @@ export function AppSidebar({
                               title="New thread"
                               type="button"
                             >
-                              <NotePencilIcon className="size-3.5" weight="regular" />
+                              <NotePencilIcon
+                                className="size-3.5"
+                                weight="regular"
+                              />
                             </button>
                           </div>
 
-                          {visibleThreads
-                            .map((thread) => (
-                              <ThreadMenuItem
-                                key={thread.id}
-                                thread={thread}
-                                isActive={thread.id === activeThreadId}
-                                runStatus={runStatus}
-                                onSelectThread={onSelectThread}
-                                onArchiveThread={(id) => {
-                                  void useChatStore
-                                    .getState()
-                                    .archiveThread(id);
-                                }}
-                                onDeleteThread={(id) => {
-                                  void useChatStore.getState().deleteThread(id);
-                                }}
-                                onRenameThread={onRenameThread}
-                                getThreadStatusLabel={getThreadStatusLabel}
-                              />
-                            ))}
+                          {visibleThreads.map((thread) => (
+                            <ThreadMenuItem
+                              key={thread.id}
+                              thread={thread}
+                              isActive={thread.id === activeThreadId}
+                              runStatus={runStatus}
+                              onSelectThread={onSelectThread}
+                              onArchiveThread={(id) => {
+                                void useChatStore.getState().archiveThread(id);
+                              }}
+                              onDeleteThread={(id) => {
+                                void useChatStore.getState().deleteThread(id);
+                              }}
+                              onRenameThread={onRenameThread}
+                              getThreadStatusLabel={getThreadStatusLabel}
+                            />
+                          ))}
                           {hiddenThreadCount > 0 ? (
                             <button
                               onClick={() => setShowAllThreads(true)}
@@ -515,7 +531,7 @@ export function AppSidebar({
                   </Link>
                 </div>
                 <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
-                  <Link
+                  <SettingsLink
                     params={{ section: "general" }}
                     to="/settings/$section"
                     className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
@@ -523,7 +539,7 @@ export function AppSidebar({
                   >
                     <SettingsIcon className="size-3.5" />
                     <span className="text-xs">Settings</span>
-                  </Link>
+                  </SettingsLink>
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]",
