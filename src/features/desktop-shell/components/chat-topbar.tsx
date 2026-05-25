@@ -9,22 +9,27 @@ import {
   PanelRightIcon,
   PlusIcon,
   TargetIcon,
-} from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 
-import { Button } from '../../../components/ui/button';
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from '../../../components/ui/menu';
-import { SidebarTrigger, useSidebar } from '../../../components/ui/sidebar';
-import type { Conversation, RunStatus } from '../../../contracts/chat';
-import type { WorkspaceSummary } from '../../../contracts/workspace';
-import type { Appearance } from '../../../hooks/use-theme';
-import { cn } from '../../../lib/utils';
-import { openWorkspacePath } from '../../../services/repo-client';
+import { Button } from "../../../components/ui/button";
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuTrigger,
+} from "../../../components/ui/menu";
+import { SidebarTrigger, useSidebar } from "../../../components/ui/sidebar";
+import type { Conversation, RunStatus } from "../../../contracts/chat";
+import type { WorkspaceSummary } from "../../../contracts/workspace";
+import type { Appearance } from "../../../hooks/use-theme";
+import { cn } from "../../../lib/utils";
+import { openWorkspacePath } from "../../../services/repo-client";
 
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
   conversation: Conversation | null;
-  resolvedTheme: 'light' | 'dark';
+  resolvedTheme: "light" | "dark";
   runStatus: RunStatus;
   onCreateThread: () => void;
   onImportWorkspace: () => Promise<void>;
@@ -45,7 +50,7 @@ function TitlebarButton({
       size="xs"
       variant="outline"
       className={cn(
-        'h-8 rounded-full border-border/55 bg-background/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none hover:border-primary/35 hover:bg-primary/10 hover:text-primary',
+        "h-8 rounded-full border-border/55 bg-background/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
         className,
       )}
       onClick={onClick}
@@ -62,38 +67,50 @@ export function ChatTopbar({
   onCreateThread,
 }: ChatTopbarProps) {
   const { state } = useSidebar();
-  const [openTarget, setOpenTarget] = useState('folder');
-  const [gitAction, setGitAction] = useState('commit-push');
-  const title = conversation?.title ?? 'No active thread';
+  const [openTarget, setOpenTarget] = useState("folder");
+  const [gitAction, setGitAction] = useState("commit-push");
+  const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
-  const liveLabel = runStatus === 'running' ? 'Live running' : eventCount > 0 ? 'Live ready' : 'Live idle';
-  const liveTone =
-    runStatus === 'running'
-      ? 'border-blue-400/45 bg-blue-500/14 text-blue-300 hover:bg-blue-500/18'
+  const liveLabel =
+    runStatus === "running"
+      ? "Live running"
       : eventCount > 0
-        ? 'border-emerald-400/45 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/18'
-        : 'border-[var(--panel-border)]/60 bg-background/55 text-foreground/80';
+        ? "Live ready"
+        : "Live idle";
+  const liveTone =
+    runStatus === "running"
+      ? "border-blue-400/45 bg-blue-500/14 text-blue-300 hover:bg-blue-500/18"
+      : eventCount > 0
+        ? "border-emerald-400/45 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/18"
+        : "border-[var(--panel-border)]/60 bg-background/55 text-foreground/80";
   const toggleLivePanel = () => {
-    window.dispatchEvent(new Event('mate:toggle-enhancement-panel'));
+    window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
   };
-  const sendLiveCommand = (detail: { action?: 'open' | 'scan'; view?: 'trace' | 'impact' | 'validation' | 'evidence' }) => {
-    window.dispatchEvent(new CustomEvent('mate:enhancement-panel-command', { detail }));
+  const sendLiveCommand = (detail: {
+    action?: "open" | "scan";
+    view?: "trace" | "impact" | "validation" | "evidence";
+  }) => {
+    window.dispatchEvent(
+      new CustomEvent("mate:enhancement-panel-command", { detail }),
+    );
   };
   const openSelectedTarget = () => {
-    void openWorkspacePath(openTarget as 'folder' | 'vscode' | 'terminal');
+    void openWorkspacePath(openTarget as "folder" | "vscode" | "terminal");
   };
   const runGitAction = () => {
-    window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: gitAction } }));
-    window.dispatchEvent(new Event('mate:toggle-git-panel'));
+    window.dispatchEvent(
+      new CustomEvent("mate:git-action", { detail: { action: gitAction } }),
+    );
+    window.dispatchEvent(new Event("mate:toggle-git-panel"));
   };
 
   return (
     <header
       className={cn(
-        'drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)]/40 px-4 transition-[padding-left] duration-200 ease-linear',
-        state === 'collapsed' && 'pl-[88px]',
+        "drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)]/40 px-4 transition-[padding-left] duration-200 ease-linear",
+        state === "collapsed" && "pl-[88px]",
       )}
-      style={{ '--glass-bg': 'var(--titlebar)' } as any}
+      style={{ "--glass-bg": "var(--titlebar)" } as any}
     >
       <div className="flex min-w-0 items-center gap-3">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
@@ -105,7 +122,7 @@ export function ChatTopbar({
             {workspace.name}
           </span>
         ) : null}
-        {runStatus === 'running' ? (
+        {runStatus === "running" ? (
           <span className="rounded-md bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Running
           </span>
@@ -114,8 +131,12 @@ export function ChatTopbar({
 
       <div className="no-drag flex shrink-0 items-center gap-2">
         <Menu>
-          <MenuTrigger render={<TitlebarButton className={liveTone} onClick={toggleLivePanel} />}>
-            {runStatus === 'running' ? (
+          <MenuTrigger
+            render={
+              <TitlebarButton className={liveTone} onClick={toggleLivePanel} />
+            }
+          >
+            {runStatus === "running" ? (
               <Loader2Icon className="size-3.5 animate-spin" />
             ) : (
               <ActivityIcon className="size-3.5" />
@@ -127,27 +148,27 @@ export function ChatTopbar({
             <ChevronDownIcon className="size-3.5 text-current/65" />
           </MenuTrigger>
           <MenuPopup align="end">
-            <MenuItem onClick={() => sendLiveCommand({ action: 'open' })}>
+            <MenuItem onClick={() => sendLiveCommand({ action: "open" })}>
               <PanelRightIcon className="size-3.5" />
               Open panel
             </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ action: 'scan' })}>
+            <MenuItem onClick={() => sendLiveCommand({ action: "scan" })}>
               <GitBranchIcon className="size-3.5" />
               Scan impact
             </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: 'trace' })}>
+            <MenuItem onClick={() => sendLiveCommand({ view: "trace" })}>
               <ActivityIcon className="size-3.5" />
               TRACE
             </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: 'impact' })}>
+            <MenuItem onClick={() => sendLiveCommand({ view: "impact" })}>
               <MapIcon className="size-3.5" />
               Impact
             </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: 'validation' })}>
+            <MenuItem onClick={() => sendLiveCommand({ view: "validation" })}>
               <TargetIcon className="size-3.5" />
               Validation
             </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: 'evidence' })}>
+            <MenuItem onClick={() => sendLiveCommand({ view: "evidence" })}>
               <FileSearchIcon className="size-3.5" />
               Evidence
             </MenuItem>
@@ -156,30 +177,34 @@ export function ChatTopbar({
         <Menu>
           <MenuTrigger render={<TitlebarButton onClick={openSelectedTarget} />}>
             <ExternalLinkIcon className="size-3.5" />
-            {openTarget === 'folder' ? 'Open' : openTarget === 'vscode' ? 'VS Code' : 'Terminal'}
+            {openTarget === "folder"
+              ? "Open"
+              : openTarget === "vscode"
+                ? "VS Code"
+                : "Terminal"}
             <ChevronDownIcon className="size-3.5 text-muted-foreground" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
               onClick={() => {
-                setOpenTarget('folder');
-                void openWorkspacePath('folder');
+                setOpenTarget("folder");
+                void openWorkspacePath("folder");
               }}
             >
               Open
             </MenuItem>
             <MenuItem
               onClick={() => {
-                setOpenTarget('vscode');
-                void openWorkspacePath('vscode');
+                setOpenTarget("vscode");
+                void openWorkspacePath("vscode");
               }}
             >
               Open in VS Code
             </MenuItem>
             <MenuItem
               onClick={() => {
-                setOpenTarget('terminal');
-                void openWorkspacePath('terminal');
+                setOpenTarget("terminal");
+                void openWorkspacePath("terminal");
               }}
             >
               Open in Terminal
@@ -189,34 +214,46 @@ export function ChatTopbar({
         <Menu>
           <MenuTrigger render={<TitlebarButton onClick={runGitAction} />}>
             <GitBranchIcon className="size-3.5" />
-            {gitAction === 'commit-push'
-              ? 'Commit & push'
-              : gitAction === 'commit'
-                ? 'Commit'
-                : 'Push & PR'}
+            {gitAction === "commit-push"
+              ? "Commit & push"
+              : gitAction === "commit"
+                ? "Commit"
+                : "Push & PR"}
             <ChevronDownIcon className="size-3.5 text-muted-foreground" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
               onClick={() => {
-                setGitAction('commit');
-                window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: 'commit' } }));
+                setGitAction("commit");
+                window.dispatchEvent(
+                  new CustomEvent("mate:git-action", {
+                    detail: { action: "commit" },
+                  }),
+                );
               }}
             >
               Commit
             </MenuItem>
             <MenuItem
               onClick={() => {
-                setGitAction('commit-push');
-                window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: 'commit-push' } }));
+                setGitAction("commit-push");
+                window.dispatchEvent(
+                  new CustomEvent("mate:git-action", {
+                    detail: { action: "commit-push" },
+                  }),
+                );
               }}
             >
               Commit &amp; push
             </MenuItem>
             <MenuItem
               onClick={() => {
-                setGitAction('push-pr');
-                window.dispatchEvent(new CustomEvent('mate:git-action', { detail: { action: 'push-pr' } }));
+                setGitAction("push-pr");
+                window.dispatchEvent(
+                  new CustomEvent("mate:git-action", {
+                    detail: { action: "push-pr" },
+                  }),
+                );
               }}
             >
               Push &amp; PR
