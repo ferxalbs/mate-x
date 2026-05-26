@@ -67,16 +67,6 @@ const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
 const LIQUID_SIDEBAR_WIDTH = 288;
-const LIQUID_GLASS_TINTS = {
-  default: { r: 0.16, g: 0.18, b: 0.22, a: 0.68 },
-  oled: { r: 0.08, g: 0.08, b: 0.1, a: 0.72 },
-  blue: { r: 0.08, g: 0.14, b: 0.26, a: 0.68 },
-  deepblue: { r: 0.06, g: 0.12, b: 0.24, a: 0.7 },
-  deeppurple: { r: 0.16, g: 0.1, b: 0.24, a: 0.68 },
-  casimiri: { r: 0.2, g: 0.15, b: 0.12, a: 0.66 },
-  greenspace: { r: 0.08, g: 0.18, b: 0.14, a: 0.68 },
-  midnight: { r: 0.08, g: 0.12, b: 0.2, a: 0.7 },
-} as const;
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -164,7 +154,11 @@ function LiquidSidebarGlass({
 }: {
   settings: AppSettings;
 }) {
-  const tint = LIQUID_GLASS_TINTS[settings.theme] ?? LIQUID_GLASS_TINTS.midnight;
+  const density = {
+    calm: { blur: 150, displacementBlur: 16, specularOpacity: 0.22 },
+    focus: { blur: 200, displacementBlur: 22, specularOpacity: 0.3 },
+    deep: { blur: 250, displacementBlur: 28, specularOpacity: 0.36 },
+  }[settings.liquidGlassDensity];
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden bg-transparent">
@@ -176,16 +170,16 @@ function LiquidSidebarGlass({
 
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
-              blur={200}
+              blur={density.blur}
               bezelWidth={140}
-              displacementBlur={22}
+              displacementBlur={density.displacementBlur}
               thickness={0}
               shadowColor={{ r: 0, g: 0, b: 0, a: 0.24 }}
               shadowBlur={28}
-              specularOpacity={0.32}
+              specularOpacity={density.specularOpacity}
               surfaceProfile="concave"
               specularFalloff={2}
-              tint={tint}
+              tint={{ r: 1, g: 1, b: 1, a: 0.02 }}
             >
               <Transform x={0} y={0}>
                 <Glass cornerRadius={34}>
@@ -252,11 +246,6 @@ export function AppSidebar({
       cancelled = true;
     };
   }, []);
-  const liquidGlassDensityClasses = {
-    calm: "bg-[var(--panel)]/35",
-    focus: "bg-[var(--panel)]/48",
-    deep: "bg-[var(--panel)]/62",
-  } satisfies Record<AppSettings["liquidGlassDensity"], string>;
   const liquidGlassEnabled =
     settings.liquidGlassSidebar && liquidGlassAvailable;
 
@@ -265,12 +254,10 @@ export function AppSidebar({
       className={cn(
         "relative z-10 flex h-full min-h-0 flex-col",
         liquidGlassEnabled &&
-          "rounded-[32px] border border-[var(--panel-border)]/30 backdrop-blur-xl",
+          "rounded-[32px] border border-[var(--panel-border)]/24 backdrop-blur-xl",
         liquidGlassEnabled &&
           settings.liquidGlassShineColors &&
           "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
-        liquidGlassEnabled &&
-          liquidGlassDensityClasses[settings.liquidGlassDensity],
       )}
     >
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
@@ -728,25 +715,26 @@ export function AppSidebar({
     </div>
   );
 
+  if (liquidGlassEnabled) {
+    return (
+      <aside className="drag-region relative z-10 h-full w-[288px] shrink-0 overflow-hidden border-r border-transparent bg-transparent text-[var(--sidebar-foreground)]">
+        <>
+          <LiquidSidebarGlass
+            settings={settings}
+          />
+          {sidebarContent}
+        </>
+      </aside>
+    );
+  }
+
   return (
     <Sidebar
       side="left"
       collapsible="offcanvas"
-      className={cn(
-        "drag-region border-r border-[var(--sidebar-border)] text-[var(--sidebar-foreground)]",
-        liquidGlassEnabled
-          ? "relative overflow-hidden border-transparent bg-transparent"
-          : "bg-[var(--sidebar)]",
-      )}
+      className="drag-region border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
     >
-      {liquidGlassEnabled ? (
-        <>
-          <LiquidSidebarGlass settings={settings} />
-          {sidebarContent}
-        </>
-      ) : (
-        sidebarContent
-      )}
+      {sidebarContent}
     </Sidebar>
   );
 }

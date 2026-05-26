@@ -244,7 +244,7 @@ export function RunsPage() {
   }
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-background">
+    <section className="flex min-w-0 flex-1 flex-col bg-transparent">
       <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5">
         <div className="min-w-0">
           <h1 className="truncate text-sm font-semibold text-foreground">Mission Log</h1>
