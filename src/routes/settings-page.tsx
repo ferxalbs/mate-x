@@ -507,7 +507,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)] text-foreground">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent text-foreground">
         <header
           className="drag-region glass sticky top-0 z-10 flex h-[52px] shrink-0 items-center border-b border-border/70 px-5"
           style={{ '--glass-bg': 'var(--titlebar)' } as any}
@@ -532,7 +532,7 @@ export function SettingsPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,var(--surface),var(--background))] p-6">
+        <div className="flex-1 overflow-y-auto bg-transparent p-6">
           <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
             {section === 'general' ? (
               <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
