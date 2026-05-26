@@ -1491,6 +1491,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       input.liquidGlassDensity === 'deep'
         ? input.liquidGlassDensity
         : DEFAULT_APP_SETTINGS.liquidGlassDensity,
+    liquidGlassShineColors:
+      typeof input.liquidGlassShineColors === 'boolean'
+        ? input.liquidGlassShineColors
+        : DEFAULT_APP_SETTINGS.liquidGlassShineColors,
     onboardingCompleted:
       typeof input.onboardingCompleted === 'boolean'
         ? input.onboardingCompleted

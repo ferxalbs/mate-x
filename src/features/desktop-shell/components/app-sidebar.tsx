@@ -67,6 +67,16 @@ const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
 const LIQUID_SIDEBAR_WIDTH = 288;
+const LIQUID_GLASS_TINTS = {
+  default: { r: 0.16, g: 0.18, b: 0.22, a: 0.68 },
+  oled: { r: 0.08, g: 0.08, b: 0.1, a: 0.72 },
+  blue: { r: 0.08, g: 0.14, b: 0.26, a: 0.68 },
+  deepblue: { r: 0.06, g: 0.12, b: 0.24, a: 0.7 },
+  deeppurple: { r: 0.16, g: 0.1, b: 0.24, a: 0.68 },
+  casimiri: { r: 0.2, g: 0.15, b: 0.12, a: 0.66 },
+  greenspace: { r: 0.08, g: 0.18, b: 0.14, a: 0.68 },
+  midnight: { r: 0.08, g: 0.12, b: 0.2, a: 0.7 },
+} as const;
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -149,7 +159,13 @@ async function getLiquidGlassAvailability() {
   return isMac && macVersion !== null;
 }
 
-function LiquidSidebarGlass() {
+function LiquidSidebarGlass({
+  settings,
+}: {
+  settings: AppSettings;
+}) {
+  const tint = LIQUID_GLASS_TINTS[settings.theme] ?? LIQUID_GLASS_TINTS.midnight;
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden bg-transparent">
       <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
@@ -169,7 +185,7 @@ function LiquidSidebarGlass() {
               specularOpacity={0.32}
               surfaceProfile="concave"
               specularFalloff={2}
-              tint={{ r: 0.12, g: 0.12, b: 0.14, a: 0.68 }}
+              tint={tint}
             >
               <Transform x={0} y={0}>
                 <Glass cornerRadius={34}>
@@ -250,6 +266,9 @@ export function AppSidebar({
         "relative z-10 flex h-full min-h-0 flex-col",
         liquidGlassEnabled &&
           "rounded-[32px] border border-[var(--panel-border)]/30 backdrop-blur-xl",
+        liquidGlassEnabled &&
+          settings.liquidGlassShineColors &&
+          "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
         liquidGlassEnabled &&
           liquidGlassDensityClasses[settings.liquidGlassDensity],
       )}
@@ -722,7 +741,7 @@ export function AppSidebar({
     >
       {liquidGlassEnabled ? (
         <>
-          <LiquidSidebarGlass />
+          <LiquidSidebarGlass settings={settings} />
           {sidebarContent}
         </>
       ) : (

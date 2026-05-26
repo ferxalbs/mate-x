@@ -19,6 +19,7 @@ export interface AppSettings {
   floatingInput: boolean;
   liquidGlassSidebar: boolean;
   liquidGlassDensity: LiquidGlassDensity;
+  liquidGlassShineColors: boolean;
   archiveConfirmation: boolean;
   deleteConfirmation: boolean;
   agentProfilerAutoSwitch: boolean;
@@ -47,6 +48,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   floatingInput: false,
   liquidGlassSidebar: false,
   liquidGlassDensity: 'focus',
+  liquidGlassShineColors: true,
   archiveConfirmation: true,
   deleteConfirmation: true,
   agentProfilerAutoSwitch: false,
