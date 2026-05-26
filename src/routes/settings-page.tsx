@@ -362,6 +362,9 @@ export function SettingsPage() {
         assistantOutput: DEFAULT_APP_SETTINGS.assistantOutput,
         compactMode: DEFAULT_APP_SETTINGS.compactMode,
         floatingInput: DEFAULT_APP_SETTINGS.floatingInput,
+        liquidGlassSidebar: DEFAULT_APP_SETTINGS.liquidGlassSidebar,
+        liquidGlassDensity: DEFAULT_APP_SETTINGS.liquidGlassDensity,
+        liquidGlassShineColors: DEFAULT_APP_SETTINGS.liquidGlassShineColors,
       }));
       setAppearance('system');
       setTheme('default');
@@ -419,6 +422,7 @@ export function SettingsPage() {
       ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Blur effects'] : []),
       ...(appSettings.liquidGlassSidebar !== savedAppSettings.liquidGlassSidebar ? ['Liquid Glass sidebar'] : []),
       ...(appSettings.liquidGlassDensity !== savedAppSettings.liquidGlassDensity ? ['Liquid Glass density'] : []),
+      ...(appSettings.liquidGlassShineColors !== savedAppSettings.liquidGlassShineColors ? ['Shine Colors'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.agentTraceVersion !== savedAppSettings.agentTraceVersion ? ['Agent Trace mode'] : []),
       ...(appSettings.agentTraceV2InlineEvents !== savedAppSettings.agentTraceV2InlineEvents
@@ -458,6 +462,7 @@ export function SettingsPage() {
       appSettings.blurEnabled,
       appSettings.liquidGlassSidebar,
       appSettings.liquidGlassDensity,
+      appSettings.liquidGlassShineColors,
       appSettings.archiveConfirmation,
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
@@ -480,6 +485,7 @@ export function SettingsPage() {
       savedAppSettings.blurEnabled,
       savedAppSettings.liquidGlassSidebar,
       savedAppSettings.liquidGlassDensity,
+      savedAppSettings.liquidGlassShineColors,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
@@ -620,33 +626,53 @@ export function SettingsPage() {
                     }
                   />
                   {appSettings.liquidGlassSidebar ? (
-                    <SettingsRow
-                      title="Liquid Glass density"
-                      description="Controls sidebar glass opacity without changing layout structure."
-                      control={
-                        <Select
-                          value={appSettings.liquidGlassDensity}
-                          onValueChange={(value) => {
-                            setAppSettings((current) => ({
-                              ...current,
-                              liquidGlassDensity: value as LiquidGlassDensity,
-                            }));
-                            if (saveState === 'saved') {
-                              setSaveState('idle');
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-[150px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="calm">Calm</SelectItem>
-                            <SelectItem value="focus">Focus</SelectItem>
-                            <SelectItem value="deep">Deep</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      }
-                    />
+                    <>
+                      <SettingsRow
+                        title="Liquid Glass density"
+                        description="Controls sidebar glass opacity without changing layout structure."
+                        control={
+                          <Select
+                            value={appSettings.liquidGlassDensity}
+                            onValueChange={(value) => {
+                              setAppSettings((current) => ({
+                                ...current,
+                                liquidGlassDensity: value as LiquidGlassDensity,
+                              }));
+                              if (saveState === 'saved') {
+                                setSaveState('idle');
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-[150px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="calm">Calm</SelectItem>
+                              <SelectItem value="focus">Focus</SelectItem>
+                              <SelectItem value="deep">Deep</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        }
+                      />
+                      <SettingsRow
+                        title="Shine Colors"
+                        description="Theme-aware ambient color fields that make glass and blur surfaces catch light."
+                        control={
+                          <Switch
+                            checked={appSettings.liquidGlassShineColors}
+                            onCheckedChange={(value) => {
+                              setAppSettings((current) => ({
+                                ...current,
+                                liquidGlassShineColors: value,
+                              }));
+                              if (saveState === 'saved') {
+                                setSaveState('idle');
+                              }
+                            }}
+                          />
+                        }
+                      />
+                    </>
                   ) : null}
                   <SettingsRow
                     title="Time format"
