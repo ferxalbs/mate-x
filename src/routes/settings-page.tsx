@@ -41,6 +41,7 @@ import {
   DEFAULT_APP_SETTINGS,
   type AgentTraceVersion,
   type AppSettings,
+  type LiquidGlassDensity,
   type PrivacyMode,
   type PrivacyPlaceholderStyle,
   type TimeFormat,
@@ -416,6 +417,8 @@ export function SettingsPage() {
       ...(appSettings.appearance !== savedAppSettings.appearance ? ['Appearance'] : []),
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
       ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Blur effects'] : []),
+      ...(appSettings.liquidGlassSidebar !== savedAppSettings.liquidGlassSidebar ? ['Liquid Glass sidebar'] : []),
+      ...(appSettings.liquidGlassDensity !== savedAppSettings.liquidGlassDensity ? ['Liquid Glass density'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.agentTraceVersion !== savedAppSettings.agentTraceVersion ? ['Agent Trace mode'] : []),
       ...(appSettings.agentTraceV2InlineEvents !== savedAppSettings.agentTraceV2InlineEvents
@@ -453,6 +456,8 @@ export function SettingsPage() {
       appSettings.appearance,
       appSettings.theme,
       appSettings.blurEnabled,
+      appSettings.liquidGlassSidebar,
+      appSettings.liquidGlassDensity,
       appSettings.archiveConfirmation,
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
@@ -473,6 +478,8 @@ export function SettingsPage() {
       savedAppSettings.appearance,
       savedAppSettings.theme,
       savedAppSettings.blurEnabled,
+      savedAppSettings.liquidGlassSidebar,
+      savedAppSettings.liquidGlassDensity,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
@@ -597,6 +604,50 @@ export function SettingsPage() {
                       />
                     }
                   />
+                  <SettingsRow
+                    title="Liquid Glass sidebar"
+                    description="Optional macOS 15+ sidebar renderer. Keeps standard sidebar untouched when disabled."
+                    control={
+                      <Switch
+                        checked={appSettings.liquidGlassSidebar}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, liquidGlassSidebar: value }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  {appSettings.liquidGlassSidebar ? (
+                    <SettingsRow
+                      title="Liquid Glass density"
+                      description="Controls sidebar glass opacity without changing layout structure."
+                      control={
+                        <Select
+                          value={appSettings.liquidGlassDensity}
+                          onValueChange={(value) => {
+                            setAppSettings((current) => ({
+                              ...current,
+                              liquidGlassDensity: value as LiquidGlassDensity,
+                            }));
+                            if (saveState === 'saved') {
+                              setSaveState('idle');
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[150px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="calm">Calm</SelectItem>
+                            <SelectItem value="focus">Focus</SelectItem>
+                            <SelectItem value="deep">Deep</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      }
+                    />
+                  ) : null}
                   <SettingsRow
                     title="Time format"
                     description="System default follows your browser or OS clock preference."

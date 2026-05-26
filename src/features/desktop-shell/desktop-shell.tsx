@@ -19,6 +19,7 @@ export function DesktopShell() {
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
   const activeThreadIds = useChatStore((state) => state.activeThreadIds);
   const runStatus = useChatStore((state) => state.runStatus);
+  const settings = useChatStore((state) => state.settings);
   const [searchOpen, setSearchOpen] = useState(false);
   const bootstrap = useChatStore((state) => state.bootstrap);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
@@ -84,6 +85,7 @@ export function DesktopShell() {
             onRenameThread={renameThread}
             theme={theme}
             resolvedTheme={resolvedTheme}
+            settings={settings}
             threads={threads}
             workspaces={workspaces}
             workspace={workspace}

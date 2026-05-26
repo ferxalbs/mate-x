@@ -4,6 +4,7 @@ export type ThemePreference = 'default' | 'oled' | 'blue' | 'deepblue' | 'deeppu
 export type AgentTraceVersion = 'v1' | 'v2';
 export type PrivacyMode = 'off' | 'warn' | 'review' | 'strict';
 export type PrivacyPlaceholderStyle = 'simple' | 'typed' | 'stable';
+export type LiquidGlassDensity = 'calm' | 'focus' | 'deep';
 
 export interface AppSettings {
   appearance: AppearancePreference;
@@ -16,6 +17,8 @@ export interface AppSettings {
   assistantOutput: boolean;
   compactMode: boolean;
   floatingInput: boolean;
+  liquidGlassSidebar: boolean;
+  liquidGlassDensity: LiquidGlassDensity;
   archiveConfirmation: boolean;
   deleteConfirmation: boolean;
   agentProfilerAutoSwitch: boolean;
@@ -42,6 +45,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   assistantOutput: true,
   compactMode: true,
   floatingInput: false,
+  liquidGlassSidebar: false,
+  liquidGlassDensity: 'focus',
   archiveConfirmation: true,
   deleteConfirmation: true,
   agentProfilerAutoSwitch: false,
