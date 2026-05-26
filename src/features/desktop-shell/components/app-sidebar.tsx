@@ -1,4 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  Frame,
+  Glass,
+  GlassContainer,
+  Html,
+  LiquidCanvas,
+  Transform,
+  ZStack,
+} from "@liquid-dom/react";
 import {
   ArrowLeftIcon,
   FileTextIcon,
@@ -48,6 +57,7 @@ import type {
   WorkspaceEntry,
   WorkspaceSummary,
 } from "../../../contracts/workspace";
+import type { AppSettings } from "../../../contracts/settings";
 import type { Theme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -56,6 +66,7 @@ import { ThreadMenuItem } from "./thread-menu-item";
 const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
+const LIQUID_SIDEBAR_WIDTH = 288;
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -65,6 +76,7 @@ interface AppSidebarProps {
   threads: Conversation[];
   theme: Theme;
   resolvedTheme: "light" | "dark";
+  settings: AppSettings;
   runStatus: RunStatus;
   onImportWorkspace: () => void;
   onActivateWorkspace: (workspaceId: string) => Promise<void>;
@@ -104,6 +116,78 @@ function getThreadStatusLabel(
   };
 }
 
+async function getLiquidGlassAvailability() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const platform = navigator.platform.toLowerCase();
+  const userAgent = navigator.userAgent;
+  const isMac = platform.includes("mac");
+  const userAgentData = (
+    navigator as Navigator & {
+      userAgentData?: {
+        platform?: string;
+        getHighEntropyValues?: (
+          hints: string[],
+        ) => Promise<{ platformVersion?: string }>;
+      };
+    }
+  ).userAgentData;
+  const isClientHintsMac =
+    userAgentData?.platform?.toLowerCase() === "macos";
+
+  if (userAgentData?.getHighEntropyValues && (isMac || isClientHintsMac)) {
+    const values = await userAgentData.getHighEntropyValues(["platformVersion"]);
+    const major = Number(values.platformVersion?.split(".")[0] ?? "0");
+
+    return major >= 15;
+  }
+
+  const macVersion = userAgent.match(/Mac OS X (1[5-9]|[2-9]\d)[._]/);
+
+  return isMac && macVersion !== null;
+}
+
+function LiquidSidebarGlass() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden bg-transparent">
+      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
+        <ZStack alignment="topLeading">
+          <Html zIndex={-2} sizing="fill">
+            <div className="h-full w-full bg-transparent" />
+          </Html>
+
+          <Frame maxWidth={Infinity} maxHeight={Infinity}>
+            <GlassContainer
+              blur={200}
+              bezelWidth={140}
+              displacementBlur={22}
+              thickness={0}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.24 }}
+              shadowBlur={28}
+              specularOpacity={0.32}
+              surfaceProfile="concave"
+              specularFalloff={2}
+              tint={{ r: 0.12, g: 0.12, b: 0.14, a: 0.68 }}
+            >
+              <Transform x={0} y={0}>
+                <Glass cornerRadius={34}>
+                  <Frame width={LIQUID_SIDEBAR_WIDTH} maxHeight={Infinity}>
+                    <Html sizing="fill">
+                      <div className="h-full w-full bg-transparent" />
+                    </Html>
+                  </Frame>
+                </Glass>
+              </Transform>
+            </GlassContainer>
+          </Frame>
+        </ZStack>
+      </LiquidCanvas>
+    </div>
+  );
+}
+
 export function AppSidebar({
   workspaces,
   workspace,
@@ -112,6 +196,7 @@ export function AppSidebar({
   threads,
   theme,
   resolvedTheme,
+  settings,
   runStatus,
   onImportWorkspace,
   onActivateWorkspace,
@@ -127,6 +212,7 @@ export function AppSidebar({
   const [showAllThreads, setShowAllThreads] = useState(false);
   const [workspacePendingRemoval, setWorkspacePendingRemoval] =
     useState<WorkspaceEntry | null>(null);
+  const [liquidGlassAvailable, setLiquidGlassAvailable] = useState(false);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -138,12 +224,35 @@ export function AppSidebar({
       : pathname.startsWith("/settings/")
         ? (pathname.split("/")[2] ?? "general")
         : null;
+  useEffect(() => {
+    let cancelled = false;
+    void getLiquidGlassAvailability().then((available) => {
+      if (!cancelled) {
+        setLiquidGlassAvailable(available);
+      }
+    });
 
-  return (
-    <Sidebar
-      side="left"
-      collapsible="offcanvas"
-      className="drag-region border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const liquidGlassDensityClasses = {
+    calm: "bg-[var(--panel)]/35",
+    focus: "bg-[var(--panel)]/48",
+    deep: "bg-[var(--panel)]/62",
+  } satisfies Record<AppSettings["liquidGlassDensity"], string>;
+  const liquidGlassEnabled =
+    settings.liquidGlassSidebar && liquidGlassAvailable;
+
+  const sidebarContent = (
+    <div
+      className={cn(
+        "relative z-10 flex h-full min-h-0 flex-col",
+        liquidGlassEnabled &&
+          "rounded-[32px] border border-[var(--panel-border)]/30 backdrop-blur-xl",
+        liquidGlassEnabled &&
+          liquidGlassDensityClasses[settings.liquidGlassDensity],
+      )}
     >
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
         <div className="flex min-w-0 items-center gap-2">
@@ -596,6 +705,28 @@ export function AppSidebar({
             </AlertDialogContent>
           </AlertDialog>
         </>
+      )}
+    </div>
+  );
+
+  return (
+    <Sidebar
+      side="left"
+      collapsible="offcanvas"
+      className={cn(
+        "drag-region border-r border-[var(--sidebar-border)] text-[var(--sidebar-foreground)]",
+        liquidGlassEnabled
+          ? "relative overflow-hidden border-transparent bg-transparent"
+          : "bg-[var(--sidebar)]",
+      )}
+    >
+      {liquidGlassEnabled ? (
+        <>
+          <LiquidSidebarGlass />
+          {sidebarContent}
+        </>
+      ) : (
+        sidebarContent
       )}
     </Sidebar>
   );
