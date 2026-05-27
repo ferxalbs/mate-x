@@ -509,7 +509,12 @@ export function SettingsPage() {
     <>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--mate-page-bg)] text-foreground">
         <header
-          className="drag-region glass sticky top-0 z-10 flex h-[52px] shrink-0 items-center border-b border-border/70 px-5"
+          className={cn(
+            "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center px-5",
+            appSettings.liquidGlassSidebar
+              ? "bg-transparent"
+              : "glass border-b border-border/70",
+          )}
           style={{ '--glass-bg': 'var(--titlebar)' } as any}
         >
           <div className="flex min-w-0 items-center gap-3">

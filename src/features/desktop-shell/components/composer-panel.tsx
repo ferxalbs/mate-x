@@ -462,7 +462,7 @@ export function ComposerPanel({
           className={cn(
             "relative overflow-hidden rounded-[32px] border border-[var(--panel-border)]/70 transition-all duration-300 glass",
             liquidGlassEnabled
-              ? "bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+              ? "bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]"
               : "bg-[var(--mate-panel-bg)]",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}

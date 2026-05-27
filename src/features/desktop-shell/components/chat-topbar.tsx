@@ -10,14 +10,6 @@ import {
   PlusIcon,
   TargetIcon,
 } from "lucide-react";
-import {
-  Frame,
-  Glass,
-  GlassContainer,
-  Html,
-  LiquidCanvas,
-  ZStack,
-} from "@liquid-dom/react";
 import { useState, type ReactNode } from "react";
 
 import { Button } from "../../../components/ui/button";
@@ -69,43 +61,6 @@ function TitlebarButton({
     >
       {children}
     </Button>
-  );
-}
-
-function TopbarLiquidGlass() {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-0">
-      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
-        <ZStack alignment="center">
-          <Html zIndex={-2} sizing="fill">
-            <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
-          </Html>
-          <Frame maxWidth={Infinity} maxHeight={Infinity}>
-            <GlassContainer
-              blur={180}
-              bezelWidth={110}
-              displacementBlur={18}
-              thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.14 }}
-              shadowBlur={18}
-              specularOpacity={0.24}
-              surfaceProfile="concave"
-              specularFalloff={2}
-              tint={{ r: 1, g: 1, b: 1, a: 0.012 }}
-            >
-              <Glass cornerRadius={24}>
-                <Frame maxWidth={Infinity} height={52}>
-                  <Html sizing="fill">
-                    <div className="h-full w-full bg-transparent" />
-                  </Html>
-                </Frame>
-              </Glass>
-            </GlassContainer>
-          </Frame>
-        </ZStack>
-      </LiquidCanvas>
-      <div className="absolute inset-0 bg-[var(--titlebar)]/26 backdrop-blur-xl" />
-    </div>
   );
 }
 
@@ -161,8 +116,10 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        "drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 overflow-hidden border-b border-[var(--titlebar-border)]/40 px-4 transition-[padding-left] duration-200 ease-linear",
-        liquidGlassEnabled && "bg-transparent",
+        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-linear",
+        liquidGlassEnabled
+          ? "bg-transparent"
+          : "glass border-b border-[var(--titlebar-border)]/40",
         state === "collapsed" && "pl-[88px]",
       )}
       style={{
@@ -171,7 +128,6 @@ export function ChatTopbar({
           : "var(--titlebar)",
       } as any}
     >
-      {liquidGlassEnabled ? <TopbarLiquidGlass /> : null}
       <div className="relative z-10 flex min-w-0 items-center gap-3">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
         <h2 className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">

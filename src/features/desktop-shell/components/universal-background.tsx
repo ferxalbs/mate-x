@@ -20,28 +20,33 @@ export function getUniversalBackgroundStyle(
   shineEnabled: boolean,
 ) {
   const shineColors = SHINE_COLOR_STOPS[theme] ?? SHINE_COLOR_STOPS.midnight;
+  const liquidBase =
+    "radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--mate-shell-a) 74%, transparent), transparent 34%), radial-gradient(circle at 74% 18%, color-mix(in srgb, var(--mate-shell-b) 68%, transparent), transparent 38%), radial-gradient(circle at 78% 82%, color-mix(in srgb, var(--mate-shell-c) 70%, transparent), transparent 40%), linear-gradient(135deg, color-mix(in srgb, var(--background) 72%, var(--mate-shell-a)), var(--background) 44%, color-mix(in srgb, var(--background) 72%, var(--mate-shell-c)))";
 
   return {
     "--mate-shell-a": shineColors[0],
     "--mate-shell-b": shineColors[1],
     "--mate-shell-c": shineColors[2],
     "--mate-shell-field-opacity": shineEnabled ? "0.72" : "0",
-    "--mate-shell-base":
-      "linear-gradient(135deg, color-mix(in srgb, var(--background) 88%, var(--mate-shell-a)), var(--background) 42%, color-mix(in srgb, var(--background) 90%, var(--mate-shell-c)))",
+    "--mate-shell-base": liquidGlassEnabled ? liquidBase : "var(--background)",
     "--mate-shell-field":
       "radial-gradient(circle at 18% 16%, var(--mate-shell-a), transparent 28%), radial-gradient(circle at 76% 18%, var(--mate-shell-b), transparent 30%), radial-gradient(circle at 82% 82%, var(--mate-shell-c), transparent 34%)",
-    "--mate-shell-glass":
-      "linear-gradient(180deg, color-mix(in srgb, var(--panel) 70%, transparent), color-mix(in srgb, var(--background) 86%, transparent))",
+    "--mate-shell-glass": liquidGlassEnabled
+      ? "linear-gradient(180deg, color-mix(in srgb, var(--background) 20%, transparent), color-mix(in srgb, var(--background) 10%, transparent))"
+      : "linear-gradient(var(--background), var(--background))",
     "--mate-page-bg": liquidGlassEnabled ? "transparent" : "var(--background)",
     "--mate-surface-bg": liquidGlassEnabled
-      ? "color-mix(in srgb, var(--surface) 58%, transparent)"
+      ? "color-mix(in srgb, var(--surface) 34%, transparent)"
       : "var(--surface)",
     "--mate-panel-bg": liquidGlassEnabled
-      ? "color-mix(in srgb, var(--panel) 54%, transparent)"
+      ? "color-mix(in srgb, var(--panel) 32%, transparent)"
       : "var(--panel)",
     "--mate-control-bg": liquidGlassEnabled
-      ? "color-mix(in srgb, var(--background) 28%, transparent)"
+      ? "color-mix(in srgb, var(--background) 18%, transparent)"
       : "var(--background)",
+    "--mate-floating-shadow": liquidGlassEnabled
+      ? "0 22px 80px -48px rgba(0,0,0,0.7)"
+      : "none",
   } as CSSProperties;
 }
 
