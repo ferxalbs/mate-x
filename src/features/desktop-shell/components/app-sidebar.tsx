@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Frame,
-  Glass,
-  GlassContainer,
-  Html,
-  LiquidCanvas,
-  Transform,
-  ZStack,
-} from "@liquid-dom/react";
-import {
   ArrowLeftIcon,
   FileTextIcon,
   ListChecksIcon,
@@ -66,7 +57,6 @@ import { ThreadMenuItem } from "./thread-menu-item";
 const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
-const LIQUID_SIDEBAR_WIDTH = 288;
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -149,55 +139,6 @@ async function getLiquidGlassAvailability() {
   return isMac && macVersion !== null;
 }
 
-function LiquidSidebarGlass({
-  settings,
-}: {
-  settings: AppSettings;
-}) {
-  const density = {
-    calm: { blur: 150, displacementBlur: 16, specularOpacity: 0.22 },
-    focus: { blur: 200, displacementBlur: 22, specularOpacity: 0.3 },
-    deep: { blur: 250, displacementBlur: 28, specularOpacity: 0.36 },
-  }[settings.liquidGlassDensity];
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px] bg-transparent">
-      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full rounded-[30px]">
-        <ZStack alignment="topLeading">
-          <Html zIndex={-2} sizing="fill">
-            <div className="h-full w-full bg-[image:var(--mate-shell-base)] bg-fixed" />
-          </Html>
-
-          <Frame maxWidth={Infinity} maxHeight={Infinity}>
-            <GlassContainer
-              blur={density.blur}
-              bezelWidth={140}
-              displacementBlur={density.displacementBlur}
-              thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.12 }}
-              shadowBlur={18}
-              specularOpacity={density.specularOpacity}
-              surfaceProfile="concave"
-              specularFalloff={2}
-              tint={{ r: 1, g: 1, b: 1, a: 0.02 }}
-            >
-              <Transform x={0} y={0}>
-                <Glass cornerRadius={34}>
-                  <Frame width={LIQUID_SIDEBAR_WIDTH - 16} maxHeight={Infinity}>
-                    <Html sizing="fill">
-                      <div className="h-full w-full bg-transparent" />
-                    </Html>
-                  </Frame>
-                </Glass>
-              </Transform>
-            </GlassContainer>
-          </Frame>
-        </ZStack>
-      </LiquidCanvas>
-    </div>
-  );
-}
-
 export function AppSidebar({
   workspaces,
   workspace,
@@ -254,7 +195,7 @@ export function AppSidebar({
       className={cn(
         "relative z-10 flex h-full min-h-0 flex-col",
         liquidGlassEnabled &&
-          "rounded-[30px] border border-[var(--panel-border)]/30 bg-transparent backdrop-blur-2xl shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
+          "rounded-[30px] border border-[var(--panel-border)]/30 bg-[color-mix(in_srgb,var(--panel)_18%,transparent)] backdrop-blur-2xl shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
         liquidGlassEnabled &&
           settings.liquidGlassShineColors &&
           "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
@@ -722,8 +663,7 @@ export function AppSidebar({
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-10 bg-transparent"
         />
-        <div className="relative h-full overflow-hidden rounded-[30px] bg-[image:var(--mate-shell-base)] bg-fixed">
-          <LiquidSidebarGlass settings={settings} />
+        <div className="relative h-full overflow-hidden rounded-[30px] bg-transparent">
           {sidebarContent}
         </div>
       </aside>
