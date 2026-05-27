@@ -244,7 +244,7 @@ export function RunsPage() {
   }
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-transparent">
+    <section className="flex min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
       <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5">
         <div className="min-w-0">
           <h1 className="truncate text-sm font-semibold text-foreground">Mission Log</h1>
@@ -345,7 +345,7 @@ export function RunsPage() {
                     <article className="grid grid-cols-[42px_24px_minmax(0,1fr)] gap-3" key={event.id}>
                       <div className="pt-1 text-right text-[11px] text-muted-foreground">{index + 1}</div>
                       <div className="flex flex-col items-center">
-                        <div className="flex size-6 items-center justify-center rounded-full border border-border bg-background">
+                        <div className="flex size-6 items-center justify-center rounded-full border border-border bg-[var(--mate-control-bg)] backdrop-blur-md">
                           <Icon className="size-3.5 text-muted-foreground" />
                         </div>
                         <div className="mt-2 h-full w-px bg-border/70" />

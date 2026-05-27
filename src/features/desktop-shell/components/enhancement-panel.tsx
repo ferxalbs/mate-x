@@ -178,7 +178,7 @@ export function EnhancementPanel({
   }
 
   return (
-    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-[var(--panel)]/88 backdrop-blur-xl lg:flex 2xl:w-[316px]">
+    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] backdrop-blur-2xl lg:flex 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
         <div className="border-b border-[var(--panel-border)]/45 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
@@ -195,14 +195,14 @@ export function EnhancementPanel({
             <div className="flex shrink-0 items-center gap-1">
               <button
                 aria-label="Hide enhancement panel"
-                className="flex size-8 items-center justify-center rounded-full border border-[var(--panel-border)]/55 bg-background/55 text-muted-foreground hover:border-primary/40 hover:bg-primary/12 hover:text-primary"
+                className="flex size-8 items-center justify-center rounded-full border border-[var(--panel-border)]/55 bg-[var(--mate-control-bg)] text-muted-foreground backdrop-blur-md hover:border-primary/40 hover:bg-primary/12 hover:text-primary"
                 onClick={() => setCollapsed(true)}
                 type="button"
               >
                 <ChevronRightIcon className="size-4" />
               </button>
               <Button
-                className="h-8 rounded-full border-[var(--panel-border)]/55 bg-background/55 px-3 text-[11px] shadow-none hover:border-primary/40 hover:bg-primary/12 hover:text-primary disabled:opacity-60"
+                className="h-8 rounded-full border-[var(--panel-border)]/55 bg-[var(--mate-control-bg)] px-3 text-[11px] shadow-none backdrop-blur-md hover:border-primary/40 hover:bg-primary/12 hover:text-primary disabled:opacity-60"
                 disabled={loading}
                 onClick={runEnhancementScan}
                 size="xs"
@@ -213,7 +213,7 @@ export function EnhancementPanel({
               </Button>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/45 bg-background/42 px-3 py-2 text-[11px]">
+          <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] backdrop-blur-md">
             <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
               <PanelRightIcon className="size-3.5 shrink-0" />
               <span className="truncate">{panelState}</span>
@@ -237,11 +237,11 @@ export function EnhancementPanel({
             </span>
           </div>
           {loading ? (
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-background/35">
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--mate-control-bg)]">
               <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
             </div>
           ) : null}
-          <div className="mt-3 grid grid-cols-4 gap-1 rounded-full border border-[var(--panel-border)]/45 bg-background/42 p-1">
+          <div className="mt-3 grid grid-cols-4 gap-1 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] p-1 backdrop-blur-md">
             {views.map((view) => (
               <button
                 className={cn(
@@ -298,7 +298,7 @@ export function EnhancementPanel({
             />
           ) : null}
 
-          <div className="mt-4 rounded-2xl border border-[var(--panel-border)]/38 bg-background/24 p-3">
+          <div className="mt-4 rounded-2xl border border-[var(--panel-border)]/38 bg-[var(--mate-control-bg)] p-3 backdrop-blur-md">
             <RepoHealthSection
               hasProfile={Boolean(health)}
               signals={repoSignals}
@@ -311,7 +311,7 @@ export function EnhancementPanel({
               {error}
             </p>
           ) : !runtime.evidencePack && activeView === "evidence" ? (
-            <p className="mt-3 rounded-2xl border border-[var(--panel-border)]/35 bg-background/24 px-3 py-2 text-[11px] text-muted-foreground">
+            <p className="mt-3 rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] text-muted-foreground backdrop-blur-md">
               <ClipboardCheckIcon className="mr-1 inline size-3.5" />
               Evidence Pack appears after verified run completes.
             </p>

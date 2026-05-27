@@ -463,7 +463,7 @@ export function ComposerPanel({
             "relative overflow-hidden rounded-[32px] border border-[var(--panel-border)]/70 transition-all duration-300 glass",
             liquidGlassEnabled
               ? "bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-              : "bg-[var(--panel)]/92",
+              : "bg-[var(--mate-panel-bg)]",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
           style={{
@@ -824,7 +824,7 @@ function ComposerLiquidGlass() {
           </Frame>
         </ZStack>
       </LiquidCanvas>
-      <div className="absolute inset-0 bg-[var(--panel)]/30 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-[var(--mate-panel-bg)] backdrop-blur-xl" />
     </div>
   );
 }
@@ -851,7 +851,7 @@ function AttachmentChip({
         "flex h-7 max-w-[180px] items-center gap-1.5 rounded-md border px-2 text-[11px]",
         unsupported
           ? "border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-300"
-          : "border-border/55 bg-background/35 text-muted-foreground",
+          : "border-border/55 bg-[var(--mate-control-bg)] text-muted-foreground",
       )}
       title={`${attachment.name} (${formatBytes(attachment.size)})`}
     >
@@ -974,7 +974,7 @@ function PermissionPrompt({
               Approval required
             </span>
             <span className="text-muted-foreground">{toolName}</span>
-            <span className="truncate rounded-md border border-border/55 bg-background/45 px-2 py-1 font-mono text-[10px] text-muted-foreground">
+            <span className="truncate rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur-md">
               {target}
             </span>
           </div>

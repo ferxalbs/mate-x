@@ -79,7 +79,7 @@ export function TraceSection({
       <div className="space-y-2">
         {traceRows.map((row, index) => (
           <div
-            className="rounded-2xl border border-[var(--panel-border)]/35 bg-background/24 p-2.5"
+            className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md"
             key={row.title}
           >
             <div className="flex items-start gap-2">
@@ -331,10 +331,10 @@ export function EvidencePackSection({
             : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
-      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--panel)]/55 p-2.5">
+      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)] p-2.5 backdrop-blur-md">
         <p className="text-[10px] uppercase text-muted-foreground">Compliance Actions</p>
         <button
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-background/24 px-3 py-2 text-[11px] font-medium text-foreground/85 transition hover:bg-background/36 disabled:opacity-55"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
           disabled={!canExportCompliance}
           onClick={() => {
             if (evidencePack) void window.mate.repo.generateComplianceReport(evidencePack);
@@ -346,7 +346,7 @@ export function EvidencePackSection({
           Generate Compliance Report
         </button>
         <button
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-background/18 px-3 py-2 text-[11px] font-medium text-foreground/80 transition hover:bg-background/30 disabled:opacity-55"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/80 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
           disabled={!canExportCompliance}
           onClick={() => {
             if (evidencePack) void window.mate.repo.generateComplianceReport(evidencePack);
@@ -380,7 +380,7 @@ export function RepoHealthSection({
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
       {!hasProfile ? (
-        <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-background/18 px-3 py-2">
+        <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 backdrop-blur-md">
           <p className="text-[11px] font-medium">Workspace profile unavailable</p>
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
             Stack/test/lint/git signals pending. Audit evidence still shown above.
@@ -415,7 +415,7 @@ export function RepoHealthSection({
       ) : null}
       {nextAction ? (
         <p
-          className="truncate rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2.5 py-2 text-[11px]"
+          className="truncate rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2.5 py-2 text-[11px] backdrop-blur-md"
           title={nextAction}
         >
           {nextAction}
@@ -444,7 +444,7 @@ function PanelTitle({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2 py-1.5">
+    <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2 py-1.5 backdrop-blur-md">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-semibold tabular-nums">{value}</dd>
     </div>
@@ -481,7 +481,7 @@ function ImpactNode({
         "rounded-2xl border p-2.5 text-center",
         tone === "good"
           ? "border-emerald-500/20 bg-emerald-500/[0.04]"
-          : "border-[var(--panel-border)]/30 bg-background/20 opacity-70",
+          : "border-[var(--panel-border)]/30 bg-[var(--mate-control-bg)] opacity-70",
       )}
     >
       <p className="text-[10px] font-medium uppercase text-muted-foreground">
@@ -497,7 +497,7 @@ function ImpactNode({
 function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
   return (
     <div
-      className="flex items-center gap-2 rounded-2xl border border-[var(--panel-border)]/35 bg-background/28 px-2.5 py-1.5 text-[11px]"
+      className="flex items-center gap-2 rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] backdrop-blur-md"
       title={entry.reason}
     >
       <span className="shrink-0 text-muted-foreground tabular-nums">
@@ -516,7 +516,7 @@ function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
 
 function EmptyLine({ text }: { text: string }) {
   return (
-    <p className="rounded-2xl border border-[var(--panel-border)]/30 bg-background/20 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+    <p className="rounded-2xl border border-[var(--panel-border)]/30 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md">
       {text}
     </p>
   );
@@ -525,8 +525,8 @@ function EmptyLine({ text }: { text: string }) {
 function SkeletonStack() {
   return (
     <div className="space-y-2">
-      <div className="h-10 animate-pulse rounded-2xl border border-[var(--panel-border)]/25 bg-background/28" />
-      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-[var(--panel-border)]/20 bg-background/20" />
+      <div className="h-10 animate-pulse rounded-2xl border border-[var(--panel-border)]/25 bg-[var(--mate-control-bg)]" />
+      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-[var(--panel-border)]/20 bg-[var(--mate-control-bg)]" />
     </div>
   );
 }
@@ -541,7 +541,7 @@ function EvidenceRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/35 bg-background/24 px-3 py-2 text-[11px]">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] backdrop-blur-md">
       <span className="text-muted-foreground">{label}</span>
       <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
         <CheckCircle2Icon
@@ -808,7 +808,7 @@ function toneSurfaceClassName(tone: SignalTone) {
     return "border-emerald-500/30 bg-emerald-500/[0.045]";
   }
 
-  return "border-[var(--panel-border)]/35 bg-background/24";
+  return "border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)]";
 }
 
 function toneTextClassName(tone: SignalTone) {
