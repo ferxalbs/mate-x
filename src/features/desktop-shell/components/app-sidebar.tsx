@@ -165,7 +165,7 @@ function LiquidSidebarGlass({
       <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full rounded-[30px]">
         <ZStack alignment="topLeading">
           <Html zIndex={-2} sizing="fill">
-            <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
+            <div className="h-full w-full bg-[image:var(--mate-shell-base)] bg-fixed" />
           </Html>
 
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
@@ -174,8 +174,8 @@ function LiquidSidebarGlass({
               bezelWidth={140}
               displacementBlur={density.displacementBlur}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.24 }}
-              shadowBlur={28}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.12 }}
+              shadowBlur={18}
               specularOpacity={density.specularOpacity}
               surfaceProfile="concave"
               specularFalloff={2}
@@ -254,7 +254,7 @@ export function AppSidebar({
       className={cn(
         "relative z-10 flex h-full min-h-0 flex-col",
         liquidGlassEnabled &&
-          "rounded-[30px] border border-[var(--panel-border)]/30 bg-[var(--mate-panel-bg)] backdrop-blur-2xl shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
+          "rounded-[30px] border border-[var(--panel-border)]/30 bg-transparent backdrop-blur-2xl shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
         liquidGlassEnabled &&
           settings.liquidGlassShineColors &&
           "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
@@ -722,7 +722,7 @@ export function AppSidebar({
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-10 bg-transparent"
         />
-        <div className="relative h-full overflow-hidden rounded-[30px]">
+        <div className="relative h-full overflow-hidden rounded-[30px] bg-[image:var(--mate-shell-base)] bg-fixed">
           <LiquidSidebarGlass settings={settings} />
           {sidebarContent}
         </div>
