@@ -12,6 +12,14 @@ import {
   XIcon,
 } from "lucide-react";
 import {
+  Frame,
+  Glass,
+  GlassContainer,
+  Html,
+  LiquidCanvas,
+  ZStack,
+} from "@liquid-dom/react";
+import {
   startTransition,
   useEffect,
   useMemo,
@@ -67,6 +75,7 @@ import {
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
   isRunning: boolean;
+  liquidGlassEnabled?: boolean;
   onResolvePolicyStop: (
     stop: PolicyStop,
     action: PolicyStopAction,
@@ -83,6 +92,7 @@ interface ComposerPanelProps {
 export function ComposerPanel({
   canUndoLastTurn,
   isRunning,
+  liquidGlassEnabled = false,
   onResolvePolicyStop,
   workspace,
   onSubmit,
@@ -450,10 +460,17 @@ export function ComposerPanel({
     <>
         <div
           className={cn(
-            "rounded-[32px] border border-[var(--panel-border)]/70 bg-[var(--panel)]/92 transition-all duration-300 glass",
+            "relative overflow-hidden rounded-[32px] border border-[var(--panel-border)]/70 transition-all duration-300 glass",
+            liquidGlassEnabled
+              ? "bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+              : "bg-[var(--panel)]/92",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
-          style={{ "--glass-bg": "var(--panel)" } as any}
+          style={{
+            "--glass-bg": liquidGlassEnabled
+              ? "color-mix(in srgb, var(--panel) 52%, transparent)"
+              : "var(--panel)",
+          } as any}
           onDragEnter={(event) => {
             event.preventDefault();
             if (event.dataTransfer.types.includes("Files")) {
@@ -472,6 +489,7 @@ export function ComposerPanel({
           }}
           onDrop={handleDrop}
         >
+          {liquidGlassEnabled ? <ComposerLiquidGlass /> : null}
           {pendingPolicyStop ? (
             <PermissionPrompt
               disabled={isResolvingPolicyStop}
@@ -480,11 +498,11 @@ export function ComposerPanel({
             />
           ) : null}
           {capabilityNotice ? (
-            <div className="border-b border-border/35 px-5 py-2 text-[11px] leading-5 text-amber-600 dark:text-amber-300/90">
+            <div className="relative z-10 border-b border-border/35 px-5 py-2 text-[11px] leading-5 text-amber-600 dark:text-amber-300/90">
               {capabilityNotice}
             </div>
           ) : null}
-          <div className="px-5 py-4 bg-transparent">
+          <div className="relative z-10 bg-transparent px-5 py-4">
             <textarea
               className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}
@@ -525,12 +543,12 @@ export function ComposerPanel({
             ) : null}
           </div>
           {catalogError ? (
-            <div className="px-5 pb-1 text-[11px] text-amber-300/90">
+            <div className="relative z-10 px-5 pb-1 text-[11px] text-amber-300/90">
               {catalogError}
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative z-10 flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-1 turn-chip-strip sm:pb-0">
               <input
                 className="hidden"
@@ -771,6 +789,43 @@ export function ComposerPanel({
           </div>
         </div>
     </>
+  );
+}
+
+function ComposerLiquidGlass() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0">
+      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
+        <ZStack alignment="center">
+          <Html zIndex={-2} sizing="fill">
+            <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
+          </Html>
+          <Frame maxWidth={Infinity} maxHeight={Infinity}>
+            <GlassContainer
+              blur={220}
+              bezelWidth={130}
+              displacementBlur={24}
+              thickness={0}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.2 }}
+              shadowBlur={24}
+              specularOpacity={0.28}
+              surfaceProfile="concave"
+              specularFalloff={2}
+              tint={{ r: 1, g: 1, b: 1, a: 0.015 }}
+            >
+              <Glass cornerRadius={32}>
+                <Frame maxWidth={Infinity} maxHeight={Infinity}>
+                  <Html sizing="fill">
+                    <div className="h-full w-full bg-transparent" />
+                  </Html>
+                </Frame>
+              </Glass>
+            </GlassContainer>
+          </Frame>
+        </ZStack>
+      </LiquidCanvas>
+      <div className="absolute inset-0 bg-[var(--panel)]/30 backdrop-blur-xl" />
+    </div>
   );
 }
 

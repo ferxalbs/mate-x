@@ -10,6 +10,14 @@ import {
   PlusIcon,
   TargetIcon,
 } from "lucide-react";
+import {
+  Frame,
+  Glass,
+  GlassContainer,
+  Html,
+  LiquidCanvas,
+  ZStack,
+} from "@liquid-dom/react";
 import { useState, type ReactNode } from "react";
 
 import { Button } from "../../../components/ui/button";
@@ -29,6 +37,7 @@ import { openWorkspacePath } from "../../../services/repo-client";
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
   conversation: Conversation | null;
+  liquidGlassEnabled?: boolean;
   resolvedTheme: "light" | "dark";
   runStatus: RunStatus;
   onCreateThread: () => void;
@@ -39,10 +48,12 @@ interface ChatTopbarProps {
 function TitlebarButton({
   children,
   onClick,
+  liquidGlassEnabled = false,
   className,
 }: {
   children?: ReactNode;
   onClick?: () => void;
+  liquidGlassEnabled?: boolean;
   className?: string;
 }) {
   return (
@@ -50,7 +61,8 @@ function TitlebarButton({
       size="xs"
       variant="outline"
       className={cn(
-        "h-8 rounded-full border-border/55 bg-background/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
+        "h-8 rounded-full border-border/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none backdrop-blur-md hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
+        liquidGlassEnabled ? "bg-[var(--panel)]/34" : "bg-background/55",
         className,
       )}
       onClick={onClick}
@@ -60,9 +72,47 @@ function TitlebarButton({
   );
 }
 
+function TopbarLiquidGlass() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0">
+      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
+        <ZStack alignment="center">
+          <Html zIndex={-2} sizing="fill">
+            <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
+          </Html>
+          <Frame maxWidth={Infinity} maxHeight={Infinity}>
+            <GlassContainer
+              blur={180}
+              bezelWidth={110}
+              displacementBlur={18}
+              thickness={0}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.14 }}
+              shadowBlur={18}
+              specularOpacity={0.24}
+              surfaceProfile="concave"
+              specularFalloff={2}
+              tint={{ r: 1, g: 1, b: 1, a: 0.012 }}
+            >
+              <Glass cornerRadius={24}>
+                <Frame maxWidth={Infinity} height={52}>
+                  <Html sizing="fill">
+                    <div className="h-full w-full bg-transparent" />
+                  </Html>
+                </Frame>
+              </Glass>
+            </GlassContainer>
+          </Frame>
+        </ZStack>
+      </LiquidCanvas>
+      <div className="absolute inset-0 bg-[var(--titlebar)]/26 backdrop-blur-xl" />
+    </div>
+  );
+}
+
 export function ChatTopbar({
   workspace,
   conversation,
+  liquidGlassEnabled = false,
   runStatus,
   onCreateThread,
 }: ChatTopbarProps) {
@@ -71,6 +121,8 @@ export function ChatTopbar({
   const [gitAction, setGitAction] = useState("commit-push");
   const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
+  const userTurns =
+    conversation?.messages.filter((message) => message.role === "user").length ?? 0;
   const liveLabel =
     runStatus === "running"
       ? "Live running"
@@ -82,7 +134,9 @@ export function ChatTopbar({
       ? "border-blue-400/45 bg-blue-500/14 text-blue-300 hover:bg-blue-500/18"
       : eventCount > 0
         ? "border-emerald-400/45 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/18"
-        : "border-[var(--panel-border)]/60 bg-background/55 text-foreground/80";
+        : liquidGlassEnabled
+          ? "border-[var(--panel-border)]/55 bg-[var(--panel)]/34 text-foreground/80"
+          : "border-[var(--panel-border)]/60 bg-background/55 text-foreground/80";
   const toggleLivePanel = () => {
     window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
   };
@@ -107,33 +161,48 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        "drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 border-b border-[var(--titlebar-border)]/40 px-4 transition-[padding-left] duration-200 ease-linear",
+        "drag-region glass sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 overflow-hidden border-b border-[var(--titlebar-border)]/40 px-4 transition-[padding-left] duration-200 ease-linear",
+        liquidGlassEnabled && "bg-transparent",
         state === "collapsed" && "pl-[88px]",
       )}
-      style={{ "--glass-bg": "var(--titlebar)" } as any}
+      style={{
+        "--glass-bg": liquidGlassEnabled
+          ? "color-mix(in srgb, var(--titlebar) 52%, transparent)"
+          : "var(--titlebar)",
+      } as any}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      {liquidGlassEnabled ? <TopbarLiquidGlass /> : null}
+      <div className="relative z-10 flex min-w-0 items-center gap-3">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
         <h2 className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">
           {title}
         </h2>
         {workspace ? (
-          <span className="rounded-md border border-border/60 bg-background/55 px-2 py-1 text-[11px] text-muted-foreground">
+          <span className="rounded-full border border-border/60 bg-[var(--panel)]/38 px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-md">
             {workspace.name}
           </span>
         ) : null}
+        {eventCount > 0 ? (
+          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--panel)]/30 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-md sm:inline-flex">
+            {userTurns} turns
+          </span>
+        ) : null}
         {runStatus === "running" ? (
-          <span className="rounded-md bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Running
           </span>
         ) : null}
       </div>
 
-      <div className="no-drag flex shrink-0 items-center gap-2">
+      <div className="no-drag relative z-10 flex shrink-0 items-center gap-2">
         <Menu>
           <MenuTrigger
             render={
-              <TitlebarButton className={liveTone} onClick={toggleLivePanel} />
+              <TitlebarButton
+                className={liveTone}
+                liquidGlassEnabled={liquidGlassEnabled}
+                onClick={toggleLivePanel}
+              />
             }
           >
             {runStatus === "running" ? (
@@ -142,7 +211,7 @@ export function ChatTopbar({
               <ActivityIcon className="size-3.5" />
             )}
             <span>{liveLabel}</span>
-            <span className="rounded-full bg-background/45 px-1.5 py-0.5 text-[10px] text-current/80">
+            <span className="rounded-full bg-[var(--panel)]/45 px-1.5 py-0.5 text-[10px] text-current/80">
               {eventCount}
             </span>
             <ChevronDownIcon className="size-3.5 text-current/65" />
@@ -175,7 +244,14 @@ export function ChatTopbar({
           </MenuPopup>
         </Menu>
         <Menu>
-          <MenuTrigger render={<TitlebarButton onClick={openSelectedTarget} />}>
+          <MenuTrigger
+            render={
+              <TitlebarButton
+                liquidGlassEnabled={liquidGlassEnabled}
+                onClick={openSelectedTarget}
+              />
+            }
+          >
             <ExternalLinkIcon className="size-3.5" />
             {openTarget === "folder"
               ? "Open"
@@ -212,7 +288,14 @@ export function ChatTopbar({
           </MenuPopup>
         </Menu>
         <Menu>
-          <MenuTrigger render={<TitlebarButton onClick={runGitAction} />}>
+          <MenuTrigger
+            render={
+              <TitlebarButton
+                liquidGlassEnabled={liquidGlassEnabled}
+                onClick={runGitAction}
+              />
+            }
+          >
             <GitBranchIcon className="size-3.5" />
             {gitAction === "commit-push"
               ? "Commit & push"
@@ -264,7 +347,10 @@ export function ChatTopbar({
           aria-label="Create thread"
           size="icon-xs"
           variant="outline"
-          className="size-8 rounded-lg border-border/70 bg-background/65 shadow-none hover:bg-accent"
+          className={cn(
+            "size-8 rounded-full border-border/70 shadow-none backdrop-blur-md hover:bg-accent",
+            liquidGlassEnabled ? "bg-[var(--panel)]/34" : "bg-background/65",
+          )}
           onClick={onCreateThread}
         >
           <PlusIcon className="size-3.5" />

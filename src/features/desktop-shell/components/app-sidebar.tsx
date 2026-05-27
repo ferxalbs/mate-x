@@ -165,7 +165,7 @@ function LiquidSidebarGlass({
       <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
         <ZStack alignment="topLeading">
           <Html zIndex={-2} sizing="fill">
-            <div className="h-full w-full bg-transparent" />
+            <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
           </Html>
 
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
@@ -254,7 +254,7 @@ export function AppSidebar({
       className={cn(
         "relative z-10 flex h-full min-h-0 flex-col",
         liquidGlassEnabled &&
-          "rounded-[32px] border border-[var(--panel-border)]/24 backdrop-blur-xl",
+          "rounded-[32px] border border-[var(--panel-border)]/24 bg-transparent backdrop-blur-xl",
         liquidGlassEnabled &&
           settings.liquidGlassShineColors &&
           "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
@@ -719,6 +719,10 @@ export function AppSidebar({
     return (
       <aside className="drag-region relative z-10 h-full w-[288px] shrink-0 overflow-hidden border-r border-transparent bg-transparent text-[var(--sidebar-foreground)]">
         <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[image:var(--mate-shell-base)]"
+          />
           <LiquidSidebarGlass
             settings={settings}
           />
