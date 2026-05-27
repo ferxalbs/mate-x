@@ -507,7 +507,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent text-foreground">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--mate-page-bg)] text-foreground">
         <header
           className="drag-region glass sticky top-0 z-10 flex h-[52px] shrink-0 items-center border-b border-border/70 px-5"
           style={{ '--glass-bg': 'var(--titlebar)' } as any}
@@ -522,7 +522,7 @@ export function SettingsPage() {
             <Button
               size="xs"
               variant="outline"
-              className="h-8 rounded-lg border-border/70 bg-[var(--panel)]/75 px-3 text-[12px] font-medium shadow-none hover:bg-accent"
+              className="h-8 rounded-full border-border/70 bg-[var(--mate-panel-bg)] px-3 text-[12px] font-medium shadow-none backdrop-blur-md hover:bg-accent"
               onClick={handleRestoreDefaults}
               disabled={isBusy || changedSettingLabels.length === 0}
             >
@@ -827,7 +827,7 @@ export function SettingsPage() {
                     control={
                       <div className="flex items-center gap-2">
                         {currentKey && !isEditingKey ? (
-                          <div className="flex h-10 w-[220px] items-center rounded-md border border-input bg-background px-3 text-xs text-muted-foreground">
+                          <div className="flex h-10 w-[220px] items-center rounded-md border border-input bg-[var(--mate-control-bg)] px-3 text-xs text-muted-foreground backdrop-blur-md">
                             Saved: {maskKey(currentKey)}
                           </div>
                         ) : (

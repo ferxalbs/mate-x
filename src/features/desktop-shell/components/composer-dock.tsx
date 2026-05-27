@@ -40,7 +40,7 @@ export function ComposerDock({
         {showScrollButton ? (
           <div className="pointer-events-none absolute inset-x-0 -top-10 z-10 flex justify-center transition-all">
             <Button
-              className="pointer-events-auto h-8 rounded-full border-[var(--panel-border)]/40 bg-[var(--panel)]/94 px-3 text-[11px] text-muted-foreground shadow-none backdrop-blur-xl hover:bg-accent"
+              className="pointer-events-auto h-8 rounded-full border-[var(--panel-border)]/40 bg-[var(--mate-panel-bg)] px-3 text-[11px] text-muted-foreground shadow-none backdrop-blur-xl hover:bg-accent"
               onClick={onScrollToBottom}
               size="xs"
               variant="outline"

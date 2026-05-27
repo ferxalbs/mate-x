@@ -14,7 +14,11 @@ const SHINE_COLOR_STOPS = {
   midnight: ["rgba(45, 212, 191, 0.2)", "rgba(59, 130, 246, 0.16)", "rgba(168, 85, 247, 0.12)"],
 } as const;
 
-export function getUniversalBackgroundStyle(theme: Theme, shineEnabled: boolean) {
+export function getUniversalBackgroundStyle(
+  theme: Theme,
+  liquidGlassEnabled: boolean,
+  shineEnabled: boolean,
+) {
   const shineColors = SHINE_COLOR_STOPS[theme] ?? SHINE_COLOR_STOPS.midnight;
 
   return {
@@ -28,6 +32,16 @@ export function getUniversalBackgroundStyle(theme: Theme, shineEnabled: boolean)
       "radial-gradient(circle at 18% 16%, var(--mate-shell-a), transparent 28%), radial-gradient(circle at 76% 18%, var(--mate-shell-b), transparent 30%), radial-gradient(circle at 82% 82%, var(--mate-shell-c), transparent 34%)",
     "--mate-shell-glass":
       "linear-gradient(180deg, color-mix(in srgb, var(--panel) 70%, transparent), color-mix(in srgb, var(--background) 86%, transparent))",
+    "--mate-page-bg": liquidGlassEnabled ? "transparent" : "var(--background)",
+    "--mate-surface-bg": liquidGlassEnabled
+      ? "color-mix(in srgb, var(--surface) 58%, transparent)"
+      : "var(--surface)",
+    "--mate-panel-bg": liquidGlassEnabled
+      ? "color-mix(in srgb, var(--panel) 54%, transparent)"
+      : "var(--panel)",
+    "--mate-control-bg": liquidGlassEnabled
+      ? "color-mix(in srgb, var(--background) 28%, transparent)"
+      : "var(--background)",
   } as CSSProperties;
 }
 

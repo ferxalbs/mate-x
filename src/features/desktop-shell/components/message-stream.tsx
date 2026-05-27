@@ -182,7 +182,7 @@ const MessageEntry = memo(function MessageEntry({
           settings.compactMode ? "max-w-[540px]" : "max-w-[610px]",
         )}
       >
-        <div className="group rounded-[20px] border border-border/65 bg-[var(--surface)] px-5 py-4 text-left shadow-none">
+        <div className="group rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-5 py-4 text-left shadow-none backdrop-blur-xl">
           <p className="whitespace-pre-wrap text-[14px] leading-6 text-foreground">
             {message.content}
           </p>
@@ -451,7 +451,7 @@ function normalizeAssistantVisibleText(value: string) {
 
 function ResultFallback() {
   return (
-    <section className="rounded-2xl border border-border/65 bg-[var(--surface)]/78 p-3.5">
+    <section className="rounded-2xl border border-border/65 bg-[var(--mate-surface-bg)] p-3.5 backdrop-blur-xl">
       <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground/85">
         <FileTextIcon className="size-3.5" />
         Result
@@ -543,7 +543,7 @@ function RunTimelineV1({
   }, [isStreaming, total]);
 
   return (
-    <section className="rounded-2xl border border-border/65 bg-[var(--surface)]/78 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+    <section className="rounded-2xl border border-border/65 bg-[var(--mate-surface-bg)] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-xl">
       <div className="mb-2 flex items-center justify-between gap-2">
         <button
           type="button"
@@ -566,7 +566,7 @@ function RunTimelineV1({
         </div>
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
-        <span className="rounded-md border border-border/60 bg-background/45 px-2 py-1 text-muted-foreground">
+        <span className="rounded-md border border-border/60 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md">
           Agent Trace v1
         </span>
         <PhaseFilterChip
@@ -607,7 +607,7 @@ function RunTimelineV1({
                   ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
                   : artifact.tone === "warning"
                     ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
-                    : "border-border/60 bg-background/45 text-muted-foreground",
+                    : "border-border/60 bg-[var(--mate-control-bg)] text-muted-foreground",
               )}
             >
               {artifact.label}: {artifact.value}
@@ -623,7 +623,7 @@ function RunTimelineV1({
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-border/45 bg-background/38 px-2.5 py-2 text-[11px] text-muted-foreground">
+        <div className="rounded-lg border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-2 text-[11px] text-muted-foreground backdrop-blur-md">
           Details are collapsed. Expand{" "}
           <span className="text-foreground/85">Run activity</span> to inspect
           audit rows and commands.
@@ -675,13 +675,13 @@ function RunTimelineV2({
 
     return (
       <section className="space-y-2">
-        <div className="space-y-1.5 rounded-2xl border border-border/45 bg-background/22 p-2.5">
+        <div className="space-y-1.5 rounded-2xl border border-border/45 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
           {visibleEvents.length > 0 ? (
             visibleEvents.map((event) => (
               <ActionEventCard key={event.id} event={event} />
             ))
           ) : (
-            <div className="rounded-xl border border-border/35 bg-[var(--surface)]/45 px-3 py-2 text-[12px] text-muted-foreground">
+            <div className="rounded-xl border border-border/35 bg-[var(--mate-surface-bg)] px-3 py-2 text-[12px] text-muted-foreground backdrop-blur-md">
               No tool actions captured in this turn.
             </div>
           )}
@@ -700,7 +700,7 @@ function RunTimelineV2({
     <section className="space-y-1.5">
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-background/35 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-[var(--mate-control-bg)] px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground"
         onClick={() => setExpanded((value) => !value)}
       >
         {expanded ? (
@@ -726,14 +726,14 @@ function RunTimelineV2({
               />
             ))
           ) : (
-            <div className="rounded-xl border border-border/40 bg-background/25 px-3 py-2 text-[12px] text-muted-foreground">
+            <div className="rounded-xl border border-border/40 bg-[var(--mate-control-bg)] px-3 py-2 text-[12px] text-muted-foreground backdrop-blur-md">
               No tool actions captured in this turn.
             </div>
           )}
           {actionEvents.length > previewEvents.length ? (
             <button
               type="button"
-              className="inline-flex items-center rounded-md border border-border/55 bg-background/45 px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="inline-flex items-center rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground"
               onClick={() => setShowAllActionsModal(true)}
             >
               View all actions ({actionEvents.length})
@@ -750,7 +750,7 @@ function RunTimelineV2({
                       ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
                       : artifact.tone === "warning"
                         ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
-                        : "border-border/60 bg-background/45 text-muted-foreground",
+                        : "border-border/60 bg-[var(--mate-control-bg)] text-muted-foreground",
                   )}
                 >
                   {artifact.label}: {artifact.value}
@@ -767,7 +767,7 @@ function RunTimelineV2({
           onClick={() => setShowAllActionsModal(false)}
         >
           <div
-            className="w-full max-w-3xl rounded-2xl border border-border/60 bg-[var(--surface)]/96 p-3 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+            className="w-full max-w-3xl rounded-2xl border border-border/60 bg-[var(--mate-surface-bg)] p-3 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -776,7 +776,7 @@ function RunTimelineV2({
               </div>
               <button
                 type="button"
-                className="rounded-md border border-border/55 bg-background/50 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground"
                 onClick={() => setShowAllActionsModal(false)}
               >
                 Close
@@ -868,7 +868,7 @@ function PhaseFilterChip({
         "rounded-md border px-2 py-1 transition-colors",
         active
           ? "border-border/70 bg-accent text-foreground"
-          : "border-border/55 bg-background/40 text-muted-foreground hover:bg-accent hover:text-foreground",
+          : "border-border/55 bg-[var(--mate-control-bg)] text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
       {label}
@@ -916,7 +916,7 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
         <span className="truncate">{summary}</span>
       </button>
       {expanded && detail ? (
-        <div className="ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-background/24 px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78">
+        <div className="ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-[var(--mate-control-bg)] px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78 backdrop-blur-md">
           {detail}
         </div>
       ) : null}
@@ -1038,7 +1038,7 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
       : displayDetail;
 
   return (
-    <div className="rounded-lg border border-border/45 bg-background/38 px-2.5 py-2">
+    <div className="rounded-lg border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-2 backdrop-blur-md">
       <div className="flex items-start gap-2">
         <StatusIcon status={event.status} />
         <div className="min-w-0 flex-1">
@@ -1070,7 +1070,7 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
           </div>
           {event.policy ? <ToolPolicyBadges event={event} /> : null}
           {command ? (
-            <div className="mt-1 rounded-md border border-border/45 bg-background/70 px-2 py-1 font-mono text-[10px] leading-4 text-foreground/85">
+            <div className="mt-1 rounded-md border border-border/45 bg-[var(--mate-control-bg)] px-2 py-1 font-mono text-[10px] leading-4 text-foreground/85 backdrop-blur-md">
               {command}
             </div>
           ) : null}
@@ -1109,15 +1109,15 @@ function ToolPolicyBadges({ event }: { event: ToolEvent }) {
       {policy.impactTypes.map((impact) => (
         <span
           key={impact}
-          className="rounded-md border border-border/55 bg-background/45 px-2 py-1 text-muted-foreground"
+          className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md"
         >
           {impact.replaceAll("_", " ")}
         </span>
       ))}
-      <span className="rounded-md border border-border/55 bg-background/45 px-2 py-1 text-muted-foreground">
+      <span className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md">
         {contractLabel}
       </span>
-      <span className="rounded-md border border-border/55 bg-background/45 px-2 py-1 text-muted-foreground">
+      <span className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md">
         {escalationLabel}
       </span>
       <span className="basis-full text-[10px] leading-4 text-muted-foreground/75">

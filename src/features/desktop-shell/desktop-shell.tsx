@@ -42,7 +42,11 @@ export function DesktopShell() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const liquidGlassShellEnabled = settings.liquidGlassSidebar;
   const shineEnabled = liquidGlassShellEnabled && settings.liquidGlassShineColors;
-  const shellStyle = getUniversalBackgroundStyle(settings.theme, shineEnabled);
+  const shellStyle = getUniversalBackgroundStyle(
+    settings.theme,
+    liquidGlassShellEnabled,
+    shineEnabled,
+  );
 
   useEffect(() => {
     void bootstrap();

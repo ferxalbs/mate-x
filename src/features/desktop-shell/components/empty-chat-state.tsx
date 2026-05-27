@@ -126,7 +126,7 @@ function FeatureChip({
             <button
               type="button"
               onClick={onClick}
-              className="group flex h-9 min-w-0 items-center justify-center gap-2 rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/72 px-3 text-[12px] font-medium text-muted-foreground/85 backdrop-blur-md transition-colors hover:bg-[var(--panel)] hover:text-foreground sm:justify-start sm:px-3.5"
+              className="group flex h-9 min-w-0 items-center justify-center gap-2 rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--mate-panel-bg)] px-3 text-[12px] font-medium text-muted-foreground/85 backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground sm:justify-start sm:px-3.5"
             />
           }
         >

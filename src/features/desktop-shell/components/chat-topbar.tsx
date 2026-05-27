@@ -62,7 +62,7 @@ function TitlebarButton({
       variant="outline"
       className={cn(
         "h-8 rounded-full border-border/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none backdrop-blur-md hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
-        liquidGlassEnabled ? "bg-[var(--panel)]/34" : "bg-background/55",
+        liquidGlassEnabled ? "bg-[var(--mate-panel-bg)]" : "bg-background/55",
         className,
       )}
       onClick={onClick}
@@ -135,7 +135,7 @@ export function ChatTopbar({
       : eventCount > 0
         ? "border-emerald-400/45 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/18"
         : liquidGlassEnabled
-          ? "border-[var(--panel-border)]/55 bg-[var(--panel)]/34 text-foreground/80"
+          ? "border-[var(--panel-border)]/55 bg-[var(--mate-panel-bg)] text-foreground/80"
           : "border-[var(--panel-border)]/60 bg-background/55 text-foreground/80";
   const toggleLivePanel = () => {
     window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
@@ -178,12 +178,12 @@ export function ChatTopbar({
           {title}
         </h2>
         {workspace ? (
-          <span className="rounded-full border border-border/60 bg-[var(--panel)]/38 px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-md">
+          <span className="rounded-full border border-border/60 bg-[var(--mate-panel-bg)] px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-md">
             {workspace.name}
           </span>
         ) : null}
         {eventCount > 0 ? (
-          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--panel)]/30 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-md sm:inline-flex">
+          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-md sm:inline-flex">
             {userTurns} turns
           </span>
         ) : null}
@@ -211,7 +211,7 @@ export function ChatTopbar({
               <ActivityIcon className="size-3.5" />
             )}
             <span>{liveLabel}</span>
-            <span className="rounded-full bg-[var(--panel)]/45 px-1.5 py-0.5 text-[10px] text-current/80">
+            <span className="rounded-full bg-[var(--mate-control-bg)] px-1.5 py-0.5 text-[10px] text-current/80">
               {eventCount}
             </span>
             <ChevronDownIcon className="size-3.5 text-current/65" />
@@ -349,7 +349,7 @@ export function ChatTopbar({
           variant="outline"
           className={cn(
             "size-8 rounded-full border-border/70 shadow-none backdrop-blur-md hover:bg-accent",
-            liquidGlassEnabled ? "bg-[var(--panel)]/34" : "bg-background/65",
+            liquidGlassEnabled ? "bg-[var(--mate-panel-bg)]" : "bg-background/65",
           )}
           onClick={onCreateThread}
         >
