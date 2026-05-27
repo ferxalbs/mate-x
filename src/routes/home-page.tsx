@@ -25,6 +25,7 @@ export function HomePage() {
   const runStatus = useChatStore((state) => state.runStatus);
   const isBootstrapped = useChatStore((state) => state.isBootstrapped);
   const lastError = useChatStore((state) => state.lastError);
+  const settings = useChatStore((state) => state.settings);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
   const createThread = useChatStore((state) => state.createThread);
   const submitPrompt = useChatStore((state) => state.submitPrompt);
@@ -48,6 +49,7 @@ export function HomePage() {
     <ComposerPanel
       canUndoLastTurn={canUndoLastTurn}
       isRunning={runStatus === 'running'}
+      liquidGlassEnabled={settings.liquidGlassSidebar}
       onSubmit={submitPrompt}
       onResolvePolicyStop={handleResolvePolicyStop}
       onUndoLastTurn={undoLastTurn}
@@ -125,6 +127,7 @@ export function HomePage() {
     <section className="relative flex h-full min-w-0 flex-1 flex-col bg-transparent text-foreground">
       <ChatTopbar
         conversation={selectedThread}
+        liquidGlassEnabled={settings.liquidGlassSidebar}
         onCreateThread={createThread}
         onImportWorkspace={importWorkspace}
         onAppearanceChange={setAppearance}
