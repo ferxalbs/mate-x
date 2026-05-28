@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.27 (1) [Native Blur Sidebar Effect]
+
+- Refactored the app sidebar WebGL glass render to deliver a powerful, premium native-looking dark blur effect matching Apple Design standards.
+- Replaced the washed-out white tint and colorful CSS/canvas blend gradients with the high-contrast dark specular, concave surface profile, and concave bevel spread of the design prototype.
+- Automatically handles theme changes to present a beautiful glassy blur for both light and dark modes.
+
 ## Unreleased - 2026.05.24 (1) [Privacy Sentinel Placeholder Awareness]
 
 - Taught the agent runtime and system prompt that Privacy Sentinel typed placeholders such as `[WORKSPACE_IDENTITY]`, `[PRIVATE_FILE_PATH]`, `[INTERNAL_URL]`, `[PRIVATE_EMAIL]`, `[CUSTOMER_DATA]`, and `[SECRET_*]` are outbound redaction tokens, not literal repository facts.
