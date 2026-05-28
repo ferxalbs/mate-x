@@ -6,6 +6,7 @@ import {
   Html,
   LiquidCanvas,
   Transform,
+  ZStack,
 } from "@liquid-dom/react";
 import {
   ArrowLeftIcon,
@@ -61,73 +62,107 @@ import type { Theme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ThreadMenuItem } from "./thread-menu-item";
+import {
+  UniversalBackground,
+  getUniversalBackgroundStyle,
+} from "./universal-background";
 
 const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
 
 /**
- * Liquid-glass sidebar overlay.
+ * Liquid-glass sidebar panel.
  *
- * Requires chrome://flags/#canvas-draw-element to be enabled in Electron.
- * With that flag the LiquidCanvas WebGPU surface composites against the actual
- * painted pixels of whatever sits behind the canvas in the DOM stacking context
- * (i.e. the real main-content area), so GlassContainer genuinely blurs live
- * content — no fake backdrop div needed inside the scene graph.
+ * Architecture mirrors MusicSidebarDemo exactly:
  *
- * Parameters are tuned for a neutral, premium frosted panel:
- *   blur            — 72px: strong but not soap-bubble
- *   bezelWidth      — 90: narrow edge-only refraction, not a thick lens
- *   displacementBlur — 12: subtle chromatic shimmer at the rim
- *   tint            — near-zero saturation; resolvedTheme-aware lightness only
- *   specularOpacity — 0.18 / 0.10: single faint highlight, no rainbow
+ *   LiquidCanvas
+ *     ZStack
+ *       Html (zIndex=-2)  ← UniversalBackground: the same gradient mesh as
+ *                             the real app background. GlassContainer blurs
+ *                             this, making the glass look like it genuinely
+ *                             refracts the scene behind the sidebar.
+ *       Frame → GlassContainer → Transform → Glass → Frame → Html
+ *         {children}           ← the actual sidebar nav, rendered inside
+ *                                 the glass (same as the demo’s <Sidebar />)
+ *
+ * This is the only architecture that makes GlassContainer work correctly:
+ * both the backdrop AND the glass must share one LiquidCanvas scene graph.
  */
-function LiquidSidebarGlass({ resolvedTheme }: { resolvedTheme: "light" | "dark" }) {
+function LiquidSidebarGlass({
+  theme,
+  resolvedTheme,
+  children,
+}: {
+  theme: Theme;
+  resolvedTheme: "light" | "dark";
+  children: React.ReactNode;
+}) {
   const isLight = resolvedTheme === "light";
 
-  // Neutral tint — the glass picks up colour from the blurred content behind
-  // it, so a saturated tint here creates colour double-exposure noise.
+  // Neutral, near-achromatic tint — the glass picks up its colour from the
+  // blurred UniversalBackground behind it. Demo uses {r:0.15,g:0.15,b:0.15,a:0.7}
+  // for a dark app; MaTE X is light-first so alpha is much lower.
   const tint = isLight
-    ? { r: 0.97, g: 0.97, b: 0.98, a: 0.40 }
-    : { r: 0.07, g: 0.07, b: 0.09, a: 0.50 };
+    ? { r: 0.97, g: 0.97, b: 0.98, a: 0.32 }
+    : { r: 0.06, g: 0.06, b: 0.08, a: 0.48 };
+
+  // The backdrop style resolves --mate-shell-a/b/c variables so the div
+  // inside Html can paint identically to the real UniversalBackground.
+  const backdropVars = getUniversalBackgroundStyle(theme, true, false);
 
   return (
-    // pointer-events-none so the canvas layer never intercepts sidebar clicks.
-    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px]">
-      {/*
-        LiquidCanvas fills the sidebar panel. With canvas-draw-element the GPU
-        surface reads composited DOM pixels behind it — no ZStack fake-backdrop.
-      */}
+    <div className="absolute inset-0 overflow-hidden rounded-[30px]">
       <LiquidCanvas
         className="absolute inset-0 h-full w-full"
         canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent"
       >
-        {/* Frame fills the full canvas bounds */}
-        <Frame maxWidth={Infinity} maxHeight={Infinity}>
-          <GlassContainer
-            blur={72}
-            bezelWidth={90}
-            displacementBlur={12}
-            thickness={0}
-            shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.10 : 0.22 }}
-            shadowBlur={20}
-            specularOpacity={isLight ? 0.18 : 0.10}
-            surfaceProfile="concave"
-            specularFalloff={2.5}
-            tint={tint}
-          >
-            <Transform x={0} y={0}>
-              <Glass cornerRadius={30}>
-                {/* Frame + Html fills the Glass to match the sidebar panel */}
-                <Frame maxWidth={Infinity} maxHeight={Infinity}>
-                  <Html sizing="fill">
-                    <div className="h-full w-full" />
-                  </Html>
-                </Frame>
-              </Glass>
-            </Transform>
-          </GlassContainer>
-        </Frame>
+        <ZStack alignment="topLeading">
+          {/* ── Backdrop ─────────────────────────────────────────────────
+              Same gradient mesh as the real app background (UniversalBackground).
+              GlassContainer blurs this layer, producing the frosted-glass look
+              against what appears to be the real scene behind the sidebar. */}
+          <Html zIndex={-2} sizing="fill">
+            <div
+              className="h-full w-full"
+              style={backdropVars}
+            >
+              <UniversalBackground field={false} />
+            </div>
+          </Html>
+
+          {/* ── Glass panel ──────────────────────────────────────────────
+              Parameters copied from MusicSidebarDemo: blur=200, bezel=170,
+              displacementBlur=25, surfaceProfile concave. */}
+          <Frame maxWidth={Infinity} maxHeight={Infinity}>
+            <GlassContainer
+              blur={200}
+              bezelWidth={170}
+              displacementBlur={25}
+              thickness={0}
+              shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.14 : 0.28 }}
+              shadowBlur={30}
+              specularOpacity={isLight ? 0.22 : 0.30}
+              surfaceProfile="concave"
+              specularFalloff={2}
+              tint={tint}
+            >
+              <Transform x={0} y={0}>
+                <Glass cornerRadius={30}>
+                  <Frame maxWidth={Infinity} maxHeight={Infinity}>
+                    {/* Sidebar nav lives inside the Glass, same as the demo’s
+                        <Sidebar /> rendered inside its Glass’s Html */}
+                    <Html sizing="fill">
+                      <div className="h-full w-full">
+                        {children}
+                      </div>
+                    </Html>
+                  </Frame>
+                </Glass>
+              </Transform>
+            </GlassContainer>
+          </Frame>
+        </ZStack>
       </LiquidCanvas>
     </div>
   );
@@ -266,17 +301,7 @@ export function AppSidebar({
     settings.liquidGlassSidebar && liquidGlassAvailable;
 
   const sidebarContent = (
-    <div
-      className={cn(
-        "relative z-10 flex h-full min-h-0 flex-col",
-        /*
-         * When liquid glass is active the surface chrome (border, shadow) is
-         * provided by FrostedSidebarSurface so we only add the outer ring here.
-         */
-        liquidGlassEnabled &&
-          "rounded-[30px] border border-white/10 bg-transparent",
-      )}
-    >
+    <div className="relative z-10 flex h-full min-h-0 flex-col">
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
         <div className="flex min-w-0 items-center gap-2">
           <div className="ml-1 flex min-w-0 items-center gap-1.5">
@@ -736,15 +761,13 @@ export function AppSidebar({
     return (
       <aside className="drag-region relative z-10 h-full w-[288px] shrink-0 overflow-visible border-r border-transparent bg-transparent p-2 text-[var(--sidebar-foreground)]">
         {/*
-          Outer clip shell. overflow-hidden + rounded-[30px] ensures the WebGPU
-          canvas surface and the sidebar nav are both clipped to the panel shape.
+          LiquidSidebarGlass owns the full panel: the canvas fills it,
+          UniversalBackground blurs inside the scene graph, and sidebarContent
+          renders inside the Glass’s Html — the MusicSidebarDemo pattern exactly.
         */}
-        <div className="relative h-full overflow-hidden rounded-[30px]">
-          {/* Liquid-glass surface — see LiquidSidebarGlass for full rationale */}
-          <LiquidSidebarGlass resolvedTheme={resolvedTheme} />
-          {/* Nav content sits above the canvas via z-10 declared in sidebarContent */}
+        <LiquidSidebarGlass theme={settings.theme} resolvedTheme={resolvedTheme}>
           {sidebarContent}
-        </div>
+        </LiquidSidebarGlass>
       </aside>
     );
   }
