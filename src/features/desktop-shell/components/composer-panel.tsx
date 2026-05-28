@@ -468,7 +468,7 @@ export function ComposerPanel({
           )}
           style={{
             "--glass-bg": liquidGlassEnabled
-              ? "color-mix(in srgb, var(--panel) 52%, transparent)"
+              ? "color-mix(in srgb, var(--panel) 10%, transparent)"
               : "var(--panel)",
           } as any}
           onDragEnter={(event) => {
@@ -795,7 +795,9 @@ export function ComposerPanel({
 function ComposerLiquidGlass() {
   return (
     <div className="pointer-events-none absolute inset-0 z-0">
-      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full">
+      <div className="absolute inset-0 bg-[image:var(--mate-shell-base)] opacity-95" />
+      <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--panel)_8%,transparent)] backdrop-blur-2xl saturate-150" />
+      <LiquidCanvas className="absolute inset-0 mix-blend-screen" canvasClassName="absolute inset-0 h-full w-full bg-transparent">
         <ZStack alignment="center">
           <Html zIndex={-2} sizing="fill">
             <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
@@ -803,15 +805,15 @@ function ComposerLiquidGlass() {
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
               blur={220}
-              bezelWidth={130}
-              displacementBlur={24}
+              bezelWidth={170}
+              displacementBlur={34}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.2 }}
-              shadowBlur={24}
-              specularOpacity={0.28}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.08 }}
+              shadowBlur={14}
+              specularOpacity={0.44}
               surfaceProfile="concave"
-              specularFalloff={2}
-              tint={{ r: 1, g: 1, b: 1, a: 0.015 }}
+              specularFalloff={1.65}
+              tint={{ r: 1, g: 1, b: 1, a: 0.005 }}
             >
               <Glass cornerRadius={32}>
                 <Frame maxWidth={Infinity} maxHeight={Infinity}>
@@ -824,7 +826,7 @@ function ComposerLiquidGlass() {
           </Frame>
         </ZStack>
       </LiquidCanvas>
-      <div className="absolute inset-0 bg-[var(--mate-panel-bg)] backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-[var(--mate-panel-bg)] backdrop-blur-sm" />
     </div>
   );
 }

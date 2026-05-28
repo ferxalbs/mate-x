@@ -69,31 +69,31 @@ const COLLAPSED_THREAD_LIMIT = 10;
 const LIQUID_SIDEBAR_WIDTH = 272;
 
 const SIDEBAR_BACKDROP_COLORS = {
-  default: ["rgba(77,124,255,0.42)", "rgba(20,184,166,0.28)", "rgba(244,114,182,0.18)"],
-  oled: ["rgba(56,189,248,0.34)", "rgba(168,85,247,0.24)", "rgba(16,185,129,0.18)"],
-  blue: ["rgba(59,130,246,0.52)", "rgba(6,182,212,0.34)", "rgba(129,140,248,0.22)"],
-  deepblue: ["rgba(14,165,233,0.46)", "rgba(37,99,235,0.34)", "rgba(45,212,191,0.22)"],
-  deeppurple: ["rgba(168,85,247,0.46)", "rgba(236,72,153,0.26)", "rgba(96,165,250,0.2)"],
-  casimiri: ["rgba(251,146,60,0.34)", "rgba(244,114,182,0.24)", "rgba(45,212,191,0.18)"],
-  greenspace: ["rgba(34,197,94,0.42)", "rgba(20,184,166,0.3)", "rgba(132,204,22,0.2)"],
-  midnight: ["rgba(45,212,191,0.34)", "rgba(59,130,246,0.26)", "rgba(168,85,247,0.22)"],
+  default: ["rgba(132,168,255,0.72)", "rgba(103,232,249,0.5)", "rgba(244,114,182,0.34)"],
+  oled: ["rgba(56,189,248,0.62)", "rgba(168,85,247,0.42)", "rgba(16,185,129,0.34)"],
+  blue: ["rgba(96,165,250,0.86)", "rgba(34,211,238,0.58)", "rgba(167,139,250,0.38)"],
+  deepblue: ["rgba(56,189,248,0.78)", "rgba(96,165,250,0.54)", "rgba(45,212,191,0.38)"],
+  deeppurple: ["rgba(192,132,252,0.74)", "rgba(244,114,182,0.46)", "rgba(96,165,250,0.36)"],
+  casimiri: ["rgba(251,191,36,0.56)", "rgba(244,114,182,0.42)", "rgba(45,212,191,0.34)"],
+  greenspace: ["rgba(74,222,128,0.7)", "rgba(45,212,191,0.5)", "rgba(163,230,53,0.34)"],
+  midnight: ["rgba(45,212,191,0.64)", "rgba(96,165,250,0.46)", "rgba(168,85,247,0.36)"],
 } as const;
 
 function getSidebarBackdropStyle(theme: Theme) {
   const colors = SIDEBAR_BACKDROP_COLORS[theme] ?? SIDEBAR_BACKDROP_COLORS.midnight;
 
   return {
-    background: `radial-gradient(circle at 14% 10%, ${colors[0]}, transparent 38%), radial-gradient(circle at 82% 22%, ${colors[1]}, transparent 44%), radial-gradient(circle at 65% 86%, ${colors[2]}, transparent 48%), linear-gradient(135deg, #13233b 0%, #0f2534 48%, #171c35 100%)`,
+    background: `radial-gradient(circle at 10% 8%, ${colors[0]}, transparent 42%), radial-gradient(circle at 88% 20%, ${colors[1]}, transparent 48%), radial-gradient(circle at 62% 88%, ${colors[2]}, transparent 52%), linear-gradient(135deg, color-mix(in srgb, var(--background) 54%, ${colors[0]}), color-mix(in srgb, var(--background) 70%, ${colors[1]}) 48%, color-mix(in srgb, var(--background) 58%, ${colors[2]}))`,
   };
 }
 
 function LiquidSidebarBackdrop({ theme }: { theme: Theme }) {
   return (
     <div className="relative h-full w-full overflow-hidden" style={getSidebarBackdropStyle(theme)}>
-      <div className="absolute left-8 top-20 h-24 w-24 rounded-[28px] bg-white/10" />
-      <div className="absolute -right-8 top-44 h-32 w-32 rounded-[36px] bg-cyan-300/12" />
-      <div className="absolute bottom-20 left-10 h-28 w-40 rounded-[34px] bg-indigo-300/12" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))]" />
+      <div className="absolute left-8 top-20 h-28 w-28 rounded-[30px] bg-white/20 blur-md" />
+      <div className="absolute -right-10 top-40 h-36 w-36 rounded-[38px] bg-cyan-200/24 blur-md" />
+      <div className="absolute bottom-20 left-8 h-32 w-44 rounded-[36px] bg-indigo-200/22 blur-md" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.2),rgba(255,255,255,0.05))]" />
     </div>
   );
 }
@@ -101,7 +101,9 @@ function LiquidSidebarBackdrop({ theme }: { theme: Theme }) {
 function LiquidSidebarGlass({ theme }: { theme: Theme }) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px] bg-transparent">
-      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full rounded-[30px]">
+      <div className="absolute inset-0" style={getSidebarBackdropStyle(theme)} />
+      <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--panel)_10%,transparent)] backdrop-blur-2xl saturate-150" />
+      <LiquidCanvas className="absolute inset-0 mix-blend-screen" canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent">
         <ZStack alignment="topLeading">
           <Html zIndex={-2} sizing="fill">
             <LiquidSidebarBackdrop theme={theme} />
@@ -109,15 +111,15 @@ function LiquidSidebarGlass({ theme }: { theme: Theme }) {
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
               blur={160}
-              bezelWidth={150}
-              displacementBlur={20}
+              bezelWidth={180}
+              displacementBlur={30}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.1 }}
-              shadowBlur={16}
-              specularOpacity={0.24}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.05 }}
+              shadowBlur={10}
+              specularOpacity={0.42}
               surfaceProfile="concave"
-              specularFalloff={2}
-              tint={{ r: 1, g: 1, b: 1, a: 0.04 }}
+              specularFalloff={1.65}
+              tint={{ r: 1, g: 1, b: 1, a: 0.015 }}
             >
               <Transform x={0} y={0}>
                 <Glass cornerRadius={30}>
@@ -276,7 +278,7 @@ export function AppSidebar({
           "rounded-[30px] border border-[var(--panel-border)]/30 bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
         liquidGlassEnabled &&
           settings.liquidGlassShineColors &&
-          "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
+          "shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
       )}
     >
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
