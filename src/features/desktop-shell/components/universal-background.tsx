@@ -21,7 +21,7 @@ export function getUniversalBackgroundStyle(
 ) {
   const shineColors = SHINE_COLOR_STOPS[theme] ?? SHINE_COLOR_STOPS.midnight;
   const liquidBase =
-    "radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--mate-shell-a) 74%, transparent), transparent 34%), radial-gradient(circle at 74% 18%, color-mix(in srgb, var(--mate-shell-b) 68%, transparent), transparent 38%), radial-gradient(circle at 78% 82%, color-mix(in srgb, var(--mate-shell-c) 70%, transparent), transparent 40%), linear-gradient(135deg, color-mix(in srgb, var(--background) 72%, var(--mate-shell-a)), var(--background) 44%, color-mix(in srgb, var(--background) 72%, var(--mate-shell-c)))";
+    "radial-gradient(circle at 9% 12%, color-mix(in srgb, var(--mate-shell-a) 82%, transparent), transparent 30%), radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--mate-shell-a) 74%, transparent), transparent 34%), radial-gradient(circle at 74% 18%, color-mix(in srgb, var(--mate-shell-b) 68%, transparent), transparent 38%), radial-gradient(circle at 78% 82%, color-mix(in srgb, var(--mate-shell-c) 70%, transparent), transparent 40%), linear-gradient(135deg, color-mix(in srgb, var(--background) 72%, var(--mate-shell-a)), var(--background) 44%, color-mix(in srgb, var(--background) 72%, var(--mate-shell-c)))";
 
   return {
     "--mate-shell-a": shineColors[0],
