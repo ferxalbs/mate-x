@@ -6,7 +6,6 @@ import {
   Html,
   LiquidCanvas,
   Transform,
-  ZStack,
 } from "@liquid-dom/react";
 import {
   ArrowLeftIcon,
@@ -66,85 +65,69 @@ import { ThreadMenuItem } from "./thread-menu-item";
 const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
-const LIQUID_SIDEBAR_WIDTH = 272;
 
-const SIDEBAR_BACKDROP_COLORS = {
-  default: ["rgba(132,168,255,0.72)", "rgba(103,232,249,0.5)", "rgba(244,114,182,0.34)"],
-  oled: ["rgba(56,189,248,0.62)", "rgba(168,85,247,0.42)", "rgba(16,185,129,0.34)"],
-  blue: ["rgba(96,165,250,0.86)", "rgba(34,211,238,0.58)", "rgba(167,139,250,0.38)"],
-  deepblue: ["rgba(56,189,248,0.78)", "rgba(96,165,250,0.54)", "rgba(45,212,191,0.38)"],
-  deeppurple: ["rgba(192,132,252,0.74)", "rgba(244,114,182,0.46)", "rgba(96,165,250,0.36)"],
-  casimiri: ["rgba(251,191,36,0.56)", "rgba(244,114,182,0.42)", "rgba(45,212,191,0.34)"],
-  greenspace: ["rgba(74,222,128,0.7)", "rgba(45,212,191,0.5)", "rgba(163,230,53,0.34)"],
-  midnight: ["rgba(45,212,191,0.64)", "rgba(96,165,250,0.46)", "rgba(168,85,247,0.36)"],
-} as const;
+/**
+ * Liquid-glass sidebar overlay.
+ *
+ * Requires chrome://flags/#canvas-draw-element to be enabled in Electron.
+ * With that flag the LiquidCanvas WebGPU surface composites against the actual
+ * painted pixels of whatever sits behind the canvas in the DOM stacking context
+ * (i.e. the real main-content area), so GlassContainer genuinely blurs live
+ * content — no fake backdrop div needed inside the scene graph.
+ *
+ * Parameters are tuned for a neutral, premium frosted panel:
+ *   blur            — 72px: strong but not soap-bubble
+ *   bezelWidth      — 90: narrow edge-only refraction, not a thick lens
+ *   displacementBlur — 12: subtle chromatic shimmer at the rim
+ *   tint            — near-zero saturation; resolvedTheme-aware lightness only
+ *   specularOpacity — 0.18 / 0.10: single faint highlight, no rainbow
+ */
+function LiquidSidebarGlass({ resolvedTheme }: { resolvedTheme: "light" | "dark" }) {
+  const isLight = resolvedTheme === "light";
 
-function getSidebarBackdropStyle(theme: Theme) {
-  const colors = SIDEBAR_BACKDROP_COLORS[theme] ?? SIDEBAR_BACKDROP_COLORS.midnight;
-
-  return {
-    background: `radial-gradient(circle at 10% 8%, ${colors[0]}, transparent 42%), radial-gradient(circle at 88% 20%, ${colors[1]}, transparent 48%), radial-gradient(circle at 62% 88%, ${colors[2]}, transparent 52%), linear-gradient(135deg, color-mix(in srgb, var(--background) 54%, ${colors[0]}), color-mix(in srgb, var(--background) 70%, ${colors[1]}) 48%, color-mix(in srgb, var(--background) 58%, ${colors[2]}))`,
-  };
-}
-
-function LiquidSidebarBackdrop({ theme }: { theme: Theme }) {
-  return (
-    <div className="relative h-full w-full overflow-hidden" style={getSidebarBackdropStyle(theme)}>
-      <div className="absolute left-8 top-20 h-28 w-28 rounded-[30px] bg-white/20 blur-md" />
-      <div className="absolute -right-10 top-40 h-36 w-36 rounded-[38px] bg-cyan-200/24 blur-md" />
-      <div className="absolute bottom-20 left-8 h-32 w-44 rounded-[36px] bg-indigo-200/22 blur-md" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.2),rgba(255,255,255,0.05))]" />
-    </div>
-  );
-}
-
-function LiquidSidebarGlass({ theme, resolvedTheme }: { theme: Theme; resolvedTheme: "light" | "dark" }) {
-  // Tint: matches the dark Apple Music frosted-glass look for dark mode,
-  // clean near-white for light mode. Low alpha keeps the blur visible.
-  const tint = resolvedTheme === "light"
-    ? { r: 0.96, g: 0.96, b: 0.98, a: 0.55 }
-    : { r: 0.10, g: 0.10, b: 0.12, a: 0.62 };
+  // Neutral tint — the glass picks up colour from the blurred content behind
+  // it, so a saturated tint here creates colour double-exposure noise.
+  const tint = isLight
+    ? { r: 0.97, g: 0.97, b: 0.98, a: 0.40 }
+    : { r: 0.07, g: 0.07, b: 0.09, a: 0.50 };
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px] bg-transparent">
+    // pointer-events-none so the canvas layer never intercepts sidebar clicks.
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px]">
       {/*
-        The LiquidCanvas captures ONLY content inside its own tree.
-        We place the theme backdrop at zIndex -2 so the GlassContainer
-        blurs + refracts it — this is the exact MusicSidebarDemo pattern.
+        LiquidCanvas fills the sidebar panel. With canvas-draw-element the GPU
+        surface reads composited DOM pixels behind it — no ZStack fake-backdrop.
       */}
       <LiquidCanvas
-        className="absolute inset-0"
+        className="absolute inset-0 h-full w-full"
         canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent"
       >
-        <ZStack alignment="topLeading">
-          <Html zIndex={-2} sizing="fill">
-            <LiquidSidebarBackdrop theme={theme} />
-          </Html>
-          <Frame maxWidth={Infinity} maxHeight={Infinity}>
-            <GlassContainer
-              blur={200}
-              bezelWidth={170}
-              displacementBlur={25}
-              thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.28 }}
-              shadowBlur={30}
-              specularOpacity={0.30}
-              surfaceProfile="concave"
-              specularFalloff={2}
-              tint={tint}
-            >
-              <Transform x={0} y={0}>
-                <Glass cornerRadius={30}>
-                  <Frame width={LIQUID_SIDEBAR_WIDTH} height={1000}>
-                    <Html sizing="fill">
-                      <div className="h-full w-full bg-transparent" />
-                    </Html>
-                  </Frame>
-                </Glass>
-              </Transform>
-            </GlassContainer>
-          </Frame>
-        </ZStack>
+        {/* Frame fills the full canvas bounds */}
+        <Frame maxWidth={Infinity} maxHeight={Infinity}>
+          <GlassContainer
+            blur={72}
+            bezelWidth={90}
+            displacementBlur={12}
+            thickness={0}
+            shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.10 : 0.22 }}
+            shadowBlur={20}
+            specularOpacity={isLight ? 0.18 : 0.10}
+            surfaceProfile="concave"
+            specularFalloff={2.5}
+            tint={tint}
+          >
+            <Transform x={0} y={0}>
+              <Glass cornerRadius={30}>
+                {/* Frame + Html fills the Glass to match the sidebar panel */}
+                <Frame maxWidth={Infinity} maxHeight={Infinity}>
+                  <Html sizing="fill">
+                    <div className="h-full w-full" />
+                  </Html>
+                </Frame>
+              </Glass>
+            </Transform>
+          </GlassContainer>
+        </Frame>
       </LiquidCanvas>
     </div>
   );
@@ -286,11 +269,12 @@ export function AppSidebar({
     <div
       className={cn(
         "relative z-10 flex h-full min-h-0 flex-col",
+        /*
+         * When liquid glass is active the surface chrome (border, shadow) is
+         * provided by FrostedSidebarSurface so we only add the outer ring here.
+         */
         liquidGlassEnabled &&
-          "rounded-[30px] border border-[var(--panel-border)]/30 bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
-        liquidGlassEnabled &&
-          settings.liquidGlassShineColors &&
-          "shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
+          "rounded-[30px] border border-white/10 bg-transparent",
       )}
     >
       <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
@@ -751,12 +735,14 @@ export function AppSidebar({
   if (liquidGlassEnabled) {
     return (
       <aside className="drag-region relative z-10 h-full w-[288px] shrink-0 overflow-visible border-r border-transparent bg-transparent p-2 text-[var(--sidebar-foreground)]">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-transparent"
-        />
-        <div className="relative h-full overflow-hidden rounded-[30px] bg-transparent">
-          <LiquidSidebarGlass theme={settings.theme} resolvedTheme={resolvedTheme} />
+        {/*
+          Outer clip shell. overflow-hidden + rounded-[30px] ensures the WebGPU
+          canvas surface and the sidebar nav are both clipped to the panel shape.
+        */}
+        <div className="relative h-full overflow-hidden rounded-[30px]">
+          {/* Liquid-glass surface — see LiquidSidebarGlass for full rationale */}
+          <LiquidSidebarGlass resolvedTheme={resolvedTheme} />
+          {/* Nav content sits above the canvas via z-10 declared in sidebarContent */}
           {sidebarContent}
         </div>
       </aside>
