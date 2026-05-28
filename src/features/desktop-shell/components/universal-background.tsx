@@ -21,28 +21,28 @@ export function getUniversalBackgroundStyle(
 ) {
   const shineColors = SHINE_COLOR_STOPS[theme] ?? SHINE_COLOR_STOPS.midnight;
   const liquidBase =
-    "radial-gradient(circle at 9% 12%, color-mix(in srgb, var(--mate-shell-a) 82%, transparent), transparent 30%), radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--mate-shell-a) 74%, transparent), transparent 34%), radial-gradient(circle at 74% 18%, color-mix(in srgb, var(--mate-shell-b) 68%, transparent), transparent 38%), radial-gradient(circle at 78% 82%, color-mix(in srgb, var(--mate-shell-c) 70%, transparent), transparent 40%), linear-gradient(135deg, color-mix(in srgb, var(--background) 72%, var(--mate-shell-a)), var(--background) 44%, color-mix(in srgb, var(--background) 72%, var(--mate-shell-c)))";
+    "radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--mate-shell-a) 92%, white 8%), transparent 34%), radial-gradient(circle at 24% 16%, color-mix(in srgb, var(--mate-shell-a) 72%, transparent), transparent 36%), radial-gradient(circle at 72% 14%, color-mix(in srgb, var(--mate-shell-b) 78%, transparent), transparent 42%), radial-gradient(circle at 82% 82%, color-mix(in srgb, var(--mate-shell-c) 82%, transparent), transparent 44%), linear-gradient(135deg, color-mix(in srgb, var(--background) 64%, var(--mate-shell-a)), color-mix(in srgb, var(--background) 88%, white 12%) 46%, color-mix(in srgb, var(--background) 64%, var(--mate-shell-c)))";
 
   return {
     "--mate-shell-a": shineColors[0],
     "--mate-shell-b": shineColors[1],
     "--mate-shell-c": shineColors[2],
-    "--mate-shell-field-opacity": shineEnabled ? "0.72" : "0",
+    "--mate-shell-field-opacity": shineEnabled ? "0.9" : "0",
     "--mate-shell-base": liquidGlassEnabled ? liquidBase : "var(--background)",
     "--mate-shell-field":
       "radial-gradient(circle at 18% 16%, var(--mate-shell-a), transparent 28%), radial-gradient(circle at 76% 18%, var(--mate-shell-b), transparent 30%), radial-gradient(circle at 82% 82%, var(--mate-shell-c), transparent 34%)",
     "--mate-shell-glass": liquidGlassEnabled
-      ? "linear-gradient(180deg, color-mix(in srgb, var(--background) 20%, transparent), color-mix(in srgb, var(--background) 10%, transparent))"
+      ? "linear-gradient(180deg, color-mix(in srgb, var(--background) 8%, transparent), color-mix(in srgb, var(--background) 4%, transparent))"
       : "linear-gradient(var(--background), var(--background))",
     "--mate-page-bg": liquidGlassEnabled ? "transparent" : "var(--background)",
     "--mate-surface-bg": liquidGlassEnabled
-      ? "color-mix(in srgb, var(--surface) 34%, transparent)"
+      ? "color-mix(in srgb, var(--surface) 22%, transparent)"
       : "var(--surface)",
     "--mate-panel-bg": liquidGlassEnabled
-      ? "color-mix(in srgb, var(--panel) 32%, transparent)"
+      ? "color-mix(in srgb, var(--panel) 18%, transparent)"
       : "var(--panel)",
     "--mate-control-bg": liquidGlassEnabled
-      ? "color-mix(in srgb, var(--background) 18%, transparent)"
+      ? "color-mix(in srgb, var(--background) 12%, transparent)"
       : "var(--background)",
     "--mate-floating-shadow": liquidGlassEnabled
       ? "0 22px 80px -48px rgba(0,0,0,0.7)"
