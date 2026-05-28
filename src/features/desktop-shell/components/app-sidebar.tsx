@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 import {
+  Frame,
+  Glass,
+  GlassContainer,
+  Html,
+  LiquidCanvas,
+  Transform,
+  ZStack,
+} from "@liquid-dom/react";
+import {
   ArrowLeftIcon,
   FileTextIcon,
   ListChecksIcon,
@@ -57,6 +66,75 @@ import { ThreadMenuItem } from "./thread-menu-item";
 const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
+const LIQUID_SIDEBAR_WIDTH = 272;
+
+const SIDEBAR_BACKDROP_COLORS = {
+  default: ["rgba(77,124,255,0.42)", "rgba(20,184,166,0.28)", "rgba(244,114,182,0.18)"],
+  oled: ["rgba(56,189,248,0.34)", "rgba(168,85,247,0.24)", "rgba(16,185,129,0.18)"],
+  blue: ["rgba(59,130,246,0.52)", "rgba(6,182,212,0.34)", "rgba(129,140,248,0.22)"],
+  deepblue: ["rgba(14,165,233,0.46)", "rgba(37,99,235,0.34)", "rgba(45,212,191,0.22)"],
+  deeppurple: ["rgba(168,85,247,0.46)", "rgba(236,72,153,0.26)", "rgba(96,165,250,0.2)"],
+  casimiri: ["rgba(251,146,60,0.34)", "rgba(244,114,182,0.24)", "rgba(45,212,191,0.18)"],
+  greenspace: ["rgba(34,197,94,0.42)", "rgba(20,184,166,0.3)", "rgba(132,204,22,0.2)"],
+  midnight: ["rgba(45,212,191,0.34)", "rgba(59,130,246,0.26)", "rgba(168,85,247,0.22)"],
+} as const;
+
+function getSidebarBackdropStyle(theme: Theme) {
+  const colors = SIDEBAR_BACKDROP_COLORS[theme] ?? SIDEBAR_BACKDROP_COLORS.midnight;
+
+  return {
+    background: `radial-gradient(circle at 14% 10%, ${colors[0]}, transparent 38%), radial-gradient(circle at 82% 22%, ${colors[1]}, transparent 44%), radial-gradient(circle at 65% 86%, ${colors[2]}, transparent 48%), linear-gradient(135deg, #13233b 0%, #0f2534 48%, #171c35 100%)`,
+  };
+}
+
+function LiquidSidebarBackdrop({ theme }: { theme: Theme }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden" style={getSidebarBackdropStyle(theme)}>
+      <div className="absolute left-8 top-20 h-24 w-24 rounded-[28px] bg-white/10" />
+      <div className="absolute -right-8 top-44 h-32 w-32 rounded-[36px] bg-cyan-300/12" />
+      <div className="absolute bottom-20 left-10 h-28 w-40 rounded-[34px] bg-indigo-300/12" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))]" />
+    </div>
+  );
+}
+
+function LiquidSidebarGlass({ theme }: { theme: Theme }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px] bg-transparent">
+      <LiquidCanvas className="absolute inset-0" canvasClassName="absolute inset-0 h-full w-full rounded-[30px]">
+        <ZStack alignment="topLeading">
+          <Html zIndex={-2} sizing="fill">
+            <LiquidSidebarBackdrop theme={theme} />
+          </Html>
+          <Frame maxWidth={Infinity} maxHeight={Infinity}>
+            <GlassContainer
+              blur={160}
+              bezelWidth={150}
+              displacementBlur={20}
+              thickness={0}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.1 }}
+              shadowBlur={16}
+              specularOpacity={0.24}
+              surfaceProfile="concave"
+              specularFalloff={2}
+              tint={{ r: 1, g: 1, b: 1, a: 0.04 }}
+            >
+              <Transform x={0} y={0}>
+                <Glass cornerRadius={30}>
+                  <Frame width={LIQUID_SIDEBAR_WIDTH} maxHeight={Infinity}>
+                    <Html sizing="fill">
+                      <div className="h-full w-full bg-transparent" />
+                    </Html>
+                  </Frame>
+                </Glass>
+              </Transform>
+            </GlassContainer>
+          </Frame>
+        </ZStack>
+      </LiquidCanvas>
+    </div>
+  );
+}
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
@@ -195,7 +273,7 @@ export function AppSidebar({
       className={cn(
         "relative z-10 flex h-full min-h-0 flex-col",
         liquidGlassEnabled &&
-          "rounded-[30px] border border-[var(--panel-border)]/30 bg-[color-mix(in_srgb,var(--panel)_18%,transparent)] backdrop-blur-2xl shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
+          "rounded-[30px] border border-[var(--panel-border)]/30 bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]",
         liquidGlassEnabled &&
           settings.liquidGlassShineColors &&
           "shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_48px_rgba(125,190,255,0.16)]",
@@ -664,6 +742,7 @@ export function AppSidebar({
           className="pointer-events-none absolute inset-0 -z-10 bg-transparent"
         />
         <div className="relative h-full overflow-hidden rounded-[30px] bg-transparent">
+          <LiquidSidebarGlass theme={settings.theme} />
           {sidebarContent}
         </div>
       </aside>
