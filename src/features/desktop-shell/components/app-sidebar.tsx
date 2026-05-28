@@ -98,34 +98,39 @@ function LiquidSidebarBackdrop({ theme }: { theme: Theme }) {
   );
 }
 
-function LiquidSidebarGlass({ theme }: { theme: Theme }) {
+function LiquidSidebarGlass({ theme, resolvedTheme }: { theme: Theme; resolvedTheme: "light" | "dark" }) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px] bg-transparent">
-      <div className="absolute inset-0" style={getSidebarBackdropStyle(theme)} />
-      <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--panel)_10%,transparent)] backdrop-blur-2xl saturate-150" />
+      {/* Premium robust CSS backdrop-blur that blurs the universal window background */}
+      <div
+        className={cn(
+          "absolute inset-0 rounded-[30px]",
+          resolvedTheme === "light"
+            ? "bg-white/60 backdrop-blur-[45px] saturate-[180%]"
+            : "bg-[#121214]/65 backdrop-blur-[45px] saturate-[180%]",
+        )}
+      />
+      {/* High-fidelity WebGL specular and bezel reflection overlaid on top */}
       <LiquidCanvas className="absolute inset-0 mix-blend-screen" canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent">
         <ZStack alignment="topLeading">
-          <Html zIndex={-2} sizing="fill">
-            <LiquidSidebarBackdrop theme={theme} />
-          </Html>
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
-              blur={160}
-              bezelWidth={180}
-              displacementBlur={30}
+              blur={200}
+              bezelWidth={170}
+              displacementBlur={25}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.05 }}
-              shadowBlur={10}
-              specularOpacity={0.42}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0 }}
+              shadowBlur={0}
+              specularOpacity={0.35}
               surfaceProfile="concave"
-              specularFalloff={1.65}
-              tint={{ r: 1, g: 1, b: 1, a: 0.015 }}
+              specularFalloff={2}
+              tint={{ r: 0, g: 0, b: 0, a: 1 }}
             >
               <Transform x={0} y={0}>
                 <Glass cornerRadius={30}>
-                  <Frame width={LIQUID_SIDEBAR_WIDTH} maxHeight={Infinity}>
+                  <Frame width={LIQUID_SIDEBAR_WIDTH} height={1000}>
                     <Html sizing="fill">
-                      <div className="h-full w-full bg-transparent" />
+                      <div className="h-full w-full bg-black" />
                     </Html>
                   </Frame>
                 </Glass>
@@ -744,7 +749,7 @@ export function AppSidebar({
           className="pointer-events-none absolute inset-0 -z-10 bg-transparent"
         />
         <div className="relative h-full overflow-hidden rounded-[30px] bg-transparent">
-          <LiquidSidebarGlass theme={settings.theme} />
+          <LiquidSidebarGlass theme={settings.theme} resolvedTheme={resolvedTheme} />
           {sidebarContent}
         </div>
       </aside>
