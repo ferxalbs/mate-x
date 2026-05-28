@@ -99,38 +99,45 @@ function LiquidSidebarBackdrop({ theme }: { theme: Theme }) {
 }
 
 function LiquidSidebarGlass({ theme, resolvedTheme }: { theme: Theme; resolvedTheme: "light" | "dark" }) {
+  // Tint: matches the dark Apple Music frosted-glass look for dark mode,
+  // clean near-white for light mode. Low alpha keeps the blur visible.
+  const tint = resolvedTheme === "light"
+    ? { r: 0.96, g: 0.96, b: 0.98, a: 0.55 }
+    : { r: 0.10, g: 0.10, b: 0.12, a: 0.62 };
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px] bg-transparent">
-      {/* Premium robust CSS backdrop-blur that blurs the universal window background */}
-      <div
-        className={cn(
-          "absolute inset-0 rounded-[30px]",
-          resolvedTheme === "light"
-            ? "bg-white/60 backdrop-blur-[45px] saturate-[180%]"
-            : "bg-[#121214]/65 backdrop-blur-[45px] saturate-[180%]",
-        )}
-      />
-      {/* High-fidelity WebGL specular and bezel reflection overlaid on top */}
-      <LiquidCanvas className="absolute inset-0 mix-blend-screen" canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent">
+      {/*
+        The LiquidCanvas captures ONLY content inside its own tree.
+        We place the theme backdrop at zIndex -2 so the GlassContainer
+        blurs + refracts it — this is the exact MusicSidebarDemo pattern.
+      */}
+      <LiquidCanvas
+        className="absolute inset-0"
+        canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent"
+      >
         <ZStack alignment="topLeading">
+          <Html zIndex={-2} sizing="fill">
+            <LiquidSidebarBackdrop theme={theme} />
+          </Html>
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
               blur={200}
               bezelWidth={170}
               displacementBlur={25}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0 }}
-              shadowBlur={0}
-              specularOpacity={0.35}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.28 }}
+              shadowBlur={30}
+              specularOpacity={0.30}
               surfaceProfile="concave"
               specularFalloff={2}
-              tint={{ r: 0, g: 0, b: 0, a: 1 }}
+              tint={tint}
             >
               <Transform x={0} y={0}>
                 <Glass cornerRadius={30}>
                   <Frame width={LIQUID_SIDEBAR_WIDTH} height={1000}>
                     <Html sizing="fill">
-                      <div className="h-full w-full bg-black" />
+                      <div className="h-full w-full bg-transparent" />
                     </Html>
                   </Frame>
                 </Glass>

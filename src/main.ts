@@ -47,6 +47,13 @@ if (started) {
   app.quit();
 }
 
+// Enable canvas-draw-element (chrome://flags/#canvas-draw-element) and related
+// Blink features required by @liquid-dom/react to capture DOM content into its
+// WebGL canvas for glass refraction. Must be set before the app is ready.
+app.commandLine.appendSwitch('enable-features', 'CanvasDrawElement');
+app.commandLine.appendSwitch('enable-blink-features', 'CanvasDrawElement');
+
+
 const isTrustedAppUrl = (url: string) => {
   let parsedUrl: URL;
 
