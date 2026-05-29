@@ -460,17 +460,17 @@ export function ComposerPanel({
     <>
         <div
           className={cn(
-            "relative overflow-hidden rounded-[32px] border border-[var(--panel-border)]/70 transition-all duration-300 glass",
+            "relative overflow-hidden rounded-[32px] transition-all duration-300",
             liquidGlassEnabled
-              ? "bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.18)]"
-              : "bg-[var(--mate-panel-bg)]",
+              ? "border border-white/15 bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.22)]"
+              : "glass border border-[var(--panel-border)]/70 bg-[var(--mate-panel-bg)]",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
-          style={{
-            "--glass-bg": liquidGlassEnabled
-              ? "color-mix(in srgb, var(--panel) 10%, transparent)"
-              : "var(--panel)",
-          } as any}
+          style={
+            liquidGlassEnabled
+              ? undefined
+              : ({ "--glass-bg": "var(--panel)" } as React.CSSProperties)
+          }
           onDragEnter={(event) => {
             event.preventDefault();
             if (event.dataTransfer.types.includes("Files")) {
@@ -795,10 +795,18 @@ export function ComposerPanel({
 function ComposerLiquidGlass() {
   return (
     <div className="pointer-events-none absolute inset-0 z-0">
-      <div className="absolute inset-0 bg-[image:var(--mate-shell-base)] opacity-95" />
-      <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--panel)_8%,transparent)] backdrop-blur-2xl saturate-150" />
-      <LiquidCanvas className="absolute inset-0 mix-blend-screen" canvasClassName="absolute inset-0 h-full w-full bg-transparent">
+      {/*
+        Only the LiquidCanvas remains. The ZStack backdrop at zIndex=-2
+        provides the gradient source for GlassContainer to blur. No extra
+        CSS layers on top — anything painted here covers the canvas output
+        and kills the glass effect.
+      */}
+      <LiquidCanvas
+        className="absolute inset-0"
+        canvasClassName="absolute inset-0 h-full w-full rounded-[32px] bg-transparent"
+      >
         <ZStack alignment="center">
+          {/* Backdrop: same gradient as the global UniversalBackground */}
           <Html zIndex={-2} sizing="fill">
             <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
           </Html>
@@ -810,10 +818,10 @@ function ComposerLiquidGlass() {
               thickness={0}
               shadowColor={{ r: 0, g: 0, b: 0, a: 0.08 }}
               shadowBlur={14}
-              specularOpacity={0.44}
+              specularOpacity={0.38}
               surfaceProfile="concave"
               specularFalloff={1.65}
-              tint={{ r: 1, g: 1, b: 1, a: 0.005 }}
+              tint={{ r: 1, g: 1, b: 1, a: 0.0 }}
             >
               <Glass cornerRadius={32}>
                 <Frame maxWidth={Infinity} maxHeight={Infinity}>
@@ -826,10 +834,10 @@ function ComposerLiquidGlass() {
           </Frame>
         </ZStack>
       </LiquidCanvas>
-      <div className="absolute inset-0 bg-[var(--mate-panel-bg)] backdrop-blur-sm" />
     </div>
   );
 }
+
 
 function AttachmentChip({
   attachment,
