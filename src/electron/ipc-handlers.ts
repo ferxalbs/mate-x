@@ -2,10 +2,10 @@ import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 
-import type { AssistantRunOptions, EvidencePack } from "../contracts/chat";
+import type { AssistantRunOptions, Conversation, EvidencePack } from "../contracts/chat";
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
-import type { WorkspaceMemoryFileKind } from "../contracts/workspace";
+import type { WorkspaceMemoryFileKind, WorkspaceTrustContract } from "../contracts/workspace";
 import { GitService } from "./git-service";
 import { policyService } from "./policy-service";
 import {
@@ -41,6 +41,269 @@ import { generateComplianceExport } from "../features/compliance/complianceExpor
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
+const MAX_IPC_TEXT_LENGTH = 200_000;
+const MAX_IPC_ARRAY_LENGTH = 500;
+const WORKSPACE_MEMORY_FILE_KINDS = new Set<WorkspaceMemoryFileKind>(["memory", "guardrails", "workstate"]);
+const POLICY_STOP_ACTIONS = new Set(["approve_once", "expand_scope", "abort", "safer_alternative"]);
+const TRUST_AUTONOMY_VALUES = new Set(["plan-only", "approval-required", "trusted-patch", "unrestricted"]);
+const APP_SETTING_KEYS = new Set([
+  "appearance",
+  "theme",
+  "blurEnabled",
+  "timeFormat",
+  "agentTraceVersion",
+  "agentTraceV2InlineEvents",
+  "diffLineWrapping",
+  "assistantOutput",
+  "compactMode",
+  "floatingInput",
+  "liquidGlassSidebar",
+  "liquidGlassDensity",
+  "liquidGlassShineColors",
+  "archiveConfirmation",
+  "deleteConfirmation",
+  "agentProfilerAutoSwitch",
+  "privacyFirewallEnabled",
+  "privacyMode",
+  "privacyUseOnnxModel",
+  "privacyUseRegex",
+  "privacyBlockP0CloudSend",
+  "privacyPlaceholderStyle",
+  "privacyMinModelConfidence",
+  "privacyShowPreviewBeforeCloudSend",
+  "supermemoryApiKey",
+  "onboardingCompleted",
+]);
+
+function assertPlainRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`);
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function assertKnownKeys(value: Record<string, unknown>, allowed: Set<string>, label: string) {
+  const unknownKeys = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknownKeys.length > 0) {
+    throw new Error(`${label} contains unsupported field(s): ${unknownKeys.join(", ")}.`);
+  }
+}
+
+function requireBoundedString(value: unknown, label: string, maxLength = MAX_IPC_TEXT_LENGTH) {
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a string.`);
+  }
+  if (value.length > maxLength) {
+    throw new Error(`${label} exceeds ${maxLength} characters.`);
+  }
+  return value;
+}
+
+function optionalBoundedString(value: unknown, label: string, maxLength = 2_000) {
+  if (value === undefined || value === null) return undefined;
+  return requireBoundedString(value, label, maxLength);
+}
+
+function requireStringArray(value: unknown, label: string, maxItemLength = 2_000) {
+  if (!Array.isArray(value) || value.length > MAX_IPC_ARRAY_LENGTH) {
+    throw new Error(`${label} must be an array with at most ${MAX_IPC_ARRAY_LENGTH} entries.`);
+  }
+
+  return value.map((item, index) => requireBoundedString(item, `${label}[${index}]`, maxItemLength));
+}
+
+function assertSafeRelativePath(value: string, label: string) {
+  const normalized = value.replaceAll("\\", "/").trim();
+  if (
+    !normalized ||
+    normalized.startsWith("/") ||
+    /^[a-z]:\//i.test(normalized) ||
+    normalized.split("/").includes("..") ||
+    normalized.includes("\0")
+  ) {
+    throw new Error(`${label} must be a safe workspace-relative path.`);
+  }
+  return normalized;
+}
+
+function optionalWorkspaceId(value: unknown) {
+  const id = optionalBoundedString(value, "workspaceId", 200);
+  if (id !== undefined && !/^[A-Za-z0-9._:-]+$/.test(id)) {
+    throw new Error("workspaceId is malformed.");
+  }
+  return id;
+}
+
+function requireWorkspaceId(value: unknown) {
+  const id = optionalWorkspaceId(value);
+  if (!id) {
+    throw new Error("workspaceId is required.");
+  }
+  return id;
+}
+
+function validateLimit(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+    throw new Error("limit must be an integer between 1 and 500.");
+  }
+  return limit;
+}
+
+function validateWorkspaceMemoryKind(kind: unknown): WorkspaceMemoryFileKind {
+  if (typeof kind !== "string" || !WORKSPACE_MEMORY_FILE_KINDS.has(kind as WorkspaceMemoryFileKind)) {
+    throw new Error("Invalid workspace memory file kind.");
+  }
+
+  return kind as WorkspaceMemoryFileKind;
+}
+
+function validateConversationSnapshot(value: unknown) {
+  if (!Array.isArray(value) || value.length > MAX_IPC_ARRAY_LENGTH) {
+    throw new Error(`threads must be an array with at most ${MAX_IPC_ARRAY_LENGTH} entries.`);
+  }
+  const serialized = JSON.stringify(value);
+  if (serialized.length > 2_000_000) {
+    throw new Error("threads payload is too large.");
+  }
+  return value as Conversation[];
+}
+
+function validateWorkspaceTrustContract(contract: unknown): WorkspaceTrustContract {
+  const record = assertPlainRecord(contract, "Workspace Trust Contract");
+  assertKnownKeys(record, new Set([
+    "id",
+    "workspaceId",
+    "name",
+    "version",
+    "autonomy",
+    "allowedPaths",
+    "forbiddenPaths",
+    "allowedCommands",
+    "allowedDomains",
+    "allowedSecrets",
+    "allowedActions",
+    "blockedActions",
+    "updatedAt",
+  ]), "Workspace Trust Contract");
+
+  const allowedActions = requireStringArray(record.allowedActions, "allowedActions", 80);
+  const blockedActions = requireStringArray(record.blockedActions, "blockedActions", 80);
+  for (const action of [...allowedActions, ...blockedActions]) {
+    if (!/^[A-Za-z0-9._:-]{1,80}$/.test(action)) {
+      throw new Error(`Malformed trust-contract action: ${action}.`);
+    }
+  }
+
+  const allowedPaths = requireStringArray(record.allowedPaths, "allowedPaths").map((path) =>
+    path === "." ? path : assertSafeRelativePath(path, "allowedPaths"),
+  );
+  const forbiddenPaths = requireStringArray(record.forbiddenPaths, "forbiddenPaths").map((path) =>
+    assertSafeRelativePath(path, "forbiddenPaths"),
+  );
+  const autonomy = requireBoundedString(record.autonomy, "autonomy", 40);
+  if (!TRUST_AUTONOMY_VALUES.has(autonomy)) {
+    throw new Error("Unsupported trust-contract autonomy.");
+  }
+
+  return {
+    id: requireBoundedString(record.id, "id", 200),
+    workspaceId: requireBoundedString(record.workspaceId, "workspaceId", 200),
+    name: requireBoundedString(record.name, "name", 200),
+    version: Number.isInteger(record.version) && Number(record.version) > 0 ? Number(record.version) : 1,
+    autonomy: autonomy as WorkspaceTrustContract["autonomy"],
+    allowedPaths,
+    forbiddenPaths,
+    allowedCommands: requireStringArray(record.allowedCommands, "allowedCommands"),
+    allowedDomains: requireStringArray(record.allowedDomains, "allowedDomains", 255),
+    allowedSecrets: requireStringArray(record.allowedSecrets, "allowedSecrets", 255),
+    allowedActions,
+    blockedActions,
+    updatedAt: requireBoundedString(record.updatedAt, "updatedAt", 80),
+  };
+}
+
+function validateAppSettings(settings: unknown): AppSettings {
+  const record = assertPlainRecord(settings, "App settings");
+  assertKnownKeys(record, APP_SETTING_KEYS, "App settings");
+  return record as unknown as AppSettings;
+}
+
+function validateAssistantOptions(options: unknown): AssistantRunOptions | undefined {
+  if (options === undefined || options === null) return undefined;
+  const record = assertPlainRecord(options, "Assistant options");
+  assertKnownKeys(record, new Set([
+    "reasoningEnabled",
+    "reasoning",
+    "mode",
+    "access",
+    "serviceTier",
+    "runbookId",
+    "attachments",
+  ]), "Assistant options");
+
+  if (record.attachments !== undefined) {
+    if (!Array.isArray(record.attachments) || record.attachments.length > 12) {
+      throw new Error("Assistant attachments must contain at most 12 items.");
+    }
+    for (const [index, attachment] of record.attachments.entries()) {
+      const item = assertPlainRecord(attachment, `attachments[${index}]`);
+      assertKnownKeys(item, new Set(["id", "name", "mimeType", "size", "kind", "dataUrl", "text"]), `attachments[${index}]`);
+      requireBoundedString(item.id, `attachments[${index}].id`, 200);
+      requireBoundedString(item.name, `attachments[${index}].name`, 500);
+      requireBoundedString(item.mimeType, `attachments[${index}].mimeType`, 200);
+      optionalBoundedString(item.dataUrl, `attachments[${index}].dataUrl`, 10_000_000);
+      optionalBoundedString(item.text, `attachments[${index}].text`, MAX_IPC_TEXT_LENGTH);
+    }
+  }
+
+  return record as unknown as AssistantRunOptions;
+}
+
+function validateEvidencePack(value: unknown): EvidencePack {
+  const record = assertPlainRecord(value, "Evidence Pack");
+  if (!["complete", "partial", "blocked", "failed"].includes(String(record.status))) {
+    throw new Error("Evidence Pack status is invalid.");
+  }
+  assertPlainRecord(record.verdict, "Evidence Pack verdict");
+  requireBoundedString(record.generatedAt, "Evidence Pack generatedAt", 80);
+  const serialized = JSON.stringify(record);
+  if (serialized.length > 2_000_000) {
+    throw new Error("Evidence Pack payload is too large.");
+  }
+  return record as unknown as EvidencePack;
+}
+
+function validateResolvePolicyStopRequest(request: unknown): ResolvePolicyStopRequest {
+  const record = assertPlainRecord(request, "Policy stop resolution request");
+  assertKnownKeys(record, new Set(["stopId", "action", "scopeExpansion"]), "Policy stop resolution request");
+  const action = requireBoundedString(record.action, "action", 80);
+  if (!POLICY_STOP_ACTIONS.has(action)) {
+    throw new Error("Invalid policy stop resolution action.");
+  }
+  let scopeExpansion: ResolvePolicyStopRequest["scopeExpansion"];
+  if (record.scopeExpansion !== undefined) {
+    const scope = assertPlainRecord(record.scopeExpansion, "scopeExpansion");
+    assertKnownKeys(scope, new Set(["kind", "value", "expires"]), "scopeExpansion");
+    const kind = requireBoundedString(scope.kind, "scopeExpansion.kind", 40);
+    const expires = requireBoundedString(scope.expires, "scopeExpansion.expires", 40);
+    if (!["path", "command", "network"].includes(kind) || !["once", "run"].includes(expires)) {
+      throw new Error("Invalid policy scope expansion.");
+    }
+    scopeExpansion = {
+      kind: kind as NonNullable<ResolvePolicyStopRequest["scopeExpansion"]>["kind"],
+      value: requireBoundedString(scope.value, "scopeExpansion.value", 2_000),
+      expires: expires as NonNullable<ResolvePolicyStopRequest["scopeExpansion"]>["expires"],
+    };
+  }
+  return {
+    stopId: requireBoundedString(record.stopId, "stopId", 200),
+    action: action as ResolvePolicyStopRequest["action"],
+    scopeExpansion,
+  };
+}
 
 function normalizeRainyApiKey(apiKey: string) {
   const trimmedApiKey = apiKey.trim();
@@ -124,7 +387,7 @@ export function registerIpcHandlers() {
     async (_event, evidencePack: EvidencePack) => {
       const workspace = await resolveActiveWorkspace();
       return generateComplianceExport({
-        evidencePack,
+        evidencePack: validateEvidencePack(evidencePack),
         workspacePath: workspace.path,
         userId: workspace.id,
         policyApplied: "workspace-trust-contract",
@@ -138,11 +401,11 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "repo:get-workspace-trust-contract",
     async (_event, workspaceId?: string) =>
-      getWorkspaceTrustContract(workspaceId),
+      getWorkspaceTrustContract(optionalWorkspaceId(workspaceId)),
   );
   ipcMain.handle(
     "repo:update-workspace-trust-contract",
-    async (_event, contract) => updateWorkspaceTrustContract(contract),
+    async (_event, contract) => updateWorkspaceTrustContract(validateWorkspaceTrustContract(contract)),
   );
   ipcMain.handle("repo:get-workspace-memory-status", async () => {
     const workspace = await resolveActiveWorkspace();
@@ -152,14 +415,19 @@ export function registerIpcHandlers() {
     "repo:write-workspace-memory-file",
     async (_event, kind: WorkspaceMemoryFileKind, content: string) => {
       const workspace = await resolveActiveWorkspace();
-      return workspaceMemoryService.writeFile(workspace.id, workspace.path, kind, content);
+      return workspaceMemoryService.writeFile(
+        workspace.id,
+        workspace.path,
+        validateWorkspaceMemoryKind(kind),
+        requireBoundedString(content, "workspace memory content", MAX_IPC_TEXT_LENGTH),
+      );
     },
   );
   ipcMain.handle(
     "repo:reset-workspace-memory-file",
     async (_event, kind: WorkspaceMemoryFileKind) => {
       const workspace = await resolveActiveWorkspace();
-      return workspaceMemoryService.resetFile(workspace.id, workspace.path, kind);
+      return workspaceMemoryService.resetFile(workspace.id, workspace.path, validateWorkspaceMemoryKind(kind));
     },
   );
   ipcMain.handle("repo:reveal-workspace-memory-folder", async () => {
@@ -173,19 +441,23 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "repo:set-active-workspace",
     async (_event, workspaceId: string) => {
-      const snapshot = await setActiveWorkspace(workspaceId);
+      const snapshot = await setActiveWorkspace(requireWorkspaceId(workspaceId));
       const workspace = await resolveActiveWorkspace();
       void repoGraphService.ensureWorkspaceGraph(workspace);
       return snapshot;
     },
   );
   ipcMain.handle("repo:remove-workspace", async (_event, workspaceId: string) =>
-    removeWorkspace(workspaceId),
+    removeWorkspace(requireWorkspaceId(workspaceId)),
   );
   ipcMain.handle(
     "repo:save-workspace-session",
     async (_event, workspaceId: string, threads, activeThreadId: string) =>
-      saveWorkspaceSession(workspaceId, threads, activeThreadId),
+      saveWorkspaceSession(
+        requireWorkspaceId(workspaceId),
+        validateConversationSnapshot(threads),
+        requireBoundedString(activeThreadId, "activeThreadId", 200),
+      ),
   );
   ipcMain.handle("repo:open-workspace-picker", async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -263,20 +535,23 @@ export function registerIpcHandlers() {
     },
   );
   ipcMain.handle("repo:list-files", async (_event, limit?: number) =>
-    listFiles(limit),
+    listFiles(validateLimit(limit)),
   );
   ipcMain.handle("repo:search", async (_event, query: string, limit?: number) =>
-    searchInFiles(query, limit),
+    searchInFiles(requireBoundedString(query, "query", 2_000), validateLimit(limit)),
   );
   ipcMain.handle(
     "repo:get-agent-capability-profiles",
     async (_event, workspaceId?: string) =>
-      tursoService.listAgentCapabilityProfiles(workspaceId),
+      tursoService.listAgentCapabilityProfiles(optionalWorkspaceId(workspaceId)),
   );
   ipcMain.handle(
     "repo:get-agent-routing-recommendation",
     async (_event, task: string, workspaceId?: string) =>
-      getAgentRoutingRecommendation(task, workspaceId),
+      getAgentRoutingRecommendation(
+        requireBoundedString(task, "task", 5_000),
+        optionalWorkspaceId(workspaceId),
+      ),
   );
   ipcMain.handle(
     "repo:run-assistant",
@@ -352,13 +627,13 @@ export function registerIpcHandlers() {
 
       try {
         return await runAssistant(
-        prompt,
-        history,
+        requireBoundedString(prompt, "prompt"),
+        requireStringArray(history, "history", MAX_IPC_TEXT_LENGTH),
         undefined,
-        options,
+        validateAssistantOptions(options),
         runId
           ? {
-              runId,
+              runId: requireBoundedString(runId, "runId", 200),
               emit: emitProgress,
             }
           : undefined,
@@ -379,15 +654,22 @@ export function registerIpcHandlers() {
   });
   ipcMain.handle("repo-graph:get-impacted-files", async (_event, files: string[]) => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getImpactedFiles(workspace, Array.isArray(files) ? files : []);
+    return repoGraphService.getImpactedFiles(
+      workspace,
+      requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files")),
+    );
   });
   ipcMain.handle("repo-graph:get-tests-for-file", async (_event, file: string) => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getTestsForFile(workspace, String(file ?? ""));
+    return repoGraphService.getTestsForFile(workspace, assertSafeRelativePath(requireBoundedString(file, "file", 2_000), "file"));
   });
   ipcMain.handle("repo-graph:get-import-chain", async (_event, from: string, to: string) => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getImportChain(workspace, String(from ?? ""), String(to ?? ""));
+    return repoGraphService.getImportChain(
+      workspace,
+      assertSafeRelativePath(requireBoundedString(from, "from", 2_000), "from"),
+      assertSafeRelativePath(requireBoundedString(to, "to", 2_000), "to"),
+    );
   });
   ipcMain.handle("repo-graph:get-ipc-surface", async () => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
@@ -395,7 +677,7 @@ export function registerIpcHandlers() {
   });
   ipcMain.handle("repo-graph:get-env-usage", async (_event, variable?: string) => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getEnvUsage(workspace, variable?.trim() || undefined);
+    return repoGraphService.getEnvUsage(workspace, optionalBoundedString(variable, "variable", 200)?.trim() || undefined);
   });
   ipcMain.handle("repo-graph:get-dependency-surface", async () => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
@@ -409,24 +691,24 @@ export function registerIpcHandlers() {
     return status;
   });
   ipcMain.handle("git:log", async (_event, limit?: number) =>
-    (await resolveGitService()).getLog(limit),
+    (await resolveGitService()).getLog(validateLimit(limit)),
   );
   ipcMain.handle("git:stage-files", async (_event, files: string[]) =>
-    (await resolveGitService()).stageFiles(files),
+    (await resolveGitService()).stageFiles(requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files"))),
   );
   ipcMain.handle("git:commit", async (_event, message: string) =>
-    (await resolveGitService()).commit(message),
+    (await resolveGitService()).commit(requireBoundedString(message, "message", 20_000)),
   );
   ipcMain.handle("git:push", async () => (await resolveGitService()).push());
   ipcMain.handle("git:pull", async () => (await resolveGitService()).pull());
   ipcMain.handle("git:diff", async () => (await resolveGitService()).getDiff());
   ipcMain.handle("git:unstage", async (_event, files: string[]) =>
-    (await resolveGitService()).unstageFiles(files),
+    (await resolveGitService()).unstageFiles(requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files"))),
   );
 
   // ── Policy Stops ────────────────────────────────────────────────────────
   ipcMain.handle("policy:list-stops", async (_event, runId?: string) =>
-    policyService.listStops(runId),
+    policyService.listStops(optionalBoundedString(runId, "runId", 200)),
   );
   ipcMain.handle("policy:get-run-state", async (_event, runId: string) => {
     if (typeof runId !== "string" || !runId.trim()) {
@@ -438,24 +720,25 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "policy:resolve-stop",
     async (_event, request: ResolvePolicyStopRequest) =>
-      policyService.resolveStop(request),
+      policyService.resolveStop(validateResolvePolicyStopRequest(request)),
   );
 
   // ── Settings ─────────────────────────────────────────────────────────────
-  ipcMain.handle("settings:get-api-key", async () => tursoService.getApiKey());
+  ipcMain.handle("settings:get-api-key-status", async () => tursoService.getApiKeyStatus());
   ipcMain.handle("settings:set-api-key", async (_event, apiKey: string) =>
-    tursoService.setApiKey(normalizeRainyApiKey(apiKey)),
+    tursoService.setApiKey(normalizeRainyApiKey(requireBoundedString(apiKey, "apiKey", 2_000))),
   );
   ipcMain.handle(
     "settings:list-models",
     async (_event, forceRefresh?: boolean) =>
-      listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh }),
+      listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh: forceRefresh === true }),
   );
   ipcMain.handle("settings:get-model", async () => tursoService.getModel());
   ipcMain.handle("settings:set-model", async (_event, model: string) => {
     const apiKey = await tursoService.getApiKey();
-    await validateRainyModelSelection({ apiKey, model });
-    await tursoService.setModel(model);
+    const normalizedModel = requireBoundedString(model, "model", 500);
+    await validateRainyModelSelection({ apiKey, model: normalizedModel });
+    await tursoService.setModel(normalizedModel);
   });
   ipcMain.handle("settings:list-embedding-models", async () => [
     ...RAINY_REPO_EMBEDDING_MODELS,
@@ -464,8 +747,9 @@ export function registerIpcHandlers() {
     tursoService.getEmbeddingModel(),
   );
   ipcMain.handle("settings:set-embedding-model", async (_event, model: string) => {
-    validateRainyEmbeddingModelSelection(model);
-    await tursoService.setEmbeddingModel(model);
+    const normalizedModel = requireBoundedString(model, "model", 500);
+    validateRainyEmbeddingModelSelection(normalizedModel);
+    await tursoService.setEmbeddingModel(normalizedModel);
     try {
       const workspace = await resolveActiveWorkspaceForRepoGraph();
       await repoGraphService.refreshWorkspace(
@@ -487,7 +771,7 @@ export function registerIpcHandlers() {
   ipcMain.handle(
     "settings:update-app-settings",
     async (_event, settings: AppSettings) =>
-      tursoService.updateAppSettings(settings),
+      tursoService.updateAppSettings(validateAppSettings(settings)),
   );
 
   // ── UI ───────────────────────────────────────────────────────────────────

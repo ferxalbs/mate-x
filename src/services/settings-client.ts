@@ -14,8 +14,8 @@ export const APPEARANCE_STORAGE_KEY = 'mate-x:appearance';
 export const THEME_STORAGE_KEY = 'mate-x:theme-v2';
 export const BLUR_STORAGE_KEY = 'mate-x:blur';
 
-export function getApiKey() {
-  return getSettingsApi().getApiKey();
+export function getApiKeyStatus() {
+  return getSettingsApi().getApiKeyStatus();
 }
 
 export function setApiKey(apiKey: string) {

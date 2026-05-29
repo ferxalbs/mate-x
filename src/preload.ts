@@ -145,7 +145,7 @@ const gitApi: GitApi = {
 };
 
 const settingsApi: SettingsApi = {
-  getApiKey: () => ipcRenderer.invoke("settings:get-api-key"),
+  getApiKeyStatus: () => ipcRenderer.invoke("settings:get-api-key-status"),
   setApiKey: (apiKey) => ipcRenderer.invoke("settings:set-api-key", apiKey),
   listModels: (forceRefresh) =>
     ipcRenderer.invoke("settings:list-models", forceRefresh),

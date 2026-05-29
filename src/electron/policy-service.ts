@@ -46,6 +46,10 @@ const DANGEROUS_COMMAND_PATTERNS = [
   /\bwget\b[^\n|;&]*\|\s*(sh|bash|zsh)\b/i,
 ];
 
+const NETWORK_COMMAND_PATTERNS = [
+  /\b(curl|wget|gh|git\s+(?:clone|fetch|pull|push)|npm\s+audit|pnpm\s+audit|yarn\s+audit|bun\s+audit)\b/i,
+];
+
 const PATH_ARG_KEYS = [
   "path",
   "file",
@@ -288,6 +292,62 @@ class PolicyService {
 
     const command = this.extractCommand(input.args);
     if (
+      input.toolName === "sandbox_run" &&
+      input.args.executionMode === "direct" &&
+      input.contract?.autonomy !== "unrestricted"
+    ) {
+      return {
+        severity: "warning",
+        policyId: "command.direct_workspace_execution",
+        title: "Run paused: direct workspace execution requires approval.",
+        explanation:
+          "The agent requested execution in the real workspace. Direct mode can modify tracked files, generated artifacts, dependency state, or running processes and must be explicitly approved.",
+        kind: "command",
+        command: command ?? "sandbox_run",
+        metadata: { executionMode: "direct" },
+        recommendation: "approve_once",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      };
+    }
+
+    if (
+      input.toolName === "sandbox_run" &&
+      Number(input.args.timeoutSeconds) >= 60 &&
+      input.contract?.autonomy !== "unrestricted"
+    ) {
+      return {
+        severity: "warning",
+        policyId: "command.long_running",
+        title: "Run paused: long-running command requires approval.",
+        explanation:
+          "The agent requested a long-running command. Enterprise runs require approval before holding resources, opening servers, or keeping processes active.",
+        kind: "command",
+        command: command ?? "sandbox_run",
+        metadata: { timeoutSeconds: input.args.timeoutSeconds },
+        recommendation: "approve_once",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      };
+    }
+
+    if (
+      command &&
+      NETWORK_COMMAND_PATTERNS.some((pattern) => pattern.test(command)) &&
+      input.contract?.autonomy !== "unrestricted"
+    ) {
+      return {
+        severity: "warning",
+        policyId: "command.network",
+        title: "Run paused: network-capable command requires approval.",
+        explanation:
+          "The agent attempted to run a command that can communicate with external systems. Networked diagnostics must be approved and captured in audit evidence.",
+        kind: "command",
+        command,
+        recommendation: "approve_once",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      };
+    }
+
+    if (
       command &&
       this.isPackageManagerMutation(command) &&
       input.contract?.autonomy !== "unrestricted"
@@ -488,7 +548,10 @@ class PolicyService {
 
     if (this.isWriteTool(toolName)) impacts.add("file_edit");
     if (toolName === "sandbox_run" || command) impacts.add("shell");
-    if (/cve|deps|network|supermemory|traffic|poison/i.test(toolName)) impacts.add("network");
+    if (
+      /cve|deps|network|supermemory|traffic|poison/i.test(toolName) ||
+      (command && NETWORK_COMMAND_PATTERNS.some((pattern) => pattern.test(command)))
+    ) impacts.add("network");
     if (/secret|env|auth/i.test(toolName)) impacts.add("secrets");
     if (/supermemory|pdf_report/i.test(toolName)) impacts.add("external_communication");
     if (command && /\b(bun|npm|pnpm|yarn)\s+(add|install|i)\b/i.test(command)) {
