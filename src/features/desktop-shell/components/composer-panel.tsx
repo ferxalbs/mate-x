@@ -462,7 +462,7 @@ export function ComposerPanel({
           className={cn(
             "relative overflow-hidden rounded-[32px] transition-all duration-300",
             liquidGlassEnabled
-              ? "border border-white/15 bg-transparent shadow-[var(--mate-floating-shadow),inset_0_1px_0_rgba(255,255,255,0.22)]"
+              ? "border border-white/6 bg-transparent shadow-[var(--mate-floating-shadow)]"
               : "glass border border-[var(--panel-border)]/70 bg-[var(--mate-panel-bg)]",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
@@ -818,7 +818,7 @@ function ComposerLiquidGlass() {
               thickness={0}
               shadowColor={{ r: 0, g: 0, b: 0, a: 0.10 }}
               shadowBlur={20}
-              specularOpacity={0.75}
+              specularOpacity={0.12}
               surfaceProfile="concave"
               specularFalloff={1.2}
               tint={{ r: 1, g: 1, b: 1, a: 0.0 }}

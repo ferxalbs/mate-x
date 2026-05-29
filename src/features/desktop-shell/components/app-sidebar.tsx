@@ -144,7 +144,7 @@ function LiquidSidebarGlass({
               thickness={0}
               shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.18 : 0.35 }}
               shadowBlur={40}
-              specularOpacity={0.75}
+              specularOpacity={0.12}
               surfaceProfile="concave"
               specularFalloff={1.2}
               tint={{ r: 1, g: 1, b: 1, a: 0 }}
