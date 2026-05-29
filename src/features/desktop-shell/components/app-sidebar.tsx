@@ -100,12 +100,11 @@ function LiquidSidebarGlass({
 }) {
   const isLight = resolvedTheme === "light";
 
-  // Neutral, near-achromatic tint — the glass picks up its colour from the
-  // blurred UniversalBackground behind it. Demo uses {r:0.15,g:0.15,b:0.15,a:0.7}
-  // for a dark app; MaTE X is light-first so alpha is much lower.
+  // Zero tint — pure crystal glass. The blurred UniversalBackground behind
+  // supplies all colour; the glass surface adds zero colour cast of its own.
   const tint = isLight
-    ? { r: 0.97, g: 0.97, b: 0.98, a: 0.32 }
-    : { r: 0.06, g: 0.06, b: 0.08, a: 0.48 };
+    ? { r: 1, g: 1, b: 1, a: 0.04 }
+    : { r: 1, g: 1, b: 1, a: 0.06 };
 
   // The backdrop style resolves --mate-shell-a/b/c variables so the div
   // inside Html can paint identically to the real UniversalBackground.
