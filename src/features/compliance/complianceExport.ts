@@ -1,6 +1,6 @@
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 
 import type { EvidencePack } from "../../contracts/chat";
 import { canonicalJson, sha256Hex } from "./attestation";
@@ -20,6 +20,8 @@ export interface ComplianceExportRequest {
 }
 
 export interface ComplianceExportResult {
+  status: "ready" | "blocked" | "partial";
+  blockingReasons: string[];
   zipPath: string;
   manifestPath: string;
   fileName: string;
@@ -57,8 +59,11 @@ export async function generateComplianceExport(
   request: ComplianceExportRequest,
 ): Promise<ComplianceExportResult> {
   const generatedAt = (request.now ?? new Date()).toISOString();
-  const taskId = request.evidencePack.attestation?.taskId ?? `task-${Date.now()}`;
-  const evidenceDirectory = join(request.workspacePath, ".mate-x", "evidence", taskId);
+  const taskId = sanitizeComplianceTaskId(
+    request.evidencePack.attestation?.taskId ?? `task-${Date.now()}`,
+  );
+  const evidenceDirectory = resolve(request.workspacePath, ".mate-x", "evidence", taskId);
+  assertInsideWorkspaceEvidenceRoot(request.workspacePath, evidenceDirectory);
   const fileName = `mate-x-compliance-${taskId}.zip`;
   const zipPath = join(evidenceDirectory, fileName);
   const manifestPath = join(evidenceDirectory, "manifest.json");
@@ -66,7 +71,8 @@ export async function generateComplianceExport(
   await mkdir(evidenceDirectory, { recursive: true });
 
   const evidencePackJson = Buffer.from(`${canonicalJson(request.evidencePack)}\n`, "utf8");
-  const attestationJson = await loadAttestation(request.workspacePath, request.evidencePack);
+  const attestation = await loadAttestation(request.workspacePath, request.evidencePack, taskId);
+  const attestationJson = attestation.content;
   const auditLogJson = Buffer.from(`${canonicalJson(buildAuditLog(request, generatedAt))}\n`, "utf8");
   const policyAppliedMd = Buffer.from(buildPolicyAppliedMarkdown(request, generatedAt), "utf8");
   const agentIdentity =
@@ -75,6 +81,17 @@ export async function generateComplianceExport(
       workspacePath: request.workspacePath,
       now: request.now,
     }));
+  const blockingReasons = collectComplianceBlockingReasons(
+    request.evidencePack,
+    agentIdentity,
+    attestation.trusted,
+  );
+  const status: ComplianceExportResult["status"] =
+    blockingReasons.length > 0
+      ? "blocked"
+      : request.evidencePack.status === "partial"
+        ? "partial"
+        : "ready";
   const agentRunbook = buildAgentRunbook({
     evidencePack: request.evidencePack,
     agentIdentity,
@@ -87,6 +104,8 @@ export async function generateComplianceExport(
 
   const manifestDraft = {
     packageType: "mate-x/soc2-procurement-package",
+    status,
+    blockingReasons,
     generatedAt,
     taskId,
     userId: request.userId ?? "local-user",
@@ -119,18 +138,22 @@ export async function generateComplianceExport(
   await writeFile(manifestPath, manifestJson);
   await writeFile(zipPath, zipBuffer);
 
-  const deliveredTo = await deliverEncryptedPackage(
-    {
-      fileName,
-      ciphertext: zipBuffer,
-      iv: "",
-      authTag: "",
-      sha256: sha256Hex(zipBuffer),
-    },
-    request.autoReportSinks ?? [],
-  );
+  const deliveredTo = status === "ready"
+    ? await deliverEncryptedPackage(
+        {
+          fileName,
+          ciphertext: zipBuffer,
+          iv: "",
+          authTag: "",
+          sha256: sha256Hex(zipBuffer),
+        },
+        request.autoReportSinks ?? [],
+      )
+    : [];
 
   return {
+    status,
+    blockingReasons,
     zipPath,
     manifestPath,
     fileName,
@@ -296,24 +319,75 @@ export function buildZip(entries: ZipEntry[]): Buffer {
   return Buffer.concat([...localParts, centralDirectory, end]);
 }
 
-async function loadAttestation(workspacePath: string, evidencePack: EvidencePack) {
-  const attestationPath = evidencePack.attestation?.path
-    ? join(workspacePath, evidencePack.attestation.path)
+export function sanitizeComplianceTaskId(taskId: string) {
+  const sanitized = taskId.trim();
+  if (!/^[A-Za-z0-9._-]{1,120}$/.test(sanitized) || sanitized.includes("..")) {
+    throw new Error("Evidence Pack task id is not safe for compliance export.");
+  }
+  return sanitized;
+}
+
+function assertInsideWorkspaceEvidenceRoot(workspacePath: string, targetPath: string) {
+  const evidenceRoot = resolve(workspacePath, ".mate-x", "evidence");
+  const resolvedTarget = resolve(targetPath);
+  const relativePath = relative(evidenceRoot, resolvedTarget);
+  if (relativePath.startsWith("..") || relativePath === "" || relativePath.includes("..") || resolve(relativePath) === relativePath) {
+    throw new Error("Compliance export path must stay inside workspace evidence root.");
+  }
+}
+
+function collectComplianceBlockingReasons(
+  evidencePack: EvidencePack,
+  agentIdentity: EvidencePack["agentIdentity"] | null,
+  attestationTrusted: boolean,
+) {
+  const reasons: string[] = [];
+  if (evidencePack.attestation?.status !== "signed") {
+    reasons.push("Signed attestation is required for procurement-ready export.");
+  }
+  if (!attestationTrusted) {
+    reasons.push("Trusted attestation file is required for procurement-ready export.");
+  }
+  if (!agentIdentity) {
+    reasons.push("Agent Run Identity is required for enterprise compliance export.");
+  }
+  if (evidencePack.status === "blocked" || evidencePack.status === "failed") {
+    reasons.push(`Evidence Pack status is ${evidencePack.status}.`);
+  }
+  return reasons;
+}
+
+async function loadAttestation(workspacePath: string, evidencePack: EvidencePack, taskId: string) {
+  const expectedRelativePath = join(".mate-x", "evidence", taskId, "attestation.intoto.json");
+  const attestationPath = evidencePack.attestation?.path === expectedRelativePath
+    ? resolve(workspacePath, expectedRelativePath)
     : null;
   if (!attestationPath) {
-    return Buffer.from('{"status":"missing","reason":"No attestation attached to Evidence Pack."}\n', "utf8");
+    return {
+      trusted: false,
+      content: Buffer.from('{"status":"blocked","reason":"Signed attestation missing or not trusted for this task."}\n', "utf8"),
+    };
   }
+  assertInsideWorkspaceEvidenceRoot(workspacePath, attestationPath);
 
-  return readFile(attestationPath).catch(() =>
-    Buffer.from(
+  try {
+    return {
+      trusted: true,
+      content: await readFile(attestationPath),
+    };
+  } catch {
+    return {
+      trusted: false,
+      content: Buffer.from(
       `${canonicalJson({
-        status: "missing",
+        status: "blocked",
         expectedPath: evidencePack.attestation?.path,
         reason: "Attestation file could not be read.",
       })}\n`,
       "utf8",
-    ),
-  );
+      ),
+    };
+  }
 }
 
 async function deliverEncryptedPackage(packageInfo: EncryptedCompliancePackage, sinks: ComplianceReportSink[]) {

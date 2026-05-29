@@ -23,7 +23,11 @@ const DEFAULT_OPTIONS: PrivacyFirewallOptions = {
   minModelConfidence: 0.5,
 };
 
-async function loadSettingsOptions(): Promise<Partial<PrivacyFirewallOptions>> {
+type LoadedPrivacyOptions = Partial<PrivacyFirewallOptions> & {
+  settingsLoadFailed?: boolean;
+};
+
+async function loadSettingsOptions(): Promise<LoadedPrivacyOptions> {
   try {
     const settings = await tursoService.getAppSettings();
     return {
@@ -35,7 +39,7 @@ async function loadSettingsOptions(): Promise<Partial<PrivacyFirewallOptions>> {
       minModelConfidence: settings.privacyMinModelConfidence,
     };
   } catch {
-    return {};
+    return { settingsLoadFailed: true };
   }
 }
 
@@ -53,7 +57,8 @@ export class PrivacyFirewallService {
     context: { workspaceId?: string; runId?: string; inputKind?: string; persist?: boolean } = {},
   ): Promise<PrivacyScanResult> {
     const startedAt = Date.now();
-    const resolved = { ...DEFAULT_OPTIONS, ...(await loadSettingsOptions()), ...options };
+    const loadedOptions = await loadSettingsOptions();
+    const resolved = { ...DEFAULT_OPTIONS, ...loadedOptions, ...options };
 
     if (resolved.mode === "off") {
       return {
@@ -68,9 +73,13 @@ export class PrivacyFirewallService {
     let modelSpans: PrivacySpan[] = [];
     let modelError: string | undefined;
     if (resolved.scanModel) {
-      const result = await scanWithOnnx(text);
-      modelSpans = result.spans.filter((span) => span.confidence >= resolved.minModelConfidence);
-      modelError = result.error;
+      try {
+        const result = await scanWithOnnx(text);
+        modelSpans = result.spans.filter((span) => span.confidence >= resolved.minModelConfidence);
+        modelError = result.error;
+      } catch (error) {
+        modelError = error instanceof Error ? error.message : "Privacy model scan failed.";
+      }
     }
 
     const regexSpans = resolved.scanRegex ? scanWithRegex(text, context.workspaceId) : [];
@@ -82,10 +91,14 @@ export class PrivacyFirewallService {
     );
     const redactedText = redactText(text, spans);
     const p0Count = spans.filter((span) => span.risk === "p0").length;
+    const strictCoverageFailed =
+      loadedOptions.settingsLoadFailed ||
+      (!resolved.scanRegex && !resolved.scanModel) ||
+      (resolved.scanModel && Boolean(modelError) && !resolved.scanRegex);
     const blocked =
       resolved.mode === "strict" &&
-      ((resolved.blockP0CloudSend && p0Count > 0 && redactedText === text) ||
-        (resolved.scanModel && Boolean(modelError) && !resolved.scanRegex));
+      (strictCoverageFailed ||
+        (resolved.blockP0CloudSend && p0Count > 0 && redactedText === text));
     const elapsedMs = Date.now() - startedAt;
 
     const scan: PrivacyScanResult = {
@@ -93,7 +106,13 @@ export class PrivacyFirewallService {
       redactedText,
       spans,
       blocked,
-      blockReason: blocked ? "Privacy Firewall blocked unsafe outbound context." : undefined,
+      blockReason: blocked
+        ? loadedOptions.settingsLoadFailed
+          ? "Privacy Firewall settings could not be loaded."
+          : !resolved.scanRegex && !resolved.scanModel
+            ? "Privacy Firewall has no active scanner coverage."
+            : "Privacy Firewall blocked unsafe outbound context."
+        : undefined,
       stats: {
         totalSpans: spans.length,
         p0Count,
@@ -149,7 +168,29 @@ export class PrivacyFirewallService {
     let reason: string | undefined;
     let elapsedMs = 0;
     let originalLength = 0;
-    const outboundOptions = { ...DEFAULT_OPTIONS, ...(await loadSettingsOptions()) };
+    const loadedOptions = await loadSettingsOptions();
+    const outboundOptions = { ...DEFAULT_OPTIONS, ...loadedOptions };
+    if (
+      loadedOptions.settingsLoadFailed ||
+      outboundOptions.mode === "off" ||
+      (!outboundOptions.scanRegex && !outboundOptions.scanModel)
+    ) {
+      return {
+        payload,
+        blocked: true,
+        reason: loadedOptions.settingsLoadFailed
+          ? "Privacy Firewall settings could not be loaded."
+          : "Privacy Firewall is not enabled with active scanner coverage.",
+        scan: {
+          originalLength: 0,
+          redactedText: "",
+          spans: [],
+          blocked: true,
+          blockReason: "Privacy Firewall is not enabled with active scanner coverage.",
+          stats: { totalSpans: 0, p0Count: 0, modelCount: 0, regexCount: 0, elapsedMs: 0 },
+        },
+      };
+    }
 
     const sanitizeValue = async (value: unknown): Promise<unknown> => {
       if (typeof value !== "string") {

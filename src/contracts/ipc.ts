@@ -93,6 +93,8 @@ export interface RepoInspectorApi {
 }
 
 export interface ComplianceExportResult {
+  status: "ready" | "blocked" | "partial";
+  blockingReasons: string[];
   zipPath: string;
   manifestPath: string;
   fileName: string;
@@ -113,8 +115,14 @@ export interface GitApi {
   getDiff: () => Promise<GitDiff>;
 }
 
+export interface ApiKeyStatus {
+  configured: boolean;
+  prefix?: string;
+  updatedAt?: string;
+}
+
 export interface SettingsApi {
-  getApiKey: () => Promise<string | null>;
+  getApiKeyStatus: () => Promise<ApiKeyStatus>;
   setApiKey: (apiKey: string) => Promise<void>;
   listModels: (forceRefresh?: boolean) => Promise<RainyModelCatalogEntry[]>;
   getModel: () => Promise<string | null>;

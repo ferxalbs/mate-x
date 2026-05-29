@@ -110,7 +110,14 @@ describe("sandbox_run command risk detection", () => {
     assert.equal(isPackageManagerMutationCommand("pnpm test"), false);
   });
 
-  test("defaults package mutations to isolated-copy unless caller explicitly selects direct", () => {
+  test("defaults commands to isolated-copy unless caller explicitly selects direct", () => {
+    assert.equal(
+      resolveSandboxExecutionMode({
+        command: "pnpm test",
+        requestedMode: undefined,
+      }),
+      "isolated-copy",
+    );
     assert.equal(
       resolveSandboxExecutionMode({
         command: "bun add lodash",

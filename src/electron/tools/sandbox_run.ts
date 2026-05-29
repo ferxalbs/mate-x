@@ -13,7 +13,7 @@ import { buildToolProcessEnv, killProcessTree, parseDirectCommand } from "./proc
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
 const LONG_RUNNING_TIMEOUT_SECONDS = 60;
-const DEFAULT_EXECUTION_MODE = "direct";
+const DEFAULT_EXECUTION_MODE = "isolated-copy";
 const MAX_ISOLATED_COPY_BYTES = 500 * 1024 * 1024;
 const MAX_ISOLATED_COPY_FILES = 50_000;
 const IGNORED_COPY_NAMES = new Set([
@@ -449,7 +449,7 @@ export async function prepareSandboxWorkspace(input: {
             "Isolated copy budget exceeded.",
             `Copied files: ${copiedFileCount}/${MAX_ISOLATED_COPY_FILES}.`,
             `Copied bytes: ${copiedBytes}/${MAX_ISOLATED_COPY_BYTES}.`,
-            "Use executionMode direct or narrow the workspace before retrying.",
+            "Request explicit policy approval for executionMode direct or narrow the workspace before retrying.",
           ].join(" "),
         );
       }
@@ -489,7 +489,7 @@ export async function prepareSandboxWorkspace(input: {
 export const sandboxRunnerTool: Tool = {
   name: "sandbox_run",
   description:
-    "Runs a direct command in the real workspace as a configurable, time-bounded child process for validation or diagnostics. The agent may choose timeoutSeconds from 30, 45, 60, 120, or 240, and can use Electron powerSaveBlocker keepAwake settings for long or interactive runs. It sets test-like environment variables by default, but it is not a disposable filesystem sandbox: file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project when policy allows the command.",
+    "Runs a configurable, time-bounded child process for validation or diagnostics. Defaults to executionMode isolated-copy, which runs in a temporary workspace copy and removes it afterward. executionMode direct runs in the real workspace and requires policy approval because file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project.",
   parameters: {
     type: "object",
     properties: {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
@@ -13,6 +13,7 @@ import {
   buildZip,
   generateComplianceExport,
   packageDisplayName,
+  sanitizeComplianceTaskId,
 } from "./complianceExport";
 
 const tempRoots: string[] = [];
@@ -57,6 +58,8 @@ describe("compliance export unit", () => {
 
   it("exports fixed package structure and manifest hashes", async () => {
     const workspacePath = await workspace();
+    await mkdir(join(workspacePath, ".mate-x", "evidence", "task-1"), { recursive: true });
+    await writeFile(join(workspacePath, ".mate-x", "evidence", "task-1", "attestation.intoto.json"), "{}");
     const result = await generateComplianceExport({
       evidencePack: evidencePack(),
       workspacePath,
@@ -64,9 +67,12 @@ describe("compliance export unit", () => {
     });
     const zip = await readFile(result.zipPath);
     const manifest = JSON.parse(await readFile(result.manifestPath, "utf8")) as {
+      status: string;
       files: Record<string, string>;
     };
 
+    assert.equal(result.status, "ready");
+    assert.equal(manifest.status, "ready");
     assert.match(zip.toString("latin1"), /compliance-report\.pdf/);
     assert.deepEqual(Object.keys(manifest.files), [
       "agent-runbook.json",
@@ -79,18 +85,28 @@ describe("compliance export unit", () => {
     ]);
   });
 
-  it("exports fallback attestation when signed file is missing", async () => {
+  it("blocks procurement-ready export when signed attestation is missing", async () => {
     const workspacePath = await workspace();
     const result = await generateComplianceExport({
       evidencePack: evidencePack({ attestation: undefined }),
       workspacePath,
     });
     const zip = await readFile(result.zipPath);
-    assert.match(zip.toString("latin1"), /No attestation attached/);
+    assert.equal(result.status, "blocked");
+    assert.match(result.blockingReasons.join("\n"), /Signed attestation/);
+    assert.match(zip.toString("latin1"), /Signed attestation missing/);
+  });
+
+  it("rejects unsafe compliance task ids", () => {
+    assert.equal(sanitizeComplianceTaskId("task-2026.05.29_1"), "task-2026.05.29_1");
+    assert.throws(() => sanitizeComplianceTaskId("../task-1"), /not safe/);
+    assert.throws(() => sanitizeComplianceTaskId("task/1"), /not safe/);
   });
 
   it("delivers encrypted package to enabled native report sinks", async () => {
     const workspacePath = await workspace();
+    await mkdir(join(workspacePath, ".mate-x", "evidence", "task-1"), { recursive: true });
+    await writeFile(join(workspacePath, ".mate-x", "evidence", "task-1", "attestation.intoto.json"), "{}");
     let encryptedBytes = 0;
     const result = await generateComplianceExport({
       evidencePack: evidencePack(),

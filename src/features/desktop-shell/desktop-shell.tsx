@@ -81,6 +81,20 @@ export function DesktopShell() {
     };
   }, [setTheme]);
 
+  // Mirror --mate-shell-* variables onto :root so CSS portal elements
+  // (e.g. Base UI Select popup teleported to document.body) can inherit them.
+  // Variables set only on <main> are invisible to portal descendants.
+  useEffect(() => {
+    const root = document.documentElement;
+    for (const [prop, value] of Object.entries(shellStyle)) {
+      if (typeof value === "string") {
+        root.style.setProperty(prop, value);
+      }
+    }
+    // No cleanup needed — variables are harmless on :root and will be
+    // overwritten on the next effect run when settings change.
+  }, [shellStyle]);
+
   return (
     <SidebarProvider defaultOpen>
       <main

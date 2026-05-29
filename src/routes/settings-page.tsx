@@ -61,7 +61,7 @@ import {
 } from '../services/repo-client';
 import {
   applyRendererSettings,
-  getApiKey,
+  getApiKeyStatus,
   getAppSettings,
   setApiKey,
   updateAppSettings,
@@ -69,7 +69,6 @@ import {
 import { useChatStore } from '../store/chat-store';
 import {
   isValidRainyApiKey,
-  maskKey,
   serializeAppSettings,
   serializeTrustContract,
 } from './settings-page-utils';
@@ -91,7 +90,7 @@ export function SettingsPage() {
   const { setAppearance, setTheme, setBlurEnabled } = useTheme();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const activeWorkspace = useChatStore((state) => state.workspace);
-  const [currentKey, setCurrentKey] = useState<string | null>(null);
+  const [currentKeyPrefix, setCurrentKeyPrefix] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -132,15 +131,15 @@ export function SettingsPage() {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        const [apiKey, contract, persistedAppSettings] = await Promise.all([
-          getApiKey(),
+        const [apiKeyStatus, contract, persistedAppSettings] = await Promise.all([
+          getApiKeyStatus(),
           activeWorkspaceId
             ? getWorkspaceTrustContract(activeWorkspaceId)
             : Promise.resolve(null),
           getAppSettings(),
         ]);
         if (cancelled) return;
-        setCurrentKey(apiKey);
+        setCurrentKeyPrefix(apiKeyStatus.configured ? apiKeyStatus.prefix ?? 'configured' : null);
         setTrustContract(contract);
         setTrustDraft(contract);
         setAppSettings(persistedAppSettings);
@@ -236,7 +235,7 @@ export function SettingsPage() {
     }
   }, []);
 
-  const hasKeyDraft = inputValue.trim().length > 0 && inputValue.trim() !== (currentKey ?? '');
+  const hasKeyDraft = inputValue.trim().length > 0;
   const hasAppSettingsDraft =
     serializeAppSettings(appSettings) !== serializeAppSettings(savedAppSettings);
   const hasTrustDraft = Boolean(
@@ -323,7 +322,7 @@ export function SettingsPage() {
     }
 
     const trimmedKey = inputValue.trim();
-    if (!trimmedKey || trimmedKey === currentKey) {
+    if (!trimmedKey) {
       return;
     }
 
@@ -338,7 +337,7 @@ export function SettingsPage() {
       }
 
       await setApiKey(trimmedKey);
-      setCurrentKey(trimmedKey);
+      setCurrentKeyPrefix(`${trimmedKey.slice(0, 7)}...`);
       setInputValue('');
       setIsEditingKey(false);
       setSaveState('saved');
@@ -346,7 +345,7 @@ export function SettingsPage() {
       setErrorMsg(error instanceof Error ? error.message : 'Could not save settings.');
       setSaveState('error');
     }
-  }, [appSettings, currentKey, hasAppSettingsDraft, hasTrustDraft, inputValue, section, trustDraft]);
+  }, [appSettings, hasAppSettingsDraft, hasTrustDraft, inputValue, section, trustDraft]);
 
   const handleRestoreDefaults = useCallback(() => {
     if (section === 'general') {
@@ -825,15 +824,15 @@ export function SettingsPage() {
                   <SettingsRow
                     title="Rainy API key"
                     description={
-                      currentKey
-                        ? `Stored locally on this device. Current key ${maskKey(currentKey)}.`
+                      currentKeyPrefix
+                        ? `Stored locally on this device. Current key ${currentKeyPrefix}.`
                         : 'Connect your Rainy account to enable live responses.'
                     }
                     control={
                       <div className="flex items-center gap-2">
-                        {currentKey && !isEditingKey ? (
+                        {currentKeyPrefix && !isEditingKey ? (
                           <div className="flex h-10 w-[220px] items-center rounded-md border border-input bg-[var(--mate-control-bg)] px-3 text-xs text-muted-foreground backdrop-blur-md">
-                            Saved: {maskKey(currentKey)}
+                            Saved: {currentKeyPrefix}
                           </div>
                         ) : (
                           <Input
@@ -856,15 +855,15 @@ export function SettingsPage() {
                         <span
                           className={cn(
                             'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
-                            currentKey
+                            currentKeyPrefix
                               ? 'bg-emerald-500/12 text-emerald-500'
                               : 'bg-amber-500/12 text-amber-500',
                           )}
                         >
-                          {saveState === 'saved' ? 'Saved' : currentKey ? 'Connected' : 'Missing'}
+                          {saveState === 'saved' ? 'Saved' : currentKeyPrefix ? 'Connected' : 'Missing'}
                         </span>
 
-                        {currentKey && !isEditingKey ? (
+                        {currentKeyPrefix && !isEditingKey ? (
                           <Button
                             size="xs"
                             variant="outline"
@@ -889,7 +888,7 @@ export function SettingsPage() {
                     control={
                       <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
                         <ServerIcon className="size-3.5" />
-                        {currentKey ? 'IPC secured' : 'Waiting for key'}
+                        {currentKeyPrefix ? 'IPC secured' : 'Waiting for key'}
                       </div>
                     }
                   />
@@ -1272,7 +1271,7 @@ export function SettingsPage() {
                   <span>
                     {hasKeyDraft
                       ? 'Pending: Rainy API key'
-                      : currentKey
+                      : currentKeyPrefix
                         ? 'Rainy key saved and active'
                         : 'Rainy API key not configured'}
                   </span>

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.29 (1) [Enterprise Hardening Controls]
+
+- Hardened renderer-to-main IPC validation for assistant runs, workspace trust contracts, Git file lists, settings updates, policy-stop resolution, compliance exports, repo graph inputs, and workspace memory payloads.
+- Replaced renderer access to raw Rainy API keys with non-secret API key status metadata while preserving main-process-only credential storage and updates.
+- Made SOC 2 procurement exports tamper-resistant by sanitizing task IDs, constraining attestation reads to `.mate-x/evidence/<taskId>`, exposing export status/blocking reasons, and blocking procurement-ready delivery when trusted signed evidence is missing.
+- Strengthened Privacy Firewall outbound behavior so managed Rainy sends fail closed when settings or scanner coverage are unavailable, while keeping local debug scans redacted and non-persistent.
+- Defaulted `sandbox_run` to isolated workspace copies and added policy stops for direct workspace execution, long-running commands, network-capable commands, and package-manager mutations.
+- Verified with `pnpm exec tsc --noEmit` and `git diff --check`; `pnpm run lint` was blocked by missing `eslint-plugin-react-hooks` in `demos/editor/eslint.config.js`, and focused tests could not run because `bun` and `tsx` were unavailable in this shell.
+
 ## Unreleased - 2026.05.27 (1) [Native Blur Sidebar Effect]
 
 - Refactored the app sidebar WebGL glass render to deliver a powerful, premium native-looking dark blur effect matching Apple Design standards.

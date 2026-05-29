@@ -27,7 +27,7 @@ import { Input } from "../../components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { getAppSettings, updateAppSettings, getApiKey } from "../../services/settings-client";
+import { getAppSettings, updateAppSettings, getApiKeyStatus } from "../../services/settings-client";
 import type { AppSettings, AppearancePreference, ThemePreference, TimeFormat } from "../../contracts/settings";
 import type { PrivacyModelDownloadProgress } from "../../contracts/privacy";
 import type { WorkspaceTrustAutonomy, WorkspaceTrustContract } from "../../contracts/workspace";
@@ -50,7 +50,7 @@ export function OnboardingFlow() {
   const [direction, setDirection] = useState(0);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
-  const [initialApiKey, setInitialApiKey] = useState<string | null>(null);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
   const [privacyProgress, setPrivacyProgress] = useState<PrivacyModelDownloadProgress | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
@@ -59,12 +59,7 @@ export function OnboardingFlow() {
 
   useEffect(() => {
     void getAppSettings().then(setSettings);
-    void getApiKey().then((key) => {
-      if (key) {
-        setApiKey(key);
-        setInitialApiKey(key);
-      }
-    });
+    void getApiKeyStatus().then((status) => setApiKeyConfigured(status.configured));
   }, []);
 
   const handleNext = useCallback(() => {
@@ -187,7 +182,7 @@ export function OnboardingFlow() {
               setSettings,
               apiKey,
               setApiKey,
-              initialApiKey,
+              apiKeyConfigured,
               privacyProgress,
               setPrivacyProgress,
               setAppearance,
@@ -456,8 +451,8 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
   );
 }
 
-function ApiKeyStep({ apiKey, setApiKey, initialApiKey }: any) {
-  const isConfigured = !!initialApiKey || (apiKey && apiKey.length > 5);
+function ApiKeyStep({ apiKey, setApiKey, apiKeyConfigured }: any) {
+  const isConfigured = apiKeyConfigured || (apiKey && apiKey.length > 5);
 
   return (
     <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">

@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Conversation } from '../contracts/chat';
+import type { ApiKeyStatus } from '../contracts/ipc';
 import type {
   RepoGraphEdge,
   RepoGraphNode,
@@ -454,6 +455,18 @@ export class TursoService {
 
   async getApiKey(): Promise<string | null> {
     return this.getAppStateValue('rainy_api_key');
+  }
+
+  async getApiKeyStatus(): Promise<ApiKeyStatus> {
+    const apiKey = await this.getApiKey();
+    if (!apiKey) {
+      return { configured: false };
+    }
+
+    return {
+      configured: true,
+      prefix: `${apiKey.slice(0, 7)}...`,
+    };
   }
 
   async setApiKey(apiKey: string) {

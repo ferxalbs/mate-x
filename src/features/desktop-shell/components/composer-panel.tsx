@@ -20,7 +20,9 @@ import {
   ZStack,
 } from "@liquid-dom/react";
 import {
+  createContext,
   startTransition,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -37,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
+import { LiquidSelectPopup } from "../../../components/ui/liquid-select";
 import type {
   AssistantAttachment,
   AssistantAttachmentKind,
@@ -88,6 +91,13 @@ interface ComposerPanelProps {
   prompt?: string;
   onPromptChange?: (prompt: string) => void;
 }
+
+
+/**
+ * Context that carries liquidGlassEnabled down to InlineSelect without prop
+ * drilling — all InlineSelect instances in ComposerPanel read from this.
+ */
+const ComposerGlassCtx = createContext(false);
 
 export function ComposerPanel({
   canUndoLastTurn,
@@ -457,7 +467,7 @@ export function ComposerPanel({
   }
 
   return (
-    <>
+    <ComposerGlassCtx.Provider value={liquidGlassEnabled}>
         <div
           className={cn(
             "relative overflow-hidden rounded-[32px] transition-all duration-300",
@@ -788,7 +798,7 @@ export function ComposerPanel({
             </div>
           </div>
         </div>
-    </>
+    </ComposerGlassCtx.Provider>
   );
 }
 
@@ -1045,6 +1055,20 @@ function InlineSelect({
   title?: string;
   children: ReactNode;
 }) {
+  // Read liquidGlassEnabled from the nearest ComposerGlassCtx.Provider
+  // (set by ComposerPanel) — no prop drilling needed.
+  const liquidGlass = useContext(ComposerGlassCtx);
+
+  const popup = liquidGlass ? (
+    <LiquidSelectPopup className="max-w-[min(22rem,var(--available-width))]">
+      {children}
+    </LiquidSelectPopup>
+  ) : (
+    <SelectPopup className="max-w-[min(22rem,var(--available-width))] text-popover-foreground">
+      {children}
+    </SelectPopup>
+  );
+
   return (
     <Select
       disabled={disabled}
@@ -1063,9 +1087,7 @@ function InlineSelect({
       >
         <SelectValue>{label}</SelectValue>
       </SelectTrigger>
-      <SelectPopup className="max-w-[min(22rem,var(--available-width))] text-popover-foreground">
-        {children}
-      </SelectPopup>
+      {popup}
     </Select>
   );
 }
