@@ -812,15 +812,15 @@ function ComposerLiquidGlass() {
           </Html>
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
-              blur={220}
-              bezelWidth={170}
-              displacementBlur={34}
+              blur={500}
+              bezelWidth={100}
+              displacementBlur={18}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.08 }}
-              shadowBlur={14}
-              specularOpacity={0.38}
+              shadowColor={{ r: 0, g: 0, b: 0, a: 0.10 }}
+              shadowBlur={20}
+              specularOpacity={0.75}
               surfaceProfile="concave"
-              specularFalloff={1.65}
+              specularFalloff={1.2}
               tint={{ r: 1, g: 1, b: 1, a: 0.0 }}
             >
               <Glass cornerRadius={32}>

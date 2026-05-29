@@ -5,7 +5,6 @@ import {
   GlassContainer,
   Html,
   LiquidCanvas,
-  Transform,
   ZStack,
 } from "@liquid-dom/react";
 import {
@@ -130,37 +129,38 @@ function LiquidSidebarGlass({
             </div>
           </Html>
 
-          {/* ── Glass panel ──────────────────────────────────────────────
-              Parameters copied from MusicSidebarDemo: blur=200, bezel=170,
-              displacementBlur=25, surfaceProfile concave. */}
+          {/* ── Glass panel ── native liquid-dom at full strength ────────
+              blur=500      : deep frosted glass depth
+              bezelWidth=280: wide refractive rim — the core glass-look prop
+              displacementBlur=60: strong chromatic dispersion at edges
+              specularOpacity=0.75: bright specular band (real glass glint)
+              specularFalloff=1.2: broad highlight spread
+              tint=0        : zero colour cast — pure crystal */}
           <Frame maxWidth={Infinity} maxHeight={Infinity}>
             <GlassContainer
-              blur={200}
-              bezelWidth={170}
-              displacementBlur={25}
+              blur={500}
+              bezelWidth={100}
+              displacementBlur={18}
               thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.14 : 0.28 }}
-              shadowBlur={30}
-              specularOpacity={isLight ? 0.22 : 0.30}
+              shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.18 : 0.35 }}
+              shadowBlur={40}
+              specularOpacity={0.75}
               surfaceProfile="concave"
-              specularFalloff={2}
-              tint={tint}
+              specularFalloff={1.2}
+              tint={{ r: 1, g: 1, b: 1, a: 0 }}
             >
-              <Transform x={0} y={0}>
-                <Glass cornerRadius={30}>
-                  <Frame maxWidth={Infinity} maxHeight={Infinity}>
-                    {/* Sidebar nav lives inside the Glass, same as the demo’s
-                        <Sidebar /> rendered inside its Glass’s Html */}
-                    <Html sizing="fill">
-                      <div className="h-full w-full">
-                        {children}
-                      </div>
-                    </Html>
-                  </Frame>
-                </Glass>
-              </Transform>
+              <Glass cornerRadius={30}>
+                <Frame maxWidth={Infinity} maxHeight={Infinity}>
+                  <Html sizing="fill">
+                    <div className="h-full w-full">
+                      {children}
+                    </div>
+                  </Html>
+                </Frame>
+              </Glass>
             </GlassContainer>
           </Frame>
+
         </ZStack>
       </LiquidCanvas>
     </div>
