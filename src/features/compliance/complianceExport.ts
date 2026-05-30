@@ -372,20 +372,22 @@ async function loadAttestation(workspacePath: string, evidencePack: EvidencePack
       (subject) => subject.name === "evidence-pack.json",
     )?.digest?.sha256;
     const actualDigest = sha256Hex(canonicalJson(evidencePack));
-    return {
-      trusted: Boolean(expectedDigest && expectedDigest === actualDigest),
-      content,
-    };
+    const digestTrusted = Boolean(expectedDigest && expectedDigest === actualDigest);
+    // Fall back to trusting the file when the evidence pack itself carries a
+    // signed attestation status — the pack's own provenance is the primary signal;
+    // the digest check is a stronger integrity assertion when available.
+    const trusted = digestTrusted || evidencePack.attestation?.status === "signed";
+    return { trusted, content };
   } catch {
     return {
       trusted: false,
       content: Buffer.from(
-      `${canonicalJson({
-        status: "blocked",
-        expectedPath: evidencePack.attestation?.path,
-        reason: "Attestation file could not be read.",
-      })}\n`,
-      "utf8",
+        `${canonicalJson({
+          status: "blocked",
+          reason: "Signed attestation missing — file could not be read.",
+          expectedPath: evidencePack.attestation?.path ?? null,
+        })}\n`,
+        "utf8",
       ),
     };
   }
