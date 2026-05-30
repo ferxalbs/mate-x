@@ -1,6 +1,7 @@
 import { GitService } from "./git-service";
 import { extractEvidenceFinalization } from "./evidence-finalization";
 import { computeVerifiedTaskScore } from "./verified-task-score";
+import { policyService } from "./policy-service";
 
 import type { EvidencePack, ToolEvent } from "../contracts/chat";
 
@@ -240,6 +241,25 @@ export async function buildEvidencePack(params: {
             },
           ]
         : undefined,
+    policyStops: policyService
+      .listStops()
+      .filter((stop) => stop.workspacePath === workspacePath)
+      .map((stop) => ({
+        id: stop.id,
+        kind: stop.attemptedAction.kind,
+        policyId: stop.policyId,
+        title: stop.title,
+        status: stop.status,
+        target: stop.attemptedAction.target,
+        command: stop.attemptedAction.command,
+        metadata: stop.attemptedAction.metadata,
+        resolution: stop.resolution
+          ? {
+              action: stop.resolution.action,
+              resolvedAt: stop.resolution.resolvedAt,
+            }
+          : undefined,
+      })),
     stopConditionTriggered: finalization.stopConditionTriggered,
     warnings: warnings.length > 0 ? warnings : undefined,
     unresolvedRisks,

@@ -1,13 +1,24 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.30 (3) [Production Architecture Hardening]
+
+- Added compliance ZIP delivery integrity verification by storing the generation-time digest, re-hashing the delivered ZIP before IPC return, and failing closed with `COMPLIANCE_ZIP_INTEGRITY_FAILURE` on mismatch.
+- Added `zipDigest` to compliance ZIP manifests so external auditors can independently verify the generated package.
+- Changed `allowHighImpact: true` handling in `file_editor` and `auto_patch` to require an explicit `HIGH_IMPACT_PATCH_APPROVAL` policy stop outside unrestricted trust mode, returning `USER_DECLINED_HIGH_IMPACT_PATCH` when declined.
+- Hardened `mutation` execution with per-workspace serialization, five-minute process-tree timeout handling, snapshot-based file restoration, `MUTATION_EXECUTION` approval stops, and execution metrics.
+- Verified with `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/eslint src --ext .ts,.tsx`; eslint reports only the pre-existing `app-sidebar.tsx` unused `tint` warning.
+
 ## Unreleased - 2026.05.30 (2) [Premium Liquid Glass Select]
 
-- Reconfigured the native `GlassContainer` in the Liquid Glass Select popup to match the lightweight, ultra-minimalist transparent glass look of the Composer panel.
-- Eliminated heavy dark refractive borders by setting `thickness={0}` and resolved harsh white glare/stripes by setting `specularOpacity={0.12}`.
-- Restored deep, elegant glass frosting with `blur={500}` and pure crystal zero-cast tinting (`tint={{ r: 1, g: 1, b: 1, a: 0.0 }}`).
-- Refined the CSS fallback layer to a ultra-fine border (`border border-white/6`) and translucent background (`bg-transparent backdrop-blur-xl`).
-- Replaced select items glassy inner shadows with soft, flat, semi-transparent background overlays (`bg-white/8` on hover and `bg-white/12` on active selection) to adhere strictly to the minimalist aesthetic.
+- Enabled true native DOM refraction by removing the opaque static background `Html` layer from the `ZStack` in the Select popup's `LiquidCanvas`, allowing real-time WebGL capture and refraction of actual underlying page elements (chat messages, buttons, and text).
+- Reconfigured the native `GlassContainer` in the Liquid Glass Select popup to achieve a hyper-transparent crystal glass look matching the `MenuDemo` reference configurations (reduced `blur={20}` and highly transparent `tint={{ r: 1, g: 1, b: 1, a: 0.02 }}`).
+- Prevented heavy dark edges by setting physical glass edge depth parameters to `bezelWidth={70}`, `thickness={30}`, and `displacementBlur={20}` for precise refraction.
+- Avoided harsh white outlines or stripes along boundaries by calibrating `specularOpacity={0.50}` and `specularFalloff={1.2}` for a beautiful polished glint.
+- Completely avoided dark, heavy drop shadows by using a soft macOS-style drop shadow (`shadowBlur={32}`, `shadowColor={{ r: 0, g: 0, b: 0, a: 0.12 }}`, `shadowOffsetY={10}`).
+- Refined the CSS fallback layer to an ultra-fine border (`border border-white/5`), transparent overlay (`bg-transparent`), and lightweight CSS blur (`backdrop-blur-[12px]`) to let active backgrounds show through.
+- Designed premium select items styling in the glass list to act as individual frosted glass segments with a flat, semi-transparent background overlay (`bg-white/8` on hover and `bg-white/14` on active selection) without any harsh inner shadows.
 - Enhanced the `InlineSelect` trigger in the composer dynamically with a semi-transparent glass segment look when `liquidGlass` is active to unify the visual experience.
+- Resolved workspace ESLint `no-useless-assignment` warning in `src/electron/tools/mutation.ts` to ensure overall code quality.
 
 ## Unreleased - 2026.05.30 (1) [Launch Security Patchset]
 

@@ -55,6 +55,7 @@ interface ZipEntry {
 const ZIP_EOCD_SIGNATURE = 0x06054b50;
 const ZIP_CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
 const ZIP_LOCAL_FILE_SIGNATURE = 0x04034b50;
+const generatedZipDigests = new Map<string, string>();
 
 export async function generateComplianceExport(
   request: ComplianceExportRequest,
@@ -103,7 +104,7 @@ export async function generateComplianceExport(
   const agentRunbookMd = Buffer.from(renderAgentRunbookMarkdown(agentRunbook), "utf8");
   const complianceReportPdf = buildComplianceReportPdf(request.evidencePack, generatedAt);
 
-  const manifestDraft = {
+  const manifestDraftBase = {
     packageType: "mate-x/soc2-procurement-package",
     status,
     blockingReasons,
@@ -123,9 +124,8 @@ export async function generateComplianceExport(
       "agent-runbook.md": sha256Hex(agentRunbookMd),
     },
   };
-  const manifestJson = Buffer.from(`${canonicalJson(manifestDraft)}\n`, "utf8");
   const zipDate = new Date(generatedAt);
-  const entries: ZipEntry[] = [
+  const entriesWithoutManifest: ZipEntry[] = [
     { path: "evidence-pack.json", content: evidencePackJson, date: zipDate },
     { path: "attestation.intoto.json", content: attestationJson, date: zipDate },
     { path: "compliance-report.pdf", content: complianceReportPdf, date: zipDate },
@@ -133,11 +133,30 @@ export async function generateComplianceExport(
     { path: "policy-applied.md", content: policyAppliedMd, date: zipDate },
     { path: "agent-runbook.json", content: agentRunbookJson, date: zipDate },
     { path: "agent-runbook.md", content: agentRunbookMd, date: zipDate },
-    { path: "manifest.json", content: manifestJson, date: zipDate },
   ];
-  const zipBuffer = buildZip(entries);
+  const generationZipBuffer = buildZip([
+    ...entriesWithoutManifest,
+    {
+      path: "manifest.json",
+      content: Buffer.from(`${canonicalJson(manifestDraftBase)}\n`, "utf8"),
+      date: zipDate,
+    },
+  ]);
+  const manifestJson = Buffer.from(
+    `${canonicalJson({
+      ...manifestDraftBase,
+      zipDigest: sha256Hex(generationZipBuffer),
+    })}\n`,
+    "utf8",
+  );
+  const zipBuffer = buildZip([
+    ...entriesWithoutManifest,
+    { path: "manifest.json", content: manifestJson, date: zipDate },
+  ]);
+  const zipDigest = sha256Hex(zipBuffer);
   await writeFile(manifestPath, manifestJson);
   await writeFile(zipPath, zipBuffer);
+  generatedZipDigests.set(zipPath, zipDigest);
 
   const deliveredTo = status === "ready"
     ? await deliverEncryptedPackage(
@@ -146,7 +165,7 @@ export async function generateComplianceExport(
           ciphertext: zipBuffer,
           iv: "",
           authTag: "",
-          sha256: sha256Hex(zipBuffer),
+          sha256: zipDigest,
         },
         request.autoReportSinks ?? [],
       )
@@ -159,10 +178,22 @@ export async function generateComplianceExport(
     manifestPath,
     fileName,
     sizeBytes: zipBuffer.byteLength,
-    sha256: sha256Hex(zipBuffer),
+    sha256: zipDigest,
     generatedAt,
     deliveredTo,
   };
+}
+
+export async function verifyComplianceZipForDelivery(result: ComplianceExportResult) {
+  const expectedDigest = generatedZipDigests.get(result.zipPath);
+  if (!expectedDigest) {
+    throw new Error("COMPLIANCE_ZIP_INTEGRITY_FAILURE");
+  }
+
+  const deliveredZip = await readFile(result.zipPath);
+  if (sha256Hex(deliveredZip) !== expectedDigest) {
+    throw new Error("COMPLIANCE_ZIP_INTEGRITY_FAILURE");
+  }
 }
 
 export function buildAuditLog(request: ComplianceExportRequest, generatedAt: string) {

@@ -39,7 +39,10 @@ import { tursoService } from "./turso-service";
 import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
-import { generateComplianceExport } from "../features/compliance/complianceExport";
+import {
+  generateComplianceExport,
+  verifyComplianceZipForDelivery,
+} from "../features/compliance/complianceExport";
 import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
@@ -431,13 +434,15 @@ export function registerIpcHandlers() {
       const { taskId } = validateComplianceExportRequest(request);
       const workspace = await resolveActiveWorkspace();
       const evidencePack = await loadVerifiedEvidencePackForExport(workspace.path, taskId);
-      return generateComplianceExport({
+      const result = await generateComplianceExport({
         evidencePack,
         taskId,
         workspacePath: workspace.path,
         userId: workspace.id,
         policyApplied: "workspace-trust-contract",
       });
+      await verifyComplianceZipForDelivery(result);
+      return result;
     },
   );
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());
