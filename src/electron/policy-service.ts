@@ -331,7 +331,7 @@ class PolicyService {
 
     if (
       command &&
-      NETWORK_COMMAND_PATTERNS.some((pattern) => pattern.test(command)) &&
+      this.isNetworkCapableCommand(command) &&
       input.contract?.autonomy !== "unrestricted"
     ) {
       return {
@@ -468,7 +468,10 @@ class PolicyService {
     for (const key of COMMAND_ARG_KEYS) {
       const value = args[key];
       if (typeof value === "string" && value.trim()) {
-        return value.trim();
+        const argv = Array.isArray(args.args)
+          ? args.args.map((arg) => String(arg))
+          : [];
+        return [value.trim(), ...argv].join(" ").trim();
       }
     }
 
@@ -550,11 +553,11 @@ class PolicyService {
     if (toolName === "sandbox_run" || command) impacts.add("shell");
     if (
       /cve|deps|network|supermemory|traffic|poison/i.test(toolName) ||
-      (command && NETWORK_COMMAND_PATTERNS.some((pattern) => pattern.test(command)))
+      (command && this.isNetworkCapableCommand(command))
     ) impacts.add("network");
     if (/secret|env|auth/i.test(toolName)) impacts.add("secrets");
     if (/supermemory|pdf_report/i.test(toolName)) impacts.add("external_communication");
-    if (command && /\b(bun|npm|pnpm|yarn)\s+(add|install|i)\b/i.test(command)) {
+    if (command && this.isPackageManagerMutation(command)) {
       impacts.add("package_install");
       impacts.add("network");
       impacts.add("file_edit");
@@ -604,6 +607,10 @@ class PolicyService {
     return /\b(bun|npm|pnpm|yarn)\s+(add|install|i|update|upgrade|remove|uninstall)\b/i.test(
       command,
     );
+  }
+
+  private isNetworkCapableCommand(command: string) {
+    return NETWORK_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
   }
 
   private isPolicyStopAction(action: string): action is PolicyStopAction {

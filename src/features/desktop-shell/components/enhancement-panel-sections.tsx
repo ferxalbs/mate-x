@@ -337,7 +337,8 @@ export function EvidencePackSection({
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
           disabled={!canExportCompliance}
           onClick={() => {
-            if (evidencePack) void window.mate.repo.generateComplianceReport(evidencePack);
+            const taskId = evidencePack?.attestation?.taskId;
+            if (taskId) void window.mate.repo.generateComplianceReport({ taskId });
           }}
           title="Export SOC 2 / Procurement Package"
           type="button"
@@ -349,7 +350,8 @@ export function EvidencePackSection({
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/80 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
           disabled={!canExportCompliance}
           onClick={() => {
-            if (evidencePack) void window.mate.repo.generateComplianceReport(evidencePack);
+            const taskId = evidencePack?.attestation?.taskId;
+            if (taskId) void window.mate.repo.generateComplianceReport({ taskId });
           }}
           title="Export Agent Runbook"
           type="button"

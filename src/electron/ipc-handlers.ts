@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 
@@ -38,6 +40,7 @@ import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
 import { generateComplianceExport } from "../features/compliance/complianceExport";
+import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
@@ -276,6 +279,40 @@ function validateEvidencePack(value: unknown): EvidencePack {
   return record as unknown as EvidencePack;
 }
 
+function validateComplianceExportRequest(value: unknown) {
+  const record = assertPlainRecord(value, "Compliance export request");
+  assertKnownKeys(record, new Set(["taskId"]), "Compliance export request");
+  const taskId = requireBoundedString(record.taskId, "taskId", 128);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(taskId)) {
+    throw new Error("taskId is malformed.");
+  }
+  return { taskId };
+}
+
+async function loadVerifiedEvidencePackForExport(workspacePath: string, taskId: string) {
+  const evidenceDirectory = resolve(workspacePath, ".mate-x", "evidence", taskId);
+  const evidencePackPath = resolve(evidenceDirectory, "evidence-pack.json");
+  const attestationPath = resolve(evidenceDirectory, "attestation.intoto.json");
+  const evidencePack = validateEvidencePack(JSON.parse(await readFile(evidencePackPath, "utf8")));
+  const attestation = JSON.parse(await readFile(attestationPath, "utf8")) as {
+    statement?: { subject?: Array<{ name?: string; digest?: { sha256?: string } }> };
+  };
+  const expectedDigest = attestation.statement?.subject?.find(
+    (subject) => subject.name === "evidence-pack.json",
+  )?.digest?.sha256;
+  const actualDigest = sha256Hex(canonicalJson(evidencePack));
+  if (!expectedDigest || expectedDigest !== actualDigest) {
+    throw new Error("Evidence Pack digest does not match signed attestation.");
+  }
+
+  const scan = await privacyFirewall.scanTextSafe(canonicalJson(evidencePack));
+  if (scan.spans.some((span) => span.risk === "p0" || span.label === "secret" || span.label === "repo_secret")) {
+    throw new Error("Privacy Firewall blocked compliance export because Evidence Pack contains secret material.");
+  }
+
+  return evidencePack;
+}
+
 function validateResolvePolicyStopRequest(request: unknown): ResolvePolicyStopRequest {
   const record = assertPlainRecord(request, "Policy stop resolution request");
   assertKnownKeys(record, new Set(["stopId", "action", "scopeExpansion"]), "Policy stop resolution request");
@@ -366,9 +403,15 @@ async function resolveGitService() {
 
 export function registerIpcHandlers() {
   ipcMain.handle("app:check-updates", async () => checkForUpdates(true));
-  ipcMain.handle("privacy:scan-text", async (_event, text: string) =>
-    privacyFirewall.scanTextSafe(String(text ?? "")),
-  );
+  ipcMain.handle("privacy:scan-text", async (_event, text: string) => {
+    if (typeof text !== "string") {
+      throw new Error("privacy scan text must be a string.");
+    }
+    if (text.length > MAX_IPC_TEXT_LENGTH) {
+      throw new Error(`privacy scan text exceeds ${MAX_IPC_TEXT_LENGTH} characters.`);
+    }
+    return privacyFirewall.scanTextSafe(text);
+  });
   ipcMain.handle("privacy:get-model-status", async () =>
     privacyFirewall.getModelStatus(),
   );
@@ -384,10 +427,13 @@ export function registerIpcHandlers() {
   ipcMain.handle("repo:bootstrap", async () => bootstrapWorkspaceState());
   ipcMain.handle(
     "repo:generate-compliance-report",
-    async (_event, evidencePack: EvidencePack) => {
+    async (_event, request: unknown) => {
+      const { taskId } = validateComplianceExportRequest(request);
       const workspace = await resolveActiveWorkspace();
+      const evidencePack = await loadVerifiedEvidencePackForExport(workspace.path, taskId);
       return generateComplianceExport({
-        evidencePack: validateEvidencePack(evidencePack),
+        evidencePack,
+        taskId,
         workspacePath: workspace.path,
         userId: workspace.id,
         policyApplied: "workspace-trust-contract",

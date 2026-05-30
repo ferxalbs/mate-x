@@ -3,7 +3,6 @@ import type {
   AssistantRunOptions,
   AssistantRunProgress,
   Conversation,
-  EvidencePack,
 } from "./chat";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
 import type {
@@ -74,7 +73,7 @@ export interface RepoInspectorApi {
     runId?: string,
   ) => Promise<AssistantExecution>;
   generateComplianceReport: (
-    evidencePack: EvidencePack,
+    request: { taskId: string },
   ) => Promise<ComplianceExportResult>;
   onAssistantProgress: (
     listener: (progress: AssistantRunProgress) => void,
