@@ -35,6 +35,22 @@ type PolicyFinding = {
   availableActions: PolicyStopAction[];
 };
 
+type CreatePolicyStopInput = {
+  runId: string;
+  workspacePath: string;
+  toolName: string;
+  severity: PolicyStop["severity"];
+  policyId: string;
+  title: string;
+  explanation: string;
+  kind: PolicyStopAttemptKind;
+  target?: string;
+  command?: string;
+  metadata?: Record<string, unknown>;
+  recommendation: PolicyStopAction;
+  availableActions: PolicyStopAction[];
+};
+
 const DANGEROUS_COMMAND_PATTERNS = [
   /\brm\s+-[^\n]*[rf][^\n]*\s+(\/|~|\*)/i,
   /\bgit\s+reset\s+--hard\b/i,
@@ -143,6 +159,32 @@ class PolicyService {
       },
       recommendation: finding.recommendation,
       availableActions: finding.availableActions,
+      status: "open",
+    };
+
+    this.stops.set(stop.id, stop);
+    return stop;
+  }
+
+  createStop(input: CreatePolicyStopInput): PolicyStop {
+    const stop: PolicyStop = {
+      id: `policy-stop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      runId: input.runId,
+      workspacePath: input.workspacePath,
+      createdAt: new Date().toISOString(),
+      severity: input.severity,
+      policyId: input.policyId,
+      title: input.title,
+      explanation: input.explanation,
+      attemptedAction: {
+        kind: input.kind,
+        toolName: input.toolName,
+        target: input.target,
+        command: input.command,
+        metadata: input.metadata,
+      },
+      recommendation: input.recommendation,
+      availableActions: input.availableActions,
       status: "open",
     };
 

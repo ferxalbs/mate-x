@@ -7,6 +7,8 @@ export type PolicyStopAction =
   | "safer_alternative";
 
 export type PolicyStopAttemptKind =
+  | "HIGH_IMPACT_PATCH_APPROVAL"
+  | "MUTATION_EXECUTION"
   | "file_read"
   | "file_write"
   | "command"

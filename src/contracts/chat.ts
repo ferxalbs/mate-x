@@ -207,6 +207,21 @@ export interface EvidencePackAgentIdentity {
   policyHash: string;
 }
 
+export interface EvidencePackPolicyStop {
+  id: string;
+  kind: string;
+  policyId: string;
+  title: string;
+  status: string;
+  target?: string;
+  command?: string;
+  metadata?: Record<string, unknown>;
+  resolution?: {
+    action: string;
+    resolvedAt: string;
+  };
+}
+
 export interface EvidencePack {
   status: EvidencePackStatus;
   verdict: EvidencePackVerdict;
@@ -220,6 +235,7 @@ export interface EvidencePack {
   reproduction?: EvidencePackReproduction;
   stages?: EvidencePackStageResult[];
   checks?: EvidencePackCheckResult[];
+  policyStops?: EvidencePackPolicyStop[];
   stopConditionTriggered?: string;
   warnings?: string[];
   unresolvedRisks?: string[];
