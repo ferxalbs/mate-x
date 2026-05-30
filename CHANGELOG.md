@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.30 (2) [Premium Liquid Glass Select]
+
+- Reconfigured the native `GlassContainer` in the Liquid Glass Select popup to match the lightweight, ultra-minimalist transparent glass look of the Composer panel.
+- Eliminated heavy dark refractive borders by setting `thickness={0}` and resolved harsh white glare/stripes by setting `specularOpacity={0.12}`.
+- Restored deep, elegant glass frosting with `blur={500}` and pure crystal zero-cast tinting (`tint={{ r: 1, g: 1, b: 1, a: 0.0 }}`).
+- Refined the CSS fallback layer to a ultra-fine border (`border border-white/6`) and translucent background (`bg-transparent backdrop-blur-xl`).
+- Replaced select items glassy inner shadows with soft, flat, semi-transparent background overlays (`bg-white/8` on hover and `bg-white/12` on active selection) to adhere strictly to the minimalist aesthetic.
+- Enhanced the `InlineSelect` trigger in the composer dynamically with a semi-transparent glass segment look when `liquidGlass` is active to unify the visual experience.
+
 ## Unreleased - 2026.05.30 (1) [Launch Security Patchset]
 
 - Blocked renderer-supplied compliance Evidence Packs by requiring `{ taskId }`, loading Evidence Packs and attestations from `.mate-x/evidence/<taskId>`, verifying signed digests, and re-running Privacy Firewall checks before export.

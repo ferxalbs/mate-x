@@ -84,7 +84,7 @@ export function LiquidSelectPopup({
             real list content to the same rounded-[20px] shape.
             min-w matches the anchor trigger; max-w caps on narrow viewports.
           */}
-          <div className="relative min-w-(--anchor-width) max-w-[min(22rem,var(--available-width))] overflow-hidden rounded-[20px]">
+          <div className="relative min-w-(--anchor-width) max-w-[min(22rem,var(--available-width))] overflow-hidden rounded-[24px]">
 
             {/* ── Glass canvas ────────────────────────────────────────────
                 pointer-events-none so the canvas never steals clicks from
@@ -92,7 +92,7 @@ export function LiquidSelectPopup({
             <div className="pointer-events-none absolute inset-0 z-0">
               <LiquidCanvas
                 className="absolute inset-0"
-                canvasClassName="absolute inset-0 h-full w-full rounded-[20px] bg-transparent"
+                canvasClassName="absolute inset-0 h-full w-full rounded-[24px] bg-transparent"
               >
                 <ZStack alignment="topLeading">
 
@@ -103,28 +103,26 @@ export function LiquidSelectPopup({
                     <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
                   </Html>
 
-                  {/* Glass surface — concave, with physical thickness like the
-                      MenuDemo context menu (thickness=30 vs MenuDemo's 40).   */}
+                  {/* Glass surface — minimal transparent glass exactly matching the Composer/Sidebar reference */}
                   <Frame maxWidth={Infinity} maxHeight={Infinity}>
                     <GlassContainer
-                      bezelWidth={60}
-                      blur={120}
-                      displacementBlur={14}
+                      bezelWidth={100}
+                      blur={500}
+                      displacementBlur={18}
                       shadowBlur={20}
-                      shadowColor={{ r: 0, g: 0, b: 0, a: 0.18 }}
-                      shadowOffsetY={6}
-                      specularFalloff={1.8}
-                      specularOpacity={0.08}
+                      shadowColor={{ r: 0, g: 0, b: 0, a: 0.10 }}
+                      shadowOffsetY={0}
+                      specularFalloff={1.2}
+                      specularOpacity={0.12}
                       surfaceProfile="concave"
-                      thickness={30}
-                      tint={{ r: 1, g: 1, b: 1, a: 0 }}
+                      thickness={0}
+                      tint={{ r: 1, g: 1, b: 1, a: 0.0 }}
                     >
-                      <Glass cornerRadius={20} cornerSmoothing={0.4}>
+                      <Glass cornerRadius={24} cornerSmoothing={0.6}>
                         <Frame maxWidth={Infinity} maxHeight={Infinity}>
                           <Html sizing="fill">
-                            {/* Invisible fill — the glass surface just needs
-                                a sized Html node; real content is z-10 DOM.   */}
-                            <div className="h-full w-full" />
+                            {/* Lightweight glass fallback with matching Composer CSS values */}
+                            <div className="h-full w-full bg-transparent border border-white/6 backdrop-blur-xl" />
                           </Html>
                         </Frame>
                       </Glass>
@@ -147,15 +145,38 @@ export function LiquidSelectPopup({
 
             <SelectPrimitive.List
               className={cn(
-                "relative z-10 max-h-(--available-height) overflow-y-auto px-1 py-1.5",
+                "relative z-10 max-h-(--available-height) overflow-y-auto px-1.5 py-2",
                 // Glass-surface item overrides:
-                // • Highlighted row: white/10 overlay instead of solid accent
-                // • Text: full foreground (glass tint gives enough contrast)
-                // • Rounded: 14px softer than the panel's 20px
-                "[&_[data-slot=select-item]]:rounded-[14px]",
-                "[&_[data-slot=select-item]]:text-foreground/85",
-                "[&_[data-slot=select-item][data-highlighted]]:bg-white/10",
+                // • Highlighted / selected row: glassy flat segments matching the ultra-minimalist preference
+                "[&_[data-slot=select-item]]:rounded-xl",
+                "[&_[data-slot=select-item]]:mx-1",
+                "[&_[data-slot=select-item]]:my-0.5",
+                "[&_[data-slot=select-item]]:px-3",
+                "[&_[data-slot=select-item]]:py-1.5",
+                "[&_[data-slot=select-item]]:transition-all",
+                "[&_[data-slot=select-item]]:duration-150",
+                "[&_[data-slot=select-item]]:text-foreground/80",
+                
+                // Highlighted state (hover / keyboard focus): soft flat overlay
+                "[&_[data-slot=select-item][data-highlighted]]:bg-white/8",
                 "[&_[data-slot=select-item][data-highlighted]]:text-foreground",
+                
+                // Selected state: premium highlighted look, like native segments of a menu without heavy shadows
+                "[&_[data-slot=select-item][data-selected]]:bg-white/12",
+                "[&_[data-slot=select-item][data-selected]]:text-foreground",
+                "[&_[data-slot=select-item][data-selected]]:font-medium",
+                "[&_[data-slot=select-item][data-state=checked]]:bg-white/12",
+                "[&_[data-slot=select-item][data-state=checked]]:text-foreground",
+                "[&_[data-slot=select-item][data-state=checked]]:font-medium",
+                "[&_[data-slot=select-item][aria-selected=true]]:bg-white/12",
+                "[&_[data-slot=select-item][aria-selected=true]]:text-foreground",
+                "[&_[data-slot=select-item][aria-selected=true]]:font-medium",
+                
+                // Dark mode adaptations
+                "dark:[&_[data-slot=select-item][data-highlighted]]:bg-white/6",
+                "dark:[&_[data-slot=select-item][data-selected]]:bg-white/10",
+                "dark:[&_[data-slot=select-item][data-state=checked]]:bg-white/10",
+                "dark:[&_[data-slot=select-item][aria-selected=true]]:bg-white/10",
                 className,
               )}
               data-slot="select-list"

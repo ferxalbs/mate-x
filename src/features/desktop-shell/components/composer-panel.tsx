@@ -1082,7 +1082,12 @@ function InlineSelect({
       <SelectTrigger
         size="xs"
         variant="ghost"
-        className="h-6 min-w-fit shrink-0 rounded-md border-0 px-2 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
+        className={cn(
+          "h-6 min-w-fit shrink-0 rounded-md border px-2 text-[11px] shadow-none transition-all duration-200",
+          liquidGlass
+            ? "border-white/8 bg-white/[0.03] text-foreground/85 hover:border-white/12 hover:bg-white/10 active:bg-white/15 backdrop-blur-md shadow-[inset_0_1px_rgba(255,255,255,0.08)]"
+            : "border-transparent text-muted-foreground hover:bg-accent",
+        )}
         title={title}
       >
         <SelectValue>{label}</SelectValue>
