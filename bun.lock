@@ -16,8 +16,8 @@
         "@huggingface/transformers": "^4.2.0",
         "@libpdf/core": "^0.3.6",
         "@libsql/client": "^0.17.3",
-        "@liquid-dom/r3f": "^0.1.0",
-        "@liquid-dom/react": "^0.1.0",
+        "@liquid-dom/r3f": "^0.1.1",
+        "@liquid-dom/react": "^0.1.1",
         "@mem0/vercel-ai-provider": "^2.0.5",
         "@openai/codex-sdk": "^0.134.0",
         "@phosphor-icons/react": "^2.1.10",
@@ -418,15 +418,15 @@
 
     "@linear/sdk": ["@linear/sdk@76.0.0", "", { "dependencies": { "@graphql-typed-document-node/core": "^3.2.0" } }, "sha512-Xt0x5Kl6qBoWhGFypb8ykyP+c5kT7scmRPs1uJidSPOaRgkMJ/4y41QpmZCWCBUMmZtf/O0VktgQio6rLXT94w=="],
 
-    "@liquid-dom/core": ["@liquid-dom/core@0.1.0", "", { "dependencies": { "@liquid-dom/layout": "0.1.0" } }, "sha512-ocYx9zxR6TcsXbl2HhQTGv26sgmz9x5h51GHJ4ncBZ4qEHaOqoUbHrguNaHuan214y0C5kvPFwjzKhu3mhGc3w=="],
+    "@liquid-dom/core": ["@liquid-dom/core@0.1.1", "", { "dependencies": { "@liquid-dom/layout": "0.2.0" } }, "sha512-Q+Agxas90pMz+Az3vd/wlNAbxOXBz7dQDDZl2lRCARm6TrqeKYVUoWM+Q/JmlBNoTM8z0tYMkguhmFz75ZiogQ=="],
 
-    "@liquid-dom/layout": ["@liquid-dom/layout@0.1.0", "", {}, "sha512-WrN0dQHI5qEROP+TwslugeZ/whWE3eqshIxekhQvrcs1xNv2u/T0qgOmbvTK44b0hMDEXIZnpzKRiqX9tL1+rQ=="],
+    "@liquid-dom/layout": ["@liquid-dom/layout@0.2.0", "", {}, "sha512-bdKWF2MVF7qv4+Db0e9JPE4aKXAmIEubFF4bivluFAGNJBZklLr45qggg5D2THy/gqwuuCNP5uxnOJZfi+UaHA=="],
 
-    "@liquid-dom/r3f": ["@liquid-dom/r3f@0.1.0", "", { "dependencies": { "@liquid-dom/core": "0.1.0", "@liquid-dom/react": "0.1.0", "@liquid-dom/three": "0.1.0" }, "peerDependencies": { "@react-three/fiber": ">=9.0.0", "react": ">=19.0.0", "three": ">=0.184" } }, "sha512-/nTZCjuGUdPfjBVtIxDhF8XCTHYxJ5GYZG2XZ3xIKtRibXiIw4SEMBdb9PaG6aKbpUpY/roIRaYu4y1zARQSkQ=="],
+    "@liquid-dom/r3f": ["@liquid-dom/r3f@0.1.1", "", { "dependencies": { "@liquid-dom/core": "0.1.1", "@liquid-dom/react": "0.1.1", "@liquid-dom/three": "0.1.1" }, "peerDependencies": { "@react-three/fiber": ">=9.0.0", "react": ">=19.0.0", "three": ">=0.184" } }, "sha512-MZgPWcGgm2bpez6QcP4WNzrgdL8OJAfGQbUvwbC9qJslnJQ66QFsMXE7B0lrnCTclw1U5b2QikTLdJCOxfl08w=="],
 
-    "@liquid-dom/react": ["@liquid-dom/react@0.1.0", "", { "dependencies": { "@liquid-dom/core": "0.1.0", "@liquid-dom/layout": "0.1.0" }, "peerDependencies": { "react": ">=19", "react-dom": ">=19" } }, "sha512-ywYhR6jEqKItiQtVg7h24rxDK/g/zAJyTzSmH0Y7Y/p9kN2D8IzDKIdsVvD8aRqsKjeGOF6xh9cD5j38aajFnQ=="],
+    "@liquid-dom/react": ["@liquid-dom/react@0.1.1", "", { "dependencies": { "@liquid-dom/core": "0.1.1", "@liquid-dom/layout": "0.2.0" }, "peerDependencies": { "react": ">=19", "react-dom": ">=19" } }, "sha512-5ZYEkxj/QqHk8U7gsGMbhrcfbzQ+03UGeasElGjREo30qEcBGJ+tPyoxEr1XR+JwrfXpEFhHuxAuBzrbvHeVbw=="],
 
-    "@liquid-dom/three": ["@liquid-dom/three@0.1.0", "", { "dependencies": { "@liquid-dom/core": "0.1.0" }, "peerDependencies": { "three": ">=0.184" } }, "sha512-86KJDouW9GYWDBWjyFOt4/y0tMRjQfIuu0XIsCm8/dm2KAa12mi3pzU++yexJVJZogjkkCq0iCdhDg5tdvZbQw=="],
+    "@liquid-dom/three": ["@liquid-dom/three@0.1.1", "", { "dependencies": { "@liquid-dom/core": "0.1.1" }, "peerDependencies": { "three": ">=0.184" } }, "sha512-0aZCy2UIA8NU8y11IgAoIfbhAGg/nRDB0D0am8bKgmHDrAbtcEi+Bo3bAD+Y4j9S/56vy+zjV5XAR1v7M1L/nw=="],
 
     "@listr2/prompt-adapter-inquirer": ["@listr2/prompt-adapter-inquirer@2.0.22", "", { "dependencies": { "@inquirer/type": "^1.5.5" }, "peerDependencies": { "@inquirer/prompts": ">= 3 < 8" } }, "sha512-hV36ZoY+xKL6pYOt1nPNnkciFkn89KZwqLhAFzJvYysAvL5uBQdiADZx/8bIDXIukzzwG0QlPYolgMzQUtKgpQ=="],
 
