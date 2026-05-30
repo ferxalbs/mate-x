@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, relative } from "node:path";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { basename, dirname, join, relative } from "node:path";
 import type { Tool } from "../tool-service";
 import {
   analyzePatchAfter,
@@ -140,7 +140,7 @@ export const fileEditorTool: Tool = {
       if (!fileExists) {
         await mkdir(dirname(targetFile), { recursive: true });
       }
-      await writeFile(targetFile, finalContent, "utf8");
+      await atomicWriteFile(targetFile, finalContent);
 
       const rel = relative(workspacePath, targetFile);
       const impactSummary = impactAnalysis === "full" && impactBefore
@@ -276,6 +276,30 @@ function buildRangeEditPlan(input: EditPlanInput): EditPlan | string {
 
 function asPositiveLine(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : null;
+}
+
+async function atomicWriteFile(targetFile: string, content: string) {
+  const targetDirectory = dirname(targetFile);
+  const tempFile = join(
+    targetDirectory,
+    `.${basename(targetFile)}.matex-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`,
+  );
+  let handle: Awaited<ReturnType<typeof open>> | null = null;
+
+  try {
+    handle = await open(tempFile, "wx");
+    await handle.writeFile(content, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await rename(tempFile, targetFile);
+  } catch (error) {
+    if (handle) {
+      await handle.close().catch(() => undefined);
+    }
+    await rm(tempFile, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 function countLines(content: string) {

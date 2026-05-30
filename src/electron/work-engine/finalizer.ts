@@ -16,6 +16,13 @@ export interface WorkEngineFinalization {
   warnings: string[];
 }
 
+export type SecurityProofLedger = Array<{
+  claimKind: string;
+  sourcePath: string;
+  sinkPath: string;
+  evidenceIds: string[];
+}>;
+
 const CLAIM_PATTERNS = [
   /\bfixed\b/gi,
   /\bshould be fixed\b/gi,
@@ -76,10 +83,15 @@ export function finalizeWorkRun(input: {
   evidenceAttached: boolean;
 }): WorkEngineFinalization {
   const warnings: string[] = [];
+  const securityProofLedger = buildSecurityProofLedger(input.toolExecutions);
+  const confirmedSecurityClaims = extractConfirmedSecurityClaims(input.content);
+  const unmatchedSecurityClaims = confirmedSecurityClaims.filter(
+    (claim) => !claimMatchesSecurityProofLedger(claim, securityProofLedger),
+  );
   const rawMissingRequired = requiredStages(input.workPlan, input.stages)
     .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
   const missingRequired = rawMissingRequired.filter(
-    (stageId) => stageId !== "security_proof_checked" || hasConfirmedSecurityWording(input.content),
+    (stageId) => stageId !== "security_proof_checked" || unmatchedSecurityClaims.length > 0,
   );
   const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
   const failedValidationHardBlocker = shouldFailedValidationBlock({
@@ -133,6 +145,9 @@ export function finalizeWorkRun(input: {
   if (privacyPlaceholderMisuse) {
     warnings.push("Privacy Sentinel placeholder was treated as source evidence; raw private value was redacted before cloud transit.");
   }
+  if (unmatchedSecurityClaims.length > 0) {
+    warnings.push("Confirmed security claim wording was downgraded because no matching proof ledger entry referenced the claimed file/path.");
+  }
 
   const verdict = resolveVerdict({
     missingRequired,
@@ -142,10 +157,11 @@ export function finalizeWorkRun(input: {
     preparatoryOnly,
     missingRuntimeEvidence,
     privacyPlaceholderMisuse,
+    unmatchedSecurityClaims: unmatchedSecurityClaims.length,
     evidenceRequired: input.workPlan.evidencePlan.required,
     evidenceAttached: input.evidenceAttached,
   });
-  const content = rewriteUnsupportedClaims(input.content, input.stages, warnings);
+  const content = rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0);
 
   return { verdict, content: appendHonestStatus(content, verdict, warnings), warnings };
 }
@@ -202,6 +218,91 @@ function isPreparatoryOnly(content: string) {
 function hasConfirmedSecurityWording(content: string) {
   return /\b(confirmed vulnerability|vulnerable|vulnerability|exploitable|source-to-sink confirmed|auth bypass|secret leak|critical|high[-\s]severity|brute-force|resource exhaustion|effectively disables)\b/i.test(content) ||
     /\bsecurity of\b[\s\S]{0,80}\bis strictly tied\b/i.test(content);
+}
+
+function buildSecurityProofLedger(toolExecutions: ToolExecutionRecord[]): SecurityProofLedger {
+  return toolExecutions
+    .filter((execution) => execution.toolName === "security_path_trace" || execution.toolName === "candidate_revalidator")
+    .flatMap((execution, index) => {
+      const evidenceId = `${execution.toolName}:${index}`;
+      const paths = extractProofPaths(execution);
+      return paths.map((path) => ({
+        claimKind: String(execution.args.title ?? execution.toolName),
+        sourcePath: path,
+        sinkPath: path,
+        evidenceIds: [evidenceId],
+      }));
+    });
+}
+
+function extractProofPaths(execution: ToolExecutionRecord) {
+  const paths = new Set<string>();
+  for (const key of ["file", "path", "sourcePath", "sinkPath"]) {
+    const value = execution.args[key];
+    if (typeof value === "string" && value.trim()) {
+      paths.add(normalizeProofPath(value));
+    }
+  }
+
+  const locationMatch = execution.output.match(/\bLocation:\s*([^\s:]+(?:\/[^\s:]+)*)(?::\d+)?/i);
+  if (locationMatch?.[1]) {
+    paths.add(normalizeProofPath(locationMatch[1]));
+  }
+
+  for (const match of execution.output.matchAll(/\b((?:src|app|pages|lib|server|api|electron|contracts)\/[A-Za-z0-9._/-]+)(?::\d+)?\b/g)) {
+    paths.add(normalizeProofPath(match[1]));
+  }
+
+  return Array.from(paths).filter(Boolean);
+}
+
+function extractConfirmedSecurityClaims(content: string) {
+  return content
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((text) => text.trim())
+    .filter((text) => text && hasConfirmedSecurityWording(text))
+    .map((text) => ({
+      text,
+      paths: extractClaimPaths(text),
+    }));
+}
+
+function extractClaimPaths(content: string) {
+  const paths = new Set<string>();
+  for (const match of content.matchAll(/\b((?:src|app|pages|lib|server|api|electron|contracts)\/[A-Za-z0-9._/-]+)(?::\d+)?\b/g)) {
+    paths.add(normalizeProofPath(match[1]));
+  }
+  return Array.from(paths);
+}
+
+function claimMatchesSecurityProofLedger(
+  claim: { text: string; paths: string[] },
+  ledger: SecurityProofLedger,
+) {
+  if (claim.paths.length === 0) return false;
+  return claim.paths.some((claimPath) =>
+    ledger.some((entry) =>
+      pathsReferToSameFile(claimPath, entry.sourcePath) ||
+      pathsReferToSameFile(claimPath, entry.sinkPath),
+    ),
+  );
+}
+
+function pathsReferToSameFile(left: string, right: string) {
+  const normalizedLeft = normalizeProofPath(left);
+  const normalizedRight = normalizeProofPath(right);
+  return normalizedLeft === normalizedRight ||
+    normalizedLeft.endsWith(`/${normalizedRight}`) ||
+    normalizedRight.endsWith(`/${normalizedLeft}`);
+}
+
+function normalizeProofPath(path: string) {
+  return path
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/, "")
+    .replace(/:\d+(?::\d+)?$/, "")
+    .replace(/^["'`([{]+|["'`)\]},.;]+$/g, "")
+    .trim();
 }
 
 function misusesPrivacySentinelPlaceholder(content: string) {
@@ -284,6 +385,7 @@ function resolveVerdict(input: {
   preparatoryOnly: boolean;
   missingRuntimeEvidence: boolean;
   privacyPlaceholderMisuse: boolean;
+  unmatchedSecurityClaims: number;
   evidenceRequired: boolean;
   evidenceAttached: boolean;
 }): FinalRunVerdict {
@@ -292,14 +394,14 @@ function resolveVerdict(input: {
   if (input.fallbackMissing) return "needs_validation";
   if (input.missingRequired.includes("validation_executed")) return "needs_validation";
   if (input.evidenceRequired && !input.evidenceAttached) return "needs_evidence";
-  if (input.preparatoryOnly || input.missingRuntimeEvidence || input.privacyPlaceholderMisuse) return "partial";
+  if (input.preparatoryOnly || input.missingRuntimeEvidence || input.privacyPlaceholderMisuse || input.unmatchedSecurityClaims > 0) return "partial";
   if (input.missingRequired.length > 0) return "partial";
   return "success";
 }
 
-function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings: string[]) {
+function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings: string[], forceProofDowngrade = false) {
   const validationOk = stageStatus(stages, "validation_executed") === "passed";
-  const proofOk = stageStatus(stages, "security_proof_checked") === "passed";
+  const proofOk = stageStatus(stages, "security_proof_checked") === "passed" && !forceProofDowngrade;
   let next = content;
 
   if (!validationOk) {

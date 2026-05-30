@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.30 (1) [Launch Security Patchset]
+
+- Blocked renderer-supplied compliance Evidence Packs by requiring `{ taskId }`, loading Evidence Packs and attestations from `.mate-x/evidence/<taskId>`, verifying signed digests, and re-running Privacy Firewall checks before export.
+- Bound Work Engine security proof to specific final claims so confirmed vulnerability wording is downgraded when no matching `security_path_trace` or `candidate_revalidator` evidence references the claimed path.
+- Hardened `sandbox_run` policy classification for argv-form package-manager and network commands, and made `file_editor` commits atomic via same-directory temp files, `fsync`, and rename.
+- Replaced permissive `privacy:scan-text` IPC coercion with strict string and size validation.
+- Verified with `node_modules/.bin/tsc --noEmit` and source-only `node_modules/.bin/eslint src --ext .ts,.tsx`; `bun run typecheck` could not run because `bun` is unavailable in this shell.
+
 ## Unreleased - 2026.05.29 (1) [Enterprise Hardening Controls]
 
 - Hardened renderer-to-main IPC validation for assistant runs, workspace trust contracts, Git file lists, settings updates, policy-stop resolution, compliance exports, repo graph inputs, and workspace memory payloads.

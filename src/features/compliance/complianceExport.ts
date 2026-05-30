@@ -12,6 +12,7 @@ import {
 
 export interface ComplianceExportRequest {
   evidencePack: EvidencePack;
+  taskId?: string;
   workspacePath: string;
   userId?: string;
   policyApplied?: string;
@@ -60,7 +61,7 @@ export async function generateComplianceExport(
 ): Promise<ComplianceExportResult> {
   const generatedAt = (request.now ?? new Date()).toISOString();
   const taskId = sanitizeComplianceTaskId(
-    request.evidencePack.attestation?.taskId ?? `task-${Date.now()}`,
+    request.taskId ?? request.evidencePack.attestation?.taskId ?? `task-${Date.now()}`,
   );
   const evidenceDirectory = resolve(request.workspacePath, ".mate-x", "evidence", taskId);
   assertInsideWorkspaceEvidenceRoot(request.workspacePath, evidenceDirectory);
@@ -342,7 +343,7 @@ function collectComplianceBlockingReasons(
   attestationTrusted: boolean,
 ) {
   const reasons: string[] = [];
-  if (evidencePack.attestation?.status !== "signed") {
+  if (!attestationTrusted && evidencePack.attestation?.status !== "signed") {
     reasons.push("Signed attestation is required for procurement-ready export.");
   }
   if (!attestationTrusted) {
@@ -359,21 +360,21 @@ function collectComplianceBlockingReasons(
 
 async function loadAttestation(workspacePath: string, evidencePack: EvidencePack, taskId: string) {
   const expectedRelativePath = join(".mate-x", "evidence", taskId, "attestation.intoto.json");
-  const attestationPath = evidencePack.attestation?.path === expectedRelativePath
-    ? resolve(workspacePath, expectedRelativePath)
-    : null;
-  if (!attestationPath) {
-    return {
-      trusted: false,
-      content: Buffer.from('{"status":"blocked","reason":"Signed attestation missing or not trusted for this task."}\n', "utf8"),
-    };
-  }
+  const attestationPath = resolve(workspacePath, expectedRelativePath);
   assertInsideWorkspaceEvidenceRoot(workspacePath, attestationPath);
 
   try {
+    const content = await readFile(attestationPath);
+    const attestation = JSON.parse(content.toString("utf8")) as {
+      statement?: { subject?: Array<{ name?: string; digest?: { sha256?: string } }> };
+    };
+    const expectedDigest = attestation.statement?.subject?.find(
+      (subject) => subject.name === "evidence-pack.json",
+    )?.digest?.sha256;
+    const actualDigest = sha256Hex(canonicalJson(evidencePack));
     return {
-      trusted: true,
-      content: await readFile(attestationPath),
+      trusted: Boolean(expectedDigest && expectedDigest === actualDigest),
+      content,
     };
   } catch {
     return {

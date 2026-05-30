@@ -10,7 +10,9 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
     setContextMenuOpen(false);
     setExportState("exporting");
     try {
-      await window.mate.repo.generateComplianceReport(evidencePack);
+      const taskId = evidencePack.attestation?.taskId;
+      if (!taskId) throw new Error("Evidence Pack is missing a signed task id.");
+      await window.mate.repo.generateComplianceReport({ taskId });
       setExportState("ready");
     } catch {
       setExportState("failed");
