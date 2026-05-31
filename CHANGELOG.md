@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.31 (1) [Outbound Tool Guards and Governance Export Markers]
+
+- Added shared in-memory rate limiting for `creds_validator` and `oob_listener`, including per-service circuit breakers for external credential validation calls and a concurrent listener cap for ephemeral OOB servers.
+- Added Evidence Pack and compliance export governance markers so unrestricted sessions are visible in `evidence-pack.json`, `manifest.json`, `audit-log.json`, `compliance-report.pdf`, and the Evidence Pack card UI.
+- Verified with `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/eslint src --ext .ts,.tsx`; eslint reports only the pre-existing `app-sidebar.tsx` unused `tint` warning.
+
 ## Unreleased - 2026.05.30 (3) [Production Architecture Hardening]
 
 - Added compliance ZIP delivery integrity verification by storing the generation-time digest, re-hashing the delivered ZIP before IPC return, and failing closed with `COMPLIANCE_ZIP_INTEGRITY_FAILURE` on mismatch.
