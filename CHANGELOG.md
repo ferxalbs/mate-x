@@ -10,13 +10,12 @@
 
 ## Unreleased - 2026.05.30 (2) [Premium Liquid Glass Select]
 
-- Enabled true native DOM refraction by removing the opaque static background `Html` layer from the `ZStack` in the Select popup's `LiquidCanvas`, allowing real-time WebGL capture and refraction of actual underlying page elements (chat messages, buttons, and text).
-- Reconfigured the native `GlassContainer` in the Liquid Glass Select popup to achieve a hyper-transparent crystal glass look matching the `MenuDemo` reference configurations (reduced `blur={20}` and highly transparent `tint={{ r: 1, g: 1, b: 1, a: 0.02 }}`).
-- Prevented heavy dark edges by setting physical glass edge depth parameters to `bezelWidth={70}`, `thickness={30}`, and `displacementBlur={20}` for precise refraction.
-- Avoided harsh white outlines or stripes along boundaries by calibrating `specularOpacity={0.50}` and `specularFalloff={1.2}` for a beautiful polished glint.
-- Completely avoided dark, heavy drop shadows by using a soft macOS-style drop shadow (`shadowBlur={32}`, `shadowColor={{ r: 0, g: 0, b: 0, a: 0.12 }}`, `shadowOffsetY={10}`).
-- Refined the CSS fallback layer to an ultra-fine border (`border border-white/5`), transparent overlay (`bg-transparent`), and lightweight CSS blur (`backdrop-blur-[12px]`) to let active backgrounds show through.
-- Designed premium select items styling in the glass list to act as individual frosted glass segments with a flat, semi-transparent background overlay (`bg-white/8` on hover and `bg-white/14` on active selection) without any harsh inner shadows.
+- Resolved the solid black appearance of the Select popup by restoring the `Html` backdrop layer (`bg-[image:var(--mate-shell-base)]` at `zIndex={-2}`) to provide refraction source pixels for WebGL.
+- Calibrated the glass container's blur to `blur={90}` to beautifully diffuse the dark background midnight gradients, preventing flat solid blocks and creating a pristine transparent frosted look.
+- Set physical glass edge depth parameters to `bezelWidth={100}`, `thickness={15}`, and `displacementBlur={18}` to ensure delicate, realistic 3D glass edge refraction without heavy dark outlines.
+- Calibrated `specularOpacity={0.16}` and `specularFalloff={1.2}` to render an elegant, high-end light sheen that feels premium and matches the Composer panel.
+- Refined the CSS fallback layer to a lightweight border (`border border-white/6`) and translucent background (`bg-transparent backdrop-blur-xl`).
+- Designed premium select items styling in the glass list to act as individual frosted glass segments with a flat, semi-transparent background overlay (`bg-white/8` on hover and `bg-white/12` on active selection) without any harsh inner shadows.
 - Enhanced the `InlineSelect` trigger in the composer dynamically with a semi-transparent glass segment look when `liquidGlass` is active to unify the visual experience.
 - Resolved workspace ESLint `no-useless-assignment` warning in `src/electron/tools/mutation.ts` to ensure overall code quality.
 
