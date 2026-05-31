@@ -224,6 +224,7 @@ export interface EvidencePackPolicyStop {
 
 export interface EvidencePack {
   status: EvidencePackStatus;
+  governanceMode?: "governed" | "unrestricted";
   verdict: EvidencePackVerdict;
   verifiedTaskScore?: VerifiedTaskScore;
   attestation?: EvidencePackAttestation;

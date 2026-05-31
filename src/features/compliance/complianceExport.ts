@@ -56,13 +56,20 @@ const ZIP_EOCD_SIGNATURE = 0x06054b50;
 const ZIP_CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
 const ZIP_LOCAL_FILE_SIGNATURE = 0x04034b50;
 const generatedZipDigests = new Map<string, string>();
+const unrestrictedGovernanceWarning =
+  "This compliance export was generated during an UNRESTRICTED session. Policy stops and safety controls were bypassed for all operations in this run.";
 
 export async function generateComplianceExport(
   request: ComplianceExportRequest,
 ): Promise<ComplianceExportResult> {
+  const evidencePack: EvidencePack = {
+    ...request.evidencePack,
+    governanceMode: request.evidencePack.governanceMode ?? "governed",
+  };
+  const normalizedRequest = { ...request, evidencePack };
   const generatedAt = (request.now ?? new Date()).toISOString();
   const taskId = sanitizeComplianceTaskId(
-    request.taskId ?? request.evidencePack.attestation?.taskId ?? `task-${Date.now()}`,
+    request.taskId ?? evidencePack.attestation?.taskId ?? `task-${Date.now()}`,
   );
   const evidenceDirectory = resolve(request.workspacePath, ".mate-x", "evidence", taskId);
   assertInsideWorkspaceEvidenceRoot(request.workspacePath, evidenceDirectory);
@@ -72,41 +79,44 @@ export async function generateComplianceExport(
 
   await mkdir(evidenceDirectory, { recursive: true });
 
-  const evidencePackJson = Buffer.from(`${canonicalJson(request.evidencePack)}\n`, "utf8");
-  const attestation = await loadAttestation(request.workspacePath, request.evidencePack, taskId);
+  const evidencePackJson = Buffer.from(`${canonicalJson(evidencePack)}\n`, "utf8");
+  const attestation = await loadAttestation(request.workspacePath, evidencePack, taskId);
   const attestationJson = attestation.content;
-  const auditLogJson = Buffer.from(`${canonicalJson(buildAuditLog(request, generatedAt))}\n`, "utf8");
-  const policyAppliedMd = Buffer.from(buildPolicyAppliedMarkdown(request, generatedAt), "utf8");
+  const auditLogJson = Buffer.from(`${canonicalJson(buildAuditLog(normalizedRequest, generatedAt))}\n`, "utf8");
+  const policyAppliedMd = Buffer.from(buildPolicyAppliedMarkdown(normalizedRequest, generatedAt), "utf8");
   const agentIdentity =
-    request.evidencePack.agentIdentity ??
+    evidencePack.agentIdentity ??
     (await resolveAgentRunIdentity({
       workspacePath: request.workspacePath,
       now: request.now,
     }));
   const blockingReasons = collectComplianceBlockingReasons(
-    request.evidencePack,
+    evidencePack,
     agentIdentity,
     attestation.trusted,
   );
   const status: ComplianceExportResult["status"] =
     blockingReasons.length > 0
       ? "blocked"
-      : request.evidencePack.status === "partial"
+      : evidencePack.status === "partial"
         ? "partial"
         : "ready";
   const agentRunbook = buildAgentRunbook({
-    evidencePack: request.evidencePack,
+    evidencePack,
     agentIdentity,
     policyApplied: request.policyApplied,
     generatedAt,
   });
   const agentRunbookJson = Buffer.from(`${canonicalJson(agentRunbook)}\n`, "utf8");
   const agentRunbookMd = Buffer.from(renderAgentRunbookMarkdown(agentRunbook), "utf8");
-  const complianceReportPdf = buildComplianceReportPdf(request.evidencePack, generatedAt);
+  const complianceReportPdf = buildComplianceReportPdf(evidencePack, generatedAt);
 
   const manifestDraftBase = {
     packageType: "mate-x/soc2-procurement-package",
     status,
+    ...(evidencePack.governanceMode === "unrestricted"
+      ? { GOVERNANCE_WARNING: unrestrictedGovernanceWarning }
+      : {}),
     blockingReasons,
     generatedAt,
     taskId,
@@ -207,6 +217,7 @@ export function buildAuditLog(request: ComplianceExportRequest, generatedAt: str
       taskId: evidencePack.attestation?.taskId ?? "unknown",
       userId: request.userId ?? "local-user",
       workspacePath: request.workspacePath,
+      sessionGovernanceMode: evidencePack.governanceMode ?? "governed",
       verifiedTaskScore: evidencePack.verifiedTaskScore?.score ?? null,
       attestationStatus: evidencePack.attestation?.status ?? "missing",
       agentIdentity: evidencePack.agentIdentity ?? null,
@@ -273,6 +284,13 @@ export function buildComplianceReportPdf(evidencePack: EvidencePack, generatedAt
     `Verified Task Score: ${evidencePack.verifiedTaskScore?.score ?? "unknown"}/100`,
     `Attestation: ${evidencePack.attestation?.status ?? "missing"}`,
     "",
+    ...(evidencePack.governanceMode === "unrestricted"
+      ? [
+          "GOVERNANCE WARNING",
+          unrestrictedGovernanceWarning,
+          "",
+        ]
+      : []),
     "Executive Summary",
     evidencePack.verdict.summary,
     "",
