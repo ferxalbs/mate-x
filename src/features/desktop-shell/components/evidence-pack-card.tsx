@@ -39,6 +39,11 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
           </button>
         </div>
       ) : null}
+      {evidencePack.governanceMode === "unrestricted" ? (
+        <div className="mb-2 rounded-2xl border border-amber-300/35 bg-amber-400/10 px-3 py-2 text-[11px] font-medium text-amber-100">
+          ⚠ Unrestricted session — governance controls were bypassed
+        </div>
+      ) : null}
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="rounded-md border border-border/60 bg-[var(--mate-control-bg)] px-2 py-1 text-[10px] font-medium text-foreground/90 backdrop-blur-md">
           Evidence Pack

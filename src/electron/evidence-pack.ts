@@ -4,6 +4,7 @@ import { computeVerifiedTaskScore } from "./verified-task-score";
 import { policyService } from "./policy-service";
 
 import type { EvidencePack, ToolEvent } from "../contracts/chat";
+import type { WorkspaceTrustContract } from "../contracts/workspace";
 
 export interface ToolExecutionRecord {
   toolName: string;
@@ -112,6 +113,7 @@ export async function buildEvidencePack(params: {
   events: ToolEvent[];
   content: string;
   toolExecutions: ToolExecutionRecord[];
+  trustContract?: WorkspaceTrustContract | null;
   runbookId?: string;
   initialStatusLines?: string[];
 }): Promise<EvidencePack> {
@@ -120,6 +122,7 @@ export async function buildEvidencePack(params: {
     events,
     content,
     toolExecutions,
+    trustContract,
     runbookId,
     initialStatusLines,
   } = params;
@@ -219,6 +222,7 @@ export async function buildEvidencePack(params: {
 
   return {
     status,
+    governanceMode: trustContract?.autonomy === "unrestricted" ? "unrestricted" : "governed",
     verdict,
     verifiedTaskScore,
     filesModified,

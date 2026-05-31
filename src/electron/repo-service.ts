@@ -372,6 +372,7 @@ export async function runAssistant(
     events,
     content,
     toolExecutions,
+    trustContract: snapshot.trustContract,
     runbookId: resolvedOptions.runbookId,
     initialStatusLines: snapshot.statusLines,
   });

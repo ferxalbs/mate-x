@@ -1,11 +1,39 @@
 import { createServer, Server } from 'node:http';
 import type { Tool } from '../tool-service';
+import { ToolRateLimiter } from './tool-rate-limiter';
 
 // Global state to hold the ephemeral server
 let activeServer: Server | null = null;
 let caughtRequests: any[] = [];
 let serverTimeout: NodeJS.Timeout | null = null;
 let currentPort = 0;
+let openServerCount = 0;
+
+const listenerRateLimiter = new ToolRateLimiter('oob_listener', 5, 60_000);
+const maxOpenServers = 3;
+
+function rateLimitedResult(retryAfterMs: number) {
+  return JSON.stringify({
+    error: 'RATE_LIMITED',
+    retryAfterMs,
+    message: `oob_listener is rate-limited. Retry after ${Math.ceil(retryAfterMs / 1000)}s.`,
+  });
+}
+
+function closeActiveServer() {
+  if (serverTimeout) clearTimeout(serverTimeout);
+  serverTimeout = null;
+  const server = activeServer;
+  activeServer = null;
+  currentPort = 0;
+  if (server) {
+    server.close();
+  }
+}
+
+function decrementOpenServerCount() {
+  openServerCount = Math.max(openServerCount - 1, 0);
+}
 
 export const oobListenerTool: Tool = {
   name: 'oob_listener',
@@ -27,6 +55,17 @@ export const oobListenerTool: Tool = {
       if (activeServer) {
         return `Server is already running on http://localhost:${currentPort}/`;
       }
+      if (openServerCount >= maxOpenServers) {
+        return JSON.stringify({
+          error: 'LISTENER_CAP_REACHED',
+          message: 'Maximum concurrent oob_listener servers reached (3). Close an existing listener first.',
+        });
+      }
+      const rateLimit = listenerRateLimiter.check();
+      if (!rateLimit.allowed) {
+        return rateLimitedResult(rateLimit.retryAfterMs);
+      }
+      listenerRateLimiter.record();
 
       caughtRequests = [];
       activeServer = createServer((req, res) => {
@@ -49,16 +88,20 @@ export const oobListenerTool: Tool = {
         activeServer!.listen(0, '127.0.0.1', () => {
           const address = activeServer!.address() as any;
           currentPort = address.port;
+          openServerCount += 1;
           
           // Auto-kill after 5 minutes to prevent dangling servers
           serverTimeout = setTimeout(() => {
             if (activeServer) {
-              activeServer.close();
-              activeServer = null;
+              closeActiveServer();
             }
           }, 5 * 60 * 1000);
 
           resolve(`✅ OOB Listener started.\nUse this callback URL in your payloads: http://localhost:${currentPort}/\nWait for the target to trigger it, then call this tool again with action="check".`);
+        });
+
+        activeServer!.on('close', () => {
+          decrementOpenServerCount();
         });
 
         activeServer!.on('error', (e) => {
@@ -76,9 +119,7 @@ export const oobListenerTool: Tool = {
       const results = [...caughtRequests];
       
       // Cleanup
-      activeServer.close();
-      activeServer = null;
-      if (serverTimeout) clearTimeout(serverTimeout);
+      closeActiveServer();
       caughtRequests = [];
 
       if (results.length === 0) {
