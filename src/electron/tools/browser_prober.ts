@@ -46,6 +46,10 @@ interface CookieRecord {
 const sleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 
+const PROBE_HARD_TIMEOUT_MS = 30_000;
+const MAX_OPEN_WINDOWS = 3;
+let openWindowCount = 0;
+
 /**
  * Polls until all in-flight network requests have settled (≤ 2 concurrent),
  * or until the outer timeout fires.
@@ -168,6 +172,14 @@ export const browserProberTool: Tool = {
     const interceptRequests = args.intercept_requests === true;
     const extractCookies = args.extract_cookies === true;
 
+    if (openWindowCount >= MAX_OPEN_WINDOWS) {
+      return JSON.stringify({
+        error: "CONCURRENCY_CAP_REACHED",
+        message:
+          "Maximum concurrent browser_prober windows reached (3). Retry after a probe completes.",
+      });
+    }
+
     const startMs = Date.now();
     const result: ProbeResult = {
       url,
@@ -183,85 +195,131 @@ export const browserProberTool: Tool = {
       elapsed_ms: 0,
     };
 
-    // Ephemeral session — no shared state between probes
-    const probeSession = session.fromPartition(
-      `probe:${Date.now()}:${Math.random()}`,
-      {
-        cache: false,
-      },
-    );
+    let win: BrowserWindow | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let timedOut = false;
 
-    // Disable caching for clean cold probes
-    probeSession.setProxy({ mode: "direct" });
+    const lifecycle = async (): Promise<string> => {
+      const probeSession = session.fromPartition(
+        `probe:${Date.now()}:${Math.random()}`,
+        { cache: false },
+      );
+      probeSession.setProxy({ mode: "direct" });
 
-    let win: BrowserWindow | null = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true,
-        offscreen: true,
-        session: probeSession,
-        webSecurity: true,
-        allowRunningInsecureContent: false,
-        javascript: true,
-      },
-    });
+      const mainFrameHeaders: Record<string, string> = {};
+      let mainFrameStatus: number | null = null;
 
-    // ── Console capture ────────────────────────────────────────────────────────
-    win.webContents.on("console-message", (_e, level, message) => {
-      const levelMap: Record<number, string> = {
-        0: "verbose",
-        1: "info",
-        2: "warning",
-        3: "error",
-      };
-      result.console_logs.push({
-        level: levelMap[level] ?? "unknown",
-        message,
+      openWindowCount++;
+      win = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true,
+          offscreen: true,
+          session: probeSession,
+          webSecurity: true,
+          allowRunningInsecureContent: false,
+          javascript: true,
+        },
       });
-    });
 
-    // ── Request interception ──────────────────────────────────────────────────
-    if (interceptRequests) {
-      probeSession.webRequest.onBeforeRequest((details, callback) => {
-        result.intercepted_requests.push({
-          method: details.method,
-          url: details.url,
-          resource_type: details.resourceType ?? "unknown",
+      try {
+        win.webContents.on("console-message", (_e, level, message) => {
+          const levelMap: Record<number, string> = {
+            0: "verbose",
+            1: "info",
+            2: "warning",
+            3: "error",
+          };
+          result.console_logs.push({
+            level: levelMap[level] ?? "unknown",
+            message,
+          });
         });
-        callback({ cancel: false });
-      });
-    }
 
-    // ── Response headers capture ──────────────────────────────────────────────
-    const mainFrameHeaders: Record<string, string> = {};
-    let mainFrameStatus: number | null = null;
-
-    probeSession.webRequest.onHeadersReceived((details, callback) => {
-      // Only capture the main frame (navigational) response
-      if (details.resourceType === "mainFrame") {
-        mainFrameStatus = details.statusCode;
-        for (const [key, values] of Object.entries(
-          details.responseHeaders ?? {},
-        )) {
-          mainFrameHeaders[key.toLowerCase()] = Array.isArray(values)
-            ? values[0]
-            : values;
+        if (interceptRequests) {
+          probeSession.webRequest.onBeforeRequest((details, callback) => {
+            result.intercepted_requests.push({
+              method: details.method,
+              url: details.url,
+              resource_type: details.resourceType ?? "unknown",
+            });
+            callback({ cancel: false });
+          });
         }
-      }
-      callback({ responseHeaders: details.responseHeaders });
-    });
 
-    return new Promise<string>((resolve) => {
-      const finish = async (err?: string): Promise<void> => {
-        clearTimeout(hardTimeout);
+        probeSession.webRequest.onHeadersReceived((details, callback) => {
+          if (details.resourceType === "mainFrame") {
+            mainFrameStatus = details.statusCode;
+            for (const [key, values] of Object.entries(
+              details.responseHeaders ?? {},
+            )) {
+              mainFrameHeaders[key.toLowerCase()] = Array.isArray(values)
+                ? values[0]
+                : values;
+            }
+          }
+          callback({ responseHeaders: details.responseHeaders });
+        });
+
+        const navigationFailed = new Promise<never>((_resolve, reject) => {
+          win!.webContents.on(
+            "did-fail-load",
+            (_e, errorCode, errorDescription, failedUrl) => {
+              if (errorCode === -3) return;
+              if (win && !win.isDestroyed()) {
+                win.destroy();
+              }
+              reject({
+                error: "NAVIGATION_FAILED",
+                errorCode,
+                errorDescription,
+                url: failedUrl || url,
+              });
+            },
+          );
+        });
+
+        win.webContents.on("did-navigate", (_e, navUrl) => {
+          result.final_url = navUrl;
+        });
+
+        await Promise.race([win.loadURL(url), navigationFailed]);
+        if (!win || win.isDestroyed()) {
+          throw new Error("BrowserWindow was destroyed before probe completed.");
+        }
+
+        if (waitFor === "domcontentloaded") {
+          await waitForDomReady(win);
+        } else if (waitFor === "networkidle") {
+          await waitForLoad(win);
+          await waitForNetworkIdle(win, 500, Math.min(timeoutMs / 2, 5000));
+        }
+
+        if (script && win && !win.isDestroyed()) {
+          try {
+            const scriptResult = await win.webContents.executeJavaScript(`
+              (async () => {
+                try {
+                  ${script}
+                } catch (err) {
+                  return { __error: err.message };
+                }
+              })();
+            `);
+            result.script_result = scriptResult;
+          } catch (err: unknown) {
+            result.script_result = {
+              __error: err instanceof Error ? err.message : String(err),
+            };
+          }
+        }
+
         result.elapsed_ms = Date.now() - startMs;
-        if (err) result.error = err;
 
         if (win && !win.isDestroyed()) {
-          // ── Screenshot ──────────────────────────────────────────────────────
-          if (captureScreenshot && !err) {
+          if (captureScreenshot) {
             try {
               const image = await win.webContents.capturePage();
               result.screenshot_base64 = image.toPNG().toString("base64");
@@ -270,7 +328,6 @@ export const browserProberTool: Tool = {
             }
           }
 
-          // ── Cookies ─────────────────────────────────────────────────────────
           if (extractCookies) {
             try {
               const raw = await probeSession.cookies.get({ url });
@@ -287,95 +344,61 @@ export const browserProberTool: Tool = {
               // Non-fatal
             }
           }
-
-          win.destroy();
-          win = null;
         }
 
         result.status_code = mainFrameStatus;
         result.response_headers = mainFrameHeaders;
-        if (result.final_url === url) {
-          try {
-            // Attempt to pick up final URL after redirects
-            // (already captured in did-navigate; this is a safety fallback)
-          } catch {
-            /* ignore */
-          }
+        return formatProbeResult(result);
+      } catch (err: unknown) {
+        if (isNavigationError(err)) {
+          return JSON.stringify(err);
         }
-
-        resolve(formatProbeResult(result));
-      };
-
-      // ── Hard timeout ────────────────────────────────────────────────────────
-      const hardTimeout = setTimeout(() => {
-        finish("Probe timed out after " + timeoutMs + "ms.");
-      }, timeoutMs);
-
-      // ── Navigation error ────────────────────────────────────────────────────
-      win!.webContents.on(
-        "did-fail-load",
-        (_e, errorCode, errorDescription, failedUrl) => {
-          // Ignore cancelled (code -3) — can fire on redirects
-          if (errorCode === -3) return;
-          finish(
-            `Failed to load "${failedUrl}": ${errorDescription} (code ${errorCode})`,
-          );
-        },
-      );
-
-      // ── Redirect tracking ───────────────────────────────────────────────────
-      win!.webContents.on("did-navigate", (_e, navUrl) => {
-        result.final_url = navUrl;
-      });
-
-      // ── Main load flow ──────────────────────────────────────────────────────
-      win!
-        .loadURL(url)
-        .then(async () => {
-          if (!win || win.isDestroyed()) return;
-
-          try {
-            // Wait strategy
-            if (waitFor === "domcontentloaded") {
-              await waitForDomReady(win);
-            } else if (waitFor === "networkidle") {
-              await waitForLoad(win);
-              await waitForNetworkIdle(win, 500, Math.min(timeoutMs / 2, 5000));
-            } else {
-              // 'load' — loadURL already resolves after did-finish-load
-            }
-
-            // ── Script execution ───────────────────────────────────────────────
-            if (script && win && !win.isDestroyed()) {
-              try {
-                const scriptResult = await win.webContents.executeJavaScript(`
-                  (async () => {
-                    try {
-                      ${script}
-                    } catch (err) {
-                      return { __error: err.message };
-                    }
-                  })();
-                `);
-                result.script_result = scriptResult;
-              } catch (err: unknown) {
-                result.script_result = {
-                  __error: err instanceof Error ? err.message : String(err),
-                };
-              }
-            }
-
-            await finish();
-          } catch (err: unknown) {
-            await finish(err instanceof Error ? err.message : String(err));
+        result.elapsed_ms = Date.now() - startMs;
+        result.status_code = mainFrameStatus;
+        result.response_headers = mainFrameHeaders;
+        result.error = err instanceof Error ? err.message : String(err);
+        return formatProbeResult(result);
+      } finally {
+        probeSession.webRequest.onBeforeRequest(null as never);
+        probeSession.webRequest.onHeadersReceived(null as never);
+        if (win) {
+          win.webContents.removeAllListeners();
+          win.removeAllListeners();
+          if (!win.isDestroyed()) {
+            win.destroy();
           }
-        })
-        .catch(async (err: unknown) => {
-          await finish(
-            `Navigation failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
+          win = null;
+        }
+        openWindowCount = Math.max(0, openWindowCount - 1);
+      }
+    };
+
+    const lifecyclePromise = lifecycle();
+    const timeoutPromise = new Promise<string>((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        timedOut = true;
+        if (win && !win.isDestroyed()) {
+          win.destroy();
+        }
+        resolve(
+          JSON.stringify({
+            error: "PROBE_TIMEOUT",
+            url,
+            timeoutMs: PROBE_HARD_TIMEOUT_MS,
+            message: "browser_prober timed out after 30s. Window destroyed.",
+          }),
+        );
+      }, PROBE_HARD_TIMEOUT_MS);
     });
+
+    const output = await Promise.race([lifecyclePromise, timeoutPromise]);
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+    if (timedOut) {
+      await Promise.race([lifecyclePromise.catch(() => undefined), sleep(1000)]);
+    }
+    return output;
   },
 };
 
@@ -558,4 +581,16 @@ function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
     (result[k] ??= []).push(item);
   }
   return result;
+}
+
+function isNavigationError(
+  value: unknown,
+): value is {
+  error: "NAVIGATION_FAILED";
+  errorCode: number;
+  errorDescription: string;
+  url: string;
+} {
+  if (!value || typeof value !== "object") return false;
+  return "error" in value && value.error === "NAVIGATION_FAILED";
 }
