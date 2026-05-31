@@ -96,26 +96,33 @@ export function LiquidSelectPopup({
               >
                 <ZStack alignment="topLeading">
 
-                  {/* Glass surface — hyper-transparent crystal glass with true DOM refraction (no static opaque backdrop) */}
+                  {/* Backdrop: the same --mate-shell-base gradient that paints
+                      the global app background. GlassContainer blurs this so
+                      the panel looks like it genuinely frosts the scene.      */}
+                  <Html sizing="fill" zIndex={-2}>
+                    <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
+                  </Html>
+
+                  {/* Glass surface — minimal transparent glass exactly matching the Composer/Sidebar reference */}
                   <Frame maxWidth={Infinity} maxHeight={Infinity}>
                     <GlassContainer
-                      bezelWidth={70}
-                      blur={20}
-                      displacementBlur={20}
-                      shadowBlur={32}
-                      shadowColor={{ r: 0, g: 0, b: 0, a: 0.12 }}
-                      shadowOffsetY={10}
+                      bezelWidth={100}
+                      blur={90}
+                      displacementBlur={18}
+                      shadowBlur={20}
+                      shadowColor={{ r: 0, g: 0, b: 0, a: 0.10 }}
+                      shadowOffsetY={0}
                       specularFalloff={1.2}
-                      specularOpacity={0.50}
+                      specularOpacity={0.16}
                       surfaceProfile="concave"
-                      thickness={30}
+                      thickness={15}
                       tint={{ r: 1, g: 1, b: 1, a: 0.02 }}
                     >
                       <Glass cornerRadius={24} cornerSmoothing={0.6}>
                         <Frame maxWidth={Infinity} maxHeight={Infinity}>
                           <Html sizing="fill">
-                            {/* Pristine transparent glass fallback without solid backgrounds to reveal active elements behind it */}
-                            <div className="h-full w-full bg-transparent border border-white/5 backdrop-blur-[12px]" />
+                            {/* Lightweight glass fallback with matching Composer CSS values */}
+                            <div className="h-full w-full bg-transparent border border-white/6 backdrop-blur-xl" />
                           </Html>
                         </Frame>
                       </Glass>
