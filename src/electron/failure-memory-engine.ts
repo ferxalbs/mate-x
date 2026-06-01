@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import type { FailureMemory } from '../contracts/workspace';
+import { ToolRateLimiter } from './tools/tool-rate-limiter';
 import { tursoService } from './turso-service';
 
 export interface FailureMemoryInput {
@@ -46,6 +47,10 @@ const WINDOWS_PATH_RE = /[A-Za-z]:\\(?:[^\\\s:]+\\)*[^\\\s:]+(?::\d+){0,2}/g;
 const LINE_COL_RE = /:(?:\d+)(?::\d+)?\b/g;
 const FILE_LINE_RE = /\b([\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|rs|go|py|java|kt|swift|css|scss|json|toml|yaml|yml)):\d+(?::\d+)?\b/;
 const FILE_LINE_GLOBAL_RE = /\b([\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|rs|go|py|java|kt|swift|css|scss|json|toml|yaml|yml)):\d+(?::\d+)?\b/g;
+const FAILURE_MEMORY_WRITE_LIMIT = 20;
+const FAILURE_MEMORY_WRITE_WINDOW_MS = 60_000;
+const failureWriteLimiters = new Map<string, ToolRateLimiter>();
+const resolutionWriteLimiters = new Map<string, ToolRateLimiter>();
 
 export class FailureMemoryEngine {
   buildRecord(input: FailureMemoryInput): Omit<FailureMemory, 'id' | 'occurrenceCount' | 'firstSeenAt' | 'lastSeenAt' | 'resolvedAt'> {
@@ -74,7 +79,11 @@ export class FailureMemoryEngine {
     };
   }
 
-  async recordFailure(input: FailureMemoryInput): Promise<FailureMemory> {
+  async recordFailure(input: FailureMemoryInput): Promise<FailureMemory | null> {
+    if (!checkFailureMemoryWriteLimit(failureWriteLimiters, 'record_failure', input.workspaceId)) {
+      console.debug(`record_failure rate-limited for workspace ${input.workspaceId}`);
+      return null;
+    }
     return tursoService.upsertFailureMemory(this.buildRecord(input));
   }
 
@@ -86,6 +95,10 @@ export class FailureMemoryEngine {
     attemptedFix?: string;
     retryFixed: boolean;
   }): Promise<FailureMemory | null> {
+    if (!checkFailureMemoryWriteLimit(resolutionWriteLimiters, 'record_resolution', input.workspaceId)) {
+      console.debug(`record_resolution rate-limited for workspace ${input.workspaceId}`);
+      return null;
+    }
     return tursoService.resolveFailureMemory(input);
   }
 
@@ -325,6 +338,23 @@ function tokenSimilarity(left: string, right: string): number {
 
 function indent(value: string): string {
   return value.split('\n').map((line) => `  ${line}`).join('\n');
+}
+
+function checkFailureMemoryWriteLimit(
+  limiters: Map<string, ToolRateLimiter>,
+  toolName: string,
+  workspaceId: string,
+) {
+  let limiter = limiters.get(workspaceId);
+  if (!limiter) {
+    limiter = new ToolRateLimiter(
+      `${toolName}:${workspaceId}`,
+      FAILURE_MEMORY_WRITE_LIMIT,
+      FAILURE_MEMORY_WRITE_WINDOW_MS,
+    );
+    limiters.set(workspaceId, limiter);
+  }
+  return limiter.check().allowed;
 }
 
 function isStableSignature(value?: string): value is string {

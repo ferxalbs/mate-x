@@ -9,6 +9,8 @@ export type PolicyStopAction =
 export type PolicyStopAttemptKind =
   | "HIGH_IMPACT_PATCH_APPROVAL"
   | "MUTATION_EXECUTION"
+  | "TRAFFIC_POISON_EXECUTION"
+  | "MOCK_POISON_EXECUTION"
   | "file_read"
   | "file_write"
   | "command"
