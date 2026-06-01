@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.05.31 (2) [Tool Runtime Regression Fixes]
+
+- Guarded `browser_prober` BrowserWindow destruction across timeout, navigation failure, and cleanup paths so already-destroyed windows no longer crash the main process.
+- Fixed `local_network_recon` loopback validation to accept IPv6 localhost (`::1`) alongside IPv4 `127.0.0.0/8` targets.
+- Verified with `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/eslint src --ext .ts,.tsx`; eslint reports only the pre-existing `app-sidebar.tsx` unused `tint` warning.
+
 ## Unreleased - 2026.05.31 (1) [Outbound Tool Guards and Governance Export Markers]
 
 - Added shared in-memory rate limiting for `creds_validator` and `oob_listener`, including per-service circuit breakers for external credential validation calls and a concurrent listener cap for ephemeral OOB servers.

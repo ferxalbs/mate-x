@@ -50,6 +50,17 @@ const PROBE_HARD_TIMEOUT_MS = 30_000;
 const MAX_OPEN_WINDOWS = 3;
 let openWindowCount = 0;
 
+function destroyBrowserWindow(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return;
+
+  try {
+    win.destroy();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.debug(`browser_prober window destroy ignored: ${message}`);
+  }
+}
+
 /**
  * Polls until all in-flight network requests have settled (≤ 2 concurrent),
  * or until the outer timeout fires.
@@ -269,7 +280,7 @@ export const browserProberTool: Tool = {
             (_e, errorCode, errorDescription, failedUrl) => {
               if (errorCode === -3) return;
               if (win && !win.isDestroyed()) {
-                win.destroy();
+                destroyBrowserWindow(win);
               }
               reject({
                 error: "NAVIGATION_FAILED",
@@ -361,14 +372,19 @@ export const browserProberTool: Tool = {
       } finally {
         probeSession.webRequest.onBeforeRequest(null as never);
         probeSession.webRequest.onHeadersReceived(null as never);
-        if (win) {
-          win.webContents.removeAllListeners();
-          win.removeAllListeners();
-          if (!win.isDestroyed()) {
-            win.destroy();
+        if (win && !win.isDestroyed()) {
+          try {
+            win.webContents.removeAllListeners();
+            win.removeAllListeners();
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.debug(
+              `browser_prober listener cleanup ignored: ${message}`,
+            );
           }
-          win = null;
+          destroyBrowserWindow(win);
         }
+        win = null;
         openWindowCount = Math.max(0, openWindowCount - 1);
       }
     };
@@ -378,7 +394,7 @@ export const browserProberTool: Tool = {
       timeoutHandle = setTimeout(() => {
         timedOut = true;
         if (win && !win.isDestroyed()) {
-          win.destroy();
+          destroyBrowserWindow(win);
         }
         resolve(
           JSON.stringify({
