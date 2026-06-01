@@ -850,6 +850,8 @@ export class TursoService {
       }
     }
 
+    await this.evictOldFailureMemoriesIfNeeded(failure.workspaceId);
+
     const id = createId('failure');
     await this.getClient().execute({
       sql: `INSERT INTO failure_memory
@@ -879,6 +881,28 @@ export class TursoService {
       throw new Error('Failed to persist failure memory.');
     }
     return created;
+  }
+
+  private async evictOldFailureMemoriesIfNeeded(workspaceId: string) {
+    const countResult = await this.getClient().execute({
+      sql: `SELECT COUNT(*) AS count FROM failure_memory WHERE workspace_id = ?`,
+      args: [workspaceId],
+    });
+    const count = Number(countResult.rows[0]?.count ?? 0);
+    if (count < 500) {
+      return;
+    }
+
+    await this.getClient().execute({
+      sql: `DELETE FROM failure_memory
+            WHERE id IN (
+              SELECT id FROM failure_memory
+              WHERE workspace_id = ?
+              ORDER BY datetime(first_seen_at) ASC
+              LIMIT 50
+            )`,
+      args: [workspaceId],
+    });
   }
 
   async getFailureMemories(workspaceId: string, limit = 50): Promise<FailureMemory[]> {

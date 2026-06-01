@@ -1,5 +1,9 @@
 import type { Tool } from "../tool-service";
 
+const FUZZER_TIMEOUT_MS = 120_000;
+const OUTPUT_CAP_CHARS = 512_000;
+const MAX_CONCURRENT_REQUESTS = 8;
+
 export const dynamicFuzzerTool: Tool = {
   name: "fuzzer",
   description:
@@ -24,6 +28,11 @@ export const dynamicFuzzerTool: Tool = {
   },
   async execute(args, _context) {
     const { url, method, fuzzTarget } = args;
+    const activeControllers = new Set<AbortController>();
+    let completedPayloads = 0;
+    let outputLength = 0;
+    let outputTruncated = false;
+    let cancelled = false;
 
     // Safety check - ONLY allow localhost testing
     if (!url.includes("127.0.0.1") && !url.includes("localhost")) {
@@ -41,7 +50,28 @@ export const dynamicFuzzerTool: Tool = {
 
     const results: string[] = [];
 
-    for (const payload of targetPayloads) {
+    const abortActiveRequests = () => {
+      cancelled = true;
+      for (const controller of activeControllers) {
+        controller.abort();
+      }
+    };
+
+    const appendResult = (line: string) => {
+      if (outputTruncated) return;
+      const nextLength = outputLength + line.length + 1;
+      if (nextLength > OUTPUT_CAP_CHARS) {
+        outputTruncated = true;
+        results.push(line.slice(0, Math.max(OUTPUT_CAP_CHARS - outputLength, 0)));
+        abortActiveRequests();
+        return;
+      }
+      outputLength = nextLength;
+      results.push(line);
+    };
+
+    const runPayload = async (payload: string) => {
+      if (cancelled) return;
       try {
         let requestUrl = url;
         let body = undefined;
@@ -53,38 +83,130 @@ export const dynamicFuzzerTool: Tool = {
         }
 
         const controller = new AbortController();
+        activeControllers.add(controller);
         const timeout = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
 
-        const start = Date.now();
-        const response = await fetch(requestUrl, {
-          method: method.toUpperCase(),
-          headers: { "Content-Type": "application/json" },
-          body,
-          signal: controller.signal,
-        });
-        const elapsed = Date.now() - start;
-        clearTimeout(timeout);
+        try {
+          const start = Date.now();
+          const response = await fetch(requestUrl, {
+            method: method.toUpperCase(),
+            headers: { "Content-Type": "application/json" },
+            body,
+            signal: controller.signal,
+          });
+          const elapsed = Date.now() - start;
 
-        const respText = await response.text();
-        
-        let analysis = "Neutral";
-        if (response.status >= 500) {
-          analysis = "POTENTIAL EXPLOIT (Server Error 500 triggered)";
-        } else if (fuzzTarget === "XSS" && respText.includes(payload)) {
-          analysis = "EXPLOIT CONFIRMED (Reflected XSS)";
-        } else if (elapsed > 2000 && fuzzTarget === "SQLI") {
-          analysis = "POTENTIAL EXPLOIT (Time-delay response)";
-        } else {
-          analysis = "BLOCKED / SANITIZED";
+          let respText = "";
+          if (!outputTruncated && !cancelled) {
+            const readResult = await readCappedResponseText(
+              response,
+              Math.max(OUTPUT_CAP_CHARS - outputLength, 0),
+            );
+            respText = readResult.text;
+            if (readResult.truncated) {
+              outputTruncated = true;
+              abortActiveRequests();
+            }
+          }
+          
+          let analysis = "Neutral";
+          if (response.status >= 500) {
+            analysis = "POTENTIAL EXPLOIT (Server Error 500 triggered)";
+          } else if (fuzzTarget === "XSS" && respText.includes(payload)) {
+            analysis = "EXPLOIT CONFIRMED (Reflected XSS)";
+          } else if (elapsed > 2000 && fuzzTarget === "SQLI") {
+            analysis = "POTENTIAL EXPLOIT (Time-delay response)";
+          } else {
+            analysis = "BLOCKED / SANITIZED";
+          }
+
+          completedPayloads++;
+          appendResult(`Payload: [${payload}] -> Status: ${response.status} -> Analysis: ${analysis}`);
+        } finally {
+          clearTimeout(timeout);
+          activeControllers.delete(controller);
         }
 
-        results.push(`Payload: [${payload}] -> Status: ${response.status} -> Analysis: ${analysis}`);
-
       } catch (error) {
-         results.push(`Payload: [${payload}] -> Error: ${(error as Error).name} (Likely connection refused or timeout)`);
+        if (!cancelled) {
+          completedPayloads++;
+          appendResult(`Payload: [${payload}] -> Error: ${(error as Error).name} (Likely connection refused or timeout)`);
+        }
       }
+    };
+
+    const executeFuzzer = async () => {
+      let nextIndex = 0;
+      const workers = Array.from(
+        { length: Math.min(MAX_CONCURRENT_REQUESTS, targetPayloads.length) },
+        async () => {
+          while (!cancelled && nextIndex < targetPayloads.length) {
+            const payload = targetPayloads[nextIndex++];
+            await runPayload(payload);
+          }
+        },
+      );
+      await Promise.all(workers);
+    };
+
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<"timeout">((resolve) => {
+        timeoutHandle = setTimeout(() => resolve("timeout"), FUZZER_TIMEOUT_MS);
+      });
+      const completed = await Promise.race([executeFuzzer(), timeout]);
+
+      if (completed === "timeout") {
+        abortActiveRequests();
+        return JSON.stringify({
+          error: "FUZZER_TIMEOUT",
+          timeoutMs: FUZZER_TIMEOUT_MS,
+          completedPayloads,
+          totalPayloads: targetPayloads.length,
+        });
+      }
+    } catch (error) {
+      abortActiveRequests();
+      return JSON.stringify({
+        error: "FUZZER_ERROR",
+        message: (error as Error).message,
+        completedPayloads,
+        totalPayloads: targetPayloads.length,
+      });
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      abortActiveRequests();
     }
 
-    return `Fuzzer Report for ${url} (Target: ${fuzzTarget})\\n================================\\n${results.join("\\n")}`;
+    return `Fuzzer Report for ${url} (Target: ${fuzzTarget})\\n================================\\n${results.join("\\n")}${outputTruncated ? "\\n[output truncated]" : ""}`;
   },
 };
+
+async function readCappedResponseText(response: Response, maxChars: number) {
+  if (maxChars <= 0) {
+    return { text: "", truncated: true };
+  }
+  if (!response.body) {
+    const text = await response.text();
+    return {
+      text: text.slice(0, maxChars),
+      truncated: text.length > maxChars,
+    };
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+
+  while (text.length < maxChars) {
+    const { done, value } = await reader.read();
+    if (done) {
+      text += decoder.decode();
+      return { text, truncated: false };
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+
+  await reader.cancel();
+  return { text: text.slice(0, maxChars), truncated: true };
+}

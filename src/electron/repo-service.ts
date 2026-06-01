@@ -31,6 +31,8 @@ interface AssistantProgressReporter {
   emit: (progress: AssistantRunProgress) => void;
 }
 
+const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
+
 function cloneArtifacts(artifacts: MessageArtifact[]) {
   return artifacts.map((artifact) => ({ ...artifact }));
 }
@@ -460,7 +462,8 @@ export async function runAssistant(
     });
   }
   if (configuredModel) {
-    await tursoService.recordAgentCapabilityRun(
+    scheduleProfilerWrite(
+      `${snapshot.workspace.id}:${configuredModel}:${createdAt}`,
       buildAgentCapabilityRunMetrics({
         model: configuredModel,
         workspaceId: snapshot.workspace.id,
@@ -533,6 +536,27 @@ export async function runAssistant(
     });
     throw error;
   }
+}
+
+function scheduleProfilerWrite(
+  key: string,
+  run: ReturnType<typeof buildAgentCapabilityRunMetrics>,
+) {
+  const existing = profilerWriteTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  const timer = setTimeout(() => {
+    profilerWriteTimers.delete(key);
+    Promise.resolve()
+      .then(() => tursoService.recordAgentCapabilityRun(run))
+      .catch((error) => {
+        console.debug("Agent Capability Profiler write failed:", error);
+      });
+  }, 500);
+
+  profilerWriteTimers.set(key, timer);
 }
 
 export async function getAgentRoutingRecommendation(

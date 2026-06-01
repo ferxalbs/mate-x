@@ -99,12 +99,6 @@ function LiquidSidebarGlass({
 }) {
   const isLight = resolvedTheme === "light";
 
-  // Zero tint — pure crystal glass. The blurred UniversalBackground behind
-  // supplies all colour; the glass surface adds zero colour cast of its own.
-  const tint = isLight
-    ? { r: 1, g: 1, b: 1, a: 0.04 }
-    : { r: 1, g: 1, b: 1, a: 0.06 };
-
   // The backdrop style resolves --mate-shell-a/b/c variables so the div
   // inside Html can paint identically to the real UniversalBackground.
   const backdropVars = getUniversalBackgroundStyle(theme, true, false);

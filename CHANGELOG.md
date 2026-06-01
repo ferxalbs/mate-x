@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.06.01 (1) [Global Distribution Runtime Hardening]
+
+- Hardened `fuzzer` execution with a 120-second hard timeout, active request abort cleanup, an eight-request concurrency cap, and bounded response/output handling with truncation signaling.
+- Restricted `traffic_poison` to DNS-confirmed loopback targets, added high-risk `TRAFFIC_POISON_EXECUTION` approval stops outside unrestricted trust mode, and applied 30-second request timeouts.
+- Restricted `mock_poison` servers to `127.0.0.1`, added high-risk `MOCK_POISON_EXECUTION` approval stops, capped concurrent servers at two, and added automatic five-minute lifetime cleanup.
+- Rate-limited Failure Memory writes per workspace for `record_failure` and `record_resolution`, added silent no-op behavior when limited, and evicted the oldest 50 records when a workspace reaches 500 failure records.
+- Made Agent Capability Profiler writes fire-and-forget with 500ms debounce and debug-only error handling so metrics persistence no longer blocks the agent completion path.
+- Removed the pre-existing unused `tint` declaration in the desktop sidebar so production ESLint now reports zero warnings.
+- Verified with `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/eslint src --ext .ts,.tsx`.
+
 ## Unreleased - 2026.05.31 (2) [Tool Runtime Regression Fixes]
 
 - Guarded `browser_prober` BrowserWindow destruction across timeout, navigation failure, and cleanup paths so already-destroyed windows no longer crash the main process.

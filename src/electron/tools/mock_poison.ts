@@ -1,9 +1,15 @@
 import { createServer, type Server } from "node:http";
+import { policyService } from "../policy-service";
 import type { Tool } from "../tool-service";
+
+const MOCK_POISON_HOST = "127.0.0.1";
+const MOCK_POISON_SERVER_CAP = 2;
+const MOCK_POISON_LIFETIME_MS = 300_000;
 
 interface MockServerState {
   server: Server | null;
   hitCount: number;
+  lifetimeTimer: NodeJS.Timeout | null;
 }
 
 // Keep a persistent state for the mock server across tool calls
@@ -31,7 +37,7 @@ export const mockPoisonerTool: Tool = {
     },
     required: ["action"],
   },
-  async execute(args, _context) {
+  async execute(args, { workspacePath, trustContract }) {
     const { action, port = 9999, payloadType = "MALFORMED_JSON" } = args;
     const serverKey = `port_${port}`;
 
@@ -41,6 +47,7 @@ export const mockPoisonerTool: Tool = {
       
       return new Promise((resolve) => {
         state.server!.close(() => {
+          if (state.lifetimeTimer) clearTimeout(state.lifetimeTimer);
           mockServers.delete(serverKey);
           resolve(`Mock Poisoner Server on port ${port} successfully stopped. Total hits intercepted: ${state.hitCount}`);
         });
@@ -57,9 +64,28 @@ export const mockPoisonerTool: Tool = {
       if (mockServers.has(serverKey)) {
         return `Mock server already running on port ${port}. Stop it first.`;
       }
+      if (mockServers.size >= MOCK_POISON_SERVER_CAP) {
+        return JSON.stringify({
+          error: "SERVER_CAP_REACHED",
+          message: "Maximum concurrent mock_poison servers reached (2).",
+        });
+      }
+      if (trustContract?.autonomy !== "unrestricted") {
+        const approval = await requestMockPoisonApproval({
+          workspacePath,
+          port,
+          payloadType,
+        });
+        if (!approval) {
+          return JSON.stringify({
+            error: "POLICY_STOP_DECLINED",
+            message: "mock_poison execution requires policy approval.",
+          });
+        }
+      }
 
       return new Promise((resolve, reject) => {
-        const state: MockServerState = { server: null, hitCount: 0 };
+        const state: MockServerState = { server: null, hitCount: 0, lifetimeTimer: null };
         
         try {
           state.server = createServer((req, res) => {
@@ -109,9 +135,17 @@ export const mockPoisonerTool: Tool = {
             res.end(responsePayload.responseData);
           });
 
-          state.server.listen(port, "127.0.0.1", () => {
+          state.server.listen(port, MOCK_POISON_HOST, () => {
             mockServers.set(serverKey, state);
-            resolve(`Mock Poisoner Server STARTED on http://127.0.0.1:${port}\\nServing [${payloadType}] payloads.\\n\\nNow run your sandbox and configure it to fetch dependencies from this local URL!`);
+            state.lifetimeTimer = setTimeout(() => {
+              const activeState = mockServers.get(serverKey);
+              if (!activeState?.server) return;
+              activeState.server.close(() => {
+                mockServers.delete(serverKey);
+                console.debug(JSON.stringify({ stopped: true, reason: "LIFETIME_EXCEEDED", tool: "mock_poison", port }));
+              });
+            }, MOCK_POISON_LIFETIME_MS);
+            resolve(`Mock Poisoner Server STARTED on http://${MOCK_POISON_HOST}:${port}\\nServing [${payloadType}] payloads.\\nServer lifetime is capped at ${MOCK_POISON_LIFETIME_MS}ms.\\n\\nNow run your sandbox and configure it to fetch dependencies from this local URL!`);
           });
 
           state.server.on("error", (err) => {
@@ -127,3 +161,29 @@ export const mockPoisonerTool: Tool = {
     return `Invalid action '${action}'. Use 'start', 'stop', or 'status'.`;
   },
 };
+
+async function requestMockPoisonApproval(input: {
+  workspacePath: string;
+  port: number;
+  payloadType: string;
+}) {
+  const stop = policyService.createStop({
+    runId: `tool-${Date.now()}`,
+    workspacePath: input.workspacePath,
+    toolName: "mock_poison",
+    severity: "critical",
+    policyId: "mock_poison.execution",
+    title: "Run paused: poisoned mock server requires approval.",
+    explanation:
+      "mock_poison starts a server that serves intentionally malicious payloads and requires explicit approval before execution.",
+    kind: "MOCK_POISON_EXECUTION",
+    target: `http://${MOCK_POISON_HOST}:${input.port}`,
+    command: `mock_poison start ${input.payloadType}`,
+    metadata: { riskClass: "high", payloadType: input.payloadType },
+    recommendation: "approve_once",
+    availableActions: ["approve_once", "abort", "safer_alternative"],
+  });
+  const resolvedStop = await policyService.waitForResolution(stop.id);
+  policyService.markStopCompleted(stop.id);
+  return resolvedStop.resolution?.action === "approve_once";
+}

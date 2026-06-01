@@ -1,4 +1,9 @@
+import { lookup } from "node:dns/promises";
+import { isIPv6 } from "node:net";
+import { policyService } from "../policy-service";
 import type { Tool } from "../tool-service";
+
+const POISON_REQUEST_TIMEOUT_MS = 30_000;
 
 export const trafficPoisonerTool: Tool = {
   name: "traffic_poison",
@@ -25,11 +30,26 @@ export const trafficPoisonerTool: Tool = {
     },
     required: ["url", "attackType"],
   },
-  async execute(args, _context) {
+  async execute(args, { workspacePath, trustContract }) {
     const { url, attackType, basePayload } = args;
 
-    if (!url.includes("127.0.0.1") && !url.includes("localhost")) {
-      return "Traffic Poisoner Error: External targeting is absolutely PROHIBITED. Must be localhost.";
+    const localhostError = await validateLoopbackUrl(url);
+    if (localhostError) {
+      return JSON.stringify(localhostError);
+    }
+
+    if (trustContract?.autonomy !== "unrestricted") {
+      const approval = await requestTrafficPoisonApproval({
+        workspacePath,
+        target: url,
+        attackType,
+      });
+      if (!approval) {
+        return JSON.stringify({
+          error: "POLICY_STOP_DECLINED",
+          message: "traffic_poison execution requires policy approval.",
+        });
+      }
     }
 
     let parsedPayload: Record<string, any> = {};
@@ -79,16 +99,19 @@ export const trafficPoisonerTool: Tool = {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), POISON_REQUEST_TIMEOUT_MS);
 
-      const response = await fetch(maliciousUrl, {
-        method: "POST", // Standardize on POST for body poisoning validation
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(maliciousBody),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
+      let response: Response;
+      try {
+        response = await fetch(maliciousUrl, {
+          method: "POST", // Standardize on POST for body poisoning validation
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(maliciousBody),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       const respText = await response.text();
 
@@ -111,3 +134,47 @@ export const trafficPoisonerTool: Tool = {
     }
   },
 };
+
+async function validateLoopbackUrl(target: string) {
+  try {
+    const parsed = new URL(target);
+    const host = parsed.hostname.replace(/^\[|\]$/g, "");
+    const { address } = await lookup(host);
+    if (address.startsWith("127.") || (isIPv6(address) && address === "::1")) {
+      return null;
+    }
+  } catch {
+    // Malformed or unresolvable targets are rejected by the localhost-only gate.
+  }
+
+  return {
+    error: "NON_LOCALHOST_TARGET",
+    message: "traffic_poison is restricted to localhost targets.",
+  };
+}
+
+async function requestTrafficPoisonApproval(input: {
+  workspacePath: string;
+  target: string;
+  attackType: string;
+}) {
+  const stop = policyService.createStop({
+    runId: `tool-${Date.now()}`,
+    workspacePath: input.workspacePath,
+    toolName: "traffic_poison",
+    severity: "critical",
+    policyId: "traffic_poison.execution",
+    title: "Run paused: traffic poisoning requires approval.",
+    explanation:
+      "traffic_poison sends intentionally malicious HTTP payloads and requires explicit approval before execution.",
+    kind: "TRAFFIC_POISON_EXECUTION",
+    target: input.target,
+    command: `traffic_poison ${input.attackType}`,
+    metadata: { riskClass: "high", attackType: input.attackType },
+    recommendation: "approve_once",
+    availableActions: ["approve_once", "abort", "safer_alternative"],
+  });
+  const resolvedStop = await policyService.waitForResolution(stop.id);
+  policyService.markStopCompleted(stop.id);
+  return resolvedStop.resolution?.action === "approve_once";
+}
