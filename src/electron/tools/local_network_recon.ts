@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { Socket } from 'node:net';
+import { isIPv6, Socket } from 'node:net';
 import type { Tool } from '../tool-service';
 
 const MAX_PORT_RANGE = 1024;
@@ -175,7 +175,7 @@ function getTargetPorts(args: Record<string, unknown>, commonPorts: PortTarget[]
 async function validateLocalhost(host: string) {
   try {
     const { address } = await lookup(host);
-    if (address === '::1' || address.startsWith('127.')) {
+    if (address.startsWith('127.') || (isIPv6(address) && address === '::1')) {
       return null;
     }
   } catch {
