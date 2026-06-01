@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v0.1.0 - 2026.06.01 [First Stable Release]
+
+- Released MaTE X `v0.1.0` as the first stable release baseline for the storage, Evidence Pack publishing, Failure Memory sync, SDK orchestration, and typed configuration stack.
+- Added `MaTeXStorageAdapter` as the unified `files-sdk` boundary for S3, R2, GCS, Azure, Supabase, Vercel Blob, and local storage backends with Privacy Sentinel pre-upload scanning, Evidence Pack storage events, Failure Memory recording, Agent Profiler timing, rate-limit enforcement, and high-impact approval gates for destructive operations.
+- Added `EvidencePackStorage` to publish completed Evidence Packs through the storage adapter after SHA-256 manifest verification and Ed25519 attestation validation, returning canonical publication metadata and a curl plus openssl verification command.
+- Added `FailureMemorySync` with delta-only remote sync, newest-timestamp conflict resolution, configurable sync intervals, record caps, portable workspace ZIP export/import, and a stoppable timer for leak-free tests.
+- Added `SDKOrchestrator` for Codex, Cursor, and Antigravity clients with Privacy Sentinel as the first check, high-impact human confirmation, Evidence Pack action events, canonical Failure Memory signatures, Critic Loop retries, VTS scoring, timeout handling, capability profiling, and routing recommendations.
+- Added the `mate-x.config.json` Zod schema and loader with typed defaults, full-field validation errors, and `createMaTeXStack` wiring for storage, Evidence Pack publishing, Failure Memory sync, and SDK orchestration.
+- Added focused unit coverage for all five modules, including privacy blocks, wrapped storage errors, integrity failures, delta sync limits, high-impact approval, Critic Loop exhaustion, routing updates, and config validation.
+- Verified the `v0.1.0` launch run with `npm exec -- tsc --noEmit` and `npm exec -- tsx --test src/storage/adapter.test.ts src/storage/evidence-pack-storage.test.ts src/storage/failure-memory-sync.test.ts src/orchestration/sdk-orchestrator.test.ts src/config/mate-x.config.test.ts`; final result: 33/33 tests passed.
+
 ## Unreleased - 2026.06.01 (1) [Global Distribution Runtime Hardening]
 
 - Hardened `fuzzer` execution with a 120-second hard timeout, active request abort cleanup, an eight-request concurrency cap, and bounded response/output handling with truncation signaling.
