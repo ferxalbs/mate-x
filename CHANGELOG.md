@@ -22,6 +22,9 @@
 - Restricted `mock_poison` servers to `127.0.0.1`, added high-risk `MOCK_POISON_EXECUTION` approval stops, capped concurrent servers at two, and added automatic five-minute lifetime cleanup.
 - Rate-limited Failure Memory writes per workspace for `record_failure` and `record_resolution`, added silent no-op behavior when limited, and evicted the oldest 50 records when a workspace reaches 500 failure records.
 - Made Agent Capability Profiler writes fire-and-forget with 500ms debounce and debug-only error handling so metrics persistence no longer blocks the agent completion path.
+- Added disabled-by-default Codex, Antigravity, and Cursor integration settings with a preferred-agent selector so external agent routing remains user-controlled.
+- Added a safe local `mate-x.config.json` fallback with orchestration auto-routing disabled so Electron startup no longer fails when the local config file is absent.
+- Repaired MaTE X stack startup by using a filesystem-backed local storage client instead of the invalid `files-sdk/local` subpath and removing duplicate `mate-x:*` IPC handler registration.
 - Removed the pre-existing unused `tint` declaration in the desktop sidebar so production ESLint now reports zero warnings.
 - Verified with `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/eslint src --ext .ts,.tsx`.
 
