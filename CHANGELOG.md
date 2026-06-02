@@ -24,8 +24,12 @@
 - Made Agent Capability Profiler writes fire-and-forget with 500ms debounce and debug-only error handling so metrics persistence no longer blocks the agent completion path.
 - Added disabled-by-default Codex, Antigravity, and Cursor integration settings with a preferred-agent selector so external agent routing remains user-controlled.
 - Added a safe local `mate-x.config.json` fallback with orchestration auto-routing disabled so Electron startup no longer fails when the local config file is absent.
+- Added `credentialsEnv` and `$ENV_VAR` credential references for `mate-x.config.json`, resolving storage credentials in the main process while preserving empty credentials when none are configured.
+- Added best-effort Privacy Sentinel scanning of raw `mate-x.config.json` content before parsing so hardcoded P0 or secret-like config values block loading with a visible `CONFIG_SECRET_DETECTED` error.
+- Redacted both storage `credentials` and `credentialsEnv` from renderer-facing config IPC responses so env variable names and resolved values never cross into the renderer.
 - Repaired MaTE X stack startup by using a filesystem-backed local storage client instead of the invalid `files-sdk/local` subpath and removing duplicate `mate-x:*` IPC handler registration.
 - Removed the pre-existing unused `tint` declaration in the desktop sidebar so production ESLint now reports zero warnings.
+- Removed remaining unused imports and stale lint suppressions in Electron storage, orchestration, and sandbox test files so source ESLint now runs cleanly.
 - Verified with `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/eslint src --ext .ts,.tsx`.
 
 ## Unreleased - 2026.05.31 (2) [Tool Runtime Regression Fixes]
