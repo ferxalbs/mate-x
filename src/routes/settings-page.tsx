@@ -40,6 +40,7 @@ import type { WorkspaceTrustContract } from '../contracts/workspace';
 import {
   DEFAULT_APP_SETTINGS,
   type AgentTraceVersion,
+  type AgentIntegrationId,
   type AppSettings,
   type LiquidGlassDensity,
   type PrivacyMode,
@@ -453,6 +454,14 @@ export function SettingsPage() {
       ...(appSettings.privacyShowPreviewBeforeCloudSend !== savedAppSettings.privacyShowPreviewBeforeCloudSend
         ? ['Privacy preview']
         : []),
+      ...(appSettings.codexIntegrationEnabled !== savedAppSettings.codexIntegrationEnabled ? ['Codex integration'] : []),
+      ...(appSettings.antigravityIntegrationEnabled !== savedAppSettings.antigravityIntegrationEnabled
+        ? ['Antigravity integration']
+        : []),
+      ...(appSettings.cursorIntegrationEnabled !== savedAppSettings.cursorIntegrationEnabled ? ['Cursor integration'] : []),
+      ...(appSettings.preferredAgentIntegration !== savedAppSettings.preferredAgentIntegration
+        ? ['Preferred agent integration']
+        : []),
       ...(hasTrustDraft ? ['Workspace trust contract'] : []),
     ],
     [
@@ -468,6 +477,10 @@ export function SettingsPage() {
       appSettings.diffLineWrapping,
       appSettings.agentTraceVersion,
       appSettings.agentTraceV2InlineEvents,
+      appSettings.codexIntegrationEnabled,
+      appSettings.antigravityIntegrationEnabled,
+      appSettings.cursorIntegrationEnabled,
+      appSettings.preferredAgentIntegration,
       appSettings.timeFormat,
       appSettings.agentProfilerAutoSwitch,
       appSettings.privacyBlockP0CloudSend,
@@ -1191,6 +1204,98 @@ export function SettingsPage() {
             {section === 'integrations' ? (
               <SettingsSection title="Integrations" icon={<PuzzleIcon className="size-3.5" />}>
                 <>
+                  <SettingsRow
+                    title="Codex"
+                    description="Allow MaTE X to use Codex as an external agent integration when explicitly selected."
+                    control={
+                      <Switch
+                        checked={appSettings.codexIntegrationEnabled}
+                        onCheckedChange={(checked) =>
+                          setAppSettings((current) => ({
+                            ...current,
+                            codexIntegrationEnabled: checked,
+                            preferredAgentIntegration:
+                              !checked && current.preferredAgentIntegration === 'codex'
+                                ? 'none'
+                                : current.preferredAgentIntegration,
+                          }))
+                        }
+                        disabled={isBusy}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Antigravity"
+                    description="Allow MaTE X to use Antigravity as an external agent integration when explicitly selected."
+                    control={
+                      <Switch
+                        checked={appSettings.antigravityIntegrationEnabled}
+                        onCheckedChange={(checked) =>
+                          setAppSettings((current) => ({
+                            ...current,
+                            antigravityIntegrationEnabled: checked,
+                            preferredAgentIntegration:
+                              !checked && current.preferredAgentIntegration === 'antigravity'
+                                ? 'none'
+                                : current.preferredAgentIntegration,
+                          }))
+                        }
+                        disabled={isBusy}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Cursor"
+                    description="Allow MaTE X to use Cursor as an external agent integration when explicitly selected."
+                    control={
+                      <Switch
+                        checked={appSettings.cursorIntegrationEnabled}
+                        onCheckedChange={(checked) =>
+                          setAppSettings((current) => ({
+                            ...current,
+                            cursorIntegrationEnabled: checked,
+                            preferredAgentIntegration:
+                              !checked && current.preferredAgentIntegration === 'cursor'
+                                ? 'none'
+                                : current.preferredAgentIntegration,
+                          }))
+                        }
+                        disabled={isBusy}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Preferred agent"
+                    description="Choose which enabled integration MaTE X should prefer. Disabled keeps local analysis first."
+                    control={
+                      <Select
+                        value={appSettings.preferredAgentIntegration}
+                        onValueChange={(value) => {
+                          setAppSettings((current) => ({
+                            ...current,
+                            preferredAgentIntegration: value as AgentIntegrationId | 'none',
+                          }));
+                        }}
+                        disabled={isBusy}
+                      >
+                        <SelectTrigger className="w-[220px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Disabled</SelectItem>
+                          <SelectItem value="codex" disabled={!appSettings.codexIntegrationEnabled}>
+                            Codex
+                          </SelectItem>
+                          <SelectItem value="antigravity" disabled={!appSettings.antigravityIntegrationEnabled}>
+                            Antigravity
+                          </SelectItem>
+                          <SelectItem value="cursor" disabled={!appSettings.cursorIntegrationEnabled}>
+                            Cursor
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
                   <SettingsRow
                     title="Supermemory"
                     description="AI context and long-term memory for your agents."

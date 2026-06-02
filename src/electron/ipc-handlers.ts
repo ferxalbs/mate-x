@@ -78,6 +78,10 @@ const APP_SETTING_KEYS = new Set([
   "privacyPlaceholderStyle",
   "privacyMinModelConfidence",
   "privacyShowPreviewBeforeCloudSend",
+  "codexIntegrationEnabled",
+  "antigravityIntegrationEnabled",
+  "cursorIntegrationEnabled",
+  "preferredAgentIntegration",
   "supermemoryApiKey",
   "onboardingCompleted",
 ]);

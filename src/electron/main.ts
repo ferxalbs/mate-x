@@ -134,7 +134,11 @@ const createWindow = () => {
 };
 
 app.on('ready', async () => {
-  await initStack();
+  try {
+    await initStack();
+  } catch (error) {
+    console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
+  }
   registerIpcHandlers();
   registerMaTeXStackIpcHandlers();
   createWindow();
