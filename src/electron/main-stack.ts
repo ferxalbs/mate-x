@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { loadConfig, createMaTeXStack, type MaTeXConfig } from './config/mate-x.config';
 import { failureMemoryEngine } from './failure-memory-engine';
+import { MissingSDKClientError } from './orchestration/sdk-orchestrator';
 import { policyService } from './policy-service';
 import { privacyFirewall } from './privacy/privacy-firewall-service';
 import { setSDKOrchestrator } from './repo-service';
@@ -129,7 +130,7 @@ export async function teardownStack(): Promise<void> {
 function createUnavailableSdkClient(agentId: AgentAction['agentId']): AgentSdkClient {
   return {
     async execute() {
-      throw new Error(`${agentId} SDK client is not configured in the Electron runtime.`);
+      throw new MissingSDKClientError(agentId);
     },
   };
 }

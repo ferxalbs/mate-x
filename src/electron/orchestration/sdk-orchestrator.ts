@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { computeVerifiedTaskScore } from "../verified-task-score";
 import type {
   AgentAction,
   AgentActionRequest,
@@ -13,6 +14,8 @@ import type {
   ToolExecutionEvent,
   RoutingRecommendations,
 } from "../../contracts/sdk-orchestrator.types";
+import type { EvidencePack } from "../../contracts/chat";
+import type { ToolExecutionRecord } from "../evidence-pack";
 
 const AGENTS: AgentId[] = ["codex", "cursor", "antigravity"];
 const DEFAULT_MIN_VTS = 0.85;
@@ -73,6 +76,24 @@ export class SDKOrchestratorError extends Error {
     this.name = "SDKOrchestratorError";
     this.code = code;
     this.cause = cause;
+  }
+}
+
+export class SDKExecutionError extends SDKOrchestratorError {
+  constructor(code: string, message: string, cause?: unknown) {
+    super(code, message, cause);
+    this.name = "SDKExecutionError";
+  }
+}
+
+export class MissingSDKClientError extends SDKExecutionError {
+  readonly code = "SDK_CLIENT_NOT_CONFIGURED";
+  readonly client: AgentId;
+
+  constructor(client: AgentId) {
+    super("SDK_CLIENT_NOT_CONFIGURED", `${client} SDK client is not configured.`);
+    this.name = "MissingSDKClientError";
+    this.client = client;
   }
 }
 
@@ -203,7 +224,7 @@ export class SDKOrchestrator {
           errorMessage(error),
           context,
         );
-        throw error instanceof SDKOrchestratorError ? error : new SDKOrchestratorError(code, errorMessage(error), error);
+        throw error instanceof SDKOrchestratorError ? error : new SDKExecutionError(code, errorMessage(error), error);
       }
     }
 
@@ -323,10 +344,49 @@ export class SDKOrchestrator {
 }
 
 export function computeVTS(events: ToolExecutionEvent[]): number {
-  if (events.length === 0) return 0;
-  const successes = events.filter((event) => event.status === "success").length;
-  const completed = events.filter((event) => event.status !== "failed" && event.status !== "error").length;
-  return Math.max(0, Math.min(1, (successes + completed) / (events.length * 2)));
+  const toolExecutions = events.map(toToolExecutionRecord);
+  const failed = events.some((event) => event.status === "failed" || event.status === "error");
+  const score = computeVerifiedTaskScore({
+    workspacePath: process.cwd(),
+    evidenceStatus: failed ? "failed" : "complete",
+    filesModified: [],
+    toolExecutions,
+    reproduction: validationReproduction(toolExecutions, failed),
+  });
+  return Math.max(0, Math.min(1, score.score / 100));
+}
+
+function validationReproduction(
+  records: ToolExecutionRecord[],
+  failed: boolean,
+): EvidencePack["reproduction"] | undefined {
+  const validation = records.find((record) =>
+    record.toolName === "run_tests" || record.toolName === "sandbox_run"
+  );
+  const command = validation?.args.command;
+  if (!validation || typeof command !== "string" || command.trim().length === 0) {
+    return undefined;
+  }
+  return {
+    type: "validation_run",
+    status: "existing",
+    postPatchOutcome: failed ? "failed" : "passed",
+    command: command.trim(),
+    summary: validation.output || undefined,
+  };
+}
+
+function toToolExecutionRecord(event: ToolExecutionEvent): ToolExecutionRecord {
+  return {
+    toolName: event.toolName,
+    args: event.args ?? {},
+    output: event.output ?? "",
+    parsedOutput: {
+      ...event.parsedOutput,
+      status: event.status ?? "success",
+      durationMs: event.durationMs,
+    },
+  };
 }
 
 function configNumber(value: number | undefined, fallback: number) {
