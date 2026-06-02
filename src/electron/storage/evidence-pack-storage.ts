@@ -3,14 +3,14 @@ import { readFile } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
+import { canonicalJson, sha256Hex } from "../../features/compliance/attestation";
 import type { MaTeXStorageAdapter } from "./adapter";
 import type {
   EvidencePackAttestation,
   EvidencePackManifest,
   EvidencePackStoragePublishInput,
   PublishedEvidencePack,
-} from "../types/evidence-pack-storage.types";
+} from "../../contracts/evidence-pack-storage.types";
 
 const DEFAULT_PREFIX = "evidence-packs/";
 const REQUIRED_FILES = [

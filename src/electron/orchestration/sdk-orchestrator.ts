@@ -12,7 +12,7 @@ import type {
   SDKOrchestratorResult,
   ToolExecutionEvent,
   RoutingRecommendations,
-} from "../types/sdk-orchestrator.types";
+} from "../../contracts/sdk-orchestrator.types";
 
 const AGENTS: AgentId[] = ["codex", "cursor", "antigravity"];
 const DEFAULT_MIN_VTS = 0.85;

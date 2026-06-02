@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "bun:test";
 
-import type { FailureMemory } from "../contracts/workspace";
+import type { FailureMemory } from "../../contracts/workspace";
 import { MaTeXStorageAdapter } from "./adapter";
 import { FailureMemorySync, mergeFailureMemories } from "./failure-memory-sync";
-import type { FilesSdkClient, StorageEvent } from "../types/storage-adapter.types";
-import type { FailureMemoryRepository, FailureMemorySyncStateStore } from "../types/failure-memory-sync.types";
+import type { FilesSdkClient, StorageEvent } from "../../contracts/storage-adapter.types";
+import type { FailureMemoryRepository, FailureMemorySyncStateStore } from "../../contracts/failure-memory-sync.types";
 
 const tempRoots: string[] = [];
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "bun:test";
 
 import {
   MaTeXStorageAdapter,
@@ -11,7 +11,7 @@ import type {
   FilesSdkClient,
   StorageEvent,
   StorageOperationType,
-} from "../types/storage-adapter.types";
+} from "../../contracts/storage-adapter.types";
 
 describe("MaTeXStorageAdapter", () => {
   it("uploads after privacy scan and records successful evidence", async () => {

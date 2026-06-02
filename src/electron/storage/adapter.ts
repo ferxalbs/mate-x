@@ -12,7 +12,7 @@ import {
   StorageOperationResult,
   StorageOperationType,
   StorageUploadOptions,
-} from "../types/storage-adapter.types";
+} from "../../contracts/storage-adapter.types";
 
 export class MaTeXStorageError extends Error {
   readonly code: string;

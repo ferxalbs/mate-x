@@ -3,12 +3,12 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "bun:test";
 
-import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
+import { canonicalJson, sha256Hex } from "../../features/compliance/attestation";
 import { MaTeXStorageAdapter } from "./adapter";
 import { EvidencePackIntegrityError, EvidencePackStorage } from "./evidence-pack-storage";
-import type { FilesSdkClient, StorageEvent } from "../types/storage-adapter.types";
+import type { FilesSdkClient, StorageEvent } from "../../contracts/storage-adapter.types";
 
 const tempRoots: string[] = [];
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "bun:test";
 
 import {
   CriticLoopExhaustedError,
@@ -13,7 +13,7 @@ import type {
   AgentId,
   AgentSdkClient,
   AgentSdkResult,
-} from "../types/sdk-orchestrator.types";
+} from "../../contracts/sdk-orchestrator.types";
 
 describe("SDKOrchestrator", () => {
   it("scans privacy first and blocks without calling an SDK", async () => {

@@ -3,14 +3,14 @@ import { chmod, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// @ts-expect-error Bun exposes mock at runtime; installed TS types omit it.
+// @ts-ignore Bun exposes mock at runtime; installed TS types omit it.
 import { describe, mock, test } from "bun:test";
 
 const validationRuns: any[] = [];
 let activeWorkspaceId: string | null = null;
 let latestValidationPlan: any = null;
 
-mock.module("electron", () => ({
+(mock as any).module("electron", () => ({
   powerSaveBlocker: {
     isStarted: () => false,
     start: () => 1,
@@ -18,7 +18,7 @@ mock.module("electron", () => ({
   },
 }));
 
-mock.module("../failure-memory-engine", () => ({
+(mock as any).module("../failure-memory-engine", () => ({
   failureMemoryEngine: {
     findSimilarFailures: async () => [],
     recordFailure: async () => undefined,
@@ -26,7 +26,7 @@ mock.module("../failure-memory-engine", () => ({
   },
 }));
 
-mock.module("../turso-service", () => ({
+(mock as any).module("../turso-service", () => ({
   tursoService: {
     getActiveWorkspaceId: async () => activeWorkspaceId,
     getWorkspaceProfile: async () => null,

@@ -7,7 +7,9 @@ import { MaTeXStorageAdapter } from "../storage/adapter";
 import { EvidencePackStorage } from "../storage/evidence-pack-storage";
 import { FailureMemorySync } from "../storage/failure-memory-sync";
 import { SDKOrchestrator } from "../orchestration/sdk-orchestrator";
-import type { CreateMaTeXStackDependencies } from "../types/mate-x-config.types";
+import type { CreateMaTeXStackDependencies, MaTeXConfig as MaTeXConfigContract } from "../../contracts/mate-x-config.types";
+import type { FailureMemory } from "../../contracts/workspace";
+import type { AgentSdkClient } from "../../contracts/sdk-orchestrator.types";
 
 export const MaTeXConfigSchema = z.object({
   storage: z.object({
@@ -43,7 +45,7 @@ export const MaTeXConfigSchema = z.object({
   }).default({ syncIntervalMinutes: 5, maxRecordsPerSync: 500, maxTotalRecords: 50000 }),
 });
 
-export type MaTeXConfig = z.infer<typeof MaTeXConfigSchema>;
+export type MaTeXConfig = z.infer<typeof MaTeXConfigSchema> & MaTeXConfigContract;
 
 export class ConfigValidationError extends Error {
   readonly code = "CONFIG_VALIDATION_ERROR";
@@ -72,24 +74,38 @@ export async function loadConfig(filePath = resolve(process.cwd(), "mate-x.confi
   return result.data;
 }
 
-export async function createMaTeXStack(config: MaTeXConfig, dependencies: CreateMaTeXStackDependencies) {
-  const adapter = dependencies.storage.files
+export async function createMaTeXStack(config: MaTeXConfig, dependencies: CreateMaTeXStackDependencies = {}) {
+  const workspaceId = dependencies.workspaceId ?? "default";
+  const storage = {
+    privacySentinel: { scan: async () => ({ hasSecrets: false, categories: [] }) },
+    evidenceRecorder: { appendStorageEvent: async () => undefined },
+    failureMemory: { recordFailure: async () => undefined },
+    approvalGate: { requireApproval: async () => undefined },
+    rateLimiter: { check: async () => true },
+    profiler: { recordStorageOperation: async () => undefined },
+    ...dependencies.storage,
+  };
+  const failureMemory = dependencies.failureMemory ?? createInMemoryFailureMemory();
+  const sdk = dependencies.sdk ?? {};
+  const unavailableClient = createUnavailableSdkClient();
+  const adapter = storage.files
     ? new MaTeXStorageAdapter({
-        ...dependencies.storage,
-        workspaceId: dependencies.workspaceId,
+        ...storage,
+        files: storage.files,
+        workspaceId,
         backend: config.storage,
       })
     : await MaTeXStorageAdapter.create({
-        ...dependencies.storage,
-        workspaceId: dependencies.workspaceId,
+        ...storage,
+        workspaceId,
         backend: config.storage,
-        factory: dependencies.storage.factory,
+        factory: storage.factory,
       });
   const evidencePackStorage = new EvidencePackStorage(adapter);
   const failureMemorySync = new FailureMemorySync(adapter, {
-    workspaceId: dependencies.workspaceId,
-    repository: dependencies.failureMemory.repository,
-    stateStore: dependencies.failureMemory.stateStore,
+    workspaceId,
+    repository: failureMemory.repository,
+    stateStore: failureMemory.stateStore,
     config: {
       syncIntervalMinutes: config.failureMemory.syncIntervalMinutes,
       maxRecordsPerSync: config.failureMemory.maxRecordsPerSync,
@@ -98,14 +114,14 @@ export async function createMaTeXStack(config: MaTeXConfig, dependencies: Create
   });
   failureMemorySync.start();
   const orchestrator = new SDKOrchestrator({
-    workspaceId: dependencies.workspaceId,
-    codexClient: dependencies.sdk.codexClient,
-    cursorClient: dependencies.sdk.cursorClient,
-    antigravityClient: dependencies.sdk.antigravityClient,
-    privacySentinel: dependencies.sdk.privacySentinel,
-    evidenceRecorder: dependencies.sdk.evidenceRecorder,
-    failureMemory: dependencies.sdk.failureMemory,
-    confirmHighImpact: dependencies.sdk.confirmHighImpact,
+    workspaceId,
+    codexClient: sdk.codexClient ?? unavailableClient,
+    cursorClient: sdk.cursorClient ?? unavailableClient,
+    antigravityClient: sdk.antigravityClient ?? unavailableClient,
+    privacySentinel: sdk.privacySentinel ?? { scan: async () => ({ hasSecrets: false, categories: [] }) },
+    evidenceRecorder: sdk.evidenceRecorder ?? { appendAgentActionEvent: async () => undefined },
+    failureMemory: sdk.failureMemory ?? { recordFailure: async () => undefined },
+    confirmHighImpact: sdk.confirmHighImpact ?? (async () => false),
     config: config.orchestration,
   });
 
@@ -114,6 +130,42 @@ export async function createMaTeXStack(config: MaTeXConfig, dependencies: Create
     evidencePackStorage,
     failureMemorySync,
     orchestrator,
+  };
+}
+
+function createUnavailableSdkClient(): AgentSdkClient {
+  return {
+    async execute() {
+      throw new Error("SDK client is not configured for this Electron session.");
+    },
+  };
+}
+
+function createInMemoryFailureMemory() {
+  const records = new Map<string, FailureMemory>();
+  const lastSyncAt = new Map<string, string>();
+
+  return {
+    repository: {
+      async list(workspaceId: string, limit: number) {
+        return Array.from(records.values())
+          .filter((record) => record.workspaceId === workspaceId)
+          .slice(0, limit);
+      },
+      async upsert(nextRecords: FailureMemory[]) {
+        for (const record of nextRecords) {
+          records.set(record.id, record);
+        }
+      },
+    },
+    stateStore: {
+      async getLastSyncAt(workspaceId: string) {
+        return lastSyncAt.get(workspaceId) ?? null;
+      },
+      async setLastSyncAt(workspaceId: string, timestamp: string) {
+        lastSyncAt.set(workspaceId, timestamp);
+      },
+    },
   };
 }
 
