@@ -44,6 +44,7 @@ import {
   verifyComplianceZipForDelivery,
 } from "../features/compliance/complianceExport";
 import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
+import { getStack } from "./main-stack";
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
@@ -734,6 +735,30 @@ export function registerIpcHandlers() {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
     return repoGraphService.getDependencySurface(workspace);
   });
+
+  ipcMain.handle("mate-x:orchestrator:execute", async (_event, action: unknown) => {
+    if (!action || typeof action !== "object") {
+      throw new Error("SDK action must be an object.");
+    }
+    return getStack().orchestrator.execute(action as never);
+  });
+
+  ipcMain.handle("mate-x:orchestrator:routing", async () =>
+    getStack().orchestrator.getRoutingRecommendations(),
+  );
+
+  ipcMain.handle("mate-x:storage:list-packs", async (_event, workspaceId: string) =>
+    getStack().evidencePackStorage.list(requireBoundedString(workspaceId, "workspaceId", 500)),
+  );
+
+  ipcMain.handle("mate-x:storage:sync-status", async () => ({
+    configured: true,
+    routing: getStack().orchestrator.getRoutingRecommendations(),
+  }));
+
+  ipcMain.handle("mate-x:storage:force-sync", async () =>
+    getStack().failureMemorySync.sync(),
+  );
 
   ipcMain.handle("git:status", async () => {
     const workspace = await resolveActiveWorkspace();

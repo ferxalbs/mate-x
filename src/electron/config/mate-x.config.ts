@@ -8,7 +8,6 @@ import { EvidencePackStorage } from "../storage/evidence-pack-storage";
 import { FailureMemorySync } from "../storage/failure-memory-sync";
 import { SDKOrchestrator } from "../orchestration/sdk-orchestrator";
 import type { CreateMaTeXStackDependencies, MaTeXConfig as MaTeXConfigContract } from "../../contracts/mate-x-config.types";
-import type { FailureMemory } from "../../contracts/workspace";
 import type { AgentSdkClient } from "../../contracts/sdk-orchestrator.types";
 
 export const MaTeXConfigSchema = z.object({
@@ -76,16 +75,16 @@ export async function loadConfig(filePath = resolve(process.cwd(), "mate-x.confi
 
 export async function createMaTeXStack(config: MaTeXConfig, dependencies: CreateMaTeXStackDependencies = {}) {
   const workspaceId = dependencies.workspaceId ?? "default";
+  if (!dependencies.storage) {
+    throw new Error("MaTE X storage dependencies are required in the Electron runtime.");
+  }
+  if (!dependencies.failureMemory) {
+    throw new Error("MaTE X Failure Memory sync dependencies are required in the Electron runtime.");
+  }
   const storage = {
-    privacySentinel: { scan: async () => ({ hasSecrets: false, categories: [] }) },
-    evidenceRecorder: { appendStorageEvent: async () => undefined },
-    failureMemory: { recordFailure: async () => undefined },
-    approvalGate: { requireApproval: async () => undefined },
-    rateLimiter: { check: async () => true },
-    profiler: { recordStorageOperation: async () => undefined },
     ...dependencies.storage,
   };
-  const failureMemory = dependencies.failureMemory ?? createInMemoryFailureMemory();
+  const failureMemory = dependencies.failureMemory;
   const sdk = dependencies.sdk ?? {};
   const unavailableClient = createUnavailableSdkClient();
   const adapter = storage.files
@@ -120,8 +119,8 @@ export async function createMaTeXStack(config: MaTeXConfig, dependencies: Create
     antigravityClient: sdk.antigravityClient ?? unavailableClient,
     privacySentinel: sdk.privacySentinel ?? { scan: async () => ({ hasSecrets: false, categories: [] }) },
     evidenceRecorder: sdk.evidenceRecorder ?? { appendAgentActionEvent: async () => undefined },
-    failureMemory: sdk.failureMemory ?? { recordFailure: async () => undefined },
-    confirmHighImpact: sdk.confirmHighImpact ?? (async () => false),
+    failureMemory: sdk.failureMemory ?? failMissingFailureMemoryRecorder(),
+    confirmHighImpact: sdk.confirmHighImpact ?? failMissingPolicyApproval,
     config: config.orchestration,
   });
 
@@ -141,32 +140,17 @@ function createUnavailableSdkClient(): AgentSdkClient {
   };
 }
 
-function createInMemoryFailureMemory() {
-  const records = new Map<string, FailureMemory>();
-  const lastSyncAt = new Map<string, string>();
-
+function failMissingFailureMemoryRecorder() {
   return {
-    repository: {
-      async list(workspaceId: string, limit: number) {
-        return Array.from(records.values())
-          .filter((record) => record.workspaceId === workspaceId)
-          .slice(0, limit);
-      },
-      async upsert(nextRecords: FailureMemory[]) {
-        for (const record of nextRecords) {
-          records.set(record.id, record);
-        }
-      },
-    },
-    stateStore: {
-      async getLastSyncAt(workspaceId: string) {
-        return lastSyncAt.get(workspaceId) ?? null;
-      },
-      async setLastSyncAt(workspaceId: string, timestamp: string) {
-        lastSyncAt.set(workspaceId, timestamp);
-      },
+    async recordFailure() {
+      throw new Error("Failure Memory Engine is not wired into SDKOrchestrator.");
     },
   };
+}
+
+async function failMissingPolicyApproval() {
+  throw new Error("Policy Service is not wired into SDKOrchestrator.");
+  return false;
 }
 
 function formatConfigIssues(issues: z.core.$ZodIssue[]) {

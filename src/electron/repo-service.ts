@@ -22,6 +22,8 @@ import { collectRepoSnapshot } from "./repo-service/workspace";
 import { buildArtifacts, buildFallbackResponse, buildWorkspaceMemoryArtifacts, executeAgentToolCall, parseDirectDeepAnalysisPipelineArgs, parseDirectSecurityPathTraceArgs, requestRainyAgenticResponse, resolveDefaultRainyRuntimeConfig } from "./repo-service/agentic-runtime";
 import { buildWorkEngineArtifactSnapshot, loadCompliancePolicySources } from "./repo-service/work-engine-artifacts";
 import { getRainyServiceTierOptions } from "../contracts/rainy";
+import type { SDKOrchestrator } from "./orchestration/sdk-orchestrator";
+import type { AgentActionEvidenceEvent } from "../contracts/sdk-orchestrator.types";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -32,6 +34,11 @@ interface AssistantProgressReporter {
 }
 
 const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
+let sdkOrchestrator: SDKOrchestrator | null = null;
+
+export function setSDKOrchestrator(orchestrator: SDKOrchestrator | null) {
+  sdkOrchestrator = orchestrator;
+}
 
 function cloneArtifacts(artifacts: MessageArtifact[]) {
   return artifacts.map((artifact) => ({ ...artifact }));
@@ -176,6 +183,21 @@ export async function runAssistant(
   let content = "";
   let toolExecutions: ToolExecutionRecord[] = [];
   let handledDirectTool = false;
+  const appendSdkEvidenceEvent = (event: AgentActionEvidenceEvent) => {
+    events.push({
+      id: `sdk-${event.type.toLowerCase()}-${event.agentId}-${event.retryCount ?? 0}-${Date.now()}`,
+      label: `SDK ${event.type.replaceAll("_", " ").toLowerCase()}`,
+      detail: JSON.stringify(event),
+      status:
+        event.type === "AGENT_ACTION_FAILED" ||
+        event.type === "AGENT_ACTION_BLOCKED" ||
+        event.type === "CRITIC_LOOP_EXHAUSTED"
+          ? "error"
+          : event.type === "AGENT_ACTION_PENDING"
+            ? "active"
+            : "done",
+    });
+  };
 
   const emitProgress = (nextContent?: string, nextThought?: string) => {
     if (!progressReporter) {
@@ -258,6 +280,31 @@ export async function runAssistant(
     });
     emitProgress(content);
     handledDirectTool = true;
+  }
+
+  if (!handledDirectTool && resolvedOptions.sdkAction) {
+    if (!sdkOrchestrator) {
+      throw new Error("SDK orchestrator is not initialized for this agent run.");
+    }
+    const sdkResult = await sdkOrchestrator.execute(resolvedOptions.sdkAction, {
+      evidenceRecorder: {
+        appendAgentActionEvent: async (event) => appendSdkEvidenceEvent(event),
+      },
+    });
+    content = typeof sdkResult.output === "string" ? sdkResult.output : JSON.stringify(sdkResult.output, null, 2);
+    toolExecutions = [
+      {
+        toolName: `sdk:${sdkResult.agentId}`,
+        args: { ...resolvedOptions.sdkAction },
+        output: content,
+        parsedOutput: {
+          status: "success",
+          summary: `SDK action ${sdkResult.actionType} completed with VTS ${sdkResult.vts}.`,
+        },
+      },
+    ];
+    handledDirectTool = true;
+    emitProgress(content);
   }
 
   if (handledDirectTool) {

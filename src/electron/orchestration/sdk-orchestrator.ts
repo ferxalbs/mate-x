@@ -27,6 +27,12 @@ interface ActionMetric {
   vts: number;
 }
 
+export interface SDKOrchestratorExecutionContext {
+  evidenceRecorder?: SDKOrchestratorDependencies["evidenceRecorder"];
+  failureMemory?: SDKOrchestratorDependencies["failureMemory"];
+  confirmHighImpact?: SDKOrchestratorDependencies["confirmHighImpact"];
+}
+
 export class PrivacySentinelBlockError extends Error {
   readonly code = "PRIVACY_SENTINEL_BLOCK";
   readonly categories: string[];
@@ -83,13 +89,13 @@ export class SDKOrchestrator {
     };
   }
 
-  async execute(request: AgentActionRequest): Promise<SDKOrchestratorResult> {
+  async execute(request: AgentActionRequest, context: SDKOrchestratorExecutionContext = {}): Promise<SDKOrchestratorResult> {
     const action = this.resolveAction(request);
     const payloadHash = sha256(canonicalJson(action.payload));
     const privacyScan = await this.deps.privacySentinel.scan(canonicalJson(action.payload));
     if (privacyScan.hasSecrets) {
       const error = new PrivacySentinelBlockError(privacyScan.categories);
-      await this.deps.evidenceRecorder.appendAgentActionEvent({
+      await this.evidenceRecorder(context).appendAgentActionEvent({
         type: "AGENT_ACTION_BLOCKED",
         agentId: action.agentId,
         actionType: action.actionType,
@@ -103,18 +109,19 @@ export class SDKOrchestrator {
         action,
         `${action.agentId}:PRIVACY_BLOCK:${privacyScan.categories.join(",")}`,
         error.message,
+        context,
       );
       throw error;
     }
 
     if (action.allowHighImpact === true) {
-      const approved = await this.deps.confirmHighImpact(action);
+      const approved = await (context.confirmHighImpact ?? this.deps.confirmHighImpact)(action);
       if (!approved) {
         throw new HighImpactApprovalError();
       }
     }
 
-    return this.executeWithCriticLoop(action, payloadHash);
+    return this.executeWithCriticLoop(action, payloadHash, context);
   }
 
   getRoutingRecommendations(): RoutingRecommendations {
@@ -125,14 +132,18 @@ export class SDKOrchestrator {
     return Object.fromEntries(AGENTS.map((agentId) => [agentId, this.statsFor(agentId)])) as Record<AgentId, AgentCapabilityStats>;
   }
 
-  private async executeWithCriticLoop(action: AgentAction, payloadHash: string): Promise<SDKOrchestratorResult> {
+  private async executeWithCriticLoop(
+    action: AgentAction,
+    payloadHash: string,
+    context: SDKOrchestratorExecutionContext,
+  ): Promise<SDKOrchestratorResult> {
     const maxRetries = configNumber(this.deps.config?.criticLoop?.maxRetries, DEFAULT_MAX_RETRIES);
     const minVTS = configNumber(this.deps.config?.criticLoop?.minVTS, DEFAULT_MIN_VTS);
     let lastVTS = 0;
 
     for (let retryCount = 0; retryCount <= maxRetries; retryCount += 1) {
       const started = performance.now();
-      await this.deps.evidenceRecorder.appendAgentActionEvent({
+      await this.evidenceRecorder(context).appendAgentActionEvent({
         type: "AGENT_ACTION_PENDING",
         agentId: action.agentId,
         actionType: action.actionType,
@@ -147,7 +158,7 @@ export class SDKOrchestrator {
         const vts = computeVTS(sdkResult.tool_execution_events ?? []);
         lastVTS = vts;
         const outputHash = sha256(canonicalJson(sdkResult.output));
-        await this.deps.evidenceRecorder.appendAgentActionEvent({
+        await this.evidenceRecorder(context).appendAgentActionEvent({
           type: "AGENT_ACTION_COMPLETED",
           agentId: action.agentId,
           actionType: action.actionType,
@@ -174,7 +185,7 @@ export class SDKOrchestrator {
       } catch (error) {
         const durationMs = elapsedMs(started);
         const code = errorCode(error);
-        await this.deps.evidenceRecorder.appendAgentActionEvent({
+        await this.evidenceRecorder(context).appendAgentActionEvent({
           type: "AGENT_ACTION_FAILED",
           agentId: action.agentId,
           actionType: action.actionType,
@@ -190,13 +201,14 @@ export class SDKOrchestrator {
           action,
           `${action.agentId}:${action.actionType}:${code}`,
           errorMessage(error),
+          context,
         );
         throw error instanceof SDKOrchestratorError ? error : new SDKOrchestratorError(code, errorMessage(error), error);
       }
     }
 
     const error = new CriticLoopExhaustedError(lastVTS);
-    await this.deps.evidenceRecorder.appendAgentActionEvent({
+    await this.evidenceRecorder(context).appendAgentActionEvent({
       type: "CRITIC_LOOP_EXHAUSTED",
       agentId: action.agentId,
       actionType: action.actionType,
@@ -206,7 +218,7 @@ export class SDKOrchestrator {
       errorCode: error.code,
       errorMessage: error.message,
     });
-    await this.recordFailure(action, `${action.agentId}:${action.actionType}:${error.code}`, error.message);
+    await this.recordFailure(action, `${action.agentId}:${action.actionType}:${error.code}`, error.message, context);
     throw error;
   }
 
@@ -235,8 +247,21 @@ export class SDKOrchestrator {
     ]);
   }
 
-  private async recordFailure(action: AgentAction, errorSignature: string, output: string) {
-    await this.deps.failureMemory.recordFailure({
+  private evidenceRecorder(context: SDKOrchestratorExecutionContext) {
+    return context.evidenceRecorder ?? this.deps.evidenceRecorder;
+  }
+
+  private failureMemory(context: SDKOrchestratorExecutionContext) {
+    return context.failureMemory ?? this.deps.failureMemory;
+  }
+
+  private async recordFailure(
+    action: AgentAction,
+    errorSignature: string,
+    output: string,
+    context: SDKOrchestratorExecutionContext,
+  ) {
+    await this.failureMemory(context).recordFailure({
       workspaceId: this.deps.workspaceId,
       command: `sdk:${action.agentId}:${action.actionType}`,
       output,

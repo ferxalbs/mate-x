@@ -49,6 +49,7 @@ export interface AssistantRunOptions {
   serviceTier?: RainyServiceTier;
   runbookId?: AssistantRunbookId;
   attachments?: AssistantAttachment[];
+  sdkAction?: import("./sdk-orchestrator.types").AgentActionRequest;
 }
 
 export type AssistantAttachmentKind = "image" | "video" | "file";
