@@ -99,6 +99,7 @@ export async function loadConfig(filePath = resolve(process.cwd(), "mate-x.confi
     }
     throw error;
   }
+  await scanRawConfigForSecrets(raw);
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
@@ -252,4 +253,31 @@ function readCredentialEnvValue(envName: string) {
     console.debug(`credentialsEnv: env var ${envName} is not set`);
   }
   return value ?? "";
+}
+
+async function scanRawConfigForSecrets(rawConfigContent: string) {
+  try {
+    const { privacyFirewall } = await import("../privacy/privacy-firewall-service");
+    const scanResult = await privacyFirewall.scanTextSafe(rawConfigContent);
+    const hasSecrets =
+      scanResult.stats.p0Count > 0 ||
+      scanResult.spans.some(
+        (span) =>
+          span.risk === "p0" ||
+          span.label === "secret" ||
+          span.label === "repo_secret",
+      );
+    if (hasSecrets) {
+      throw new Error(
+        "CONFIG_SECRET_DETECTED: mate-x.config.json contains what appears " +
+          "to be a hardcoded secret. Use credentialsEnv or $ENV_VAR " +
+          "references instead. See docs at mate-x.xyz/docs/configuration",
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("CONFIG_SECRET_DETECTED:")) {
+      throw error;
+    }
+    console.debug("Privacy Sentinel config scan unavailable; proceeding without load-time config scan.", error);
+  }
 }
