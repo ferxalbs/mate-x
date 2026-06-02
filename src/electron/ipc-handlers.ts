@@ -740,7 +740,23 @@ export function registerIpcHandlers() {
     if (!action || typeof action !== "object") {
       throw new Error("SDK action must be an object.");
     }
-    return getStack().orchestrator.execute(action as never);
+    try {
+      const result = await getStack().orchestrator.execute(action as never);
+      return { success: true, result };
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === "MissingSDKClientError" &&
+        typeof (error as Error & { client?: unknown }).client === "string"
+      ) {
+        return {
+          success: false,
+          error: "SDK_CLIENT_NOT_CONFIGURED",
+          client: (error as Error & { client: string }).client,
+        };
+      }
+      throw error;
+    }
   });
 
   ipcMain.handle("mate-x:orchestrator:routing", async () =>

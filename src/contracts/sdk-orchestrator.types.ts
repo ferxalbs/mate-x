@@ -21,9 +21,11 @@ export interface AgentSdkResult {
 
 export interface ToolExecutionEvent {
   toolName: string;
+  args?: Record<string, unknown>;
   status?: "success" | "failed" | "error";
   output?: string;
   durationMs?: number;
+  parsedOutput?: Record<string, unknown>;
 }
 
 export interface AgentSdkClient {

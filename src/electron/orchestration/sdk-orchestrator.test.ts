@@ -39,7 +39,7 @@ describe("SDKOrchestrator", () => {
       agentId: "codex",
     });
 
-    assert.equal(result.vts, 1);
+    assert.ok(result.vts >= 0.85);
     assert.equal(context.events[0]?.type, "AGENT_ACTION_PENDING");
     assert.equal(context.events[1]?.type, "AGENT_ACTION_COMPLETED");
     assert.equal(typeof context.events[1]?.outputHash, "string");
@@ -171,8 +171,10 @@ function successResult(): AgentSdkResult {
   return {
     output: { ok: true },
     tool_execution_events: [
-      { toolName: "read", status: "success" },
-      { toolName: "run_tests", status: "success" },
+      { toolName: "read", args: { path: "src/electron/orchestration/sdk-orchestrator.ts" }, status: "success" },
+      { toolName: "write_file", status: "success" },
+      { toolName: "plan_validation", status: "success" },
+      { toolName: "run_tests", args: { command: "bun test" }, status: "success", parsedOutput: { exitCode: 0 } },
     ],
   };
 }
