@@ -17,6 +17,7 @@ export const MaTeXConfigSchema = z.object({
     region: z.string().optional(),
     credentials: z.record(z.string(), z.unknown()).default({}),
     credentialsEnv: z.record(z.string(), z.string()).optional(),
+    credentialsSecureKey: z.string().min(1).optional(),
     evidencePacks: z.object({
       prefix: z.string().default("evidence-packs/"),
       retentionDays: z.number().int().min(1).default(365),
@@ -113,9 +114,7 @@ export async function loadConfig(filePath = resolve(process.cwd(), "mate-x.confi
   if (!result.success) {
     throw new ConfigValidationError(formatConfigIssues(result.error.issues));
   }
-  // Security: add mate-x.config.json to .gitignore if using
-  // real credentials. Use credentialsEnv or $ENV_VAR references
-  // to avoid committing secrets.
+  rejectInlineStorageCredentials(result.data.storage.credentials);
   return {
     ...result.data,
     storage: {
@@ -245,6 +244,24 @@ function resolveStorageCredentials(
       return [key, value];
     }),
   );
+}
+
+function rejectInlineStorageCredentials(credentials: Record<string, unknown> | undefined) {
+  if (!credentials) {
+    return;
+  }
+
+  const inlineKeys = Object.entries(credentials)
+    .filter(([, value]) => typeof value !== "string" || !value.startsWith("$"))
+    .map(([key]) => key);
+
+  if (inlineKeys.length > 0) {
+    throw new ConfigValidationError(
+      "MaTE X config validation failed:\n" +
+        ` - storage.credentials.${inlineKeys.join(", storage.credentials.")}: ` +
+        "Inline storage credentials are not allowed. Use credentialsSecureKey, credentialsEnv, or $ENV_VAR references.",
+    );
+  }
 }
 
 function readCredentialEnvValue(envName: string) {

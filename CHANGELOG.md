@@ -23,8 +23,9 @@
 - Rate-limited Failure Memory writes per workspace for `record_failure` and `record_resolution`, added silent no-op behavior when limited, and evicted the oldest 50 records when a workspace reaches 500 failure records.
 - Made Agent Capability Profiler writes fire-and-forget with 500ms debounce and debug-only error handling so metrics persistence no longer blocks the agent completion path.
 - Added disabled-by-default Codex, Antigravity, and Cursor integration settings with a preferred-agent selector so external agent routing remains user-controlled.
-- Added a safe local `mate-x.config.json` fallback with orchestration auto-routing disabled so Electron startup no longer fails when the local config file is absent.
+- Added a safe app-scoped `mate-x.config.json` fallback with orchestration auto-routing disabled so Electron startup no longer fails when the local config file is absent and arbitrary reviewed repositories are not used as the global runtime config location.
 - Added `credentialsEnv` and `$ENV_VAR` credential references for `mate-x.config.json`, resolving storage credentials in the main process while preserving empty credentials when none are configured.
+- Added `credentialsSecureKey` support for native encrypted storage credentials and rejected inline storage credential values in `mate-x.config.json`.
 - Added best-effort Privacy Sentinel scanning of raw `mate-x.config.json` content before parsing so hardcoded P0 or secret-like config values block loading with a visible `CONFIG_SECRET_DETECTED` error.
 - Redacted both storage `credentials` and `credentialsEnv` from renderer-facing config IPC responses so env variable names and resolved values never cross into the renderer.
 - Repaired MaTE X stack startup by using a filesystem-backed local storage client instead of the invalid `files-sdk/local` subpath and removing duplicate `mate-x:*` IPC handler registration.
