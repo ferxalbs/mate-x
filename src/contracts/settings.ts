@@ -5,6 +5,7 @@ export type AgentTraceVersion = 'v1' | 'v2';
 export type PrivacyMode = 'off' | 'warn' | 'review' | 'strict';
 export type PrivacyPlaceholderStyle = 'simple' | 'typed' | 'stable';
 export type LiquidGlassDensity = 'calm' | 'focus' | 'deep';
+export type AgentIntegrationId = 'codex' | 'antigravity' | 'cursor';
 
 export interface AppSettings {
   appearance: AppearancePreference;
@@ -31,6 +32,10 @@ export interface AppSettings {
   privacyPlaceholderStyle: PrivacyPlaceholderStyle;
   privacyMinModelConfidence: number;
   privacyShowPreviewBeforeCloudSend: boolean;
+  codexIntegrationEnabled: boolean;
+  antigravityIntegrationEnabled: boolean;
+  cursorIntegrationEnabled: boolean;
+  preferredAgentIntegration: AgentIntegrationId | 'none';
   supermemoryApiKey?: string;
   onboardingCompleted: boolean;
 }
@@ -60,6 +65,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   privacyPlaceholderStyle: 'typed',
   privacyMinModelConfidence: 0.5,
   privacyShowPreviewBeforeCloudSend: true,
+  codexIntegrationEnabled: false,
+  antigravityIntegrationEnabled: false,
+  cursorIntegrationEnabled: false,
+  preferredAgentIntegration: 'none',
   supermemoryApiKey: '',
   onboardingCompleted: false,
 };

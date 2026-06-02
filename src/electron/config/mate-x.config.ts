@@ -28,9 +28,9 @@ export const MaTeXConfigSchema = z.object({
       maxRetries: z.number().int().min(0).default(3),
     }).default({ minVTS: 0.85, maxRetries: 3 }),
     routing: z.object({
-      autoRoute: z.boolean().default(true),
+      autoRoute: z.boolean().default(false),
       routingWindowSize: z.number().int().min(1).default(10),
-    }).default({ autoRoute: true, routingWindowSize: 10 }),
+    }).default({ autoRoute: false, routingWindowSize: 10 }),
   }),
   privacy: z.object({
     blockOnDetection: z.boolean().default(true),
@@ -46,6 +46,39 @@ export const MaTeXConfigSchema = z.object({
 
 export type MaTeXConfig = z.infer<typeof MaTeXConfigSchema> & MaTeXConfigContract;
 
+const DEFAULT_LOCAL_CONFIG: MaTeXConfig = {
+  storage: {
+    backend: "local",
+    bucket: ".matex/evidence",
+    credentials: {},
+    evidencePacks: {
+      prefix: "evidence-packs/",
+      retentionDays: 365,
+    },
+  },
+  orchestration: {
+    defaultAgent: "codex",
+    criticLoop: {
+      minVTS: 0.85,
+      maxRetries: 3,
+    },
+    routing: {
+      autoRoute: false,
+      routingWindowSize: 10,
+    },
+  },
+  privacy: {
+    blockOnDetection: true,
+    scanBeforeUpload: true,
+    scanBeforeAgentCall: true,
+  },
+  failureMemory: {
+    syncIntervalMinutes: 5,
+    maxRecordsPerSync: 500,
+    maxTotalRecords: 50000,
+  },
+};
+
 export class ConfigValidationError extends Error {
   readonly code = "CONFIG_VALIDATION_ERROR";
 
@@ -56,7 +89,15 @@ export class ConfigValidationError extends Error {
 }
 
 export async function loadConfig(filePath = resolve(process.cwd(), "mate-x.config.json")): Promise<MaTeXConfig> {
-  const raw = await readFile(filePath, "utf8");
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return DEFAULT_LOCAL_CONFIG;
+    }
+    throw error;
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;

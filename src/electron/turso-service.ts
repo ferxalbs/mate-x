@@ -1506,6 +1506,25 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.privacyShowPreviewBeforeCloudSend === 'boolean'
         ? input.privacyShowPreviewBeforeCloudSend
         : DEFAULT_APP_SETTINGS.privacyShowPreviewBeforeCloudSend,
+    codexIntegrationEnabled:
+      typeof input.codexIntegrationEnabled === 'boolean'
+        ? input.codexIntegrationEnabled
+        : DEFAULT_APP_SETTINGS.codexIntegrationEnabled,
+    antigravityIntegrationEnabled:
+      typeof input.antigravityIntegrationEnabled === 'boolean'
+        ? input.antigravityIntegrationEnabled
+        : DEFAULT_APP_SETTINGS.antigravityIntegrationEnabled,
+    cursorIntegrationEnabled:
+      typeof input.cursorIntegrationEnabled === 'boolean'
+        ? input.cursorIntegrationEnabled
+        : DEFAULT_APP_SETTINGS.cursorIntegrationEnabled,
+    preferredAgentIntegration:
+      input.preferredAgentIntegration === 'codex' ||
+      input.preferredAgentIntegration === 'antigravity' ||
+      input.preferredAgentIntegration === 'cursor' ||
+      input.preferredAgentIntegration === 'none'
+        ? input.preferredAgentIntegration
+        : DEFAULT_APP_SETTINGS.preferredAgentIntegration,
     supermemoryApiKey:
       typeof input.supermemoryApiKey === 'string'
         ? input.supermemoryApiKey
