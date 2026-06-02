@@ -3,7 +3,6 @@ import { chmod, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// @ts-ignore Bun exposes mock at runtime; installed TS types omit it.
 import { describe, mock, test } from "bun:test";
 
 const validationRuns: any[] = [];

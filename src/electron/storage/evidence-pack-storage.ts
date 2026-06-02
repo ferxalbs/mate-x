@@ -1,4 +1,4 @@
-import { createHash, verify } from "node:crypto";
+import { verify } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
 import { inflateRawSync } from "node:zlib";
@@ -188,7 +188,7 @@ function parseAttestation(buffer: Buffer): EvidencePackAttestation {
 function parseJson(buffer: Buffer, fileName: string): unknown {
   try {
     return JSON.parse(buffer.toString("utf8")) as unknown;
-  } catch (error) {
+  } catch {
     throw new EvidencePackIntegrityError(`${fileName} is not valid JSON.`);
   }
 }

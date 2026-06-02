@@ -7,7 +7,6 @@ import type { FailureMemory } from "../../contracts/workspace";
 import type { MaTeXStorageAdapter } from "./adapter";
 import type {
   FailureMemoryDeltaDocument,
-  FailureMemoryRepository,
   FailureMemorySyncOptions,
   FailureMemorySyncResult,
   FailureMemoryWorkspaceExport,

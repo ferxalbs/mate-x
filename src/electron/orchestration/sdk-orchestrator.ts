@@ -8,7 +8,6 @@ import type {
   AgentId,
   AgentSdkClient,
   AgentSdkResult,
-  SDKOrchestratorConfig,
   SDKOrchestratorDependencies,
   SDKOrchestratorResult,
   ToolExecutionEvent,
