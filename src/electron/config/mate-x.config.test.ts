@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "bun:test";
 
 import { MaTeXStorageAdapter } from "../storage/adapter";
 import { EvidencePackStorage } from "../storage/evidence-pack-storage";
 import { FailureMemorySync } from "../storage/failure-memory-sync";
 import { SDKOrchestrator } from "../orchestration/sdk-orchestrator";
-import type { FailureMemory } from "../contracts/workspace";
-import type { AgentAction, AgentSdkClient } from "../types/sdk-orchestrator.types";
-import type { FilesSdkClient } from "../types/storage-adapter.types";
+import type { FailureMemory } from "../../contracts/workspace";
+import type { AgentAction, AgentSdkClient } from "../../contracts/sdk-orchestrator.types";
+import type { FilesSdkClient } from "../../contracts/storage-adapter.types";
 import { ConfigValidationError, createMaTeXStack, loadConfig, MaTeXConfigSchema } from "./mate-x.config";
 
 const tempRoots: string[] = [];

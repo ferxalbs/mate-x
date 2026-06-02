@@ -2,8 +2,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { basename, posix } from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { sha256Hex } from "../features/compliance/attestation";
-import type { FailureMemory } from "../contracts/workspace";
+import { sha256Hex } from "../../features/compliance/attestation";
+import type { FailureMemory } from "../../contracts/workspace";
 import type { MaTeXStorageAdapter } from "./adapter";
 import type {
   FailureMemoryDeltaDocument,
@@ -11,7 +11,7 @@ import type {
   FailureMemorySyncOptions,
   FailureMemorySyncResult,
   FailureMemoryWorkspaceExport,
-} from "../types/failure-memory-sync.types";
+} from "../../contracts/failure-memory-sync.types";
 
 const DEFAULT_PREFIX = "failure-memory/";
 const DEFAULT_SYNC_INTERVAL_MINUTES = 5;

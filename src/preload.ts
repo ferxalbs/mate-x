@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import "./electron/preload/index";
 
 import type {
   GitApi,

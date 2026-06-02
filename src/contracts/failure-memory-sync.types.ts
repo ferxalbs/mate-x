@@ -1,4 +1,4 @@
-import type { FailureMemory } from "../contracts/workspace";
+import type { FailureMemory } from "./workspace";
 
 export interface FailureMemorySyncConfig {
   syncIntervalMinutes?: number;
