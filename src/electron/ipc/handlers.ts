@@ -34,6 +34,7 @@ function sanitizeConfig(config: MaTeXConfig): MaTeXConfig {
     storage: {
       ...config.storage,
       credentials: { redacted: true },
+      credentialsEnv: config.storage.credentialsEnv ? { redacted: "true" } : undefined,
     },
   };
 }
