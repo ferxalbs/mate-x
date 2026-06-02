@@ -1,6 +1,6 @@
 import { app } from 'electron';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import { loadConfig, createMaTeXStack, type MaTeXConfig } from './config/mate-x.config';
 import { failureMemoryEngine } from './failure-memory-engine';
@@ -11,7 +11,7 @@ import { setSDKOrchestrator } from './repo-service';
 import { tursoService } from './turso-service';
 import type { AgentAction, AgentSdkClient } from '../contracts/sdk-orchestrator.types';
 import type { FailureMemorySyncStateStore } from '../contracts/failure-memory-sync.types';
-import type { StorageEvent } from '../contracts/storage-adapter.types';
+import type { FilesSdkClient, StorageEvent } from '../contracts/storage-adapter.types';
 
 export type MaTeXStack = Awaited<ReturnType<typeof createMaTeXStack>>;
 
@@ -23,6 +23,7 @@ export async function initStack(): Promise<void> {
   stack = await createMaTeXStack(configSnapshot, {
     workspaceId: 'default',
     storage: {
+      files: createLocalFilesClient(resolve(process.cwd(), configSnapshot.storage.bucket ?? '.matex/evidence')),
       privacySentinel: {
         scan: async (content) => {
           const scan = await privacyFirewall.scanTextSafe(
@@ -97,7 +98,6 @@ export async function initStack(): Promise<void> {
     },
   });
   setSDKOrchestrator(stack.orchestrator);
-  stack.failureMemorySync.start();
 }
 
 export function getStack(): MaTeXStack {
@@ -133,6 +133,76 @@ function createUnavailableSdkClient(agentId: AgentAction['agentId']): AgentSdkCl
       throw new MissingSDKClientError(agentId);
     },
   };
+}
+
+function createLocalFilesClient(root: string): FilesSdkClient {
+  const safePath = (key: string) => {
+    const resolved = resolve(root, key);
+    const escapedRoot = relative(root, resolved).startsWith(`..${sep}`) || relative(root, resolved) === '..';
+    if (escapedRoot) {
+      throw new Error(`Refusing local storage path outside evidence root: ${key}`);
+    }
+    return resolved;
+  };
+
+  return {
+    async upload(key, body) {
+      const path = safePath(key);
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, Buffer.from(await bodyToBytes(body)));
+      return { url: `file://${path}` };
+    },
+    async download(key) {
+      return readFile(safePath(key));
+    },
+    async delete(key) {
+      await rm(safePath(key), { force: true });
+    },
+    async list(options) {
+      const prefix = typeof options?.prefix === 'string' ? options.prefix : '';
+      const rootPath = safePath(prefix);
+      return listLocalFiles(root, rootPath);
+    },
+  };
+}
+
+async function bodyToBytes(body: string | Uint8Array | ArrayBuffer | Blob): Promise<Uint8Array> {
+  if (typeof body === 'string') {
+    return Buffer.from(body);
+  }
+  if (body instanceof Uint8Array) {
+    return body;
+  }
+  if (body instanceof ArrayBuffer) {
+    return new Uint8Array(body);
+  }
+  return new Uint8Array(await body.arrayBuffer());
+}
+
+async function listLocalFiles(root: string, currentPath: string): Promise<Array<{ key: string; size: number; updatedAt: string }>> {
+  try {
+    const currentStat = await stat(currentPath);
+    if (currentStat.isFile()) {
+      return [{
+        key: relative(root, currentPath),
+        size: currentStat.size,
+        updatedAt: currentStat.mtime.toISOString(),
+      }];
+    }
+  } catch {
+    return [];
+  }
+
+  const entries = await readdir(currentPath, { withFileTypes: true });
+  const files = await Promise.all(entries.map((entry) => {
+    const entryPath = join(currentPath, entry.name);
+    return entry.isDirectory() ? listLocalFiles(root, entryPath) : stat(entryPath).then((entryStat) => [{
+      key: relative(root, entryPath),
+      size: entryStat.size,
+      updatedAt: entryStat.mtime.toISOString(),
+    }]);
+  }));
+  return files.flat();
 }
 
 async function requestPolicyApproval(toolName: string, actionType: string, payload: unknown): Promise<boolean> {

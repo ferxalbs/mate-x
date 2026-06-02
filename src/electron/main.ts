@@ -4,7 +4,6 @@ import started from 'electron-squirrel-startup';
 import { initializeUpdater } from './updater';
 
 import { registerIpcHandlers } from './ipc-handlers';
-import { registerMaTeXStackIpcHandlers } from './ipc/handlers';
 import { initStack, teardownStack } from './main-stack';
 
 // Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
@@ -140,7 +139,6 @@ app.on('ready', async () => {
     console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
   }
   registerIpcHandlers();
-  registerMaTeXStackIpcHandlers();
   createWindow();
 });
 
