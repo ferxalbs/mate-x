@@ -15,7 +15,8 @@ export const MaTeXConfigSchema = z.object({
     backend: z.enum(["r2", "s3", "gcs", "azure", "supabase", "vercel", "local"]),
     bucket: z.string().min(1),
     region: z.string().optional(),
-    credentials: z.record(z.string(), z.unknown()),
+    credentials: z.record(z.string(), z.unknown()).default({}),
+    credentialsEnv: z.record(z.string(), z.string()).optional(),
     evidencePacks: z.object({
       prefix: z.string().default("evidence-packs/"),
       retentionDays: z.number().int().min(1).default(365),
@@ -111,7 +112,16 @@ export async function loadConfig(filePath = resolve(process.cwd(), "mate-x.confi
   if (!result.success) {
     throw new ConfigValidationError(formatConfigIssues(result.error.issues));
   }
-  return result.data;
+  // Security: add mate-x.config.json to .gitignore if using
+  // real credentials. Use credentialsEnv or $ENV_VAR references
+  // to avoid committing secrets.
+  return {
+    ...result.data,
+    storage: {
+      ...result.data.storage,
+      credentials: resolveStorageCredentials(result.data.storage.credentials, result.data.storage.credentialsEnv),
+    },
+  };
 }
 
 export async function createMaTeXStack(config: MaTeXConfig, dependencies: CreateMaTeXStackDependencies = {}) {
@@ -210,4 +220,36 @@ function normalizeIssueMessage(issue: z.core.$ZodIssue) {
     return "Number must be between 0 and 1";
   }
   return issue.message;
+}
+
+function resolveStorageCredentials(
+  credentials: Record<string, unknown> | undefined,
+  credentialsEnv: Record<string, string> | undefined,
+) {
+  if (credentialsEnv) {
+    return Object.fromEntries(
+      Object.entries(credentialsEnv).map(([key, envName]) => [key, readCredentialEnvValue(envName)]),
+    );
+  }
+
+  if (!credentials) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(credentials).map(([key, value]) => {
+      if (typeof value === "string" && value.startsWith("$")) {
+        return [key, readCredentialEnvValue(value.slice(1))];
+      }
+      return [key, value];
+    }),
+  );
+}
+
+function readCredentialEnvValue(envName: string) {
+  const value = process.env[envName];
+  if (value === undefined) {
+    console.debug(`credentialsEnv: env var ${envName} is not set`);
+  }
+  return value ?? "";
 }

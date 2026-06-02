@@ -15,6 +15,7 @@ export interface MaTeXConfig {
     bucket: string;
     region?: string;
     credentials: Record<string, unknown>;
+    credentialsEnv?: Record<string, string>;
     evidencePacks: {
       prefix: string;
       retentionDays: number;
