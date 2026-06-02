@@ -19,7 +19,14 @@ let stack: MaTeXStack | null = null;
 let configSnapshot: MaTeXConfig | null = null;
 
 export async function initStack(): Promise<void> {
-  configSnapshot = await loadConfig();
+  configSnapshot = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
+  configSnapshot = {
+    ...configSnapshot,
+    storage: {
+      ...configSnapshot.storage,
+      credentials: await resolveStorageCredentials(configSnapshot),
+    },
+  };
   stack = await createMaTeXStack(configSnapshot, {
     workspaceId: 'default',
     storage: {
@@ -98,6 +105,18 @@ export async function initStack(): Promise<void> {
     },
   });
   setSDKOrchestrator(stack.orchestrator);
+}
+
+async function resolveStorageCredentials(config: MaTeXConfig): Promise<Record<string, unknown>> {
+  if (!config.storage.credentialsSecureKey) {
+    return config.storage.credentials;
+  }
+
+  const credentials = await tursoService.getSecureAppSecretJson(config.storage.credentialsSecureKey);
+  if (!credentials) {
+    throw new Error(`Storage credentials are not configured for secure key "${config.storage.credentialsSecureKey}".`);
+  }
+  return credentials;
 }
 
 export function getStack(): MaTeXStack {

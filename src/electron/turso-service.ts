@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import { createClient, type Client } from '@libsql/client';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -476,6 +476,35 @@ export class TursoService {
       sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       args: ['rainy_api_key', normalizedApiKey],
+    });
+  }
+
+  async getSecureAppSecretJson(key: string): Promise<Record<string, unknown> | null> {
+    const encryptedHex = await this.getAppStateValue(`secure:${key}`);
+    if (!encryptedHex) {
+      return null;
+    }
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Native encrypted storage is unavailable on this system.');
+    }
+    const decrypted = safeStorage.decryptString(Buffer.from(encryptedHex, 'hex'));
+    const parsed = JSON.parse(decrypted) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`Secure app secret ${key} does not contain a JSON object.`);
+    }
+    return parsed as Record<string, unknown>;
+  }
+
+  async setSecureAppSecretJson(key: string, value: Record<string, unknown>): Promise<void> {
+    await this.initialize();
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Native encrypted storage is unavailable on this system.');
+    }
+    const encryptedHex = safeStorage.encryptString(JSON.stringify(value)).toString('hex');
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: [`secure:${key}`, encryptedHex],
     });
   }
 
