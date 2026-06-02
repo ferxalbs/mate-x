@@ -45,7 +45,8 @@ export interface MaTeXConfig {
 
 export interface CreateMaTeXStackDependencies {
   workspaceId?: string;
-  storage?: Partial<Omit<MaTeXStorageAdapterOptions, "workspaceId" | "backend">> & {
+  storage?: Omit<MaTeXStorageAdapterOptions, "workspaceId" | "backend" | "files"> & {
+    files?: MaTeXStorageAdapterOptions["files"];
     factory?: FilesSdkFactory;
   };
   failureMemory?: {
@@ -59,6 +60,6 @@ export interface CreateMaTeXStackDependencies {
     privacySentinel?: SDKOrchestratorPrivacySentinel;
     evidenceRecorder?: SDKOrchestratorEvidenceRecorder;
     failureMemory?: SDKOrchestratorFailureMemory;
-    confirmHighImpact?(action: AgentAction): Promise<boolean>;
+    confirmHighImpact?: (action: AgentAction) => Promise<boolean>;
   };
 }

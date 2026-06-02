@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('mateX', {
   },
   failureMemory: {
     sync: () => ipcRenderer.invoke(IPC.FAILURE_MEMORY_SYNC),
+    getSyncStatus: () => ipcRenderer.invoke(IPC.FAILURE_MEMORY_STATUS),
     exportWorkspace: (workspaceId: string) => ipcRenderer.invoke(IPC.FAILURE_MEMORY_EXPORT, workspaceId),
     importWorkspace: (zipPath: string) => ipcRenderer.invoke(IPC.FAILURE_MEMORY_IMPORT, zipPath),
   },
