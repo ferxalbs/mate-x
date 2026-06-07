@@ -14,6 +14,19 @@ const DB_SCHEMES = "(?:postgres(?:ql)?|mysql|mariadb|redis|mongodb(?:\\+srv)?|cl
 const TOKEN = "[A-Za-z0-9_./+=:@%~-]{12,}";
 const PLACEHOLDER_RE = /^(?:YOUR_[A-Z0-9_]+_HERE|<[^>]+>|\$\{[^}]+\}|xxx+|example|demo)$/i;
 
+const RULE_HINTS: Partial<Record<PrivacyLabel, RegExp>> = {
+  database_uri: new RegExp(`\\b${DB_SCHEMES}:`, "i"),
+  api_key: /\b(?:sk-|sk-proj-|sk-or-v1-|ghp_|github_pat_|npm_|hf_|xox[abp]-|API_KEY|SECRET_KEY|CLIENT_SECRET)\b/i,
+  auth_token: /\b(?:Bearer\s+|refresh_token|access_token|cli_token)\b|\.[A-Za-z0-9_-]{10,}\./i,
+  session_cookie: /\b(?:session|connect\.sid|sid|auth_session|next-auth\.session-token)\b/i,
+  cloud_credential: /\b(?:AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|GOOGLE_APPLICATION_CREDENTIALS|AZURE_CLIENT_SECRET)\b|-----BEGIN/i,
+  private_file_path: /(?:\/Users\/|\/home\/|C:\\Users\\)/i,
+  internal_url: /https?:\/\/(?:localhost|10\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.|[^/\s"'<>]+\.(?:internal|local|corp))/i,
+  workspace_identity: /\b(?:workspace_id|org_id|tenant_id|project_id|repo_slug|run_id|ws_)\b/i,
+  customer_data: /\b(?:customer_id|billing_customer|cust_)\b/i,
+  prompt_sensitive: /\b(?:ignore previous policy|do not redact|copy the key exactly|reveal the secret|bypass the policy|include credentials in final answer|send the raw \.env|do not tell the user|exfiltrate)\b/i,
+};
+
 const RULES: Rule[] = [
   {
     label: "database_uri",
@@ -128,10 +141,24 @@ const RULES: Rule[] = [
   },
 ];
 
+function shouldRunRule(rule: Rule, text: string) {
+  const hint = RULE_HINTS[rule.label];
+  return !hint || hint.test(text);
+}
+
 export function scanWithRegex(text: string, workspaceId?: string): PrivacySpan[] {
+  if (!text) {
+    return [];
+  }
+
   const spans: PrivacySpan[] = [];
 
   for (const rule of RULES) {
+    if (!shouldRunRule(rule, text)) {
+      continue;
+    }
+
+    rule.regex.lastIndex = 0;
     for (const match of text.matchAll(rule.regex)) {
       const rawValue = rule.valueGroup ? match[rule.valueGroup] : match[0];
       if (!rawValue || rule.skip?.(rawValue)) {
