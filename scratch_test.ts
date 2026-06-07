@@ -8,6 +8,6 @@ const evidencePackPublishSchema = z.object({
   publicKeyPem: z.string().transform(parsePublicKeyPem),
   prefix: z.string().max(256).transform(parseStoragePrefix).optional(),
   uploadedAt: z.coerce.date().optional(),
-}) satisfies z.ZodType<EvidencePackStoragePublishInput>;
+}) satisfies z.ZodType<EvidencePackStoragePublishInput, any, any>;
 
 console.log(evidencePackPublishSchema);

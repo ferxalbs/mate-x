@@ -31,7 +31,7 @@ const evidencePackPublishSchema = z.object({
   publicKeyPem: z.string().transform(parsePublicKeyPem),
   prefix: z.string().max(256).transform(parseStoragePrefix).optional(),
   uploadedAt: z.coerce.date().optional(),
-}) satisfies z.ZodType<EvidencePackStoragePublishInput>;
+}) satisfies z.ZodType<EvidencePackStoragePublishInput, any, any>;
 
 const workspaceIdSchema = z.string().transform(parseWorkspaceId);
 const zipPathSchema = z.string().transform(parseFailureMemoryImportPath);
@@ -115,7 +115,7 @@ export function registerMaTeXStackIpcHandlers() {
   ));
 
   ipcMain.handle(IPC.EVIDENCE_PACK_PUBLISH, guardIpc(IPC.EVIDENCE_PACK_PUBLISH, (_event, payload) =>
-    getStack().evidencePackStorage.publish(evidencePackPublishSchema.parse(payload)),
+    getStack().evidencePackStorage.publish(evidencePackPublishSchema.parse(payload) as EvidencePackStoragePublishInput),
   ));
 
   ipcMain.handle(IPC.FAILURE_MEMORY_SYNC, guardIpc(IPC.FAILURE_MEMORY_SYNC, () =>

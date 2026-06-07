@@ -93,6 +93,8 @@ export class PrivacyFirewallService {
       };
     }
 
+    // Privacy Sentinel v0.15 ONNX always runs at full fidelity when enabled.
+    // Performance optimizations apply only to regex pre-filters and settings caching.
     const [modelResult, regexSpans] = await Promise.all([
       resolved.scanModel
         ? scanWithOnnx(text)
@@ -243,7 +245,12 @@ export class PrivacyFirewallService {
       originalLength += value.length;
       const scan = await this.scanText(
         value,
-        { mode: "strict", placeholderStyle: "typed", scanRegex: true, scanModel: false },
+        {
+          mode: "strict",
+          placeholderStyle: "typed",
+          scanRegex: outboundOptions.scanRegex,
+          scanModel: outboundOptions.scanModel,
+        },
         { ...context, inputKind: context.inputKind ?? "outbound_model_payload" },
       );
       aggregateSpans.push(...scan.spans);
