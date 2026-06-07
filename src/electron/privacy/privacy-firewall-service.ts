@@ -27,10 +27,19 @@ type LoadedPrivacyOptions = Partial<PrivacyFirewallOptions> & {
   settingsLoadFailed?: boolean;
 };
 
+const SETTINGS_CACHE_TTL_MS = 2_000;
+let cachedSettings: LoadedPrivacyOptions | null = null;
+let cachedSettingsAt = 0;
+
 async function loadSettingsOptions(): Promise<LoadedPrivacyOptions> {
+  const now = Date.now();
+  if (cachedSettings && now - cachedSettingsAt < SETTINGS_CACHE_TTL_MS) {
+    return cachedSettings;
+  }
+
   try {
     const settings = await tursoService.getAppSettings();
-    return {
+    cachedSettings = {
       mode: settings.privacyFirewallEnabled ? settings.privacyMode : "off",
       placeholderStyle: settings.privacyPlaceholderStyle,
       scanModel: settings.privacyUseOnnxModel,
@@ -39,8 +48,16 @@ async function loadSettingsOptions(): Promise<LoadedPrivacyOptions> {
       minModelConfidence: settings.privacyMinModelConfidence,
     };
   } catch {
-    return { settingsLoadFailed: true };
+    cachedSettings = { settingsLoadFailed: true };
   }
+
+  cachedSettingsAt = now;
+  return cachedSettings;
+}
+
+export function invalidatePrivacySettingsCache() {
+  cachedSettings = null;
+  cachedSettingsAt = 0;
 }
 
 function blankSpanText(result: PrivacyScanResult): PrivacySafeScanResult {
@@ -54,7 +71,13 @@ export class PrivacyFirewallService {
   async scanText(
     text: string,
     options: Partial<PrivacyFirewallOptions> = {},
-    context: { workspaceId?: string; runId?: string; inputKind?: string; persist?: boolean } = {},
+    context: {
+      workspaceId?: string;
+      runId?: string;
+      inputKind?: string;
+      persist?: boolean;
+      recordTelemetry?: boolean;
+    } = {},
   ): Promise<PrivacyScanResult> {
     const startedAt = Date.now();
     const loadedOptions = await loadSettingsOptions();
@@ -70,19 +93,22 @@ export class PrivacyFirewallService {
       };
     }
 
-    let modelSpans: PrivacySpan[] = [];
-    let modelError: string | undefined;
-    if (resolved.scanModel) {
-      try {
-        const result = await scanWithOnnx(text);
-        modelSpans = result.spans.filter((span) => span.confidence >= resolved.minModelConfidence);
-        modelError = result.error;
-      } catch (error) {
-        modelError = error instanceof Error ? error.message : "Privacy model scan failed.";
-      }
-    }
-
-    const regexSpans = resolved.scanRegex ? scanWithRegex(text, context.workspaceId) : [];
+    const [modelResult, regexSpans] = await Promise.all([
+      resolved.scanModel
+        ? scanWithOnnx(text)
+            .then((result) => ({
+              spans: result.spans.filter((span) => span.confidence >= resolved.minModelConfidence),
+              error: result.error,
+            }))
+            .catch((error: unknown) => ({
+              spans: [] as PrivacySpan[],
+              error: error instanceof Error ? error.message : "Privacy model scan failed.",
+            }))
+        : Promise.resolve({ spans: [] as PrivacySpan[], error: undefined }),
+      Promise.resolve(resolved.scanRegex ? scanWithRegex(text, context.workspaceId) : []),
+    ]);
+    const modelSpans = modelResult.spans;
+    const modelError = modelResult.error;
     const spans = postprocessPrivacySpans(
       text,
       [...regexSpans, ...modelSpans],
@@ -126,24 +152,30 @@ export class PrivacyFirewallService {
       await storePrivacySpans({ workspaceId: context.workspaceId, runId: context.runId, spans });
     }
 
-    await tursoService.recordPrivacyScanEvent({
-      id: `privacy-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      workspaceId: context.workspaceId ?? "",
-      runId: context.runId ?? null,
-      inputKind: context.inputKind ?? "text",
-      totalSpans: spans.length,
-      p0Count,
-      blocked,
-      elapsedMs,
-      createdAt: new Date().toISOString(),
-    });
+    if (context.recordTelemetry !== false) {
+      await tursoService.recordPrivacyScanEvent({
+        id: `privacy-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        workspaceId: context.workspaceId ?? "",
+        runId: context.runId ?? null,
+        inputKind: context.inputKind ?? "text",
+        totalSpans: spans.length,
+        p0Count,
+        blocked,
+        elapsedMs,
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     return scan;
   }
 
   async scanTextSafe(text: string): Promise<PrivacySafeScanResult> {
     return blankSpanText(
-      await this.scanText(text, { mode: "review", placeholderStyle: "typed" }, { persist: false, inputKind: "debug" }),
+      await this.scanText(
+        text,
+        { mode: "review", placeholderStyle: "typed" },
+        { persist: false, recordTelemetry: false, inputKind: "debug" },
+      ),
     );
   }
 

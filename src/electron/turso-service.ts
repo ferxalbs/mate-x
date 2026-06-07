@@ -559,6 +559,8 @@ export class TursoService {
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       args: ['app_settings', JSON.stringify(normalizedSettings)],
     });
+    const { invalidatePrivacySettingsCache } = await import('./privacy/privacy-firewall-service');
+    invalidatePrivacySettingsCache();
     return normalizedSettings;
   }
 

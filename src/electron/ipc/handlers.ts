@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import type { IpcMainInvokeEvent } from 'electron';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { z } from 'zod';
@@ -6,27 +7,35 @@ import { z } from 'zod';
 import { getConfigSnapshot, getStack } from '../main-stack';
 import { IPC } from '../preload/contracts';
 import type { AgentActionRequest, EvidencePackStoragePublishInput, MaTeXConfig } from '../../contracts';
+import {
+  assertTrustedRendererSender,
+  parseEvidencePackDirectory,
+  parseFailureMemoryImportPath,
+  parsePublicKeyPem,
+  parseStoragePrefix,
+  parseWorkspaceId,
+} from './guards';
 
 const agentIdSchema = z.enum(['codex', 'cursor', 'antigravity']);
 
 const agentActionSchema = z.object({
   agentId: agentIdSchema,
-  actionType: z.string().min(1),
+  actionType: z.string().trim().min(1).max(120),
   payload: z.unknown(),
   allowHighImpact: z.boolean().optional(),
 }) satisfies z.ZodType<AgentActionRequest>;
 
 const evidencePackPublishSchema = z.object({
-  workspaceId: z.string().min(1),
-  evidencePackDirectory: z.string().min(1),
-  publicKeyPem: z.string().min(1),
-  prefix: z.string().optional(),
+  workspaceId: z.string().transform(parseWorkspaceId),
+  evidencePackDirectory: z.string().transform(parseEvidencePackDirectory),
+  publicKeyPem: z.string().transform(parsePublicKeyPem),
+  prefix: z.string().max(256).transform(parseStoragePrefix).optional(),
   uploadedAt: z.coerce.date().optional(),
 }) satisfies z.ZodType<EvidencePackStoragePublishInput>;
 
-const workspaceIdSchema = z.string().min(1);
-const zipPathSchema = z.string().min(1);
-const prefixSchema = z.string();
+const workspaceIdSchema = z.string().transform(parseWorkspaceId);
+const zipPathSchema = z.string().transform(parseFailureMemoryImportPath);
+const prefixSchema = z.string().max(256).transform(parseStoragePrefix);
 
 function sanitizeConfig(config: MaTeXConfig): MaTeXConfig {
   return {
@@ -75,47 +84,60 @@ async function handleIpc<T>(channel: string, operation: () => Promise<T> | T) {
   }
 }
 
+function guardIpc<T>(
+  channel: string,
+  operation: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<T> | T,
+) {
+  return (event: IpcMainInvokeEvent, ...args: unknown[]) => {
+    try {
+      assertTrustedRendererSender(event);
+    } catch (error) {
+      return handleIpc(channel, () => {
+        throw error;
+      });
+    }
+
+    return handleIpc(channel, () => operation(event, ...args));
+  };
+}
+
 export function registerMaTeXStackIpcHandlers() {
-  ipcMain.handle(IPC.ORCHESTRATOR_RUN, (_event, payload) =>
-    handleIpc(IPC.ORCHESTRATOR_RUN, () => getStack().orchestrator.execute(agentActionSchema.parse(payload))),
-  );
+  ipcMain.handle(IPC.ORCHESTRATOR_RUN, guardIpc(IPC.ORCHESTRATOR_RUN, (_event, payload) =>
+    getStack().orchestrator.execute(agentActionSchema.parse(payload)),
+  ));
 
-  ipcMain.handle(IPC.ORCHESTRATOR_ROUTING, () =>
-    handleIpc(IPC.ORCHESTRATOR_ROUTING, () => getStack().orchestrator.getRoutingRecommendations()),
-  );
+  ipcMain.handle(IPC.ORCHESTRATOR_ROUTING, guardIpc(IPC.ORCHESTRATOR_ROUTING, () =>
+    getStack().orchestrator.getRoutingRecommendations(),
+  ));
 
-  ipcMain.handle(IPC.EVIDENCE_PACK_LIST, (_event, workspaceId) =>
-    handleIpc(IPC.EVIDENCE_PACK_LIST, () => getStack().evidencePackStorage.list(workspaceIdSchema.parse(workspaceId))),
-  );
+  ipcMain.handle(IPC.EVIDENCE_PACK_LIST, guardIpc(IPC.EVIDENCE_PACK_LIST, (_event, workspaceId) =>
+    getStack().evidencePackStorage.list(workspaceIdSchema.parse(workspaceId)),
+  ));
 
-  ipcMain.handle(IPC.EVIDENCE_PACK_PUBLISH, (_event, payload) =>
-    handleIpc(IPC.EVIDENCE_PACK_PUBLISH, () => getStack().evidencePackStorage.publish(evidencePackPublishSchema.parse(payload))),
-  );
+  ipcMain.handle(IPC.EVIDENCE_PACK_PUBLISH, guardIpc(IPC.EVIDENCE_PACK_PUBLISH, (_event, payload) =>
+    getStack().evidencePackStorage.publish(evidencePackPublishSchema.parse(payload)),
+  ));
 
-  ipcMain.handle(IPC.FAILURE_MEMORY_SYNC, () =>
-    handleIpc(IPC.FAILURE_MEMORY_SYNC, () => getStack().failureMemorySync.sync()),
-  );
+  ipcMain.handle(IPC.FAILURE_MEMORY_SYNC, guardIpc(IPC.FAILURE_MEMORY_SYNC, () =>
+    getStack().failureMemorySync.sync(),
+  ));
 
-  ipcMain.handle(IPC.FAILURE_MEMORY_EXPORT, (_event, workspaceId) =>
-    handleIpc(IPC.FAILURE_MEMORY_EXPORT, async () => {
-      const parsedWorkspaceId = workspaceIdSchema.parse(workspaceId);
-      const zipPath = join(tmpdir(), `mate-x-failure-memory-${parsedWorkspaceId}-${Date.now()}.zip`);
-      await getStack().failureMemorySync.exportWorkspaceToFile(zipPath, parsedWorkspaceId);
-      return { zipPath };
-    }),
-  );
+  ipcMain.handle(IPC.FAILURE_MEMORY_EXPORT, guardIpc(IPC.FAILURE_MEMORY_EXPORT, async (_event, workspaceId) => {
+    const parsedWorkspaceId = workspaceIdSchema.parse(workspaceId);
+    const zipPath = join(tmpdir(), `mate-x-failure-memory-${parsedWorkspaceId}-${Date.now()}.zip`);
+    await getStack().failureMemorySync.exportWorkspaceToFile(zipPath, parsedWorkspaceId);
+    return { zipPath };
+  }));
 
-  ipcMain.handle(IPC.FAILURE_MEMORY_IMPORT, (_event, zipPath) =>
-    handleIpc(IPC.FAILURE_MEMORY_IMPORT, async () => {
-      await getStack().failureMemorySync.importWorkspace(zipPathSchema.parse(zipPath));
-    }),
-  );
+  ipcMain.handle(IPC.FAILURE_MEMORY_IMPORT, guardIpc(IPC.FAILURE_MEMORY_IMPORT, async (_event, zipPath) => {
+    await getStack().failureMemorySync.importWorkspace(zipPathSchema.parse(zipPath));
+  }));
 
-  ipcMain.handle(IPC.CONFIG_GET, () =>
-    handleIpc(IPC.CONFIG_GET, () => sanitizeConfig(getConfigSnapshot())),
-  );
+  ipcMain.handle(IPC.CONFIG_GET, guardIpc(IPC.CONFIG_GET, () =>
+    sanitizeConfig(getConfigSnapshot()),
+  ));
 
-  ipcMain.handle(IPC.STORAGE_LIST, (_event, prefix) =>
-    handleIpc(IPC.STORAGE_LIST, () => getStack().adapter.listFiles({ prefix: prefixSchema.parse(prefix) })),
-  );
+  ipcMain.handle(IPC.STORAGE_LIST, guardIpc(IPC.STORAGE_LIST, (_event, prefix) =>
+    getStack().adapter.listFiles({ prefix: prefixSchema.parse(prefix) }),
+  ));
 }
