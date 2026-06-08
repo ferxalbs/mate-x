@@ -415,7 +415,11 @@ export async function runAssistant(
     status: validationGate.allowed ? "done" : "error",
   });
 
-  const taskId = `task-${Date.now()}`;
+  // Stable taskId generated early and tied to the runId (when provided by caller).
+  // This makes the .mate-x/evidence/<taskId> dir predictable, survives chat reloads/history,
+  // and enables true standalone pack listing/browsing independent of message objects.
+  const effectiveRunId = progressReporter?.runId ?? `run-${Date.now()}`;
+  const taskId = `task-${effectiveRunId}`;
   const baseEvidencePack = await buildEvidencePack({
     workspacePath: snapshot.workspace.path,
     events,

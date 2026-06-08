@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld('mateX', {
   evidencePack: {
     list: (workspaceId: string) => ipcRenderer.invoke(IPC.EVIDENCE_PACK_LIST, workspaceId),
     publish: (pack: unknown) => ipcRenderer.invoke(IPC.EVIDENCE_PACK_PUBLISH, pack),
+    // Phase C local standalone (scans .mate-x/evidence on target workspace)
+    localList: (workspaceId?: string) => ipcRenderer.invoke(IPC.EVIDENCE_LIST, workspaceId),
+    get: (workspaceId: string, taskId: string) => ipcRenderer.invoke(IPC.EVIDENCE_GET, workspaceId, taskId),
+    verifyAttestation: (workspaceId: string, taskId: string) => ipcRenderer.invoke(IPC.EVIDENCE_VERIFY, workspaceId, taskId),
+    exportZip: (workspaceId: string, taskId: string) => ipcRenderer.invoke(IPC.EVIDENCE_EXPORT_ZIP, workspaceId, taskId),
   },
   failureMemory: {
     sync: () => ipcRenderer.invoke(IPC.FAILURE_MEMORY_SYNC),
