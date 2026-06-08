@@ -38,10 +38,15 @@ describe("compliance export unit", () => {
     assert.match(markdown, /Policy: policy-a/);
   });
 
-  it("builds a PDF buffer with expected header", () => {
+  it("builds a PDF buffer with expected header and Phase B richer evidence content", () => {
     const pdf = buildComplianceReportPdf(evidencePack(), "2026-05-10T10:00:00.000Z");
     assert.equal(pdf.subarray(0, 8).toString("utf8"), "%PDF-1.4");
     assert.match(pdf.toString("utf8"), /MaTE X Compliance Report/);
+    // Phase B richer content
+    assert.match(pdf.toString("utf8"), /Files Modified/);
+    assert.match(pdf.toString("utf8"), /Proof & Validation Steps/);
+    assert.match(pdf.toString("utf8"), /Sidecar Artifacts/);
+    assert.match(pdf.toString("utf8"), /Verified Task Score/);
   });
 
   it("builds a ZIP containing all local headers", () => {
@@ -79,9 +84,12 @@ describe("compliance export unit", () => {
       "agent-runbook.md",
       "attestation.intoto.json",
       "audit-log.json",
+      "commands-executed.json",
       "compliance-report.pdf",
       "evidence-pack.json",
+      "files-modified.json",
       "policy-applied.md",
+      "proof-summary.json",
     ]);
   });
 
@@ -133,6 +141,32 @@ describe("compliance export unit", () => {
       packageDisplayName({ fileName: "mate-x-compliance-task-1.zip", zipPath: "/tmp/x.zip" }),
       "mate-x-compliance-task-1.zip",
     );
+  });
+
+  it("includes Phase B sidecars (commands, files, proof-summary) in ZIP and manifest", async () => {
+    const workspacePath = await workspace();
+    await mkdir(join(workspacePath, ".mate-x", "evidence", "task-sidecar-export"), { recursive: true });
+    await writeFile(join(workspacePath, ".mate-x", "evidence", "task-sidecar-export", "attestation.intoto.json"), "{}");
+
+    const result = await generateComplianceExport({
+      evidencePack: evidencePack({
+        commandsExecuted: [{ command: "file_editor", exitCode: 0 }],
+        filesModified: [{ path: "app.ts", changeType: "modified" }],
+      }),
+      workspacePath,
+      taskId: "task-sidecar-export",
+    });
+
+    const zip = await readFile(result.zipPath);
+    const manifest = JSON.parse(await readFile(result.manifestPath, "utf8"));
+
+    assert.match(zip.toString("latin1"), /commands-executed\.json/);
+    assert.match(zip.toString("latin1"), /files-modified\.json/);
+    assert.match(zip.toString("latin1"), /proof-summary\.json/);
+
+    assert.ok(manifest.files["commands-executed.json"]);
+    assert.ok(manifest.files["files-modified.json"]);
+    assert.ok(manifest.files["proof-summary.json"]);
   });
 });
 
