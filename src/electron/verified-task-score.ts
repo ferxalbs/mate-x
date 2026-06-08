@@ -48,11 +48,25 @@ const labels: Record<SignalId, string> = {
   claimed_commands_ran: "Claimed commands ran",
 };
 
-const fileInspectionTools = new Set(["read", "read_file", "grep_search", "file_search"]);
-const patchTools = new Set(["apply_patch", "str_replace_editor", "edit_file", "write_file"]);
+const fileInspectionTools = new Set(["read", "read_file", "grep_search", "file_search", "rg", "read_many"]);
+const patchTools = new Set([
+  "file_editor",
+  "auto_patch",
+  "apply_patch",
+  "str_replace_editor",
+  "edit_file",
+  "write_file",
+  "replace_range",
+]);
 const validationSelectionTools = new Set(["plan_validation", "detect_workspace_capabilities"]);
 const validationExecutionTools = new Set(["run_tests", "sandbox_run"]);
 const failureContextTools = new Set(["find_similar_failures", "record_failure"]);
+const proofTools = new Set([
+  "security_path_trace",
+  "candidate_revalidator",
+  "browser_prober",
+  "deep_analysis_pipeline",
+]);
 
 export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
   const inspectedPaths = extractInspectedPaths(input.toolExecutions);
@@ -80,21 +94,29 @@ export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
     validationExecutionTools.has(execution.toolName),
   );
 
+  const hasProofSignal = input.toolExecutions.some(
+    (execution) =>
+      proofTools.has(execution.toolName) ||
+      (execution.parsedOutput as any)?.hasStructuredEvidence === true ||
+      (execution.parsedOutput as any)?.evidenceType,
+  );
+
   const signals: VerifiedTaskScoreSignal[] = [
     signal(
       "target_files_identified",
-      modifiedPaths.length > 0 || inspectedPaths.length > 0,
+      modifiedPaths.length > 0 || inspectedPaths.length > 0 || hasProofSignal,
       summarizeList(modifiedPaths.length > 0 ? modifiedPaths : inspectedPaths),
     ),
     signal(
       "relevant_files_inspected",
-      inspectedPaths.length > 0,
+      inspectedPaths.length > 0 || hasProofSignal,
       summarizeList(inspectedPaths),
     ),
     signal(
       "patch_applied",
       input.filesModified.length > 0 ||
-        input.toolExecutions.some((execution) => patchTools.has(execution.toolName)),
+        input.toolExecutions.some((execution) => patchTools.has(execution.toolName)) ||
+        (input.toolExecutions.some((e) => (e.parsedOutput as any)?.hasStructuredEvidence) && modifiedPaths.length > 0),
       summarizeList(modifiedPaths),
     ),
     signal(
@@ -151,10 +173,19 @@ export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
   const hasFailedRun =
     input.evidenceStatus === "failed" ||
     input.evidenceStatus === "blocked";
+
   // Note: failed validation executions now only affect the "validation_passed" signal (lowers numeric)
   // rather than forcing overall "failed" status. This allows diagnostic/review runs (that may
   // intentionally surface failing repros or skip validation) to receive partial/verified status
   // based on inspection + grounding signals instead of always landing at low "failed" scores.
+  //
+  // Audit / read-only / proof-heavy runs (no patch this session) are now explicitly supported:
+  // - hasProofSignal (from enriched tool records: security_path_trace, candidate_revalidator,
+  //   browser_prober, hasStructuredEvidence) boosts "target_files_identified" and "relevant_files_inspected".
+  // - A solid review that classified surface, obtained proof, executed validation, and left few
+  //   unresolved risks can reach "partially_verified" (or even "verified" at high inspection+proof density)
+  //   even with 0 filesModified. This makes Evidence Packs useful and honest for the common case
+  //   of "I reviewed and understood the real risks" without forcing a patch every time.
 
   return {
     score,

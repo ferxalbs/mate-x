@@ -178,6 +178,13 @@ export async function executeAgentToolCall({
     }
     emitProgress();
 
+    // Enrich for Evidence Pack grounding: proof-producing tools (edits, traces, validation,
+    // browser probes, etc.) contribute structured signals that flow through ToolExecutionRecord
+    // into buildEvidencePack, VTS, filesModified rescue, commandsExecuted, and the on-disk
+    // attestation / compliance ZIP. This is the primary mechanism that makes packs "real"
+    // instead of model-narrative only.
+    const enrichedParsed = enrichParsedForEvidence(toolName, parsedOutput, toolArgs, normalizedResult, !outputIndicatesFailure);
+
     return {
       toolCallId: toolCall.id,
       content: normalizedResult,
@@ -185,7 +192,7 @@ export async function executeAgentToolCall({
         toolName,
         args: toolArgs,
         output: normalizedResult,
-        parsedOutput: parsedOutput ?? undefined,
+        parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
       } satisfies ToolExecutionRecord,
     };
   } catch (error) {
@@ -208,6 +215,7 @@ export async function executeAgentToolCall({
         toolName,
         args: toolArgs,
         output: `Tool ${toolName} failed: ${message}`,
+        parsedOutput: { status: "error", error: message },
       } satisfies ToolExecutionRecord,
     };
   }
@@ -222,4 +230,85 @@ function tryParseJsonObject(value: string) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Post-process parsed tool output for high-signal security-proof tools so that
+ * EvidencePack / VTS / attestation see concrete, machine-readable outcomes
+ * (paths actually edited, traces produced, validation results, repro status, etc.)
+ * instead of only free-form text or raw args.
+ *
+ * We keep everything inside the existing `parsedOutput` bag (no contract change yet).
+ * The evidence-pack builder and VTS already poke into parsedOutput for exitCode,
+ * summary, status, and (after our Phase A-1 changes) paths.
+ */
+function enrichParsedForEvidence(
+  toolName: string,
+  parsed: Record<string, unknown> | null,
+  args: Record<string, unknown>,
+  rawOutput: string,
+  success: boolean,
+): Record<string, unknown> | null {
+  const base: Record<string, unknown> = parsed ? { ...parsed } : {};
+
+  // Always ensure a usable summary for commandsExecuted cards
+  if (!base.summary && typeof rawOutput === "string") {
+    base.summary = rawOutput.slice(0, 200);
+  }
+
+  const lowerName = toolName.toLowerCase();
+
+  // === Patch / edit tools (the source of "filesModified" in practice) ===
+  if (lowerName.includes("file_editor") || lowerName.includes("auto_patch") || lowerName.includes("patch") || lowerName.includes("edit")) {
+    if (args.path && typeof args.path === "string") base.path = args.path;
+    if (args.file && typeof args.file === "string") base.path = args.file as string;
+    base.status = success ? "success" : "failed";
+    // If the underlying tool already returned a diff or before/after, keep it; otherwise the
+    // git status + tool arg scraping (Phase A-1) will still rescue the path for filesModified.
+    if (typeof (base as any).diff === "string") {
+      base.diffSummary = String((base as any).diff).slice(0, 300);
+    }
+  }
+
+  // === Proof / trace / revalidation tools ===
+  if (lowerName.includes("security_path_trace") || lowerName.includes("trace")) {
+    base.evidenceType = "security_path_trace";
+    base.status = success ? "success" : "failed";
+    if (base.path == null && args.target) base.path = args.target;
+  }
+  if (lowerName.includes("candidate_revalidator") || lowerName.includes("revalidator")) {
+    base.evidenceType = "candidate_revalidator";
+    base.status = success ? "success" : "failed";
+  }
+
+  // === Validation / reproduction (sandbox_run, run_tests) ===
+  if (lowerName === "run_tests" || lowerName.includes("sandbox_run")) {
+    base.evidenceType = "validation";
+    // Many of these already return {status, exitCode, summary, planId, scope}
+    // We just make sure exitCode is top-level for the pack builder's commandsExecuted.
+    if (typeof base.exitCode === "undefined" && typeof (base as any).exit === "number") {
+      base.exitCode = (base as any).exit;
+    }
+  }
+
+  // === Browser / frontend probes (live evidence of client-side issues) ===
+  if (lowerName.includes("browser_prober")) {
+    base.evidenceType = "browser_probe";
+    base.status = success ? "success" : "failed";
+    // The tool returns rich findings; we surface a compact count/summary if present.
+    const findings = (base as any).findings || (base as any).issues || (base as any).results;
+    if (Array.isArray(findings)) base.findingsCount = findings.length;
+  }
+
+  // === Static / deep analysis that produces candidates or reports ===
+  if (lowerName.includes("deep_analysis") || lowerName.includes("attack_surface")) {
+    base.evidenceType = "analysis";
+  }
+
+  // Mark that this record contributed real tool-backed evidence (used by pack builder heuristics)
+  if (success && (base.path || base.evidenceType || base.findingsCount)) {
+    base.hasStructuredEvidence = true;
+  }
+
+  return Object.keys(base).length > 0 ? base : null;
 }
