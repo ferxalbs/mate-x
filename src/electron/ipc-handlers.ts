@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
@@ -24,6 +24,7 @@ import {
   searchInFiles,
   setActiveWorkspace,
   updateWorkspaceTrustContract,
+  collectRepoSnapshot,
 } from "./repo-service";
 import {
   RAINY_REPO_EMBEDDING_MODELS,
@@ -42,6 +43,7 @@ import { privacyFirewall } from "./privacy/privacy-firewall-service";
 import {
   generateComplianceExport,
   verifyComplianceZipForDelivery,
+  sanitizeComplianceTaskId,
 } from "../features/compliance/complianceExport";
 import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
 import { getStack } from "./main-stack";
@@ -321,6 +323,71 @@ async function loadVerifiedEvidencePackForExport(workspacePath: string, taskId: 
   return evidencePack;
 }
 
+/**
+ * List local compliance Evidence Packs for a workspace by scanning the on-disk
+ * .mate-x/evidence/<taskId> directories. Authoritative source for standalone browsing.
+ * Returns lightweight metadata (no full tool outputs) + attestation status.
+ */
+async function listLocalEvidencePacks(workspaceId?: string) {
+  const id = optionalWorkspaceId(workspaceId);
+  // Use collect with dummy prompt; it resolves the workspace path without full agent run.
+  const snapshot = await collectRepoSnapshot("list-evidence-packs", id);
+  const evidenceRoot = resolve(snapshot.workspace.path, ".mate-x", "evidence");
+  try {
+    const dirents = await readdir(evidenceRoot, { withFileTypes: true });
+    const packs: Array<{
+      taskId: string;
+      status: string;
+      generatedAt?: string;
+      verdict?: { label: string; summary: string };
+      verifiedTaskScore?: { score: number; status: string };
+      attestationStatus: "signed" | "failed" | "missing" | "blocked";
+      filesModifiedCount: number;
+    }> = [];
+    for (const dirent of dirents) {
+      if (!dirent.isDirectory()) continue;
+      const taskId = dirent.name;
+      if (!/^[A-Za-z0-9._-]+$/.test(taskId)) continue;
+      try {
+        const packPath = resolve(evidenceRoot, taskId, "evidence-pack.json");
+        const attPath = resolve(evidenceRoot, taskId, "attestation.intoto.json");
+        const packRaw = await readFile(packPath, "utf8");
+        const pack = JSON.parse(packRaw);
+        let attestationStatus: "signed" | "failed" | "missing" | "blocked" = "missing";
+        try {
+          const attRaw = await readFile(attPath, "utf8");
+          const att = JSON.parse(attRaw);
+          const expectedDigest = att.statement?.subject?.find(
+            (s: any) => s.name === "evidence-pack.json",
+          )?.digest?.sha256;
+          const actualDigest = sha256Hex(canonicalJson(pack));
+          if (pack.attestation?.status === "blocked") {
+            attestationStatus = "blocked";
+          } else {
+            attestationStatus = expectedDigest && expectedDigest === actualDigest ? "signed" : "failed";
+          }
+        } catch {
+          attestationStatus = "missing";
+        }
+        packs.push({
+          taskId,
+          status: pack.status,
+          generatedAt: pack.generatedAt,
+          verdict: pack.verdict,
+          verifiedTaskScore: pack.verifiedTaskScore,
+          attestationStatus,
+          filesModifiedCount: (pack.filesModified ?? []).length,
+        });
+      } catch {
+        // Corrupt or partial dir; skip silently for list robustness.
+      }
+    }
+    return packs.sort((a, b) => (b.generatedAt || "").localeCompare(a.generatedAt || ""));
+  } catch {
+    return [];
+  }
+}
+
 function validateResolvePolicyStopRequest(request: unknown): ResolvePolicyStopRequest {
   const record = assertPlainRecord(request, "Policy stop resolution request");
   assertKnownKeys(record, new Set(["stopId", "action", "scopeExpansion"]), "Policy stop resolution request");
@@ -455,6 +522,50 @@ export function registerIpcHandlers() {
       return result;
     },
   );
+
+  // ── Evidence Pack local standalone surface (Phase C) ─────────────────────
+  // These operate on the authoritative on-disk .mate-x/evidence/<taskId> tree
+  // (populated by attestation at run end, enriched with sidecars in Phase B).
+  // They enable listing/browsing packs without depending on chat message history.
+  ipcMain.handle("evidence:list-packs", async (_event, workspaceId?: string) =>
+    listLocalEvidencePacks(optionalWorkspaceId(workspaceId)),
+  );
+
+  ipcMain.handle("evidence:get-pack", async (_event, workspaceId: string, taskId: string) => {
+    const wsId = requireWorkspaceId(workspaceId);
+    const snapshot = await collectRepoSnapshot("get-evidence-pack", wsId);
+    const sanitizedTaskId = sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
+    return loadVerifiedEvidencePackForExport(snapshot.workspace.path, sanitizedTaskId);
+  });
+
+  ipcMain.handle("evidence:verify-attestation", async (_event, workspaceId: string, taskId: string) => {
+    const wsId = requireWorkspaceId(workspaceId);
+    const snapshot = await collectRepoSnapshot("verify-attestation", wsId);
+    const sanitizedTaskId = sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
+    try {
+      await loadVerifiedEvidencePackForExport(snapshot.workspace.path, sanitizedTaskId);
+      return { valid: true };
+    } catch (err: any) {
+      return { valid: false, reason: err?.message ?? "Verification failed" };
+    }
+  });
+
+  ipcMain.handle("evidence:export-compliance-zip", async (_event, workspaceId: string, taskId: string) => {
+    const wsId = requireWorkspaceId(workspaceId);
+    const snapshot = await collectRepoSnapshot("export-evidence", wsId);
+    const sanitizedTaskId = sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
+    const evidencePack = await loadVerifiedEvidencePackForExport(snapshot.workspace.path, sanitizedTaskId);
+    const result = await generateComplianceExport({
+      evidencePack,
+      taskId: sanitizedTaskId,
+      workspacePath: snapshot.workspace.path,
+      userId: snapshot.workspace.id,
+      policyApplied: "workspace-trust-contract",
+    });
+    await verifyComplianceZipForDelivery(result);
+    return result;
+  });
+
   ipcMain.handle("repo:get-workspaces", async () => getWorkspaceEntries());
   ipcMain.handle("repo:get-workspace-summary", async () =>
     getWorkspaceSummary(),

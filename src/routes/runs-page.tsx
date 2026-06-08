@@ -229,6 +229,59 @@ export function RunsPage() {
   const decisionTrail = selectedRun ? getDecisionTrail(selectedRun) : [];
   const commandEvidence = selectedRun ? parseCommandEvidence(selectedRun) : [];
 
+  // Phase C: Standalone Evidence Pack browsing from disk (authoritative .mate-x/evidence tree)
+  // Independent of chat thread history. Uses the new evidence:* IPCs wired in preload.
+  const [localPacks, setLocalPacks] = useState<any[]>([]);
+  const [showStandalonePacks, setShowStandalonePacks] = useState(false);
+  const [selectedLocalTaskId, setSelectedLocalTaskId] = useState<string | null>(null);
+  const [localPackDetail, setLocalPackDetail] = useState<any>(null);
+  async function loadStandalonePacks() {
+    if (!activeWorkspaceId) return;
+    try {
+      const packs = (await (window as any).mate?.evidencePack?.localList?.(activeWorkspaceId)) || [];
+      setLocalPacks(packs);
+      setShowStandalonePacks(true);
+      setSelectedLocalTaskId(null);
+      setLocalPackDetail(null);
+    } catch (e) {
+      console.error("Failed to load standalone evidence packs", e);
+    }
+  }
+
+  async function loadLocalPackDetail(taskId: string) {
+    if (!activeWorkspaceId) return;
+    try {
+      const pack = await (window as any).mate?.evidencePack?.get?.(activeWorkspaceId, taskId);
+      setLocalPackDetail(pack);
+      setSelectedLocalTaskId(taskId);
+    } catch (e) {
+      console.error("Failed to load pack detail", e);
+    }
+  }
+
+  async function handleVerifyLocalPack(taskId: string) {
+    if (!activeWorkspaceId) return;
+    try {
+      const res = await (window as any).mate?.evidencePack?.verifyAttestation?.(activeWorkspaceId, taskId);
+      alert(res?.valid ? "Attestation valid ✓" : `Attestation invalid: ${res?.reason}`);
+    } catch (e: any) {
+      alert("Verify failed: " + (e?.message || e));
+    }
+  }
+
+  async function handleExportLocalPack(taskId: string) {
+    if (!activeWorkspaceId) return;
+    try {
+      const result = await (window as any).mate?.evidencePack?.exportZip?.(activeWorkspaceId, taskId);
+      // The main process already wrote the zip; here we can trigger download if path returned, or just notify.
+      // For now, simple success + path if present.
+      const zipPath = (result as any)?.zipPath;
+      alert(`Compliance ZIP generated${zipPath ? ` at ${zipPath}` : ""}. Check .mate-x/evidence/${taskId}/`);
+    } catch (e: any) {
+      alert("Export failed: " + (e?.message || e));
+    }
+  }
+
   async function handleExportRun() {
     if (!selectedRun?.record) return;
 
@@ -241,6 +294,42 @@ export function RunsPage() {
     link.download = `${selectedRun.record.id}.mission-log.json`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  // UI helper for standalone pack list item (reuses Metric/Detail style)
+  function StandalonePackItem({ pack }: { pack: any }) {
+    const isSelected = pack.taskId === selectedLocalTaskId;
+    return (
+      <div
+        className={`rounded-2xl border p-3 text-xs cursor-pointer transition ${isSelected ? "border-sky-500 bg-sky-500/5" : "border-border/60 hover:border-border"}`}
+        onClick={() => loadLocalPackDetail(pack.taskId)}
+      >
+        <div className="font-mono text-[10px] text-muted-foreground truncate">{pack.taskId}</div>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="font-medium">{pack.verdict?.label || pack.status}</span>
+          {pack.verifiedTaskScore && (
+            <span className="text-muted-foreground">· {pack.verifiedTaskScore.score}/100</span>
+          )}
+        </div>
+        <div className="mt-1 text-[10px] text-muted-foreground">
+          {pack.filesModifiedCount ?? 0} files · {pack.attestationStatus}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button
+            className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] hover:bg-accent"
+            onClick={(e) => { e.stopPropagation(); handleVerifyLocalPack(pack.taskId); }}
+          >
+            Verify
+          </button>
+          <button
+            className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] hover:bg-accent"
+            onClick={(e) => { e.stopPropagation(); handleExportLocalPack(pack.taskId); }}
+          >
+            Export ZIP
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -261,10 +350,45 @@ export function RunsPage() {
           >
             Export JSON
           </button>
+          <button
+            onClick={() => void loadStandalonePacks()}
+            className="rounded-full border border-sky-500/70 px-3 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-300 transition-colors hover:bg-sky-500/10"
+            type="button"
+          >
+            Browse Evidence Packs (disk)
+          </button>
           <GitBranchIcon className="size-3.5" />
           <span className="max-w-[280px] truncate">{workspace?.path ?? "No workspace selected"}</span>
         </div>
       </header>
+
+      {/* Phase C standalone Evidence Packs browser (disk-first, independent of chat threads) */}
+      {showStandalonePacks && (
+        <div className="border-b border-border/70 bg-[var(--panel)]/80 px-4 py-3 text-xs">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="font-medium text-foreground">Workspace Evidence Packs (standalone from .mate-x/evidence)</div>
+            <button onClick={() => { setShowStandalonePacks(false); setSelectedLocalTaskId(null); setLocalPackDetail(null); }} className="text-muted-foreground hover:text-foreground">Close</button>
+          </div>
+          {localPacks.length === 0 ? (
+            <div className="text-muted-foreground">No packs found on disk for this workspace. Run an assistant task to generate one.</div>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {localPacks.map((p) => (
+                <StandalonePackItem key={p.taskId} pack={p} />
+              ))}
+            </div>
+          )}
+          {localPackDetail && (
+            <div className="mt-3 rounded-2xl border border-border/60 bg-background/60 p-3">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Loaded from disk • {selectedLocalTaskId}</div>
+              <div className="mt-1 text-sm font-medium">{localPackDetail.verdict?.label}</div>
+              <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{localPackDetail.verdict?.summary}</div>
+              <div className="mt-2 text-[10px]">Score: {localPackDetail.verifiedTaskScore?.score ?? "n/a"} • Attestation: {localPackDetail.attestation?.status || "n/a"}</div>
+              <div className="mt-1 text-[10px] text-muted-foreground">Files: {(localPackDetail.filesModified || []).length} • Commands: {(localPackDetail.commandsExecuted || []).length}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedRun ? (
         <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)_320px]">
