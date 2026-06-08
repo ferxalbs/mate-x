@@ -111,6 +111,27 @@ export async function generateComplianceExport(
   const agentRunbookMd = Buffer.from(renderAgentRunbookMarkdown(agentRunbook), "utf8");
   const complianceReportPdf = buildComplianceReportPdf(evidencePack, generatedAt);
 
+  // Phase B sidecars — always derived from the (enriched) evidencePack for the export.
+  // This ensures the compliance ZIP contains the real runtime artifacts (commands with
+  // parsed evidence, actual files changed, proof/repro/stages data) even for older packs.
+  const sidecarCommands = evidencePack.commandsExecuted ?? [];
+  const sidecarFiles = evidencePack.filesModified ?? [];
+  const sidecarProof = {
+    reproduction: evidencePack.reproduction ?? null,
+    stages: evidencePack.stages ?? null,
+    checks: evidencePack.checks ?? null,
+    verifiedTaskScore: evidencePack.verifiedTaskScore ?? null,
+    toolsWithEvidence: (evidencePack.toolsUsed ?? []).filter((t: any) =>
+      /edit|patch|trace|revalidator|browser|test|sandbox|proof/i.test(String(t?.name ?? "")),
+    ),
+    policyStops: evidencePack.policyStops ?? [],
+    unresolvedRisks: evidencePack.unresolvedRisks ?? [],
+  };
+  const commandsSidecarJson = Buffer.from(`${canonicalJson(sidecarCommands)}\n`, "utf8");
+  const filesSidecarJson = Buffer.from(`${canonicalJson(sidecarFiles)}\n`, "utf8");
+  const proofSidecarJson = Buffer.from(`${canonicalJson(sidecarProof)}\n`, "utf8");
+  // commandLines prepared for potential future use in PDF or other renderers; currently PDF uses direct pack fields.
+
   const manifestDraftBase = {
     packageType: "mate-x/soc2-procurement-package",
     status,
@@ -132,6 +153,9 @@ export async function generateComplianceExport(
       "policy-applied.md": sha256Hex(policyAppliedMd),
       "agent-runbook.json": sha256Hex(agentRunbookJson),
       "agent-runbook.md": sha256Hex(agentRunbookMd),
+      "commands-executed.json": sha256Hex(commandsSidecarJson),
+      "files-modified.json": sha256Hex(filesSidecarJson),
+      "proof-summary.json": sha256Hex(proofSidecarJson),
     },
   };
   const zipDate = new Date(generatedAt);
@@ -143,6 +167,9 @@ export async function generateComplianceExport(
     { path: "policy-applied.md", content: policyAppliedMd, date: zipDate },
     { path: "agent-runbook.json", content: agentRunbookJson, date: zipDate },
     { path: "agent-runbook.md", content: agentRunbookMd, date: zipDate },
+    { path: "commands-executed.json", content: commandsSidecarJson, date: zipDate },
+    { path: "files-modified.json", content: filesSidecarJson, date: zipDate },
+    { path: "proof-summary.json", content: proofSidecarJson, date: zipDate },
   ];
   const generationZipBuffer = buildZip([
     ...entriesWithoutManifest,
@@ -276,13 +303,39 @@ export function buildPolicyAppliedMarkdown(request: ComplianceExportRequest, gen
 }
 
 export function buildComplianceReportPdf(evidencePack: EvidencePack, generatedAt: string): Buffer {
+  const vts = evidencePack.verifiedTaskScore;
+  const score = vts?.score ?? "unknown";
+  const statusLabel = vts?.status ?? "unknown";
+
+  const files = (evidencePack.filesModified ?? []).slice(0, 12);
+  const fileLines = files.length
+    ? files.map((f) => `  - ${f.path} (${f.changeType ?? "modified"})`)
+    : ["  (no file changes recorded for this run)"];
+
+  const commands = (evidencePack.commandsExecuted ?? []).slice(0, 8);
+  const _commandLines = commands.length
+    ? commands.map((c) => `  - ${c.command}${c.exitCode != null ? ` (exit ${c.exitCode})` : ""}`)
+    : ["  (see full commands-executed.json sidecar)"];
+
+  const proofTools = (evidencePack.toolsUsed ?? [])
+    .filter((t: any) => /edit|patch|trace|revalidator|browser|test|sandbox/i.test(String(t?.name ?? "")))
+    .slice(0, 6)
+    .map((t: any) => `  - ${t.name} (x${t.count ?? 1})`);
+
+  const stages = (evidencePack.stages ?? []).slice(0, 5);
+  const stageLines = stages.length
+    ? stages.map((s) => `  - ${s.name}: ${s.status}${s.summary ? " — " + s.summary : ""}`)
+    : ["  (stages in proof-summary.json or agent-runbook)"];
+
   const lines = [
     "MaTE X Compliance Report",
     `Generated: ${generatedAt}`,
     `Status: ${evidencePack.status}`,
     `Verdict: ${evidencePack.verdict.label}`,
-    `Verified Task Score: ${evidencePack.verifiedTaskScore?.score ?? "unknown"}/100`,
+    `Verified Task Score: ${score}/100 (${statusLabel})`,
     `Attestation: ${evidencePack.attestation?.status ?? "missing"}`,
+    `Agent Identity: ${evidencePack.agentIdentity?.id ?? "unbound"}`,
+    `Policy Hash: ${evidencePack.agentIdentity?.policyHash ?? "n/a"}`,
     "",
     ...(evidencePack.governanceMode === "unrestricted"
       ? [
@@ -291,19 +344,45 @@ export function buildComplianceReportPdf(evidencePack: EvidencePack, generatedAt
           "",
         ]
       : []),
-    "Executive Summary",
+    "Executive Summary / Agent Verdict",
     evidencePack.verdict.summary,
     "",
-    "Risk Table",
+    "Key Signals (from Verified Task Score)",
+    ...(vts?.signals?.length
+      ? vts.signals.slice(0, 8).map((sig: any) => `  ${sig.satisfied ? "[OK]" : "[--]"} ${sig.label}${sig.evidence ? ": " + sig.evidence : ""}`)
+      : ["  (detailed signals in proof-summary.json)"]),
+    "",
+    "Files Modified (actual git + tool evidence)",
+    ...fileLines,
+    files.length < (evidencePack.filesModified ?? []).length ? `  ... +${(evidencePack.filesModified ?? []).length - files.length} more (see files-modified.json)` : "",
+    "",
+    "Proof & Validation Steps (edit/trace/test/browser/sandbox)",
+    ...(proofTools.length ? proofTools : ["  (see commands-executed.json and toolsUsed)"]),
+    "",
+    "Stages (runtime work engine + runbook)",
+    ...stageLines,
+    "",
+    "Reproduction Evidence",
+    evidencePack.reproduction
+      ? `  Type: ${evidencePack.reproduction.type}  Status: ${evidencePack.reproduction.status}`
+      : "  (none recorded or in proof-summary.json)",
+    "",
+    "Risk Table / Unresolved",
     ...(evidencePack.unresolvedRisks?.length
       ? evidencePack.unresolvedRisks.map((risk, index) => `${index + 1}. ${risk}`)
       : ["No unresolved risks recorded."]),
     "",
     "SOC 2 Ready Controls",
-    "CC6.1: Audit log and command evidence included.",
-    "PI1.2: File hashes and Verified Task Score included.",
-    "AI Governance: Agent action provenance included.",
-    `Agent Identity: ${evidencePack.agentIdentity?.id ?? "unbound"}`,
+    "CC6.1: Audit log, commandsExecuted, toolsUsed, signed attestation, append-only package manifest, policyStops.",
+    "PI1.2: File hashes (in attestation materials), Verified Task Score, proof-summary.json, reproduction evidence.",
+    "AI Governance: Full in-toto/SLSA provenance over evidence-pack + sidecars, agentIdentity + policy hash, local Ed25519 signature.",
+    "",
+    "Sidecar Artifacts (in this package and .mate-x/evidence/<taskId>/)",
+    "  commands-executed.json — every tool call with args + parsed exit/summary/evidence",
+    "  files-modified.json — authoritative changed paths from git + tool rescue",
+    "  proof-summary.json — reproduction, stages, checks, VTS, policyStops, toolsWithEvidence",
+    "",
+    "Full raw data and cryptographic verification instructions are in the accompanying manifest.json and attestation.intoto.json.",
   ];
 
   return createMinimalPdf(lines);

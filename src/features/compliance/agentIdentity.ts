@@ -28,6 +28,11 @@ export interface AgentRunbook {
     commandsExecuted: NonNullable<EvidencePack["commandsExecuted"]>;
     toolsUsed: NonNullable<EvidencePack["toolsUsed"]>;
     unresolvedRisks: NonNullable<EvidencePack["unresolvedRisks"]>;
+    // Phase B extensions (populated when present on the EvidencePack)
+    stages?: EvidencePack["stages"];
+    checks?: EvidencePack["checks"];
+    reproduction?: EvidencePack["reproduction"] | null;
+    policyStops?: EvidencePack["policyStops"];
   };
 }
 
@@ -119,6 +124,10 @@ export function buildAgentRunbook(params: {
       commandsExecuted: params.evidencePack.commandsExecuted ?? [],
       toolsUsed: params.evidencePack.toolsUsed ?? [],
       unresolvedRisks: params.evidencePack.unresolvedRisks ?? [],
+      stages: params.evidencePack.stages ?? [],
+      checks: params.evidencePack.checks ?? [],
+      reproduction: params.evidencePack.reproduction ?? null,
+      policyStops: params.evidencePack.policyStops ?? [],
     },
   };
 }
@@ -130,6 +139,23 @@ export function renderAgentRunbookMarkdown(runbook: AgentRunbook) {
   const approvals = runbook.approvals.map(
     (approval) => `- ${approval.decision}: ${approval.summary} (${approval.at})`,
   );
+
+  const stages = (runbook.traceability as any).stages ?? [];
+  const checks = (runbook.traceability as any).checks ?? [];
+  const repro = (runbook.traceability as any).reproduction;
+  const policyStops = (runbook.traceability as any).policyStops ?? [];
+
+  const stageLines = stages.length
+    ? stages.map((s: any) => `  - ${s.name || s.id}: ${s.status}${s.summary ? " — " + s.summary : ""}`)
+    : ["  (see proof-summary.json or work engine artifact)"];
+
+  const checkLines = checks.length
+    ? checks.map((c: any) => `  - ${c.name}: ${c.status}${c.summary ? " — " + c.summary : ""}`)
+    : ["  (validation steps in commands-executed.json)"];
+
+  const policyLines = policyStops.length
+    ? policyStops.slice(0, 4).map((p: any) => `  - ${p.kind || p.title}: ${p.status}`)
+    : ["  (none or see full evidence pack)"];
 
   return [
     "# MaTE X Agent Runbook",
@@ -148,18 +174,37 @@ export function renderAgentRunbookMarkdown(runbook: AgentRunbook) {
     "",
     ...(approvals.length ? approvals : ["- unknown"]),
     "",
-    "## Files Modified",
+    "## Execution Trace (Stages from Work Engine / Runbook)",
+    "",
+    ...stageLines,
+    "",
+    "## Checks & Validation Results",
+    "",
+    ...checkLines,
+    "",
+    "## Policy Stops & Governance Actions",
+    "",
+    ...policyLines,
+    "",
+    "## Files Modified (ground truth)",
     "",
     ...(files.length ? files : ["- none"]),
     "",
-    "## Commands Executed",
+    "## Key Commands & Proof Steps (with exit codes + evidence)",
     "",
-    ...(commands.length ? commands : ["- none"]),
+    ...(commands.length ? commands : ["- none (full list in commands-executed.json)"]),
+    "",
+    "## Reproduction Evidence",
+    "",
+    repro
+      ? `  Type: ${repro.type}  Status: ${repro.status}  Command: ${repro.command ?? "n/a"}`
+      : "  None recorded for this run.",
     "",
     "## Verdict",
     "",
     `${runbook.traceability.verdict.label}: ${runbook.traceability.verdict.summary}`,
     "",
+    "See accompanying proof-summary.json, files-modified.json, and attestation.intoto.json for the complete machine-readable, cryptographically attested evidence.",
   ].join("\n");
 }
 

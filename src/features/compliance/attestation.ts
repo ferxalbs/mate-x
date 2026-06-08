@@ -137,12 +137,52 @@ export async function generateEvidenceAttestation(
       unsignedEvidencePack.filesModified ?? [],
     );
     const evidenceHash = sha256Hex(evidencePayload);
+
+    // Phase B: Derive high-signal sidecar artifacts from the enriched EvidencePack
+    // (populated by real toolExecutions, git status, VTS, runtime stages etc from Phase A).
+    // These are written alongside the core pack + attestation so the .mate-x/evidence/<taskId>/
+    // tree is a self-contained, replayable bundle. We also include their hashes in the
+    // in-toto statement subjects for full provenance.
+    const commandsExecuted = unsignedEvidencePack.commandsExecuted ?? [];
+    const filesModified = unsignedEvidencePack.filesModified ?? [];
+    const proofSummary = {
+      reproduction: unsignedEvidencePack.reproduction ?? null,
+      stages: unsignedEvidencePack.stages ?? null,
+      checks: unsignedEvidencePack.checks ?? null,
+      verifiedTaskScore: unsignedEvidencePack.verifiedTaskScore ?? null,
+      toolsWithEvidence: (unsignedEvidencePack.toolsUsed ?? []).filter((t: any) =>
+        /edit|patch|trace|revalidator|browser|test|sandbox|proof/i.test(String(t?.name ?? "")),
+      ),
+      policyStops: unsignedEvidencePack.policyStops ?? [],
+      unresolvedRisks: unsignedEvidencePack.unresolvedRisks ?? [],
+    };
+
+    const commandsJson = Buffer.from(`${canonicalJson(commandsExecuted)}\n`, "utf8");
+    const filesJson = Buffer.from(`${canonicalJson(filesModified)}\n`, "utf8");
+    const proofJson = Buffer.from(`${canonicalJson(proofSummary)}\n`, "utf8");
+
+    const commandsHash = sha256Hex(commandsJson.toString("utf8"));
+    const filesHash = sha256Hex(filesJson.toString("utf8"));
+    const proofHash = sha256Hex(proofJson.toString("utf8"));
+
     const statement: MateXAgentRunStatement = {
       _type: "https://in-toto.io/Statement/v1",
       subject: [
         {
           name: "evidence-pack.json",
           digest: { sha256: evidenceHash },
+        },
+        {
+          name: "commands-executed.json",
+          digest: { sha256: commandsHash },
+        },
+        {
+          name: "files-modified.json",
+          digest: { sha256: filesHash },
+        },
+        {
+          name: "proof-summary.json",
+          digest: { sha256: proofHash },
         },
         ...materials,
       ],
@@ -193,6 +233,14 @@ export async function generateEvidenceAttestation(
     await mkdir(evidenceDirectory, { recursive: true });
     await writeFile(evidencePackPath, `${canonicalJson(unsignedEvidencePack)}\n`, "utf8");
     await writeFile(attestationPath, `${canonicalJson(attestation)}\n`, "utf8");
+
+    // Write the Phase B sidecars (real runtime-derived artifacts, now attested).
+    const commandsPath = join(evidenceDirectory, "commands-executed.json");
+    const filesPath = join(evidenceDirectory, "files-modified.json");
+    const proofPath = join(evidenceDirectory, "proof-summary.json");
+    await writeFile(commandsPath, commandsJson);
+    await writeFile(filesPath, filesJson);
+    await writeFile(proofPath, proofJson);
 
     return {
       evidencePack: withAttestationStatus(params.evidencePack, {
