@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## Unreleased - 2026.06.02 (2) [Evidence Pack Real Data Grounding and Artifact Enrichment]
+
+- Grounded Evidence Pack data in actual runtime evidence instead of primarily model-authored narrative text (the root cause of "feels fake / always 0 files / low scores / placeholder").
+  - `src/electron/evidence-pack.ts`: Rewrote `extractToolTouchedPaths` (now layout-agnostic, no `src/` hard filter, pulls from modern `file_editor`/`auto_patch` + parsedOutput + all plausible repo paths). Commands, filesModified, reproduction, stages, and checks now prefer derivation from `toolExecutions` + `events` + enriched parsed data before falling back to `extractEvidenceFinalization`.
+  - `src/electron/repo-service/agentic-runtime/tool-executor.ts`: Added `enrichParsedForEvidence` that normalizes proof/mutation/validation results (`file_editor`, `security_path_trace`, `candidate_revalidator`, `sandbox_run`/`run_tests`, `browser_prober`, etc.) into stable `parsedOutput` keys (`path`, `status`, `hasStructuredEvidence`, `evidenceType`, `exitCode`, etc.). This data flows directly into packs, VTS, cards, and sidecars.
+  - `src/electron/verified-task-score.ts`: Broadened tool sets, added credit for proof signals and the now-reliable `filesModified`. Audit/read-only/proof-heavy runs (no patch this session) produce informative `partially_verified` scores with useful missing-evidence lists instead of near-zero "unverified".
+- Phase B artifact enrichment (makes the on-disk `.mate-x/evidence/<taskId>/` tree and exported ZIPs first-class standalone compliance deliverables):
+  - `src/features/compliance/attestation.ts`: At evidence write time (after privacy gate + signing), now also writes `commands-executed.json`, `files-modified.json`, and `proof-summary.json` (reproduction, stages, checks, VTS, toolsWithEvidence, policyStops). These are added to the in-toto Statement subjects with SHA-256 so the attestation covers the full bundle.
+  - `src/features/compliance/complianceExport.ts`: Export always includes the three sidecars (derived from the authoritative in-memory pack for consistency). `buildComplianceReportPdf` now emits a much richer report (VTS signals, actual files list, proof steps, stages, reproduction, policy hash, identity, explicit sidecar inventory) while still using the zero-dep hand-rolled PDF generator.
+  - `src/features/compliance/agentIdentity.ts`: `buildAgentRunbook` + `renderAgentRunbookMarkdown` now surface stages, checks, reproduction, and policyStops as a real execution trace (not just flat lists).
+  - Manifest, ZIP entries, and integrity checks updated to cover the new sidecars. Unrestricted governance warnings and blocking reasons preserved.
+- All changes preserve local-first invariants, Privacy Firewall gating, agentIdentity + deterministic policy hash (from AGENTS.md / RULES.md), and Ed25519 in-toto/SLSA attestations.
+- Verified after each slice and at phase end: `bun run lint && bun run typecheck` clean.
+- This directly addresses the reported bug that the Evidence Pack system (and thus the whole app) felt useless because packs contained no real project status or proof artifacts.
+
 ## Unreleased - 2026.06.02 (1) [Evidence Pack Scoping, Scoring, and Agent Loop Stability]
 
 - Fixed artifacts (`.matex/evidence` internal storage + `.mate-x/evidence/<taskId>` compliance packs) being created inside the MaTE X source tree (`Projects/mate-x`) or wrong launch dir instead of the user-selected target repository. Root causes: `process.cwd()` in `main-stack.ts:initStack` (for the SDK files client / EvidencePackStorage), `sdk-orchestrator` VTS wrapper, `repo-graph-service` auto-seed, `resolveWorkspace` / `resolveActiveWorkspace*` silent `[0]` fallbacks, and `repo:run-assistant` never forwarding workspace context. 
