@@ -36,9 +36,9 @@ export async function attemptFinalChatSynthesis({
   messages.push({
     role: "user",
     content:
-      "Tool use is now disabled. You must write the final answer using only the evidence already collected above. " +
-      "Do not request any tool calls. Structure your response with: a one-line verdict, key findings with evidence references, " +
-      "unresolved risks, and recommended next steps. Begin your answer now.",
+      "Tool use is now disabled. Provide a concise delta or structured summary using evidence collected. " +
+      "Do not repeat prior paragraphs or full drafts verbatim. Reference evidence by id or short claim. " +
+      "One-line verdict + key findings + unresolved risks + next steps. Begin.",
   });
 
   try {
@@ -134,9 +134,9 @@ export async function attemptFinalResponsesSynthesis({
             {
               type: "input_text",
               text:
-                "Tool use is now disabled. You must write the final answer using only the evidence already collected above. " +
-                "Do not request any tool calls. Structure your response with: a one-line verdict, key findings with evidence references, " +
-                "unresolved risks, and recommended next steps. Begin your answer now.",
+                "Tool use is now disabled. Provide a concise delta or structured summary using evidence collected. " +
+                "Do not repeat prior paragraphs or full drafts verbatim. Reference evidence by id or short claim. " +
+                "One-line verdict + key findings + unresolved risks + next steps. Begin.",
             },
           ],
         },

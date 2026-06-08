@@ -393,12 +393,13 @@ async function resolveActiveWorkspacePath() {
 async function resolveActiveWorkspace() {
   const workspaces = await tursoService.getWorkspaces();
   const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
-  const activeWorkspace =
-    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
-    workspaces[0];
+  if (!activeWorkspaceId) {
+    throw new Error('No active workspace. Add or select a repository to analyze.');
+  }
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
 
   if (!activeWorkspace) {
-    throw new Error("No active workspace available.");
+    throw new Error('Active workspace not found (it may have been removed).');
   }
 
   return activeWorkspace;
@@ -438,6 +439,10 @@ export function registerIpcHandlers() {
     async (_event, request: unknown) => {
       const { taskId } = validateComplianceExportRequest(request);
       const workspace = await resolveActiveWorkspace();
+      // Phase 1: with strict active resolution (no silent [0] or cwd seed), this workspace.path
+      // is the user-selected target. Evidence for the taskId was written under its .mate-x tree.
+      // load + generate will target the correct location; assert failures now indicate real
+      // mismatch rather than launch-cwd pollution.
       const evidencePack = await loadVerifiedEvidencePackForExport(workspace.path, taskId);
       const result = await generateComplianceExport({
         evidencePack,
@@ -617,6 +622,7 @@ export function registerIpcHandlers() {
       history: string[],
       options?: AssistantRunOptions,
       runId?: string,
+      workspaceId?: string,
     ) => {
       let pendingProgress: {
         runId: string;
@@ -685,7 +691,12 @@ export function registerIpcHandlers() {
         return await runAssistant(
         requireBoundedString(prompt, "prompt"),
         requireStringArray(history, "history", MAX_IPC_TEXT_LENGTH),
-        undefined,
+        // Forward explicit workspaceId when provided by caller (future renderer updates can pass
+        // the active workspace for the chat thread). Falls back to undefined so that
+        // collectRepoSnapshot / resolveWorkspace uses the (now strict) active workspace.
+        // This + removal of cwd seeding + strict no-[0] fallback in resolveWorkspace ensures
+        // evidence artifacts are always scoped to the user-selected target repo.
+        optionalWorkspaceId(workspaceId),
         validateAssistantOptions(options),
         runId
           ? {

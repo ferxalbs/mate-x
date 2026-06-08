@@ -130,7 +130,7 @@ export async function buildEvidencePack(params: {
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
   const runtimeWarnings = deriveWarnings(events);
-  const warnings = Array.from(
+  let warnings = Array.from(
     new Set([...(finalization.warnings ?? []), ...runtimeWarnings]),
   ).slice(0, 6);
 
@@ -210,15 +210,30 @@ export async function buildEvidencePack(params: {
             "One or more tool steps failed; review warnings before trusting results.",
           ]
         : undefined;
-  const verifiedTaskScore = computeVerifiedTaskScore({
-    workspacePath,
-    evidenceStatus: status,
-    filesModified,
-    toolExecutions,
-    reproduction,
-    warnings,
-    unresolvedRisks,
-  });
+  let verifiedTaskScore: ReturnType<typeof computeVerifiedTaskScore>;
+  try {
+    verifiedTaskScore = computeVerifiedTaskScore({
+      workspacePath,
+      evidenceStatus: status,
+      filesModified,
+      toolExecutions,
+      reproduction,
+      warnings,
+      unresolvedRisks,
+    });
+  } catch (err) {
+    // Resilience: never let scoring (or path checks inside it) crash evidence pack generation.
+    // Partial packs with low score + warning are still useful and can be attested/exported.
+    const msg = err instanceof Error ? err.message : String(err);
+    warnings = [...(warnings || []), `verified task score computation failed: ${msg}`];
+    verifiedTaskScore = {
+      score: 0,
+      status: "unverified",
+      missingEvidence: ["scoring failed (see warnings)"],
+      signals: [],
+      generatedAt: new Date().toISOString(),
+    } as ReturnType<typeof computeVerifiedTaskScore>;
+  }
 
   return {
     status,

@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## Unreleased - 2026.06.02 (1) [Evidence Pack Scoping, Scoring, and Agent Loop Stability]
+
+- Fixed artifacts (`.matex/evidence` internal storage + `.mate-x/evidence/<taskId>` compliance packs) being created inside the MaTE X source tree (`Projects/mate-x`) or wrong launch dir instead of the user-selected target repository. Root causes: `process.cwd()` in `main-stack.ts:initStack` (for the SDK files client / EvidencePackStorage), `sdk-orchestrator` VTS wrapper, `repo-graph-service` auto-seed, `resolveWorkspace` / `resolveActiveWorkspace*` silent `[0]` fallbacks, and `repo:run-assistant` never forwarding workspace context. 
+  - Made `resolveWorkspace` (used by `collectRepoSnapshot` / runs / evidence) and `resolveActiveWorkspace` (ipc, memory, git, compliance) strict: require explicit active or provided id; clear actionable errors instead of falling back to launch cwd.
+  - Removed `ensureSeedWorkspace(process.cwd())` auto-injection.
+  - Switched the global MaTeX stack storage root (`.matex`) from `resolve(process.cwd(), ...)` to safe `app.getPath('userData')/matex-storage/...` (portable per-workspace `.mate-x` evidence inside targets remains the source of truth for compliance artifacts, attestations, and ZIPs).
+  - Forward optional `workspaceId` through the run-assistant IPC; all evidence/attestation/compliance paths now consistently target the active/selected workspace.
+- Hardened Rainy agentic loops (chat-runner, responses-runner) and synthesis/critic paths against repetitive output and "re-runs the same task" producing strange parroted responses on failure/low-signal: added `appendAssistantPass` + repetition heuristic (skips full re-append when head overlaps prior accumulation), pruned obvious fallback/partial history entries in `buildHistoryMessages`, shortened synthesis prompts to "concise delta" + "reference by id, do not repeat", truncated verbatim draft in `buildCriticRevisionPrompt`.
+- Made Evidence Pack scoring accurate and resilient for real security review workloads on arbitrary repos (the source of "always 16 or 18 out of 100" and "working terribly"):
+  - Generalized `extractInspectedPaths` (and filter) beyond hard-coded `startsWith("src/")` + exact tool names; now credits any read/grep/search/file tool that produces path-like strings. "relevant_files_inspected" / "target_files_identified" now fire on typical layouts (app/, lib/, packages/, root files, etc.).
+  - Relaxed `hasFailedRun` (and thus forced "failed" status) to only hard blocker evidenceStatus; failed validations affect only their signal (numeric score) rather than nuking the whole verdict for diagnostic runs.
+  - Defensive `pathExists` (try/catch) so bad workspacePath or claims from partial runs no longer crash scoring/pack generation.
+  - Internal VTS wrapper in SDK orchestrator now accepts real workspacePath and derives best-effort `filesModified` from events (benefits from the above).
+  - Wrapped `computeVerifiedTaskScore` (and reproduction/verdict paths) inside `buildEvidencePack` and key finalization in `repo-service` so partial runs always produce a usable (if low-scoring + warned) EvidencePack written to the correct `.mate-x` tree; compliance exports no longer hard-crash on scope edges (structured handling + best-effort).
+- All changes preserve local-first compliance invariants (agentIdentity, policy hashes from AGENTS.md/RULES.md, Privacy Firewall, in-toto attestations, manifest digests). Only the plan-listed files were modified.
+- Verified: `bun run lint && bun run typecheck` clean after each phase.
+
 ## v0.1.0 - 2026.06.01 [First Stable Release]
 
 - Released MaTE X `v0.1.0` as the first stable release baseline for the storage, Evidence Pack publishing, Failure Memory sync, SDK orchestration, and typed configuration stack.

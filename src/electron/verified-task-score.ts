@@ -150,8 +150,11 @@ export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
   );
   const hasFailedRun =
     input.evidenceStatus === "failed" ||
-    input.evidenceStatus === "blocked" ||
-    validationExecutions.some((execution) => !executionPassed(execution));
+    input.evidenceStatus === "blocked";
+  // Note: failed validation executions now only affect the "validation_passed" signal (lowers numeric)
+  // rather than forcing overall "failed" status. This allows diagnostic/review runs (that may
+  // intentionally surface failing repros or skip validation) to receive partial/verified status
+  // based on inspection + grounding signals instead of always landing at low "failed" scores.
 
   return {
     score,
@@ -189,13 +192,20 @@ function statusForScore(
 }
 
 function extractInspectedPaths(toolExecutions: ToolExecutionRecord[]) {
+  // Generalized for real-world repos (not just "src/" layout) and security review workflows.
+  // Any fileInspectionTool (or common search/read variants) that produced a string arg
+  // containing path separators or extensions now counts as inspection. This prevents
+  // chronic low scores (16/18) for diagnostic runs on typical codebases (app/, lib/, packages/, root files).
   return [
     ...new Set(
       toolExecutions
-        .filter((execution) => fileInspectionTools.has(execution.toolName))
+        .filter((execution) =>
+          fileInspectionTools.has(execution.toolName) ||
+          /read|grep|search|file|inspect/i.test(execution.toolName),
+        )
         .flatMap((execution) => Object.values(execution.args))
         .filter((value): value is string => typeof value === "string")
-        .filter((value) => value.startsWith("src/") || value.startsWith("/")),
+        .filter((value) => /[\\/.]/.test(value) || /^[A-Za-z0-9_.-]+\.[A-Za-z0-9]+$/.test(value.trim())),
     ),
   ];
 }
@@ -224,11 +234,16 @@ function executionPassed(execution: ToolExecutionRecord) {
 }
 
 function pathExists(workspacePath: string, claim: string) {
-  const normalized = claim.replace(/:\d+(:\d+)?$/, "");
-  const absolute = path.isAbsolute(normalized)
-    ? normalized
-    : path.join(workspacePath, normalized);
-  return fs.existsSync(absolute);
+  try {
+    const normalized = claim.replace(/:\d+(:\d+)?$/, "");
+    const absolute = path.isAbsolute(normalized)
+      ? normalized
+      : path.join(workspacePath, normalized);
+    return fs.existsSync(absolute);
+  } catch {
+    // Defensive: wrong workspacePath (old bug) or bad claim should not crash scoring / pack gen.
+    return false;
+  }
 }
 
 function summarizeList(values: string[]) {

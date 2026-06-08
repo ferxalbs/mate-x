@@ -65,15 +65,22 @@ export function buildCriticReviewPrompt(input: CriticLoopInput) {
 }
 
 export function buildCriticRevisionPrompt(finalContent: string, criticNotes: string) {
+  // Truncate the draft to discourage verbatim repetition of long prior output.
+  // The model should use the tool events/evidence (already in context for the run)
+  // rather than echoing the full previous assistant text.
+  const draft =
+    finalContent.length > 1800
+      ? finalContent.slice(0, 1800) + "\n... [truncated for revision; rely on evidence events above]"
+      : finalContent;
   return [
-    "Revise final answer using critic notes. Do not add new claims.",
+    "Revise final answer using critic notes. Do not add new claims. Provide concise delta only.",
     "Keep only claims supported by existing tool output. Surface concise warnings.",
     "",
     "Critic notes:",
     criticNotes,
     "",
-    "Draft to revise:",
-    finalContent,
+    "Draft to revise (may be truncated):",
+    draft,
   ].join("\n");
 }
 

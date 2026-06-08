@@ -842,7 +842,11 @@ function linkTestFile(builder: GraphBuilder, testFile: string, allFiles: string[
 }
 
 async function loadActiveWorkspace() {
-  await tursoService.ensureSeedWorkspace(process.cwd());
+  // NOTE: removed auto ensureSeedWorkspace(process.cwd()). Seeding the launch cwd
+  // was the source of .matex/.mate-x folders appearing inside the MaTE X source
+  // tree (or wrong launch dir in packaged builds) instead of the user-selected target
+  // workspace. Workspaces must be explicitly added by the user; resolve now requires
+  // an active workspace for evidence, runs, and graph ops.
   const workspaces = await tursoService.getWorkspaces();
   const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
   const workspace =
