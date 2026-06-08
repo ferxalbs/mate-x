@@ -20,6 +20,7 @@ import {
   isCurrentChangeReviewPrompt,
   mapWithConcurrency,
   summarizeCheckpoint,
+  appendAssistantPass,
 } from "./helpers";
 import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
@@ -120,7 +121,7 @@ export async function requestRainyResponsesAgenticResponse({
     previousResponseId = response.id;
     const responseText = response.output_text || "";
     if (responseText.trim()) {
-      lastContent += (lastContent ? "\n\n" : "") + responseText;
+      lastContent = appendAssistantPass(lastContent, responseText);
     }
     lastThought = extractResponseThought(response) || lastThought;
     emitProgress(lastContent, lastThought);

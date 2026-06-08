@@ -30,7 +30,14 @@ export async function initStack(): Promise<void> {
   stack = await createMaTeXStack(configSnapshot, {
     workspaceId: 'default',
     storage: {
-      files: createLocalFilesClient(resolve(process.cwd(), configSnapshot.storage.bucket ?? '.matex/evidence')),
+      // Use app-scoped userData for the internal MaTeX SDK storage bucket / EvidencePackStorage
+      // adapter (the '.matex/evidence' tree). This was previously resolve(process.cwd(), ...),
+      // which caused .matex folders (and evidence artifacts) to be created inside the mate-x
+      // source repo (dev) or the packaged app launch/install dir (prod) instead of being
+      // isolated to the app and the *target* workspace's .mate-x/evidence for compliance packs.
+      // The portable per-workspace evidence still lives under the user-selected workspacePath
+      // (see attestation, complianceExport, evidence-pack build paths using snapshot.workspace.path).
+      files: createLocalFilesClient(join(app.getPath('userData'), 'matex-storage', configSnapshot.storage.bucket ?? 'evidence')),
       privacySentinel: {
         scan: async (content) => {
           const scan = await privacyFirewall.scanTextSafe(
@@ -228,7 +235,11 @@ async function requestPolicyApproval(toolName: string, actionType: string, paylo
   const runId = `policy-${Date.now()}`;
   const stop = policyService.createStop({
     runId,
-    workspacePath: process.cwd(),
+    // Use a stable app-scoped path for policy context (high-impact storage/SDK approvals).
+    // Previously process.cwd() leaked target context and could point at the wrong tree.
+    // Real per-target workspacePath for evidence/compliance is supplied via snapshot
+    // at run time in the assistant and orchestrator paths.
+    workspacePath: app.getPath('userData'),
     toolName,
     severity: 'critical',
     policyId: 'sdk.high_impact_approval',

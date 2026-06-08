@@ -39,6 +39,7 @@ import {
   buildTimeoutFinalResponse,
   buildNoContentFinalResponse,
   buildChatUserContent,
+  appendAssistantPass,
 } from "./helpers";
 import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
@@ -238,8 +239,7 @@ export async function requestRainyChatAgenticResponse({
 
     const responseText = normalizeAssistantText(responseMessage.content);
     if (responseText.trim()) {
-      lastNonEmptyAssistantText +=
-        (lastNonEmptyAssistantText ? "\n\n" : "") + responseText;
+      lastNonEmptyAssistantText = appendAssistantPass(lastNonEmptyAssistantText, responseText);
       emitProgress(lastNonEmptyAssistantText);
     }
 

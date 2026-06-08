@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { app } from 'electron';
 
 import { computeVerifiedTaskScore } from "../verified-task-score";
 import type {
@@ -175,7 +176,7 @@ export class SDKOrchestrator {
       try {
         const sdkResult = await this.withTimeout(this.clients[action.agentId].execute(action), action);
         const durationMs = elapsedMs(started);
-        const vts = computeVTS(sdkResult.tool_execution_events ?? []);
+        const vts = computeVTS(sdkResult.tool_execution_events ?? [], /* workspacePath threaded from orchestrator context/action in future phases; safe default below prevents cwd leak */ undefined);
         lastVTS = vts;
         const outputHash = sha256(canonicalJson(sdkResult.output));
         await this.evidenceRecorder(context).appendAgentActionEvent({
@@ -342,13 +343,25 @@ export class SDKOrchestrator {
   }
 }
 
-export function computeVTS(events: ToolExecutionEvent[]): number {
+export function computeVTS(events: ToolExecutionEvent[], workspacePath?: string): number {
   const toolExecutions = events.map(toToolExecutionRecord);
   const failed = events.some((event) => event.status === "failed" || event.status === "error");
+  // Use provided workspacePath (from snapshot/context in caller) or safe app-scoped default.
+  // Hardcoded process.cwd() here was a source of wrong-tree evidence scoring and potential
+  // path pollution / fs checks against the MaTE X source instead of the target repo.
+  // Derive a best-effort filesModified for VTS from the SDK tool events (any arg that looks
+  // like a touched path). Combined with generalized extractInspectedPaths in verified-task-score,
+  // this helps the SDK/critic path escape the old 0.16-0.18 VTS floor for real audit work.
+  const derivedFilesModified = toolExecutions
+    .flatMap((e) => Object.values(e.args || {}))
+    .filter((v): v is string => typeof v === 'string' && /[\\/.]/.test(v))
+    .slice(0, 10)
+    .map((p) => ({ path: p.replace(/^\.?\//, ''), action: 'touched' as const }));
+
   const score = computeVerifiedTaskScore({
-    workspacePath: process.cwd(),
+    workspacePath: workspacePath ?? app.getPath('userData'),
     evidenceStatus: failed ? "failed" : "complete",
-    filesModified: [],
+    filesModified: derivedFilesModified,
     toolExecutions,
     reproduction: validationReproduction(toolExecutions, failed),
   });

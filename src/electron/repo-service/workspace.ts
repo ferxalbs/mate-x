@@ -256,13 +256,14 @@ async function resolveWorkspace(
 ): Promise<WorkspaceEntry> {
   const workspaces = cachedWorkspaces ?? (await tursoService.getWorkspaces());
   const resolvedId =
-    workspaceId ??
-    (await tursoService.getActiveWorkspaceId()) ??
-    workspaces[0]?.id;
+    workspaceId ?? (await tursoService.getActiveWorkspaceId());
+  if (!resolvedId) {
+    throw new Error('No active workspace. Add or select a repository to analyze.');
+  }
   const workspace = workspaces.find((entry) => entry.id === resolvedId);
 
   if (!workspace) {
-    throw new Error("Workspace not found.");
+    throw new Error('Workspace not found. The active workspace may have been removed.');
   }
 
   return workspace;

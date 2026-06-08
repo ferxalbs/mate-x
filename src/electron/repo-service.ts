@@ -422,6 +422,8 @@ export async function runAssistant(
     content,
     toolExecutions,
     trustContract: snapshot.trustContract,
+    // Note: buildEvidencePack now internally wraps computeVerifiedTaskScore for crash resilience.
+    // Attestation generation below is best-effort in surrounding try (see catch in this flow).
     runbookId: resolvedOptions.runbookId,
     initialStatusLines: snapshot.statusLines,
   });
