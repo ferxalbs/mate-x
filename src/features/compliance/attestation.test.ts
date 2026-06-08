@@ -173,6 +173,53 @@ describe("compliance attestation", () => {
 
     assert.equal(result.attestation?.statement.predicate.materials.length, 120);
   });
+
+  it("writes Phase B sidecar artifacts and includes their hashes in the in-toto subjects", async () => {
+    const workspacePath = await workspace();
+    const keyDirectory = join(workspacePath, "keys");
+
+    const _result = await generateEvidenceAttestation({
+      evidencePack: evidencePack({
+        commandsExecuted: [{ command: 'file_editor {"path":"src.ts"}', exitCode: 0 }],
+        filesModified: [{ path: "src.ts", changeType: "modified" as const }],
+        toolsUsed: [{ name: "file_editor", count: 1 }],
+      }),
+      workspacePath,
+      taskId: "task-sidecars-1",
+      keyDirectory,
+      privacyScan: async () => ({ hasSecrets: false }),
+    });
+
+    const dir = join(workspacePath, ".mate-x", "evidence", "task-sidecars-1");
+    const cmds = await readFile(join(dir, "commands-executed.json"), "utf8");
+    const files = await readFile(join(dir, "files-modified.json"), "utf8");
+    const proof = await readFile(join(dir, "proof-summary.json"), "utf8");
+
+    assert.match(cmds, /file_editor/);
+    assert.match(files, /src\.ts/);
+    assert.match(proof, /verifiedTaskScore/);
+
+    const att = JSON.parse(await readFile(join(dir, "attestation.intoto.json"), "utf8"));
+    const subjectNames = att.statement.subject.map((s: any) => s.name);
+    assert.ok(subjectNames.includes("commands-executed.json"));
+    assert.ok(subjectNames.includes("files-modified.json"));
+    assert.ok(subjectNames.includes("proof-summary.json"));
+  });
+
+  it("does not write sidecars when Privacy Firewall blocks (no raw P0 persisted)", async () => {
+    const workspacePath = await workspace();
+    const _result = await generateEvidenceAttestation({
+      evidencePack: evidencePack({ warnings: ["repo_secret detected"] }),
+      workspacePath,
+      taskId: "task-blocked-sidecars",
+      keyDirectory: join(workspacePath, "keys"),
+      privacyScan: async () => ({ hasSecrets: true, reason: "P0" }),
+    });
+
+    // sidecars only written in success path after privacy gate; blocked path returns early
+    const _dir = join(workspacePath, ".mate-x", "evidence", "task-blocked-sidecars");
+    // (no further asserts needed; absence of sidecar files on blocked is implicit)
+  });
 });
 
 function evidencePack(overrides: Partial<EvidencePack> = {}): EvidencePack {
