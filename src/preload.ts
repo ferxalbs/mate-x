@@ -3,7 +3,9 @@ import "./electron/preload/index";
 
 import type {
   GitApi,
+  GitHubIntegrationApi,
   PolicyApi,
+  ProofApi,
   PrivacyApi,
   RepoInspectorApi,
   SettingsApi,
@@ -161,6 +163,24 @@ const settingsApi: SettingsApi = {
     ipcRenderer.invoke("settings:update-app-settings", settings),
 };
 
+const githubApi: GitHubIntegrationApi = {
+  detectGitHubRemote: (workspacePath) => ipcRenderer.invoke("github:detect-remote", workspacePath),
+  getCurrentBranch: (workspacePath) => ipcRenderer.invoke("github:get-current-branch", workspacePath),
+  getLocalDiff: (workspacePath) => ipcRenderer.invoke("github:get-local-diff", workspacePath),
+  getChangedFiles: (workspacePath) => ipcRenderer.invoke("github:get-changed-files", workspacePath),
+  collectLocalEvidence: (workspacePath) => ipcRenderer.invoke("github:collect-local-evidence", workspacePath),
+  getIntegrationStatus: (workspacePath) => ipcRenderer.invoke("github:get-status", workspacePath),
+  getPullRequestForBranch: () => ipcRenderer.invoke("github:get-pr-for-branch"),
+  getPullRequestFiles: () => ipcRenderer.invoke("github:get-pr-files"),
+  getPullRequestChecks: () => ipcRenderer.invoke("github:get-pr-checks"),
+};
+
+const proofApi: ProofApi = {
+  saveCapsule: (capsule) => ipcRenderer.invoke("proof:save-capsule", capsule),
+  listCapsules: (workspaceId) => ipcRenderer.invoke("proof:list-capsules", workspaceId),
+  getCapsule: (workspaceId, capsuleId) => ipcRenderer.invoke("proof:get-capsule", workspaceId, capsuleId),
+};
+
 const policyApi: PolicyApi = {
   listStops: (runId) => ipcRenderer.invoke("policy:list-stops", runId),
   getRunState: (runId) => ipcRenderer.invoke("policy:get-run-state", runId),
@@ -187,6 +207,8 @@ contextBridge.exposeInMainWorld("mate", {
   repo: repoApi,
   git: gitApi,
   settings: settingsApi,
+  github: githubApi,
+  proof: proofApi,
   policy: policyApi,
   privacy: privacyApi,
   ui: uiApi,

@@ -48,6 +48,10 @@ import {
   type TimeFormat,
 } from '../contracts/settings';
 import type {
+  GitHubIntegrationStatus,
+  GitHubIntegrationState,
+} from '../contracts/github-integration';
+import type {
   PrivacyModelDownloadProgress,
   PrivacyModelStatus,
   PrivacySafeScanResult,
@@ -108,6 +112,8 @@ export function SettingsPage() {
   const [isPrivacyModelBusy, setIsPrivacyModelBusy] = useState(false);
   const [privacyDebugResult, setPrivacyDebugResult] = useState<PrivacySafeScanResult | null>(null);
   const [isPrivacyActionBusy, setIsPrivacyActionBusy] = useState(false);
+  const [githubStatus, setGithubStatus] = useState<GitHubIntegrationStatus | null>(null);
+  const [isGithubStatusBusy, setIsGithubStatusBusy] = useState(false);
 
   const section: SettingsSectionId =
     pathname === '/settings/workspace-memory'
@@ -176,6 +182,31 @@ export function SettingsPage() {
   useEffect(() => {
     void refreshPrivacyModelStatus();
   }, [refreshPrivacyModelStatus]);
+
+  const refreshGithubStatus = useCallback(async () => {
+    if (!activeWorkspace?.path) {
+      setGithubStatus({
+        state: appSettings.githubIntegrationEnabled ? 'enabled_not_configured' : 'disabled',
+        repository: null,
+        branch: null,
+        message: 'Select a workspace to detect local GitHub evidence.',
+      });
+      return;
+    }
+
+    setIsGithubStatusBusy(true);
+    try {
+      setGithubStatus(await window.mate.github.getIntegrationStatus(activeWorkspace.path));
+    } finally {
+      setIsGithubStatusBusy(false);
+    }
+  }, [activeWorkspace?.path, appSettings.githubIntegrationEnabled]);
+
+  useEffect(() => {
+    if (section === 'integrations') {
+      void refreshGithubStatus();
+    }
+  }, [refreshGithubStatus, section]);
 
   useEffect(() => {
     return window.mate.privacy.onModelDownloadProgress((progress) => {
@@ -384,6 +415,7 @@ export function SettingsPage() {
       setAppSettings((current) => ({
         ...current,
         supermemoryApiKey: DEFAULT_APP_SETTINGS.supermemoryApiKey,
+        githubIntegrationEnabled: DEFAULT_APP_SETTINGS.githubIntegrationEnabled,
       }));
     } else if (section === 'agent-profiler') {
       setAppSettings((current) => ({
@@ -459,6 +491,7 @@ export function SettingsPage() {
         ? ['Antigravity integration']
         : []),
       ...(appSettings.cursorIntegrationEnabled !== savedAppSettings.cursorIntegrationEnabled ? ['Cursor integration'] : []),
+      ...(appSettings.githubIntegrationEnabled !== savedAppSettings.githubIntegrationEnabled ? ['GitHub integration'] : []),
       ...(appSettings.preferredAgentIntegration !== savedAppSettings.preferredAgentIntegration
         ? ['Preferred agent integration']
         : []),
@@ -480,6 +513,7 @@ export function SettingsPage() {
       appSettings.codexIntegrationEnabled,
       appSettings.antigravityIntegrationEnabled,
       appSettings.cursorIntegrationEnabled,
+      appSettings.githubIntegrationEnabled,
       appSettings.preferredAgentIntegration,
       appSettings.timeFormat,
       appSettings.agentProfilerAutoSwitch,
@@ -505,6 +539,12 @@ export function SettingsPage() {
       savedAppSettings.agentTraceVersion,
       savedAppSettings.agentTraceV2InlineEvents,
       savedAppSettings.timeFormat,
+      savedAppSettings.codexIntegrationEnabled,
+      savedAppSettings.antigravityIntegrationEnabled,
+      savedAppSettings.cursorIntegrationEnabled,
+      savedAppSettings.githubIntegrationEnabled,
+      savedAppSettings.preferredAgentIntegration,
+      savedAppSettings.supermemoryApiKey,
       savedAppSettings.agentProfilerAutoSwitch,
       savedAppSettings.privacyBlockP0CloudSend,
       savedAppSettings.privacyFirewallEnabled,
@@ -1327,6 +1367,49 @@ export function SettingsPage() {
                       </div>
                     }
                   />
+                  <SettingsRow
+                    title="GitHub"
+                    description="Connect repositories and pull requests for Proof Mode, evidence checks, and PR verification."
+                    status={githubStatus?.message}
+                    control={
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={appSettings.githubIntegrationEnabled}
+                          onCheckedChange={(checked) => {
+                            setAppSettings((current) => ({
+                              ...current,
+                              githubIntegrationEnabled: checked,
+                            }));
+                            if (saveState === 'saved') {
+                              setSaveState('idle');
+                            }
+                            void refreshGithubStatus();
+                          }}
+                          disabled={isBusy}
+                        />
+                        <span className={cn(
+                          'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
+                          githubStatusClass(githubStatus?.state ?? (appSettings.githubIntegrationEnabled ? 'enabled_not_configured' : 'disabled')),
+                        )}>
+                          {githubStatusLabel(githubStatus?.state ?? (appSettings.githubIntegrationEnabled ? 'enabled_not_configured' : 'disabled'))}
+                        </span>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          onClick={() => void refreshGithubStatus()}
+                          disabled={isBusy || isGithubStatusBusy}
+                        >
+                          {isGithubStatusBusy ? (
+                            <Loader2Icon className="size-3.5 animate-spin" />
+                          ) : (
+                            <ServerIcon className="size-3.5" />
+                          )}
+                          Detect
+                        </Button>
+                      </div>
+                    }
+                  />
                 </>
               </SettingsSection>
             ) : null}
@@ -1498,4 +1581,20 @@ export function SettingsPage() {
       </AlertDialog>
     </>
   );
+}
+
+function githubStatusLabel(state: GitHubIntegrationState) {
+  if (state === 'local_only') return 'Local-only';
+  if (state === 'configured') return 'Configured';
+  if (state === 'error') return 'Error';
+  if (state === 'enabled_not_configured') return 'Not configured';
+  return 'Disabled';
+}
+
+function githubStatusClass(state: GitHubIntegrationState) {
+  if (state === 'configured') return 'bg-emerald-500/12 text-emerald-500';
+  if (state === 'local_only') return 'bg-sky-500/12 text-sky-500';
+  if (state === 'error') return 'bg-red-500/12 text-red-500';
+  if (state === 'enabled_not_configured') return 'bg-amber-500/12 text-amber-500';
+  return 'bg-muted/60 text-muted-foreground';
 }

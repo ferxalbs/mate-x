@@ -41,6 +41,22 @@ import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
 import {
+  collectGitHubLocalEvidence,
+  detectGitHubRemote,
+  getChangedFiles,
+  getCurrentBranch,
+  getIntegrationStatus,
+  getLocalDiff,
+  getPullRequestChecks,
+  getPullRequestFiles,
+  getPullRequestForBranch,
+} from "./github-integration-service";
+import {
+  getProofCapsule,
+  listProofCapsules,
+  saveProofCapsule,
+} from "./proof-storage-service";
+import {
   generateComplianceExport,
   verifyComplianceZipForDelivery,
   sanitizeComplianceTaskId,
@@ -83,6 +99,7 @@ const APP_SETTING_KEYS = new Set([
   "codexIntegrationEnabled",
   "antigravityIntegrationEnabled",
   "cursorIntegrationEnabled",
+  "githubIntegrationEnabled",
   "preferredAgentIntegration",
   "supermemoryApiKey",
   "onboardingCompleted",
@@ -990,6 +1007,45 @@ export function registerIpcHandlers() {
     "settings:update-app-settings",
     async (_event, settings: AppSettings) =>
       tursoService.updateAppSettings(validateAppSettings(settings)),
+  );
+
+  // ── GitHub Integration ──────────────────────────────────────────────────
+  ipcMain.handle("github:detect-remote", async (_event, workspacePath: string) =>
+    detectGitHubRemote(requireBoundedString(workspacePath, "workspacePath", 4_000)),
+  );
+  ipcMain.handle("github:get-current-branch", async (_event, workspacePath: string) =>
+    getCurrentBranch(requireBoundedString(workspacePath, "workspacePath", 4_000)),
+  );
+  ipcMain.handle("github:get-local-diff", async (_event, workspacePath: string) =>
+    getLocalDiff(requireBoundedString(workspacePath, "workspacePath", 4_000)),
+  );
+  ipcMain.handle("github:get-changed-files", async (_event, workspacePath: string) =>
+    getChangedFiles(requireBoundedString(workspacePath, "workspacePath", 4_000)),
+  );
+  ipcMain.handle("github:collect-local-evidence", async (_event, workspacePath: string) =>
+    collectGitHubLocalEvidence(requireBoundedString(workspacePath, "workspacePath", 4_000)),
+  );
+  ipcMain.handle("github:get-status", async (_event, workspacePath: string) => {
+    const settings = await tursoService.getAppSettings();
+    return getIntegrationStatus(
+      requireBoundedString(workspacePath, "workspacePath", 4_000),
+      settings.githubIntegrationEnabled,
+    );
+  });
+  ipcMain.handle("github:get-pr-for-branch", async () => getPullRequestForBranch());
+  ipcMain.handle("github:get-pr-files", async () => getPullRequestFiles());
+  ipcMain.handle("github:get-pr-checks", async () => getPullRequestChecks());
+
+  // ── Proof Storage ───────────────────────────────────────────────────────
+  ipcMain.handle("proof:save-capsule", async (_event, capsule) => saveProofCapsule(capsule));
+  ipcMain.handle("proof:list-capsules", async (_event, workspaceId: string) =>
+    listProofCapsules(requireBoundedString(workspaceId, "workspaceId", 500)),
+  );
+  ipcMain.handle("proof:get-capsule", async (_event, workspaceId: string, capsuleId: string) =>
+    getProofCapsule(
+      requireBoundedString(workspaceId, "workspaceId", 500),
+      requireBoundedString(capsuleId, "capsuleId", 500),
+    ),
   );
 
   // ── UI ───────────────────────────────────────────────────────────────────
