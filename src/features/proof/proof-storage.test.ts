@@ -1,10 +1,32 @@
-import { describe, test } from "bun:test";
+import { beforeEach, describe, test } from "bun:test";
 import assert from "node:assert/strict";
 
 import { generateProofCapsule } from "../../../packages/proof-core/src";
 import { serverProofStorageAdapter } from "./proof-storage";
 
 describe("proof storage", () => {
+  const capsules = new Map<string, any[]>();
+
+  beforeEach(() => {
+    capsules.clear();
+    (globalThis as any).window = {
+      mate: {
+        proof: {
+          saveCapsule: async (capsule: any) => {
+            const current = capsules.get(capsule.workspaceId) ?? [];
+            capsules.set(capsule.workspaceId, [capsule, ...current]);
+            return { ok: true, value: capsule };
+          },
+          listCapsules: async (workspaceId: string) => ({ ok: true, value: capsules.get(workspaceId) ?? [] }),
+          getCapsule: async (workspaceId: string, capsuleId: string) => ({
+            ok: true,
+            value: (capsules.get(workspaceId) ?? []).find((item) => item.id === capsuleId),
+          }),
+        },
+      },
+    };
+  });
+
   test("persists Proof Capsule through MaTE X storage adapter", async () => {
     const capsule = generateProofCapsule({
       sourceType: "manual",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { AlertTriangleIcon, CheckCircle2Icon, LockIcon, ShieldCheckIcon } from "lucide-react";
 
@@ -12,7 +12,6 @@ import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import { useChatStore } from "../../store/chat-store";
 import { getProofEntitlementForWorkspace } from "./proof-entitlements";
-import { createMateXGitHubIntegration } from "./proof-github-boundary";
 import { serverProofStorageAdapter } from "./proof-storage";
 
 export function ProofPage({ mode = "workspace" }: { mode?: "workspace" | "demo" | "detail" }) {
@@ -22,12 +21,12 @@ export function ProofPage({ mode = "workspace" }: { mode?: "workspace" | "demo" 
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const repoFiles = useChatStore((state) => state.repoFiles);
   const entitlement = getProofEntitlementForWorkspace(activeWorkspaceId);
-  const github = useMemo(() => createMateXGitHubIntegration(workspace), [workspace]);
   const [capsules, setCapsules] = useState<ProofCapsule[]>([]);
   const [selectedCapsule, setSelectedCapsule] = useState<ProofCapsule | null>(mode === "demo" ? demoProofCapsule : null);
   const [transcript, setTranscript] = useState("");
   const [ciOutput, setCiOutput] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [localEvidenceMessage, setLocalEvidenceMessage] = useState("Local git evidence not checked.");
 
   useEffect(() => {
     if (!activeWorkspaceId || mode === "demo") return;
@@ -51,9 +50,17 @@ export function ProofPage({ mode = "workspace" }: { mode?: "workspace" | "demo" 
       return;
     }
 
-    const repos = await github.listWorkspaceRepos(activeWorkspaceId);
-    const repositoryId = repos.ok && repos.value[0] ? repos.value[0].id : workspace.id;
-    const changedFiles: ProofChangedFile[] = repoFiles.slice(0, 40).map((path) => ({ path, status: "modified" }));
+    const localEvidence = await window.mate.github.collectLocalEvidence(workspace.path);
+    const gitFiles = localEvidence.ok
+      ? localEvidence.value.changedFiles.map((file) => ({ path: file.path, status: file.status }))
+      : [];
+    const changedFiles: ProofChangedFile[] = (gitFiles.length > 0 ? gitFiles : repoFiles.slice(0, 40).map((path) => ({ path, status: "modified" }))).slice(0, 80);
+    const repositoryId = localEvidence.ok && localEvidence.value.repository
+      ? `${localEvidence.value.repository.owner}/${localEvidence.value.repository.repo}`
+      : workspace.id;
+    setLocalEvidenceMessage(localEvidence.ok
+      ? `Local-only Git evidence: ${changedFiles.length} changed file(s)${localEvidence.value.branch ? ` on ${localEvidence.value.branch}` : ""}.`
+      : localEvidence.message);
     const capsule = generateProofCapsule({
       sourceType: "manual",
       workspaceId: activeWorkspaceId,
@@ -69,15 +76,15 @@ export function ProofPage({ mode = "workspace" }: { mode?: "workspace" | "demo" 
         githubChecksEnabled: entitlement.githubChecks.enabled,
       },
       sourceIntegration: {
-        provider: "manual",
-        mode: "matex-server",
-        installationState: "not_configured",
+        provider: localEvidence.ok && localEvidence.value.repository ? "github" : "git-local",
+        mode: "matex-local",
+        installationState: "local_only",
       },
       privacyPreflightResult: { status: "passed", redactedCount: 0 },
       validationStatus: ciOutput ? "passed" : "missing_evidence",
       changedFiles,
       transcript,
-      ciOutput,
+      ciOutput: [ciOutput, localEvidence.ok ? localEvidence.value.diff.slice(0, 20_000) : ""].filter(Boolean).join("\n\n--- local git diff ---\n"),
       manualNotes: "Generated inside MaTE X workspace flow.",
     });
     const saved = await serverProofStorageAdapter.saveCapsule(capsule);
@@ -125,7 +132,7 @@ export function ProofPage({ mode = "workspace" }: { mode?: "workspace" | "demo" 
               <InfoRow label="Workspace" value={workspace?.name ?? "None selected"} />
               <InfoRow label="Repository" value={workspace?.path ?? "Connect through MaTE X workspace"} />
               <InfoRow label="Entitlement" value={entitlement.proofMode.enabled ? "Proof enabled" : "Proof disabled"} />
-              <InfoRow label="GitHub App" value="Not configured" />
+              <InfoRow label="GitHub" value={localEvidenceMessage} />
             </div>
             <label className="mt-5 block text-xs text-muted-foreground">
               Agent transcript

@@ -6,6 +6,15 @@ import type {
 } from "./chat";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
 import type {
+  GitHubChangedFile,
+  GitHubCheckSummary,
+  GitHubIntegrationResult,
+  GitHubIntegrationStatus,
+  GitHubLocalEvidence,
+  GitHubPullRequestSummary,
+  GitHubRepositoryRef,
+} from "./github-integration";
+import type {
   PolicyRunState,
   PolicyStop,
   ResolvePolicyStopRequest,
@@ -112,6 +121,39 @@ export interface GitApi {
   push: () => Promise<void>;
   pull: () => Promise<void>;
   getDiff: () => Promise<GitDiff>;
+}
+
+export interface GitHubIntegrationApi {
+  detectGitHubRemote: (workspacePath: string) => Promise<GitHubIntegrationResult<GitHubRepositoryRef>>;
+  getCurrentBranch: (workspacePath: string) => Promise<GitHubIntegrationResult<string>>;
+  getLocalDiff: (workspacePath: string) => Promise<GitHubIntegrationResult<string>>;
+  getChangedFiles: (workspacePath: string) => Promise<GitHubIntegrationResult<GitHubChangedFile[]>>;
+  collectLocalEvidence: (workspacePath: string) => Promise<GitHubIntegrationResult<GitHubLocalEvidence>>;
+  getIntegrationStatus: (workspacePath: string) => Promise<GitHubIntegrationStatus>;
+  getPullRequestForBranch: () => Promise<GitHubIntegrationResult<GitHubPullRequestSummary>>;
+  getPullRequestFiles: () => Promise<GitHubIntegrationResult<GitHubChangedFile[]>>;
+  getPullRequestChecks: () => Promise<GitHubIntegrationResult<GitHubCheckSummary[]>>;
+}
+
+export interface ProofApi {
+  saveCapsule: (capsule: import("../../packages/proof-core/src").ProofCapsule) => Promise<{
+    ok: boolean;
+    value?: import("../../packages/proof-core/src").ProofCapsule;
+    reason?: string;
+    message?: string;
+  }>;
+  listCapsules: (workspaceId: string) => Promise<{
+    ok: boolean;
+    value?: import("../../packages/proof-core/src").ProofCapsule[];
+    reason?: string;
+    message?: string;
+  }>;
+  getCapsule: (workspaceId: string, capsuleId: string) => Promise<{
+    ok: boolean;
+    value?: import("../../packages/proof-core/src").ProofCapsule;
+    reason?: string;
+    message?: string;
+  }>;
 }
 
 export interface ApiKeyStatus {

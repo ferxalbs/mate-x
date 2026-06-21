@@ -35,6 +35,7 @@ export interface AppSettings {
   codexIntegrationEnabled: boolean;
   antigravityIntegrationEnabled: boolean;
   cursorIntegrationEnabled: boolean;
+  githubIntegrationEnabled: boolean;
   preferredAgentIntegration: AgentIntegrationId | 'none';
   supermemoryApiKey?: string;
   onboardingCompleted: boolean;
@@ -68,6 +69,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   codexIntegrationEnabled: false,
   antigravityIntegrationEnabled: false,
   cursorIntegrationEnabled: false,
+  githubIntegrationEnabled: false,
   preferredAgentIntegration: 'none',
   supermemoryApiKey: '',
   onboardingCompleted: false,

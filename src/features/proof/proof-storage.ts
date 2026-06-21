@@ -10,25 +10,21 @@ export interface ProofStorageAdapter {
   getCapsule(workspaceId: string, capsuleId: string): Promise<ProofStorageResult<ProofCapsule>>;
 }
 
-const capsulesByWorkspace = new Map<string, ProofCapsule[]>();
-
 export const serverProofStorageAdapter: ProofStorageAdapter = {
   async saveCapsule(capsule) {
     if (!capsule.createdByUserId) return fail("session_required", "MaTE X session required.");
     if (!capsule.workspaceId) return fail("workspace_required", "Workspace required.");
-
-    const current = capsulesByWorkspace.get(capsule.workspaceId) ?? [];
-    const next = [capsule, ...current.filter((item) => item.id !== capsule.id)];
-    capsulesByWorkspace.set(capsule.workspaceId, next);
-    return { ok: true, value: capsule };
+    const result = await window.mate.proof.saveCapsule(capsule);
+    return result.ok && result.value ? { ok: true, value: result.value } : fail("not_found", result.message ?? "Could not save Proof Capsule.");
   },
   async listCapsules(workspaceId) {
     if (!workspaceId) return fail("workspace_required", "Workspace required.");
-    return { ok: true, value: capsulesByWorkspace.get(workspaceId) ?? [] };
+    const result = await window.mate.proof.listCapsules(workspaceId);
+    return result.ok && result.value ? { ok: true, value: result.value } : fail("not_found", result.message ?? "Could not list Proof Capsules.");
   },
   async getCapsule(workspaceId, capsuleId) {
-    const capsule = (capsulesByWorkspace.get(workspaceId) ?? []).find((item) => item.id === capsuleId);
-    return capsule ? { ok: true, value: capsule } : fail("not_found", "Proof Capsule not found.");
+    const result = await window.mate.proof.getCapsule(workspaceId, capsuleId);
+    return result.ok && result.value ? { ok: true, value: result.value } : fail("not_found", result.message ?? "Proof Capsule not found.");
   },
 };
 

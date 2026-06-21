@@ -77,9 +77,9 @@ export interface ProofPlanSnapshot {
 }
 
 export interface ProofSourceIntegration {
-  provider: 'github' | 'manual' | 'demo';
-  mode: 'matex-server' | 'github-app' | 'demo-local' | 'manual';
-  installationState: 'connected' | 'not_configured' | 'not_required';
+  provider: 'github' | 'git-local' | 'manual' | 'demo';
+  mode: 'matex-server' | 'matex-local' | 'github-app' | 'demo-local' | 'manual';
+  installationState: 'connected' | 'not_configured' | 'local_only' | 'not_required';
 }
 
 export interface ProofSourceAgent {

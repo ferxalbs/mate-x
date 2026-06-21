@@ -1549,6 +1549,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.cursorIntegrationEnabled === 'boolean'
         ? input.cursorIntegrationEnabled
         : DEFAULT_APP_SETTINGS.cursorIntegrationEnabled,
+    githubIntegrationEnabled:
+      typeof input.githubIntegrationEnabled === 'boolean'
+        ? input.githubIntegrationEnabled
+        : DEFAULT_APP_SETTINGS.githubIntegrationEnabled,
     preferredAgentIntegration:
       input.preferredAgentIntegration === 'codex' ||
       input.preferredAgentIntegration === 'antigravity' ||
