@@ -10,6 +10,7 @@ import {
 import {
   ArrowLeftIcon,
   FileTextIcon,
+  FlaskConicalIcon,
   ListChecksIcon,
   RouteIcon,
   ShieldIcon,
@@ -671,6 +672,14 @@ export function AppSidebar({
             <SidebarMenu>
               <SidebarMenuItem>
                 <div className="mb-1 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+                  <Link
+                    to="/proof"
+                    className="mb-2 flex min-w-0 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
+                    aria-label="Open Proof Mode"
+                  >
+                    <FlaskConicalIcon className="size-3.5" />
+                    <span className="text-xs">Proof Mode</span>
+                  </Link>
                   <Link
                     to="/runs"
                     className="flex min-w-0 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
