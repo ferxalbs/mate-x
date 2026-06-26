@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Frame,
-  Glass,
-  GlassContainer,
-  Html,
-  LiquidCanvas,
-  ZStack,
-} from "@liquid-dom/react";
+
 import {
   ArrowLeftIcon,
   FileTextIcon,
@@ -60,114 +53,33 @@ import type {
 import type { AppSettings } from "../../../contracts/settings";
 import type { Theme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
+import { useLocalStorage, type LocalStorageCodec } from "../../../hooks/useLocalStorage";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ThreadMenuItem } from "./thread-menu-item";
-import {
-  UniversalBackground,
-  getUniversalBackgroundStyle,
-} from "./universal-background";
+
+const expandedWorkspacesCodec: LocalStorageCodec<Record<string, boolean>> = {
+  parse: (raw) => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  },
+  serialize: (value) => JSON.stringify(value),
+};
 
 const SettingsLink = Link as any;
 
 const COLLAPSED_THREAD_LIMIT = 10;
 
-/**
- * Liquid-glass sidebar panel.
- *
- * Architecture mirrors MusicSidebarDemo exactly:
- *
- *   LiquidCanvas
- *     ZStack
- *       Html (zIndex=-2)  ← UniversalBackground: the same gradient mesh as
- *                             the real app background. GlassContainer blurs
- *                             this, making the glass look like it genuinely
- *                             refracts the scene behind the sidebar.
- *       Frame → GlassContainer → Transform → Glass → Frame → Html
- *         {children}           ← the actual sidebar nav, rendered inside
- *                                 the glass (same as the demo’s <Sidebar />)
- *
- * This is the only architecture that makes GlassContainer work correctly:
- * both the backdrop AND the glass must share one LiquidCanvas scene graph.
- */
-function LiquidSidebarGlass({
-  theme,
-  resolvedTheme,
-  children,
-}: {
-  theme: Theme;
-  resolvedTheme: "light" | "dark";
-  children: React.ReactNode;
-}) {
-  const isLight = resolvedTheme === "light";
 
-  // The backdrop style resolves --mate-shell-a/b/c variables so the div
-  // inside Html can paint identically to the real UniversalBackground.
-  const backdropVars = getUniversalBackgroundStyle(theme, true, false);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden rounded-[30px]">
-      <LiquidCanvas
-        className="absolute inset-0 h-full w-full"
-        canvasClassName="absolute inset-0 h-full w-full rounded-[30px] bg-transparent"
-      >
-        <ZStack alignment="topLeading">
-          {/* ── Backdrop ─────────────────────────────────────────────────
-              Same gradient mesh as the real app background (UniversalBackground).
-              GlassContainer blurs this layer, producing the frosted-glass look
-              against what appears to be the real scene behind the sidebar. */}
-          <Html zIndex={-2} sizing="fill">
-            <div
-              className="h-full w-full"
-              style={backdropVars}
-            >
-              <UniversalBackground field={false} />
-            </div>
-          </Html>
-
-          {/* ── Glass panel ── native liquid-dom at full strength ────────
-              blur=500      : deep frosted glass depth
-              bezelWidth=280: wide refractive rim — the core glass-look prop
-              displacementBlur=60: strong chromatic dispersion at edges
-              specularOpacity=0.75: bright specular band (real glass glint)
-              specularFalloff=1.2: broad highlight spread
-              tint=0        : zero colour cast — pure crystal */}
-          <Frame maxWidth={Infinity} maxHeight={Infinity}>
-            <GlassContainer
-              blur={500}
-              bezelWidth={100}
-              displacementBlur={18}
-              thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: isLight ? 0.18 : 0.35 }}
-              shadowBlur={40}
-              specularOpacity={0.12}
-              surfaceProfile="concave"
-              specularFalloff={1.2}
-              tint={{ r: 1, g: 1, b: 1, a: 0 }}
-            >
-              <Glass cornerRadius={30}>
-                <Frame maxWidth={Infinity} maxHeight={Infinity}>
-                  <Html sizing="fill">
-                    <div className="h-full w-full">
-                      {children}
-                    </div>
-                  </Html>
-                </Frame>
-              </Glass>
-            </GlassContainer>
-          </Frame>
-
-        </ZStack>
-      </LiquidCanvas>
-    </div>
-  );
-}
 
 interface AppSidebarProps {
   workspaces: WorkspaceEntry[];
   workspace: WorkspaceSummary | null;
   activeWorkspaceId: string | null;
   activeThreadId: string;
-  threads: Conversation[];
+  threadsByWorkspace: Record<string, Conversation[]>;
   theme: Theme;
   resolvedTheme: "light" | "dark";
   settings: AppSettings;
@@ -210,45 +122,14 @@ function getThreadStatusLabel(
   };
 }
 
-async function getLiquidGlassAvailability() {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
 
-  const platform = navigator.platform.toLowerCase();
-  const userAgent = navigator.userAgent;
-  const isMac = platform.includes("mac");
-  const userAgentData = (
-    navigator as Navigator & {
-      userAgentData?: {
-        platform?: string;
-        getHighEntropyValues?: (
-          hints: string[],
-        ) => Promise<{ platformVersion?: string }>;
-      };
-    }
-  ).userAgentData;
-  const isClientHintsMac =
-    userAgentData?.platform?.toLowerCase() === "macos";
-
-  if (userAgentData?.getHighEntropyValues && (isMac || isClientHintsMac)) {
-    const values = await userAgentData.getHighEntropyValues(["platformVersion"]);
-    const major = Number(values.platformVersion?.split(".")[0] ?? "0");
-
-    return major >= 15;
-  }
-
-  const macVersion = userAgent.match(/Mac OS X (1[5-9]|[2-9]\d)[._]/);
-
-  return isMac && macVersion !== null;
-}
 
 export function AppSidebar({
   workspaces,
   workspace,
   activeWorkspaceId,
   activeThreadId,
-  threads,
+  threadsByWorkspace,
   theme,
   resolvedTheme,
   settings,
@@ -261,13 +142,13 @@ export function AppSidebar({
   onSelectThread,
   onRenameThread,
 }: AppSidebarProps) {
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState<
+  const [expandedWorkspaces, setExpandedWorkspaces] = useLocalStorage<
     Record<string, boolean>
-  >({});
+  >("matex-sidebar-expanded-workspaces", {}, expandedWorkspacesCodec);
   const [showAllThreads, setShowAllThreads] = useState(false);
   const [workspacePendingRemoval, setWorkspacePendingRemoval] =
     useState<WorkspaceEntry | null>(null);
-  const [liquidGlassAvailable, setLiquidGlassAvailable] = useState(false);
+
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -279,20 +160,7 @@ export function AppSidebar({
       : pathname.startsWith("/settings/")
         ? (pathname.split("/")[2] ?? "general")
         : null;
-  useEffect(() => {
-    let cancelled = false;
-    void getLiquidGlassAvailability().then((available) => {
-      if (!cancelled) {
-        setLiquidGlassAvailable(available);
-      }
-    });
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  const liquidGlassEnabled =
-    settings.liquidGlassSidebar && liquidGlassAvailable;
 
   const sidebarContent = (
     <div className="relative z-10 flex h-full min-h-0 flex-col">
@@ -538,9 +406,8 @@ export function AppSidebar({
                 {workspaces.map((project) => {
                   const isWorkspaceActive = project.id === activeWorkspaceId;
                   const isProjectOpen = expandedWorkspaces[project.id] ?? true;
-                  const activeThreads = isWorkspaceActive
-                    ? threads.filter((t) => !t.isArchived)
-                    : [];
+                  const projectThreads = threadsByWorkspace[project.id] ?? [];
+                  const activeThreads = projectThreads.filter((t) => !t.isArchived);
                   const visibleThreads = showAllThreads
                     ? activeThreads
                     : activeThreads.slice(0, COLLAPSED_THREAD_LIMIT);
@@ -549,10 +416,33 @@ export function AppSidebar({
 
                   return (
                     <SidebarMenuItem key={project.id} className="rounded-2xl">
-                      <div className="group/project grid grid-cols-[1fr_auto_auto] items-center gap-1">
+                      <div className="group/project flex items-center gap-1 pr-1">
+                        <button
+                          onClick={() =>
+                            setExpandedWorkspaces((current) => ({
+                              ...current,
+                              [project.id]: !isProjectOpen,
+                            }))
+                          }
+                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/45 transition-colors hover:bg-accent hover:text-foreground"
+                          title={
+                            isProjectOpen
+                              ? "Collapse history"
+                              : "Expand history"
+                          }
+                          type="button"
+                        >
+                          <CaretDownIcon
+                            className={cn(
+                              "size-3 transition-transform duration-200",
+                              isProjectOpen ? "rotate-0" : "-rotate-90",
+                            )}
+                            weight="regular"
+                          />
+                        </button>
                         <button
                           className={cn(
-                            "flex h-7 min-w-0 items-center gap-2 rounded-full px-0 text-left text-[12px] font-medium transition-colors",
+                            "flex h-7 min-w-0 flex-1 items-center gap-2 rounded-full px-0 text-left text-[12px] font-medium transition-colors",
                             isWorkspaceActive
                               ? "text-foreground"
                               : "text-muted-foreground hover:text-foreground",
@@ -567,35 +457,10 @@ export function AppSidebar({
                             {project.name}
                           </span>
                         </button>
-                        {isWorkspaceActive ? (
-                          <button
-                            onClick={() =>
-                              setExpandedWorkspaces((current) => ({
-                                ...current,
-                                [project.id]: !isProjectOpen,
-                              }))
-                            }
-                            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/45 transition-colors hover:bg-accent hover:text-foreground"
-                            title={
-                              isProjectOpen
-                                ? "Collapse history"
-                                : "Expand history"
-                            }
-                            type="button"
-                          >
-                            <CaretDownIcon
-                              className={cn(
-                                "size-3 transition-transform duration-200",
-                                isProjectOpen ? "rotate-0" : "-rotate-90",
-                              )}
-                              weight="regular"
-                            />
-                          </button>
-                        ) : null}
                         {workspaces.length > 1 ? (
                           <button
                             onClick={() => setWorkspacePendingRemoval(project)}
-                            className="hidden rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
+                            className="hidden shrink-0 rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
                             title={`Remove ${project.name}`}
                             type="button"
                           >
@@ -604,7 +469,7 @@ export function AppSidebar({
                         ) : null}
                       </div>
 
-                      {isWorkspaceActive && isProjectOpen ? (
+                      {isProjectOpen ? (
                         <div className="ml-2 mt-1 flex flex-col gap-0.5 border-l border-[var(--sidebar-border)]/70 pl-3 pr-0.5">
                           <div className="flex items-start justify-between gap-2 pb-1 text-[10px] text-muted-foreground/40">
                             <div className="min-w-0">
@@ -759,20 +624,7 @@ export function AppSidebar({
     </div>
   );
 
-  if (liquidGlassEnabled) {
-    return (
-      <aside className="drag-region relative z-10 h-full w-[288px] shrink-0 overflow-visible border-r border-transparent bg-transparent p-2 text-[var(--sidebar-foreground)]">
-        {/*
-          LiquidSidebarGlass owns the full panel: the canvas fills it,
-          UniversalBackground blurs inside the scene graph, and sidebarContent
-          renders inside the Glass’s Html — the MusicSidebarDemo pattern exactly.
-        */}
-        <LiquidSidebarGlass theme={settings.theme} resolvedTheme={resolvedTheme}>
-          {sidebarContent}
-        </LiquidSidebarGlass>
-      </aside>
-    );
-  }
+
 
   return (
     <Sidebar
