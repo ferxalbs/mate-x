@@ -1572,20 +1572,6 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.floatingInput === 'boolean'
         ? input.floatingInput
         : DEFAULT_APP_SETTINGS.floatingInput,
-    liquidGlassSidebar:
-      typeof input.liquidGlassSidebar === 'boolean'
-        ? input.liquidGlassSidebar
-        : DEFAULT_APP_SETTINGS.liquidGlassSidebar,
-    liquidGlassDensity:
-      input.liquidGlassDensity === 'calm' ||
-      input.liquidGlassDensity === 'focus' ||
-      input.liquidGlassDensity === 'deep'
-        ? input.liquidGlassDensity
-        : DEFAULT_APP_SETTINGS.liquidGlassDensity,
-    liquidGlassShineColors:
-      typeof input.liquidGlassShineColors === 'boolean'
-        ? input.liquidGlassShineColors
-        : DEFAULT_APP_SETTINGS.liquidGlassShineColors,
     onboardingCompleted:
       typeof input.onboardingCompleted === 'boolean'
         ? input.onboardingCompleted

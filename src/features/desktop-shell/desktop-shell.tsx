@@ -12,10 +12,7 @@ import { cn } from "../../lib/utils";
 import { EnhancementPanel } from "./components/enhancement-panel";
 import { AppSidebar } from "./components/app-sidebar";
 import { SearchModal } from "./components/search-modal";
-import {
-  getUniversalBackgroundStyle,
-  UniversalBackground,
-} from "./components/universal-background";
+
 
 export function DesktopShell() {
   const workspaces = useChatStore((state) => state.workspaces);
@@ -40,13 +37,7 @@ export function DesktopShell() {
     ? (activeThreadIds[activeWorkspaceId] ?? "")
     : "";
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const liquidGlassShellEnabled = settings.liquidGlassSidebar;
-  const shineEnabled = liquidGlassShellEnabled && settings.liquidGlassShineColors;
-  const shellStyle = getUniversalBackgroundStyle(
-    settings.theme,
-    liquidGlassShellEnabled,
-    shineEnabled,
-  );
+  const shellStyle: React.CSSProperties = {};
 
   useEffect(() => {
     void bootstrap();
@@ -101,13 +92,10 @@ export function DesktopShell() {
         className="relative flex h-screen w-full overflow-hidden bg-background text-foreground"
         style={shellStyle}
       >
-        {liquidGlassShellEnabled ? (
-          <UniversalBackground field={shineEnabled} />
-        ) : null}
+
         <div
           className={cn(
-            "relative flex h-full w-full overflow-hidden",
-            liquidGlassShellEnabled ? "bg-transparent" : "bg-background",
+            "relative flex h-full w-full overflow-hidden bg-background",
           )}
         >
           <AppSidebar
@@ -138,9 +126,7 @@ export function DesktopShell() {
           />
 
           <div className="relative isolate flex min-w-0 flex-1 overflow-hidden">
-            {liquidGlassShellEnabled ? (
-              <UniversalBackground className="-z-20" field={shineEnabled} />
-            ) : null}
+
             <div className="relative flex h-full min-w-0 flex-1">
               <Outlet />
             </div>

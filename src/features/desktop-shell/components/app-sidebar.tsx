@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   ArrowLeftIcon,
@@ -132,7 +132,6 @@ export function AppSidebar({
   threadsByWorkspace,
   theme,
   resolvedTheme,
-  settings,
   runStatus,
   onImportWorkspace,
   onActivateWorkspace,
@@ -180,7 +179,7 @@ export function AppSidebar({
       {isSettingsRoute ? (
         <>
           <SidebarContent className="no-drag overflow-x-hidden">
-            <SidebarGroup className="px-2 py-3">
+            <SidebarGroup className="px-1 py-1">
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
@@ -188,8 +187,8 @@ export function AppSidebar({
                     isActive={settingsSection === "general"}
                     className={
                       settingsSection === "general"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -208,8 +207,8 @@ export function AppSidebar({
                     isActive={settingsSection === "connections"}
                     className={
                       settingsSection === "connections"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -228,8 +227,8 @@ export function AppSidebar({
                     isActive={settingsSection === "trust"}
                     className={
                       settingsSection === "trust"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -248,8 +247,8 @@ export function AppSidebar({
                     isActive={settingsSection === "privacy"}
                     className={
                       settingsSection === "privacy"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -268,8 +267,8 @@ export function AppSidebar({
                     isActive={settingsSection === "workspace-memory"}
                     className={
                       settingsSection === "workspace-memory"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -288,8 +287,8 @@ export function AppSidebar({
                     isActive={settingsSection === "agent-profiler"}
                     className={
                       settingsSection === "agent-profiler"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -308,8 +307,8 @@ export function AppSidebar({
                     isActive={settingsSection === "integrations"}
                     className={
                       settingsSection === "integrations"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -328,8 +327,8 @@ export function AppSidebar({
                     isActive={settingsSection === "archive"}
                     className={
                       settingsSection === "archive"
-                        ? "gap-2 px-2 py-2 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-2 text-left text-xs text-muted-foreground hover:text-foreground/80"
+                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
+                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
                     }
                     render={
                       <SettingsLink
@@ -352,7 +351,7 @@ export function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="sm"
-                  className="gap-2 p-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground rounded-full"
                   render={<Link to="/" />}
                 >
                   <ArrowLeftIcon className="size-4" />
@@ -365,8 +364,8 @@ export function AppSidebar({
       ) : (
         <>
           <SidebarContent className="no-drag gap-0">
-            <SidebarGroup className="px-3 py-3">
-              <SidebarMenu className="mb-5">
+            <SidebarGroup className="px-2 py-2">
+              <SidebarMenu className="mb-4">
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"

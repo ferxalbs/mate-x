@@ -11,18 +11,9 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
+
 import {
-  Frame,
-  Glass,
-  GlassContainer,
-  Html,
-  LiquidCanvas,
-  ZStack,
-} from "@liquid-dom/react";
-import {
-  createContext,
   startTransition,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -39,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
-import { LiquidSelectPopup } from "../../../components/ui/liquid-select";
+
 import type {
   AssistantAttachment,
   AssistantAttachmentKind,
@@ -78,7 +69,6 @@ import {
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
   isRunning: boolean;
-  liquidGlassEnabled?: boolean;
   onResolvePolicyStop: (
     stop: PolicyStop,
     action: PolicyStopAction,
@@ -93,16 +83,11 @@ interface ComposerPanelProps {
 }
 
 
-/**
- * Context that carries liquidGlassEnabled down to InlineSelect without prop
- * drilling — all InlineSelect instances in ComposerPanel read from this.
- */
-const ComposerGlassCtx = createContext(false);
+
 
 export function ComposerPanel({
   canUndoLastTurn,
   isRunning,
-  liquidGlassEnabled = false,
   onResolvePolicyStop,
   workspace,
   onSubmit,
@@ -467,20 +452,14 @@ export function ComposerPanel({
   }
 
   return (
-    <ComposerGlassCtx.Provider value={liquidGlassEnabled}>
+    <>
         <div
           className={cn(
             "relative overflow-hidden rounded-[32px] transition-all duration-300",
-            liquidGlassEnabled
-              ? "border border-white/6 bg-transparent shadow-[var(--mate-floating-shadow)]"
-              : "glass border border-[var(--panel-border)]/70 bg-[var(--mate-panel-bg)]",
+            "glass border border-[var(--panel-border)]/70 bg-[var(--mate-panel-bg)]",
             isDraggingFile ? "ring-2 ring-primary/70" : "",
           )}
-          style={
-            liquidGlassEnabled
-              ? undefined
-              : ({ "--glass-bg": "var(--panel)" } as React.CSSProperties)
-          }
+          style={{ "--glass-bg": "var(--panel)" } as React.CSSProperties}
           onDragEnter={(event) => {
             event.preventDefault();
             if (event.dataTransfer.types.includes("Files")) {
@@ -499,7 +478,6 @@ export function ComposerPanel({
           }}
           onDrop={handleDrop}
         >
-          {liquidGlassEnabled ? <ComposerLiquidGlass /> : null}
           {pendingPolicyStop ? (
             <PermissionPrompt
               disabled={isResolvingPolicyStop}
@@ -798,53 +776,7 @@ export function ComposerPanel({
             </div>
           </div>
         </div>
-    </ComposerGlassCtx.Provider>
-  );
-}
-
-function ComposerLiquidGlass() {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-0">
-      {/*
-        Only the LiquidCanvas remains. The ZStack backdrop at zIndex=-2
-        provides the gradient source for GlassContainer to blur. No extra
-        CSS layers on top — anything painted here covers the canvas output
-        and kills the glass effect.
-      */}
-      <LiquidCanvas
-        className="absolute inset-0"
-        canvasClassName="absolute inset-0 h-full w-full rounded-[32px] bg-transparent"
-      >
-        <ZStack alignment="center">
-          {/* Backdrop: same gradient as the global UniversalBackground */}
-          <Html zIndex={-2} sizing="fill">
-            <div className="h-full w-full bg-[image:var(--mate-shell-base)]" />
-          </Html>
-          <Frame maxWidth={Infinity} maxHeight={Infinity}>
-            <GlassContainer
-              blur={500}
-              bezelWidth={100}
-              displacementBlur={18}
-              thickness={0}
-              shadowColor={{ r: 0, g: 0, b: 0, a: 0.10 }}
-              shadowBlur={20}
-              specularOpacity={0.12}
-              surfaceProfile="concave"
-              specularFalloff={1.2}
-              tint={{ r: 1, g: 1, b: 1, a: 0.0 }}
-            >
-              <Glass cornerRadius={32}>
-                <Frame maxWidth={Infinity} maxHeight={Infinity}>
-                  <Html sizing="fill">
-                    <div className="h-full w-full bg-transparent" />
-                  </Html>
-                </Frame>
-              </Glass>
-            </GlassContainer>
-          </Frame>
-        </ZStack>
-      </LiquidCanvas>
-    </div>
+    </>
   );
 }
 
@@ -1055,15 +987,7 @@ function InlineSelect({
   title?: string;
   children: ReactNode;
 }) {
-  // Read liquidGlassEnabled from the nearest ComposerGlassCtx.Provider
-  // (set by ComposerPanel) — no prop drilling needed.
-  const liquidGlass = useContext(ComposerGlassCtx);
-
-  const popup = liquidGlass ? (
-    <LiquidSelectPopup className="max-w-[min(22rem,var(--available-width))]">
-      {children}
-    </LiquidSelectPopup>
-  ) : (
+  const popup = (
     <SelectPopup className="max-w-[min(22rem,var(--available-width))] text-popover-foreground">
       {children}
     </SelectPopup>
@@ -1084,9 +1008,7 @@ function InlineSelect({
         variant="ghost"
         className={cn(
           "h-6 min-w-fit shrink-0 rounded-md border px-2 text-[11px] shadow-none transition-all duration-200",
-          liquidGlass
-            ? "border-white/8 bg-white/[0.03] text-foreground/85 hover:border-white/12 hover:bg-white/10 active:bg-white/15 backdrop-blur-md shadow-[inset_0_1px_rgba(255,255,255,0.08)]"
-            : "border-transparent text-muted-foreground hover:bg-accent",
+          "border-transparent text-muted-foreground hover:bg-accent",
         )}
         title={title}
       >
