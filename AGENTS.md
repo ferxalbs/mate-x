@@ -62,6 +62,8 @@ Do not glob-read or stat these paths for any reason.
 
 ## Build & Dev Commands (Reference Only — Do Not Run Unless Asked)
 
+**Runtime rule:** Use Bun only. Do not use `npm`, `pnpm`, `yarn`, or `npx` for installs, scripts, package execution, dependency changes, or lockfile updates. If `bun` is not on `PATH`, use the local Bun binary (for example `~/.bun/bin/bun`).
+
 ```bash
 bun install          # install deps from bun.lock
 bun run start        # Electron Forge + Vite dev app

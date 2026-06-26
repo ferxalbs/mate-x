@@ -123,7 +123,7 @@ export function DesktopShell() {
             theme={theme}
             resolvedTheme={resolvedTheme}
             settings={settings}
-            threads={threads}
+            threadsByWorkspace={threadsByWorkspace}
             workspaces={workspaces}
             workspace={workspace}
             runStatus={runStatus}
