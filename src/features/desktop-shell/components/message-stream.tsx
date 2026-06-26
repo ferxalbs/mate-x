@@ -109,7 +109,7 @@ export function MessageStream({
           "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
           settings.compactMode && messages.length > 0
             ? "max-w-[680px]"
-            : "max-w-[980px]",
+            : "max-w-[820px]",
         )}
       >
         <div className="flex flex-1 flex-col gap-7">
@@ -179,11 +179,11 @@ const MessageEntry = memo(function MessageEntry({
       <article
         className={cn(
           "ml-auto flex w-full justify-end transition-all duration-300",
-          settings.compactMode ? "max-w-[540px]" : "max-w-[610px]",
+          settings.compactMode ? "max-w-[540px]" : "max-w-[680px]",
         )}
       >
-        <div className="group rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-5 py-4 text-left shadow-none backdrop-blur-xl">
-          <p className="whitespace-pre-wrap text-[14px] leading-6 text-foreground">
+        <div className="group rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-4 py-3 text-left shadow-none backdrop-blur-xl">
+          <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground">
             {message.content}
           </p>
           <div className="mt-2 flex items-center justify-end gap-1.5">
@@ -303,7 +303,7 @@ function InterleavedMessageContent({
 }) {
   const parts = useMemo(() => {
     return content.split(
-      /(<!-- mate-trace:.*? -->|<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?<\/(?:thought|think|thinking|reasoning|analysis)>)/gi,
+      /(<!-- mate-trace:.*? -->|<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?(?:<\/(?:thought|think|thinking|reasoning|analysis)>|$))/gi,
     );
   }, [content]);
 
@@ -339,7 +339,7 @@ function InterleavedMessageContent({
 
     // Detect strict XML thought blocks
     const thoughtTagMatch = trimmedPart.match(
-      /^<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>([\s\S]*?)<\/(?:thought|think|thinking|reasoning|analysis)>$/i,
+      /^<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>([\s\S]*?)(?:<\/(?:thought|think|thinking|reasoning|analysis)>)?$/i,
     );
     if (thoughtTagMatch) {
       const traceGroup =
