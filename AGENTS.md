@@ -155,6 +155,10 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 5. **Theme-Aware Contrast**:
     - Never use hardcoded light/dark inverse colors (like `bg-foreground` for tooltips).
     - Always use theme variables: `bg-[var(--panel)]`, `text-foreground`, `border-[var(--panel-border)]/40`.
+6. **Snappy & Fluid Transitions**:
+    - Avoid slow, sluggish, or purely linear CSS transitions (e.g., `ease-linear`).
+    - Use fast, elegant, Apple-style animations that feel fluid and highly responsive.
+    - Prefer short durations like `duration-[250ms]` paired with snappy easing functions such as `ease-[cubic-bezier(0.2,0.8,0.2,1)]` for interactive elements like sidebars and menus.
 
 ***
 
