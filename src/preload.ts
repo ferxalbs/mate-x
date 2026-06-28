@@ -5,7 +5,6 @@ import type {
   GitApi,
   GitHubIntegrationApi,
   PolicyApi,
-  ProofApi,
   PrivacyApi,
   RepoInspectorApi,
   SettingsApi,
@@ -175,11 +174,6 @@ const githubApi: GitHubIntegrationApi = {
   getPullRequestChecks: () => ipcRenderer.invoke("github:get-pr-checks"),
 };
 
-const proofApi: ProofApi = {
-  saveCapsule: (capsule) => ipcRenderer.invoke("proof:save-capsule", capsule),
-  listCapsules: (workspaceId) => ipcRenderer.invoke("proof:list-capsules", workspaceId),
-  getCapsule: (workspaceId, capsuleId) => ipcRenderer.invoke("proof:get-capsule", workspaceId, capsuleId),
-};
 
 const policyApi: PolicyApi = {
   listStops: (runId) => ipcRenderer.invoke("policy:list-stops", runId),
@@ -208,7 +202,7 @@ contextBridge.exposeInMainWorld("mate", {
   git: gitApi,
   settings: settingsApi,
   github: githubApi,
-  proof: proofApi,
+  proof: undefined,
   policy: policyApi,
   privacy: privacyApi,
   ui: uiApi,

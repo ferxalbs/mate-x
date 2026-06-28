@@ -3,7 +3,6 @@ import { repoGraphService } from "../repo-graph-service";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { renderWorkingSetForPrompt } from "../working-set-compiler";
 import { renderWorkPlanForPrompt } from "../work-engine/work-engine";
-import { buildSecurityProofRules } from "../work-engine/security-proof-gate";
 import { renderFailureMemoryInstruction } from "../work-engine/failure-memory-gate";
 import type { WorkPlan } from "../work-engine/types";
 import type { AssistantRunbookDefinition, AssistantRunOptions, ToolEvent } from "../../contracts/chat";
@@ -148,9 +147,6 @@ Work Engine mandatory gates:
 - Evidence-only runbook can package existing runtime records only; never invent evidence.
 - Separate Preventive Guard warnings from confirmed findings. Never call preventive warnings vulnerabilities without source-to-sink proof, runtime proof, or strong static proof.
 - Privacy Sentinel placeholders in context or tool output are not literal repository facts. Tokens like [WORKSPACE_IDENTITY], [PRIVATE_FILE_PATH], [INTERNAL_URL], [PRIVATE_EMAIL], [CUSTOMER_DATA], and [SECRET_*] mean private data was redacted before cloud transit. Do not call them SQL values, routes, tenants, files, users, secrets, or code placeholders unless a local tool proves that exact token exists in raw source.
-
-Security proof rules:
-${buildSecurityProofRules().map((rule) => `- ${rule}`).join("\n")}
 
 Working set discipline:
 - Treat the working set as the authoritative starting context for this run.

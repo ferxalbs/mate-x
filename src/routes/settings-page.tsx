@@ -1291,7 +1291,7 @@ export function SettingsPage() {
                   />
                   <SettingsRow
                     title="GitHub"
-                    description="Connect repositories and pull requests for Proof Mode, evidence checks, and PR verification."
+                    description="Connect repositories and pull requests for evidence checks and PR verification."
                     status={githubStatus?.message}
                     control={
                       <div className="flex items-center gap-2">

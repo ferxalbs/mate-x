@@ -1,4 +1,4 @@
-import type { GitApi, GitHubIntegrationApi, PolicyApi, PrivacyApi, ProofApi, RepoInspectorApi, SettingsApi, UiApi } from './contracts/ipc';
+import type { GitApi, GitHubIntegrationApi, PolicyApi, PrivacyApi, RepoInspectorApi, SettingsApi, UiApi } from './contracts/ipc';
 
 declare global {
   interface Window {
@@ -6,7 +6,7 @@ declare global {
       repo: RepoInspectorApi;
       git: GitApi;
       github: GitHubIntegrationApi;
-      proof: ProofApi;
+      proof: undefined;
       settings: SettingsApi;
       policy: PolicyApi;
       privacy: PrivacyApi;

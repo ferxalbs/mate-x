@@ -52,11 +52,6 @@ import {
   getPullRequestForBranch,
 } from "./github-integration-service";
 import {
-  getProofCapsule,
-  listProofCapsules,
-  saveProofCapsule,
-} from "./proof-storage-service";
-import {
   generateComplianceExport,
   verifyComplianceZipForDelivery,
   sanitizeComplianceTaskId,
@@ -1032,18 +1027,6 @@ export function registerIpcHandlers() {
   ipcMain.handle("github:get-pr-for-branch", async () => getPullRequestForBranch());
   ipcMain.handle("github:get-pr-files", async () => getPullRequestFiles());
   ipcMain.handle("github:get-pr-checks", async () => getPullRequestChecks());
-
-  // ── Proof Storage ───────────────────────────────────────────────────────
-  ipcMain.handle("proof:save-capsule", async (_event, capsule) => saveProofCapsule(capsule));
-  ipcMain.handle("proof:list-capsules", async (_event, workspaceId: string) =>
-    listProofCapsules(requireBoundedString(workspaceId, "workspaceId", 500)),
-  );
-  ipcMain.handle("proof:get-capsule", async (_event, workspaceId: string, capsuleId: string) =>
-    getProofCapsule(
-      requireBoundedString(workspaceId, "workspaceId", 500),
-      requireBoundedString(capsuleId, "capsuleId", 500),
-    ),
-  );
 
   // ── UI ───────────────────────────────────────────────────────────────────
   ipcMain.handle(

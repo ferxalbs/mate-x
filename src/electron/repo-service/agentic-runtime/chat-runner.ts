@@ -11,7 +11,6 @@ import { failureMemoryEngine } from "../../failure-memory-engine";
 import { renderTrustContractForPrompt } from "../../workspace-trust";
 import { renderWorkingSetForPrompt } from "../../working-set-compiler";
 import { renderWorkPlanForPrompt } from "../../work-engine/work-engine";
-import { buildSecurityProofRules } from "../../work-engine/security-proof-gate";
 import { renderFailureMemoryInstruction } from "../../work-engine/failure-memory-gate";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../../config/mate-agent";
 import { renderRunbookForPrompt } from "../../assistant-runbooks";
@@ -120,7 +119,6 @@ export async function requestRainyChatAgenticResponse({
       renderTrustContractForPrompt,
       renderWorkingSetForPrompt,
       renderWorkPlanForPrompt,
-      buildSecurityProofRules,
       renderFailureMemoryInstruction,
       MATE_AGENT_SYSTEM_PROMPT,
       renderRunbookForPrompt,
