@@ -135,27 +135,6 @@ export interface GitHubIntegrationApi {
   getPullRequestChecks: () => Promise<GitHubIntegrationResult<GitHubCheckSummary[]>>;
 }
 
-export interface ProofApi {
-  saveCapsule: (capsule: import("../../packages/proof-core/src").ProofCapsule) => Promise<{
-    ok: boolean;
-    value?: import("../../packages/proof-core/src").ProofCapsule;
-    reason?: string;
-    message?: string;
-  }>;
-  listCapsules: (workspaceId: string) => Promise<{
-    ok: boolean;
-    value?: import("../../packages/proof-core/src").ProofCapsule[];
-    reason?: string;
-    message?: string;
-  }>;
-  getCapsule: (workspaceId: string, capsuleId: string) => Promise<{
-    ok: boolean;
-    value?: import("../../packages/proof-core/src").ProofCapsule;
-    reason?: string;
-    message?: string;
-  }>;
-}
-
 export interface ApiKeyStatus {
   configured: boolean;
   prefix?: string;

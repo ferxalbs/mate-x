@@ -15,7 +15,6 @@ import { OnboardingFlow } from './features/onboarding/onboarding-flow';
 import { HomePage } from './routes/home-page';
 import { RunsPage } from './routes/runs-page';
 import { SettingsPage } from './routes/settings-page';
-import { ProofPage } from './features/proof/proof-page';
 import { getAppSettings } from './services/settings-client';
 
 function RootComponent() {
@@ -86,23 +85,6 @@ const runsRoute = createRoute({
   component: RunsPage,
 });
 
-const proofRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/proof',
-  component: ProofPage,
-});
-
-const proofDemoRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/proof/demo',
-  component: () => <ProofPage mode="demo" />,
-});
-
-const proofCapsuleRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/proof/$capsuleId',
-  component: () => <ProofPage mode="detail" />,
-});
 
 const settingsSectionRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -115,9 +97,6 @@ const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     indexRoute,
     runsRoute,
-    proofRoute,
-    proofDemoRoute,
-    proofCapsuleRoute,
     settingsRoute,
     settingsSectionRoute,
   ]),
