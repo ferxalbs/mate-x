@@ -242,6 +242,15 @@ export function ComposerPanel({
     isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue =
     trustContract?.autonomy === "trusted-patch" ? "full" : "approval";
+  const trustAllowed = trustContract?.allowedActions.slice(0, 4).join(", ") || "pending";
+  const trustBlocked = trustContract?.blockedActions.slice(0, 3).join(", ") || "none";
+  const trustPaths = trustContract?.allowedPaths.slice(0, 3).join(", ") || "pending";
+  const trustLabel =
+    trustContract?.autonomy === "trusted-patch"
+      ? "Safe patch"
+      : trustContract
+        ? "Approval gate"
+        : "Policy pending";
   const unsupportedAttachmentKinds = useMemo(
     () =>
       Array.from(
@@ -731,14 +740,15 @@ export function ComposerPanel({
                 </div>
               ) : null}
               <div
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-success sm:size-6"
+                className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)]/70 px-2.5 text-[10px] font-medium text-success backdrop-blur-xl sm:h-6"
                 title={
                   trustContract
-                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}`
+                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}. Allowed: ${trustAllowed}. Blocked: ${trustBlocked}. Scope: ${trustPaths}.`
                     : "Contract pending"
                 }
               >
                 <ShieldCheckIcon className="size-3.5" />
+                <span>{trustLabel}</span>
               </div>
             </div>
 
