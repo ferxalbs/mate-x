@@ -2,9 +2,81 @@ import { useState } from "react";
 
 import type { EvidencePack } from "../../../contracts/chat";
 
+type ProofBoardVerdict = "GO" | "NO-GO" | "HUMAN REVIEW";
+
+function getProofBoard(evidencePack: EvidencePack): {
+  verdict: ProofBoardVerdict;
+  reason: string;
+  lanes: Array<{ label: string; value: string; tone: "good" | "warn" | "bad" }>;
+} {
+  const openStops = (evidencePack.policyStops ?? []).filter((stop) => !/resolved|approved|accepted/i.test(stop.status));
+  const validationPassed =
+    (evidencePack.testsRun ?? []).some((test) => /pass|success/i.test(test.status)) ||
+    (evidencePack.commandsExecuted ?? []).some((command) => command.exitCode === 0 && /test|validate|check/i.test(command.command));
+  const proofToolRan = (evidencePack.toolsUsed ?? []).some((tool) =>
+    /candidate_revalidator|security_path_trace|attack_surface_scan|evidence_pack/i.test(tool.name),
+  );
+  const signed = evidencePack.attestation?.status === "signed";
+  const patched = (evidencePack.filesModified?.length ?? 0) > 0;
+  const unresolvedRisks = evidencePack.unresolvedRisks?.length ?? 0;
+
+  if (!validationPassed || openStops.length > 0 || !signed || unresolvedRisks > 0) {
+    return {
+      verdict: "NO-GO",
+      reason: !validationPassed
+        ? "Validation proof missing or failed."
+        : openStops.length > 0
+          ? "Policy stop still open."
+          : !signed
+            ? "Signed evidence missing."
+            : "Open risk needs owner.",
+      lanes: buildProofLanes(openStops.length, validationPassed, proofToolRan, patched, signed, unresolvedRisks),
+    };
+  }
+
+  if (!proofToolRan || !patched) {
+    return {
+      verdict: "HUMAN REVIEW",
+      reason: !proofToolRan ? "Security proof tool not recorded." : "No patch recorded.",
+      lanes: buildProofLanes(openStops.length, validationPassed, proofToolRan, patched, signed, unresolvedRisks),
+    };
+  }
+
+  return {
+    verdict: "GO",
+    reason: "Patch, validation, policy, and signed evidence are all present.",
+    lanes: buildProofLanes(openStops.length, validationPassed, proofToolRan, patched, signed, unresolvedRisks),
+  };
+}
+
+function buildProofLanes(
+  openStops: number,
+  validationPassed: boolean,
+  proofToolRan: boolean,
+  patched: boolean,
+  signed: boolean,
+  unresolvedRisks: number,
+) {
+  return [
+    { label: "Blocked", value: openStops === 0 ? "clear" : `${openStops} open`, tone: openStops === 0 ? "good" : "bad" },
+    { label: "Proof", value: proofToolRan ? "tool ran" : "missing tool", tone: proofToolRan ? "good" : "warn" },
+    { label: "Patch", value: patched ? "recorded" : "missing", tone: patched ? "good" : "warn" },
+    { label: "Validation", value: validationPassed ? "passed" : "missing", tone: validationPassed ? "good" : "bad" },
+    { label: "Risks", value: unresolvedRisks === 0 ? "none" : `${unresolvedRisks} open`, tone: unresolvedRisks === 0 ? "good" : "bad" },
+    { label: "Signed", value: signed ? "yes" : "no", tone: signed ? "good" : "bad" },
+  ] as Array<{ label: string; value: string; tone: "good" | "warn" | "bad" }>;
+}
+
+function proofToneClassName(tone: "good" | "warn" | "bad") {
+  if (tone === "good") return "border-emerald-300/30 bg-emerald-400/10 text-emerald-100";
+  if (tone === "bad") return "border-red-300/30 bg-red-400/10 text-red-100";
+  return "border-amber-300/30 bg-amber-400/10 text-amber-100";
+}
+
 export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack }) {
   const [exportState, setExportState] = useState<"idle" | "exporting" | "ready" | "failed">("idle");
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const proofBoard = getProofBoard(evidencePack);
 
   async function generateReport() {
     setContextMenuOpen(false);
@@ -96,6 +168,39 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
       <p className="text-[12px] text-foreground/90">
         <span className="font-medium">{evidencePack.verdict.label}:</span> {evidencePack.verdict.summary}
       </p>
+
+      <div className="mt-3 rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--mate-control-bg)]/80 p-3 backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[10px] uppercase text-muted-foreground">Proof Board</p>
+            <p className="mt-1 text-[12px] text-foreground/85">{proofBoard.reason}</p>
+          </div>
+          <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${proofToneClassName(proofBoard.verdict === "GO" ? "good" : proofBoard.verdict === "NO-GO" ? "bad" : "warn")}`}>
+            {proofBoard.verdict}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          {proofBoard.lanes.map((lane) => (
+            <div key={lane.label} className={`rounded-2xl border px-2.5 py-2 ${proofToneClassName(lane.tone)}`}>
+              <p className="text-[10px] uppercase opacity-75">{lane.label}</p>
+              <p className="mt-0.5 text-[11px] font-medium">{lane.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {evidencePack.policyStops && evidencePack.policyStops.length > 0 ? (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] font-medium text-foreground/85">Policy stops</p>
+          {evidencePack.policyStops.slice(0, 4).map((stop) => (
+            <div key={stop.id} className="rounded-2xl border border-amber-300/30 bg-amber-400/8 px-2.5 py-1.5 text-[11px] text-amber-100">
+              <span className="text-foreground/85">{stop.title}</span>
+              <span className="ml-2 uppercase">{stop.status}</span>
+              {stop.command ?? stop.target ? <p className="mt-1 font-mono text-[10px]">{stop.command ?? stop.target}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {evidencePack.verifiedTaskScore ? (
         <div className="mt-2 rounded-lg border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-2 text-[11px] text-muted-foreground backdrop-blur-md">
