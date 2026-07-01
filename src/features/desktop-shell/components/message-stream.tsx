@@ -511,6 +511,7 @@ function RunTimelineV1({
   const total = events.length;
   const doneCount = events.filter((event) => event.status === "done").length;
   const errorCount = events.filter((event) => event.status === "error").length;
+  const policyStopEvents = events.filter(isPolicyStopEvent);
   const phaseCounts = useMemo(() => {
     const counts: Record<EventPhase, number> = {
       initial: 0,
@@ -560,6 +561,11 @@ function RunTimelineV1({
         </button>
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
           <span>{doneCount} done</span>
+          {policyStopEvents.length > 0 ? (
+            <span className="text-amber-300/90">
+              {policyStopEvents.length} policy stops
+            </span>
+          ) : null}
           {errorCount > 0 ? (
             <span className="text-amber-300/90">{errorCount} issues</span>
           ) : null}
@@ -595,6 +601,8 @@ function RunTimelineV1({
           onClick={() => setPhaseFilter("summary")}
         />
       </div>
+
+      <PolicyStopStrip events={policyStopEvents} />
 
       {artifacts.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -650,6 +658,10 @@ function RunTimelineV2({
     () => events.filter(isInlineTraceEvent),
     [events],
   );
+  const policyStopEvents = useMemo(
+    () => events.filter(isPolicyStopEvent),
+    [events],
+  );
   const statusLabel = isStreaming ? "running" : "done";
   const previewEvents = actionEvents.slice(0, 10);
 
@@ -676,6 +688,7 @@ function RunTimelineV2({
     return (
       <section className="space-y-2">
         <div className="space-y-1.5 rounded-2xl border border-border/45 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
+          <PolicyStopStrip events={policyStopEvents} />
           {visibleEvents.length > 0 ? (
             visibleEvents.map((event) => (
               <ActionEventCard key={event.id} event={event} />
@@ -717,6 +730,7 @@ function RunTimelineV2({
 
       {expanded ? (
         <div className="space-y-1.5">
+          <PolicyStopStrip events={policyStopEvents} />
           {actionEvents.length > 0 ? (
             previewEvents.map((event, index) => (
               <ActionEventCard
@@ -832,6 +846,27 @@ function ActionEventCard({
   );
 }
 
+function PolicyStopStrip({ events }: { events: ToolEvent[] }) {
+  if (events.length === 0) return null;
+
+  return (
+    <div className="mb-2 rounded-2xl border border-amber-300/30 bg-amber-400/8 px-3 py-2 text-[11px] leading-5 text-amber-200">
+      <div className="flex items-center gap-1.5 font-medium">
+        <AlertCircleIcon className="size-3.5" />
+        Policy Stops
+        <span className="text-amber-200/70">{events.length}</span>
+      </div>
+      <div className="mt-1 space-y-1 text-amber-100/85">
+        {events.slice(0, 3).map((event) => (
+          <div className="break-words" key={event.id}>
+            {event.policy?.reason ?? event.detail}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function isInlineTraceEvent(event: ToolEvent) {
   const label = event.label.toLowerCase();
 
@@ -847,6 +882,13 @@ function isInlineTraceEvent(event: ToolEvent) {
   }
 
   return label.startsWith("executing ") || event.status === "error";
+}
+
+function isPolicyStopEvent(event: ToolEvent) {
+  return (
+    event.policy?.allowedByContract === false ||
+    /(?:Workspace Trust Contract blocks|Policy stop)/i.test(event.detail)
+  );
 }
 
 type EventPhase = "initial" | "investigation" | "updates" | "summary";

@@ -499,6 +499,19 @@ export function ComposerPanel({
               {capabilityNotice}
             </div>
           ) : null}
+          {trustContract ? (
+            <div className="relative z-10 border-b border-border/35 px-5 py-2.5 text-[11px] leading-5 text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground/85">
+                  <ShieldCheckIcon className="size-3.5 text-success" />
+                  Trust Contract v{trustContract.version}: {trustContract.autonomy}
+                </span>
+                <span>Allowed: {trustAllowed}</span>
+                <span>Blocked: {trustBlocked}</span>
+                <span>Scope: {trustPaths}</span>
+              </div>
+            </div>
+          ) : null}
           <div className="relative z-10 bg-transparent px-5 py-4">
             <textarea
               className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"

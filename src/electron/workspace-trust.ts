@@ -38,7 +38,7 @@ export function createDefaultWorkspaceTrustContract(
       "api.github.com",
       "docs.github.com",
       "docs.npmjs.com",
-      "rainy-api-v3-us-179843975974.us-east4.run.app",
+      "rainy-api-v3-us-160298401329.us-east4.run.app",
     ],
     allowedSecrets: [],
     allowedActions: ["read", "search", "patch", "test"],

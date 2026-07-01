@@ -127,7 +127,7 @@ export async function runAssistant(
   ]);
   const rainyHostAllowed = canQueryDomain(
     snapshot.trustContract,
-    "rainy-api-v3-us-179843975974.us-east4.run.app",
+    "rainy-api-v3-us-160298401329.us-east4.run.app",
   );
   const runtimeConfig =
     apiKey && rainyHostAllowed
