@@ -1,10 +1,15 @@
 import { isAbsolute, normalize, relative } from "node:path";
 
+import { RAINY_API_BASE_URL } from "../config/rainy";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import { createId } from "../lib/id";
 
 export const TRUST_CONTRACT_SCHEMA_VERSION = 1;
 const INTERNAL_READ_PATHS = [".mate-x/evidence"];
+const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
+const LEGACY_RAINY_API_HOSTNAMES = [
+  "rainy-api-v3-us-179843975974.us-east4.run.app",
+];
 
 export function createDefaultWorkspaceTrustContract(
   workspaceId: string,
@@ -38,7 +43,7 @@ export function createDefaultWorkspaceTrustContract(
       "api.github.com",
       "docs.github.com",
       "docs.npmjs.com",
-      "rainy-api-v3-us-160298401329.us-east4.run.app",
+      RAINY_API_HOSTNAME,
     ],
     allowedSecrets: [],
     allowedActions: ["read", "search", "patch", "test"],
@@ -65,9 +70,7 @@ export function normalizeWorkspaceTrustContract(
     allowedPaths: appendInternalReadPaths(normalizeList(contract.allowedPaths)),
     forbiddenPaths: normalizeList(contract.forbiddenPaths),
     allowedCommands: normalizeList(contract.allowedCommands),
-    allowedDomains: normalizeList(contract.allowedDomains).map((domain) =>
-      domain.toLowerCase(),
-    ),
+    allowedDomains: normalizeAllowedDomains(contract.allowedDomains),
     allowedSecrets: normalizeList(contract.allowedSecrets),
     allowedActions: normalizeList(contract.allowedActions),
     blockedActions: normalizeList(contract.blockedActions),
@@ -170,6 +173,20 @@ export function renderTrustContractForPrompt(contract: WorkspaceTrustContract) {
 function normalizeList(values: string[]) {
   return Array.from(
     new Set(values.map((value) => value.trim()).filter(Boolean)),
+  );
+}
+
+function normalizeAllowedDomains(values: string[]) {
+  const domains = normalizeList(values).map((domain) => domain.toLowerCase());
+  const hasLegacyRainyHost = domains.some((domain) =>
+    LEGACY_RAINY_API_HOSTNAMES.includes(domain),
+  );
+
+  return Array.from(
+    new Set([
+      ...domains.filter((domain) => !LEGACY_RAINY_API_HOSTNAMES.includes(domain)),
+      ...(hasLegacyRainyHost ? [RAINY_API_HOSTNAME] : []),
+    ]),
   );
 }
 
