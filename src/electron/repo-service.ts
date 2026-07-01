@@ -13,6 +13,7 @@ import { appendValidationGateWarning, evaluateValidationGate } from "./work-engi
 import { deriveWorkStages, preventiveWarningDetail, shouldEmitPreventiveWarning } from "./work-engine/stages";
 import { finalizeWorkRun } from "./work-engine/finalizer";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
+import { RAINY_API_BASE_URL } from "../config/rainy";
 import type { AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
 import { resolveAssistantRunOptions, resolveRunbookDefinition, toAssistantRunbookId } from "./assistant-runbooks";
@@ -34,6 +35,7 @@ interface AssistantProgressReporter {
 }
 
 const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
+const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
 let sdkOrchestrator: SDKOrchestrator | null = null;
 
 export function setSDKOrchestrator(orchestrator: SDKOrchestrator | null) {
@@ -127,7 +129,7 @@ export async function runAssistant(
   ]);
   const rainyHostAllowed = canQueryDomain(
     snapshot.trustContract,
-    "rainy-api-v3-us-160298401329.us-east4.run.app",
+    RAINY_API_HOSTNAME,
   );
   const runtimeConfig =
     apiKey && rainyHostAllowed
