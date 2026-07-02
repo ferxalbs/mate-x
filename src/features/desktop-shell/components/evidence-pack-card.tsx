@@ -3,71 +3,106 @@ import { useState } from "react";
 import type { EvidencePack } from "../../../contracts/chat";
 
 type ProofBoardVerdict = "GO" | "NO-GO" | "HUMAN REVIEW";
+type ProofLaneTone = "good" | "warn" | "bad";
 
 function getProofBoard(evidencePack: EvidencePack): {
   verdict: ProofBoardVerdict;
   reason: string;
-  lanes: Array<{ label: string; value: string; tone: "good" | "warn" | "bad" }>;
+  lanes: Array<{ label: "Blocked" | "Needs Proof" | "Proven"; items: string[]; tone: ProofLaneTone }>;
 } {
   const openStops = (evidencePack.policyStops ?? []).filter((stop) => !/resolved|approved|accepted/i.test(stop.status));
+  const failedValidation =
+    (evidencePack.testsRun ?? []).some((test) => /fail|error/i.test(test.status)) ||
+    (evidencePack.commandsExecuted ?? []).some((command) => /test|validate|check|typecheck|lint/i.test(command.command) && typeof command.exitCode === "number" && command.exitCode !== 0) ||
+    (evidencePack.verifiedTaskScore ? /fail|error|blocked/i.test(evidencePack.verifiedTaskScore.status) : false);
   const validationPassed =
     (evidencePack.testsRun ?? []).some((test) => /pass|success/i.test(test.status)) ||
-    (evidencePack.commandsExecuted ?? []).some((command) => command.exitCode === 0 && /test|validate|check/i.test(command.command));
-  const proofToolRan = (evidencePack.toolsUsed ?? []).some((tool) =>
-    /candidate_revalidator|security_path_trace|attack_surface_scan|evidence_pack/i.test(tool.name),
-  );
+    (evidencePack.commandsExecuted ?? []).some((command) => command.exitCode === 0 && /test|validate|check|typecheck|lint/i.test(command.command)) ||
+    (evidencePack.verifiedTaskScore ? /pass|success|complete|verified/i.test(evidencePack.verifiedTaskScore.status) : false);
   const signed = evidencePack.attestation?.status === "signed";
-  const patched = (evidencePack.filesModified?.length ?? 0) > 0;
+  const changedFiles = evidencePack.filesModified?.length ?? 0;
+  const commands = evidencePack.commandsExecuted?.length ?? 0;
   const unresolvedRisks = evidencePack.unresolvedRisks?.length ?? 0;
+  const lanes = buildProofLanes({
+    changedFiles,
+    commands,
+    failedValidation,
+    openStops: openStops.length,
+    signed,
+    unresolvedRisks,
+    validationPassed,
+  });
 
-  if (!validationPassed || openStops.length > 0 || !signed || unresolvedRisks > 0) {
+  if (failedValidation || openStops.length > 0 || !signed || unresolvedRisks > 0) {
     return {
       verdict: "NO-GO",
-      reason: !validationPassed
-        ? "Validation proof missing or failed."
+      reason: failedValidation
+        ? "Validation failed."
         : openStops.length > 0
           ? "Policy stop still open."
           : !signed
             ? "Signed evidence missing."
             : "Open risk needs owner.",
-      lanes: buildProofLanes(openStops.length, validationPassed, proofToolRan, patched, signed, unresolvedRisks),
+      lanes,
     };
   }
 
-  if (!proofToolRan || !patched) {
+  if (!validationPassed || commands === 0 || changedFiles === 0) {
     return {
       verdict: "HUMAN REVIEW",
-      reason: !proofToolRan ? "Security proof tool not recorded." : "No patch recorded.",
-      lanes: buildProofLanes(openStops.length, validationPassed, proofToolRan, patched, signed, unresolvedRisks),
+      reason: !validationPassed
+        ? "Validation proof missing."
+        : commands === 0
+          ? "Command evidence missing."
+          : "File change evidence missing.",
+      lanes,
     };
   }
 
   return {
     verdict: "GO",
     reason: "Patch, validation, policy, and signed evidence are all present.",
-    lanes: buildProofLanes(openStops.length, validationPassed, proofToolRan, patched, signed, unresolvedRisks),
+    lanes,
   };
 }
 
-function buildProofLanes(
-  openStops: number,
-  validationPassed: boolean,
-  proofToolRan: boolean,
-  patched: boolean,
-  signed: boolean,
-  unresolvedRisks: number,
-) {
+function buildProofLanes(input: {
+  changedFiles: number;
+  commands: number;
+  failedValidation: boolean;
+  openStops: number;
+  signed: boolean;
+  unresolvedRisks: number;
+  validationPassed: boolean;
+}) {
+  const blocked = [
+    input.openStops > 0 ? `${input.openStops} open policy stop${input.openStops === 1 ? "" : "s"}` : null,
+    input.failedValidation ? "validation failed" : null,
+    input.unresolvedRisks > 0 ? `${input.unresolvedRisks} unresolved risk${input.unresolvedRisks === 1 ? "" : "s"}` : null,
+    !input.signed ? "attestation unsigned" : null,
+  ].filter(Boolean) as string[];
+  const needsProof = [
+    input.validationPassed ? null : "passing validation",
+    input.commands > 0 ? null : "commands executed",
+    input.changedFiles > 0 ? null : "files modified",
+  ].filter(Boolean) as string[];
+  const proven = [
+    input.openStops === 0 ? "no open policy stops" : null,
+    input.validationPassed ? "validation passed" : null,
+    input.signed ? "attestation signed" : null,
+    input.unresolvedRisks === 0 ? "no unresolved risks" : null,
+    input.commands > 0 ? `${input.commands} command${input.commands === 1 ? "" : "s"} recorded` : null,
+    input.changedFiles > 0 ? `${input.changedFiles} file${input.changedFiles === 1 ? "" : "s"} changed` : null,
+  ].filter(Boolean) as string[];
+
   return [
-    { label: "Blocked", value: openStops === 0 ? "clear" : `${openStops} open`, tone: openStops === 0 ? "good" : "bad" },
-    { label: "Proof", value: proofToolRan ? "tool ran" : "missing tool", tone: proofToolRan ? "good" : "warn" },
-    { label: "Patch", value: patched ? "recorded" : "missing", tone: patched ? "good" : "warn" },
-    { label: "Validation", value: validationPassed ? "passed" : "missing", tone: validationPassed ? "good" : "bad" },
-    { label: "Risks", value: unresolvedRisks === 0 ? "none" : `${unresolvedRisks} open`, tone: unresolvedRisks === 0 ? "good" : "bad" },
-    { label: "Signed", value: signed ? "yes" : "no", tone: signed ? "good" : "bad" },
-  ] as Array<{ label: string; value: string; tone: "good" | "warn" | "bad" }>;
+    { label: "Blocked", items: blocked.length > 0 ? blocked : ["clear"], tone: blocked.length > 0 ? "bad" : "good" },
+    { label: "Needs Proof", items: needsProof.length > 0 ? needsProof : ["none"], tone: needsProof.length > 0 ? "warn" : "good" },
+    { label: "Proven", items: proven.length > 0 ? proven : ["none"], tone: "good" },
+  ] as Array<{ label: "Blocked" | "Needs Proof" | "Proven"; items: string[]; tone: ProofLaneTone }>;
 }
 
-function proofToneClassName(tone: "good" | "warn" | "bad") {
+function proofToneClassName(tone: ProofLaneTone) {
   if (tone === "good") return "border-emerald-300/30 bg-emerald-400/10 text-emerald-100";
   if (tone === "bad") return "border-red-300/30 bg-red-400/10 text-red-100";
   return "border-amber-300/30 bg-amber-400/10 text-amber-100";
@@ -179,11 +214,15 @@ export function EvidencePackCard({ evidencePack }: { evidencePack: EvidencePack 
             {proofBoard.verdict}
           </span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        <div className="mt-3 grid gap-1.5 sm:grid-cols-3">
           {proofBoard.lanes.map((lane) => (
             <div key={lane.label} className={`rounded-2xl border px-2.5 py-2 ${proofToneClassName(lane.tone)}`}>
               <p className="text-[10px] uppercase opacity-75">{lane.label}</p>
-              <p className="mt-0.5 text-[11px] font-medium">{lane.value}</p>
+              <div className="mt-1 space-y-0.5 text-[11px] font-medium">
+                {lane.items.slice(0, 4).map((item) => (
+                  <p key={item}>{item}</p>
+                ))}
+              </div>
             </div>
           ))}
         </div>
