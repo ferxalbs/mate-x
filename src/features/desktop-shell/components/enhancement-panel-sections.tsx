@@ -6,7 +6,6 @@ import {
   FileSearchIcon,
   FileTextIcon,
   RadarIcon,
-  ShieldCheckIcon,
   TerminalIcon,
   ZapIcon,
 } from "lucide-react";
@@ -32,45 +31,85 @@ interface BaseSectionProps {
 
 export function TraceSection({
   changedFiles,
+  commands,
+  evidencePack,
   events,
+  hasHealth,
   impactedFiles,
   isLoading,
+  scanPhase,
   summary,
-}: BaseSectionProps & { events: ToolEvent[] }) {
-  const traceRows =
-    events.length > 0
-      ? events.slice(-5).map((event) => ({
-          title: event.label,
-          detail: summarizeTraceDetail(event.detail),
-          icon: ActivityIcon,
-          active: event.status !== "error",
-        }))
-      : [
-          {
-            title: "Workspace context",
-            detail:
-              changedFiles.length > 0
-                ? `${changedFiles.length} changed files scoped locally.`
-                : "No thread events yet. Run a task to populate live TRACE.",
-            icon: RadarIcon,
-            active: changedFiles.length > 0,
-          },
-          {
-            title: "RepoGraph impact",
-            detail:
-              impactedFiles.length > 0
-                ? `${impactedFiles.length} impacted entries from graph.`
-                : "Waiting for changed files or active run events.",
-            icon: FileSearchIcon,
-            active: impactedFiles.length > 0,
-          },
-          {
-            title: "Risk state",
-            detail: `Current impact risk: ${summary.risk}.`,
-            icon: ShieldCheckIcon,
-            active: summary.risk !== "None",
-          },
-        ];
+}: BaseSectionProps & {
+  commands: string[];
+  evidencePack: EvidencePack | null;
+  events: ToolEvent[];
+  hasHealth: boolean;
+  scanPhase: string | null;
+}) {
+  const recentEvents = events.slice(-3).map((event) => ({
+    title: normalizeTraceTitle(event.label),
+    detail: summarizeTraceDetail(event.detail),
+    icon: ActivityIcon,
+    active: event.status !== "error",
+  }));
+  const traceRows = [
+    {
+      title:
+        scanPhase ??
+        (hasHealth ? "Workspace profile linked" : "Workspace scan active"),
+      detail: hasHealth
+        ? "Stack, git, validation, and secret signals are connected to this panel."
+        : "Local git and RepoGraph signals are live; workspace health profile is still loading.",
+      icon: RadarIcon,
+      active: hasHealth || Boolean(scanPhase),
+    },
+    {
+      title: changedFiles.length > 0 ? "Change set mapped" : "Change set clean",
+      detail:
+        changedFiles.length > 0
+          ? `${changedFiles.length} changed path${changedFiles.length === 1 ? "" : "s"} scoped before graph expansion.`
+          : "No local edits detected in git status.",
+      icon: FileTextIcon,
+      active: changedFiles.length > 0,
+    },
+    {
+      title:
+        impactedFiles.length > 0
+          ? "RepoGraph impact ready"
+          : "RepoGraph impact scoped",
+      detail:
+        impactedFiles.length > 0
+          ? `${summary.affectedCount} affected target${summary.affectedCount === 1 ? "" : "s"}; fan-out ${summary.toolFanoutCount}.`
+          : changedFiles.length > 0
+            ? "Changed files were scanned; no downstream fan-out returned yet."
+            : "Graph is ready for the next changed path.",
+      icon: FileSearchIcon,
+      active: impactedFiles.length > 0 || changedFiles.length > 0,
+    },
+    {
+      title:
+        commands.length > 0
+          ? "Validation route ready"
+          : "Validation route pending",
+      detail:
+        commands.length > 0
+          ? `${commands.length} command signal${commands.length === 1 ? "" : "s"} selected from evidence, tests, or workspace profile.`
+          : "Run evidence or workspace profiling to resolve the smallest useful validation route.",
+      icon: TerminalIcon,
+      active: commands.length > 0,
+    },
+    {
+      title: evidencePack
+        ? "Evidence pack attached"
+        : "Evidence pack not attached",
+      detail: evidencePack
+        ? `${evidencePack.status} with ${evidencePack.commandsExecuted?.length ?? 0} command signal${(evidencePack.commandsExecuted?.length ?? 0) === 1 ? "" : "s"}.`
+        : "A verified run will attach signed evidence and compliance actions here.",
+      icon: ClipboardCheckIcon,
+      active: Boolean(evidencePack),
+    },
+    ...recentEvents,
+  ].slice(0, 8);
 
   return (
     <section className="space-y-3">
@@ -96,7 +135,9 @@ export function TraceSection({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <row.icon className="size-3.5 shrink-0 text-primary" />
-                  <p className="truncate text-[11px] font-medium">{row.title}</p>
+                  <p className="truncate text-[11px] font-medium">
+                    {row.title}
+                  </p>
                 </div>
                 <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
                   {row.detail}
@@ -117,8 +158,10 @@ export function ImpactSection({
   summary,
 }: BaseSectionProps) {
   const source = changedFiles[0] ?? "No active change";
-  const sourceIsArtifact = /\.(pdf|md|txt|html)$/i.test(source);
-  const directImpact = impactedFiles.find((entry) => !entry.group)?.file ?? "Awaiting RepoGraph";
+  const sourceIsArtifact = /\.(pdf|md|txt|html|json)$/i.test(source);
+  const directImpact =
+    impactedFiles.find((entry) => !entry.group)?.file ??
+    (changedFiles.length > 0 ? "No downstream target" : "No active change");
 
   return (
     <section className="space-y-3">
@@ -141,8 +184,8 @@ export function ImpactSection({
         </p>
         {sourceIsArtifact ? (
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            Artifact captured from run. Source-code paths must come from trace or
-            RepoGraph before claiming impact.
+            Artifact captured from run. Source-code paths must come from trace
+            or RepoGraph before claiming impact.
           </p>
         ) : null}
       </div>
@@ -151,7 +194,9 @@ export function ImpactSection({
         <ImpactNode
           label="Skipped"
           tone="muted"
-          value={summary.affectedCount > 0 ? "Unrelated suites" : "No target yet"}
+          value={
+            summary.affectedCount > 0 ? "Unrelated suites" : "No skip signal"
+          }
         />
       </div>
       <div className="space-y-1.5">
@@ -197,15 +242,20 @@ export function ValidationSection({
         <div className="space-y-3">
           {visibleCommands.map((command) => (
             <div key={command}>
-              <p className="text-muted-foreground">$ {formatCommandLabel(command)}</p>
+              <p className="text-muted-foreground">
+                $ {formatCommandLabel(command)}
+              </p>
               <p className="mt-1 border-l border-emerald-500/25 pl-3 text-emerald-400">
-                {evidencePack ? "executed evidence signal" : "planned from workspace profile"}
+                {evidencePack
+                  ? "executed evidence signal"
+                  : "planned from workspace profile"}
               </p>
             </div>
           ))}
           {visibleCommands.length === 0 ? (
             <p className="text-muted-foreground">
-              No validation command evidence yet. Run verified task or scan changed files.
+              No validation command evidence yet. Run verified task or scan
+              changed files.
             </p>
           ) : null}
         </div>
@@ -237,7 +287,8 @@ export function EvidencePackSection({
 }) {
   const canExportCompliance = Boolean(evidencePack);
   const filesCount = evidenceFiles.length || changedFiles.length;
-  const commandCount = evidencePack?.commandsExecuted?.length ?? commands.length;
+  const commandCount =
+    evidencePack?.commandsExecuted?.length ?? commands.length;
   const verdict = evidencePack?.verdict.label ?? "Pending verified run";
   const scoreTone = getEvidenceTone(score, verdict);
   const runFailed = /fail|error|blocked/i.test(verdict);
@@ -265,7 +316,12 @@ export function EvidencePackSection({
           Evidence Confidence
         </p>
         <div className="mt-1 flex items-baseline gap-1">
-          <span className={cn("text-3xl font-semibold", toneValueClassName(scoreTone))}>
+          <span
+            className={cn(
+              "text-3xl font-semibold",
+              toneValueClassName(scoreTone),
+            )}
+          >
             {score ?? "--"}
           </span>
           <span className="text-[12px] text-muted-foreground">/100</span>
@@ -297,11 +353,17 @@ export function EvidencePackSection({
       />
       <EvidenceRow
         label="Compliance"
-        tone={evidencePack?.attestation?.status === "signed" ? "good" : evidencePack?.attestation ? "warn" : "muted"}
+        tone={
+          evidencePack?.attestation?.status === "signed"
+            ? "good"
+            : evidencePack?.attestation
+              ? "warn"
+              : "muted"
+        }
         value={
           evidencePack?.attestation?.status === "signed"
             ? "Attestation ready"
-            : evidencePack?.attestation?.status ?? "Pending"
+            : (evidencePack?.attestation?.status ?? "Pending")
         }
       />
       <EvidenceRow
@@ -328,17 +390,20 @@ export function EvidencePackSection({
             ? "Incomplete"
             : lowConfidence
               ? "Not validated"
-            : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
+              : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
       <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)] p-2.5 backdrop-blur-md">
-        <p className="text-[10px] uppercase text-muted-foreground">Compliance Actions</p>
+        <p className="text-[10px] uppercase text-muted-foreground">
+          Compliance Actions
+        </p>
         <button
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
           disabled={!canExportCompliance}
           onClick={() => {
             const taskId = evidencePack?.attestation?.taskId;
-            if (taskId) void window.mate.repo.generateComplianceReport({ taskId });
+            if (taskId)
+              void window.mate.repo.generateComplianceReport({ taskId });
           }}
           title="Export SOC 2 / Procurement Package"
           type="button"
@@ -351,7 +416,8 @@ export function EvidencePackSection({
           disabled={!canExportCompliance}
           onClick={() => {
             const taskId = evidencePack?.attestation?.taskId;
-            if (taskId) void window.mate.repo.generateComplianceReport({ taskId });
+            if (taskId)
+              void window.mate.repo.generateComplianceReport({ taskId });
           }}
           title="Export Agent Runbook"
           type="button"
@@ -383,30 +449,25 @@ export function RepoHealthSection({
       </div>
       {!hasProfile ? (
         <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 backdrop-blur-md">
-          <p className="text-[11px] font-medium">Workspace profile unavailable</p>
+          <p className="text-[11px] font-medium">Workspace profile loading</p>
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            Stack/test/lint/git signals pending. Audit evidence still shown above.
+            Trace still uses local git, RepoGraph, and run evidence while stack
+            signals resolve.
           </p>
         </div>
       ) : null}
       {hasProfile ? (
-      <div
-        className={cn(
-          "rounded-2xl border p-3",
-          toneSurfaceClassName(verdict.tone),
-        )}
-      >
-        <p className="text-[10px] font-medium uppercase text-muted-foreground">
-          Live repo verdict
-        </p>
-        <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
-        {!hasProfile ? (
-          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-            Waiting for stack, package manager, test, lint, git, and secret
-            signals from workspace health service.
+        <div
+          className={cn(
+            "rounded-2xl border p-3",
+            toneSurfaceClassName(verdict.tone),
+          )}
+        >
+          <p className="text-[10px] font-medium uppercase text-muted-foreground">
+            Live repo verdict
           </p>
-        ) : null}
-      </div>
+          <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
+        </div>
       ) : null}
       {hasProfile ? (
         <dl className="grid grid-cols-2 gap-2 text-[11px]">
@@ -463,9 +524,7 @@ function RiskPill({ risk }: { risk: string }) {
           ? "good"
           : "muted";
 
-  return (
-    <TonePill label={risk} tone={tone} />
-  );
+  return <TonePill label={risk} tone={tone} />;
 }
 
 function ImpactNode({
@@ -506,7 +565,9 @@ function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
         d{entry.distance}
       </span>
       <FileTextIcon className="size-3 shrink-0 text-primary" />
-      <span className="min-w-0 flex-1 truncate">{entry.group ?? entry.file}</span>
+      <span className="min-w-0 flex-1 truncate">
+        {entry.group ?? entry.file}
+      </span>
       {entry.hiddenCount ? (
         <span className="shrink-0 text-muted-foreground">
           +{entry.hiddenCount}
@@ -573,8 +634,8 @@ function FailureReasonCard({
         {verdict}: evidence run did not complete cleanly.
       </p>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        Captured {commandCount} command signals and {filesCount} file
-        signal{filesCount === 1 ? "" : "s"}, but review cannot be trusted until
+        Captured {commandCount} command signals and {filesCount} file signal
+        {filesCount === 1 ? "" : "s"}, but review cannot be trusted until
         file-level diff evidence completes.
       </p>
     </div>
@@ -664,7 +725,10 @@ function getVerdictReadiness(score: number | null) {
   return "Demo-ready";
 }
 
-function getSecurityRiskTone(verdict: string, fallbackRisk: string): SignalTone {
+function getSecurityRiskTone(
+  verdict: string,
+  fallbackRisk: string,
+): SignalTone {
   const label = cleanVerdictLabel(verdict).toLowerCase();
 
   if (label.includes("critical") || label.includes("high")) {
@@ -754,8 +818,18 @@ function summarizeTraceDetail(detail: string) {
   return compactTraceText(trimmed);
 }
 
+function normalizeTraceTitle(title: string) {
+  return title
+    .replace(/\bawaiting\b/gi, "Resolving")
+    .replace(/\bpending\b/gi, "Queued")
+    .trim();
+}
+
 function compactTraceText(text: string) {
-  const compact = text.replace(/\s+/g, " ");
+  const compact = text
+    .replace(/\bawaiting\b/gi, "resolving")
+    .replace(/\bpending\b/gi, "queued")
+    .replace(/\s+/g, " ");
   return compact.length > 150 ? `${compact.slice(0, 147)}...` : compact;
 }
 

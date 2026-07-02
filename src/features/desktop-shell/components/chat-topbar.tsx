@@ -173,7 +173,7 @@ export function ChatTopbar({
             )}
             <span className="font-medium tracking-tight">{liveLabel}</span>
             {eventCount > 0 && (
-              <span className="rounded-full bg-black/20 px-1.5 py-0.5 text-[10px] font-semibold text-current/90 dark:bg-white/10">
+              <span className="rounded-full bg-current/15 px-1.5 py-0.5 text-[10px] font-semibold text-current">
                 {eventCount}
               </span>
             )}
