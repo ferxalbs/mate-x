@@ -37,12 +37,12 @@ function getProofBoard(evidencePack: EvidencePack): {
     return {
       verdict: "NO-GO",
       reason: failedValidation
-        ? "Validation failed."
+        ? "NO-GO: validation failed."
         : openStops.length > 0
-          ? "Policy stop still open."
+          ? "NO-GO: MaTE X blocked an action and stop remains open."
           : !signed
-            ? "Signed evidence missing."
-            : "Open risk needs owner.",
+            ? "NO-GO: signed Evidence Pack missing."
+            : "NO-GO: unresolved risk needs owner.",
       lanes,
     };
   }
@@ -51,17 +51,17 @@ function getProofBoard(evidencePack: EvidencePack): {
     return {
       verdict: "HUMAN REVIEW",
       reason: !validationPassed
-        ? "Validation proof missing."
+        ? "HUMAN REVIEW: passing validation proof missing."
         : commands === 0
-          ? "Command evidence missing."
-          : "File change evidence missing.",
+          ? "HUMAN REVIEW: command trail missing."
+          : "HUMAN REVIEW: file change evidence missing.",
       lanes,
     };
   }
 
   return {
     verdict: "GO",
-    reason: "Patch, validation, policy, and signed evidence are all present.",
+    reason: "GO: changed files, validation, policy, risks, and signed evidence all clear.",
     lanes,
   };
 }
@@ -76,15 +76,15 @@ function buildProofLanes(input: {
   validationPassed: boolean;
 }) {
   const blocked = [
-    input.openStops > 0 ? `${input.openStops} open policy stop${input.openStops === 1 ? "" : "s"}` : null,
+    input.openStops > 0 ? `${input.openStops} open MaTE X block${input.openStops === 1 ? "" : "s"}` : null,
     input.failedValidation ? "validation failed" : null,
     input.unresolvedRisks > 0 ? `${input.unresolvedRisks} unresolved risk${input.unresolvedRisks === 1 ? "" : "s"}` : null,
     !input.signed ? "attestation unsigned" : null,
   ].filter(Boolean) as string[];
   const needsProof = [
-    input.validationPassed ? null : "passing validation",
-    input.commands > 0 ? null : "commands executed",
-    input.changedFiles > 0 ? null : "files modified",
+    input.validationPassed ? null : "what validation passed",
+    input.commands > 0 ? null : "what command ran",
+    input.changedFiles > 0 ? null : "what files changed",
   ].filter(Boolean) as string[];
   const proven = [
     input.openStops === 0 ? "no open policy stops" : null,
@@ -96,9 +96,9 @@ function buildProofLanes(input: {
   ].filter(Boolean) as string[];
 
   return [
-    { label: "Blocked", items: blocked.length > 0 ? blocked : ["clear"], tone: blocked.length > 0 ? "bad" : "good" },
-    { label: "Needs Proof", items: needsProof.length > 0 ? needsProof : ["none"], tone: needsProof.length > 0 ? "warn" : "good" },
-    { label: "Proven", items: proven.length > 0 ? proven : ["none"], tone: "good" },
+    { label: "Blocked", items: blocked.length > 0 ? blocked : ["no blockers"], tone: blocked.length > 0 ? "bad" : "good" },
+    { label: "Needs Proof", items: needsProof.length > 0 ? needsProof : ["complete"], tone: needsProof.length > 0 ? "warn" : "good" },
+    { label: "Proven", items: proven.length > 0 ? proven : ["waiting for evidence"], tone: "good" },
   ] as Array<{ label: "Blocked" | "Needs Proof" | "Proven"; items: string[]; tone: ProofLaneTone }>;
 }
 
