@@ -504,11 +504,11 @@ export function ComposerPanel({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <span className="inline-flex items-center gap-1.5 font-medium text-foreground/85">
                   <ShieldCheckIcon className="size-3.5 text-success" />
-                  Trust Contract v{trustContract.version}: {trustContract.autonomy}
+                  Trust Contract before run v{trustContract.version}: {trustContract.autonomy}
                 </span>
-                <span>Allowed: {trustAllowed}</span>
-                <span>Blocked: {trustBlocked}</span>
-                <span>Scope: {trustPaths}</span>
+                <span>Agent may: {trustAllowed}</span>
+                <span>MaTE X blocks: {trustBlocked}</span>
+                <span>File scope: {trustPaths}</span>
               </div>
             </div>
           ) : null}

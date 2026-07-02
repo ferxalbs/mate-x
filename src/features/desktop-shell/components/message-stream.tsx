@@ -556,14 +556,14 @@ function RunTimelineV1({
           ) : (
             <ChevronRightIcon className="size-3.5" />
           )}
-          Run activity
-          <span className="text-muted-foreground/65">{total} steps</span>
+          Action stream
+          <span className="text-muted-foreground/65">{total} events</span>
         </button>
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
           <span>{doneCount} done</span>
           {policyStopEvents.length > 0 ? (
             <span className="text-amber-300/90">
-              {policyStopEvents.length} policy stops
+              {policyStopEvents.length} blocked
             </span>
           ) : null}
           {errorCount > 0 ? (
@@ -853,7 +853,7 @@ function PolicyStopStrip({ events }: { events: ToolEvent[] }) {
     <div className="mb-2 rounded-2xl border border-amber-300/30 bg-amber-400/8 px-3 py-2 text-[11px] leading-5 text-amber-200">
       <div className="flex items-center gap-1.5 font-medium">
         <AlertCircleIcon className="size-3.5" />
-        Policy Stops
+        Policy Stops: MaTE X blocked action
         <span className="text-amber-200/70">{events.length}</span>
       </div>
       <div className="mt-1 space-y-1 text-amber-100/85">
