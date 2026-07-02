@@ -161,9 +161,9 @@ export function getRepoHealthVerdict(
 ) {
   if (!hasProfile) {
     return {
-      label: "Awaiting",
-      detail: "Workspace profile not loaded yet.",
-      tone: "muted" as SignalTone,
+      label: "Live",
+      detail: "Local trace is active while workspace profile loads.",
+      tone: "watch" as SignalTone,
     };
   }
 

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.02 (1) [Tool Error Streaming State Clarity]
+
+- Clarified the assistant stream UI when a tool event fails while the run is still active: messages with `error` tool events now show `Recovering after tool error` with an alert icon instead of continuing to present the state as a normal `Thinking process`.
+- This makes Workspace Trust Contract read failures, such as blocked access to `.mate-x/config/agent-identity.json`, visibly distinct from ordinary model reasoning while preserving the run's ability to recover and finish.
+- Verified with `~/.bun/bin/bun run lint` (clean). `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI type errors in `src/components/ui/*` around `ScrollAreaRootProps` and `TooltipTriggerState`.
+
 ## Unreleased - 2026.06.04 (1) [Evidence Pack Overhaul: Real Grounding, Standalone Access, and Full Verification]
 
 - Performed a thorough end-to-end review of the entire Evidence Pack system (triggered by discovery that it was effectively a placeholder producing fake/useless data that undermined the whole MaTE X app). Reviewed CHANGELOG, contracts, repo-service, evidence-pack.ts, attestation/complianceExport/agentIdentity, tool-executor, VTS, runs-page, IPC/preload, and related compliance flows. Identified root causes: heavy reliance on brittle LLM text parsing for structured fields (verdict, reproduction, stages, checks), layout-biased filesModified extraction (hard-coded "src/" filter + legacy tool names), thin commandsExecuted, low/meaningless VTS for common audit/read-only runs, late synthetic taskId, no first-class standalone access to the .mate-x/evidence tree, and incomplete artifact enrichment in exports.

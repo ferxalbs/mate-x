@@ -161,6 +161,7 @@ const MessageEntry = memo(function MessageEntry({
   const artifacts = message.artifacts ?? [];
   const thought = message.thought?.trim() ?? "";
   const hasTimeline = events.length > 0;
+  const hasErrorEvent = events.some((event) => event.status === "error");
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -236,7 +237,11 @@ const MessageEntry = memo(function MessageEntry({
     <article className="group pl-6">
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
         {thought ? (
-          <ThinkingRow isStreaming={isStreaming} thought={thought} />
+          <ThinkingRow
+            hasErrorEvent={hasErrorEvent}
+            isStreaming={isStreaming}
+            thought={thought}
+          />
         ) : null}
         {traceVersion === "v2" && traceV2InlineEvents ? (
           normalizedContent.length > 0 || hasTimeline ? (
@@ -1289,9 +1294,11 @@ function RotateUndoIcon() {
 }
 
 function ThinkingRow({
+  hasErrorEvent = false,
   thought = "",
   isStreaming = true,
 }: {
+  hasErrorEvent?: boolean;
   thought?: string;
   isStreaming?: boolean;
 }) {
@@ -1310,14 +1317,16 @@ function ThinkingRow({
         onClick={() => setExpanded(!expanded)}
         type="button"
       >
-        {isStreaming ? (
+        {isStreaming && hasErrorEvent ? (
+          <AlertCircleIcon className="size-3.5 text-warning" />
+        ) : isStreaming ? (
           <LoaderCircle className="size-3.5 animate-spin text-primary/60" />
         ) : expanded ? (
           <ChevronDownIcon className="size-3.5" />
         ) : (
           <ChevronRightIcon className="size-3.5" />
         )}
-        Thinking process
+        {isStreaming && hasErrorEvent ? "Recovering after tool error" : "Thinking process"}
       </button>
       {expanded ? (
         <p className="max-w-[820px] whitespace-pre-wrap pl-6 text-[12px] leading-5 text-muted-foreground/80">

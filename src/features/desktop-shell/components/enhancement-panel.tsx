@@ -82,7 +82,7 @@ export function EnhancementPanel({
         ? scanPhase ?? "Processing"
         : health
         ? runtime.statusLabel
-        : "Awaiting workspace profile";
+        : "Local trace active";
   const commands =
     evidenceCommands.length > 0
       ? evidenceCommands
@@ -269,9 +269,13 @@ export function EnhancementPanel({
           {activeView === "trace" ? (
             <TraceSection
               changedFiles={changedFiles}
+              commands={commands}
+              evidencePack={runtime.evidencePack}
               events={runtime.events}
+              hasHealth={Boolean(health)}
               impactedFiles={impactedFiles}
               isLoading={loading || runtime.isRunning}
+              scanPhase={scanPhase}
               summary={summary}
             />
           ) : null}
