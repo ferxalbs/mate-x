@@ -8,7 +8,6 @@ import {
   RotateCcwIcon,
   ShieldCheckIcon,
   VideoIcon,
-  WrenchIcon,
   XIcon,
 } from "lucide-react";
 
@@ -221,7 +220,6 @@ export function ComposerPanel({
   const supportsVideoInput = modelSupportsVideoInput(selectedModel);
   const supportsFileInput = modelSupportsFileInput(selectedModel);
   const reasoningSupported = modelSupportsReasoning(selectedModel);
-  const toolCallingSupported = supportsTools(selectedModel);
   const serviceTierOptions = useMemo(
     () => getRainyServiceTierOptions(selectedModel),
     [selectedModel],
@@ -464,9 +462,9 @@ export function ComposerPanel({
     <>
         <div
           className={cn(
-            "relative overflow-hidden rounded-[32px] transition-all duration-300",
-            "glass border border-[var(--panel-border)]/70 bg-[var(--mate-panel-bg)]",
-            isDraggingFile ? "ring-2 ring-primary/70" : "",
+            "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+            "glass border border-[var(--panel-border)]/40 bg-[var(--panel)]/92 shadow-sm backdrop-blur-xl",
+            isDraggingFile ? "ring-2 ring-primary/60 bg-[var(--panel)]/95" : "",
           )}
           style={{ "--glass-bg": "var(--panel)" } as React.CSSProperties}
           onDragEnter={(event) => {
@@ -488,30 +486,20 @@ export function ComposerPanel({
           onDrop={handleDrop}
         >
           {pendingPolicyStop ? (
-            <PermissionPrompt
-              disabled={isResolvingPolicyStop}
-              onAction={handlePolicyAction}
-              stop={pendingPolicyStop}
-            />
+            <div className="bg-background/40 backdrop-blur-md">
+              <PermissionPrompt
+                disabled={isResolvingPolicyStop}
+                onAction={handlePolicyAction}
+                stop={pendingPolicyStop}
+              />
+            </div>
           ) : null}
           {capabilityNotice ? (
-            <div className="relative z-10 border-b border-border/35 px-5 py-2 text-[11px] leading-5 text-amber-600 dark:text-amber-300/90">
+            <div className="relative z-10 border-b border-border/20 bg-amber-500/5 px-5 py-2 text-[11px] leading-5 text-amber-600/90 dark:text-amber-300/80">
               {capabilityNotice}
             </div>
           ) : null}
-          {trustContract ? (
-            <div className="relative z-10 border-b border-border/35 px-5 py-2.5 text-[11px] leading-5 text-muted-foreground">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <span className="inline-flex items-center gap-1.5 font-medium text-foreground/85">
-                  <ShieldCheckIcon className="size-3.5 text-success" />
-                  Trust Contract before run v{trustContract.version}: {trustContract.autonomy}
-                </span>
-                <span>Agent may: {trustAllowed}</span>
-                <span>MaTE X blocks: {trustBlocked}</span>
-                <span>File scope: {trustPaths}</span>
-              </div>
-            </div>
-          ) : null}
+
           <div className="relative z-10 bg-transparent px-5 py-4">
             <textarea
               className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"
@@ -558,8 +546,8 @@ export function ComposerPanel({
             </div>
           ) : null}
 
-          <div className="relative z-10 flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-1 turn-chip-strip sm:pb-0">
+          <div className="relative z-10 flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden pb-1 turn-chip-strip sm:pb-0">
               <input
                 className="hidden"
                 multiple
@@ -655,7 +643,7 @@ export function ComposerPanel({
               ) : null}
               <div
                 className={cn(
-                  "grid shrink-0 transition-all duration-300 ease-out",
+                  "grid shrink-0 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
                   reasoningEnabled && supportsReasoningEffort
                     ? "grid-cols-[1fr] opacity-100"
                     : "grid-cols-[0fr] opacity-0",
@@ -711,65 +699,25 @@ export function ComposerPanel({
                   ))}
                 </InlineSelect>
               ) : null}
-              {!supportsImageInput ? (
-                <button
-                  aria-label="Images unavailable"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/35 sm:size-6"
-                  disabled
-                  title="This model does not process images."
-                  type="button"
-                >
-                  <ImageIcon className="size-3.5" />
-                </button>
-              ) : null}
-              {!supportsVideoInput ? (
-                <button
-                  aria-label="Video unavailable"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/35 sm:size-6"
-                  disabled
-                  title="This model does not process video."
-                  type="button"
-                >
-                  <VideoIcon className="size-3.5" />
-                </button>
-              ) : null}
-              {!supportsFileInput ? (
-                <button
-                  aria-label="Files unavailable"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/35 sm:size-6"
-                  disabled
-                  title="This model does not process files."
-                  type="button"
-                >
-                  <FileIcon className="size-3.5" />
-                </button>
-              ) : null}
-              {toolCallingSupported ? (
-                <div
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground sm:size-6"
-                  title="Supports tools"
-                >
-                  <WrenchIcon className="size-3.5" />
-                </div>
-              ) : null}
+
               <div
-                className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)]/70 px-2.5 text-[10px] font-medium text-success backdrop-blur-xl sm:h-6"
+                className="flex h-6 shrink-0 cursor-help items-center gap-1 rounded-full bg-success/10 px-2 text-[10px] font-medium text-success transition-colors hover:bg-success/20"
                 title={
                   trustContract
-                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}. Allowed: ${trustAllowed}. Blocked: ${trustBlocked}. Scope: ${trustPaths}.`
+                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}.\nAllowed: ${trustAllowed}\nBlocked: ${trustBlocked}\nScope: ${trustPaths}`
                     : "Contract pending"
                 }
               >
-                <ShieldCheckIcon className="size-3.5" />
+                <ShieldCheckIcon className="size-3" />
                 <span>{trustLabel}</span>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center justify-end gap-3 text-[11px] text-muted-foreground/60">
+            <div className="flex shrink-0 items-center justify-end gap-2 text-[11px] text-muted-foreground/60">
               {canUndoLastTurn ? (
                 <Button
                   aria-label="Undo last turn"
-                  className="h-8 rounded-full border-border/60 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
+                  className="h-8 rounded-full border-border/40 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent hover:text-foreground"
                   disabled={isRunning || isModelSaving}
                   onClick={() => void handleUndoLastTurn()}
                   size="xs"
@@ -782,8 +730,8 @@ export function ComposerPanel({
               <Button
                 aria-label={isRunning ? "Thinking" : "Send"}
                 className={cn(
-                  "size-9 rounded-lg border-0 bg-primary p-0 text-primary-foreground shadow-none hover:bg-primary/90",
-                  isRunning ? "opacity-90" : "",
+                  "size-8 rounded-full border-0 bg-primary p-0 text-primary-foreground shadow-sm transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-primary/90 hover:shadow",
+                  isRunning ? "opacity-80" : "",
                 )}
                 disabled={isRunning || isModelSaving || !hasWorkspace}
                 onClick={handleSubmit}
@@ -791,7 +739,7 @@ export function ComposerPanel({
                 variant="outline"
               >
                 {isRunning ? (
-                  <LoaderCircle className="size-4 animate-spin" />
+                  <LoaderCircle className="size-3.5 animate-spin" />
                 ) : (
                   <ArrowUpIcon className="size-4" />
                 )}
@@ -823,10 +771,10 @@ function AttachmentChip({
   return (
     <div
       className={cn(
-        "flex h-7 max-w-[180px] items-center gap-1.5 rounded-md border px-2 text-[11px]",
+        "flex h-7 max-w-[180px] items-center gap-1.5 rounded-xl border px-2.5 text-[11px] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
         unsupported
-          ? "border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-300"
-          : "border-border/55 bg-[var(--mate-control-bg)] text-muted-foreground",
+          ? "border-amber-400/40 bg-amber-400/5 text-amber-600 dark:text-amber-300"
+          : "border-border/40 bg-[var(--mate-control-bg)]/50 text-muted-foreground hover:border-border/60",
       )}
       title={`${attachment.name} (${formatBytes(attachment.size)})`}
     >
@@ -941,29 +889,29 @@ function PermissionPrompt({
     stop.availableActions.includes("abort");
 
   return (
-    <div className="border-b border-border/50 px-4 py-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="border-b border-border/20 px-5 py-3.5 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="rounded-md border border-amber-300/30 bg-amber-400/8 px-2 py-1 font-medium text-amber-200">
+            <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 font-medium text-amber-500 dark:text-amber-400">
               Approval required
             </span>
-            <span className="text-muted-foreground">{toolName}</span>
-            <span className="truncate rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur-md">
+            <span className="text-muted-foreground/80">{toolName}</span>
+            <span className="truncate rounded-md bg-[var(--mate-control-bg)]/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
               {target}
             </span>
           </div>
-          <div className="mt-2 text-[12px] font-medium text-foreground/90">
+          <div className="mt-2 text-[13px] font-medium text-foreground/90">
             {stop.title}
           </div>
-          <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground">
+          <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground/80">
             {stop.explanation}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {canDecline ? (
             <Button
-              className="h-8 rounded-full border-border/60 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
+              className="h-8 rounded-full border-border/40 bg-transparent px-3.5 text-[11px] text-muted-foreground shadow-none hover:bg-accent"
               disabled={disabled}
               onClick={() =>
                 onAction(
@@ -975,18 +923,18 @@ function PermissionPrompt({
               size="xs"
               variant="outline"
             >
-              Continue without it
+              Skip
             </Button>
           ) : null}
           {canApprove ? (
             <Button
-              className="h-8 rounded-full bg-emerald-500 px-3 text-[11px] text-white shadow-none hover:bg-emerald-400"
+              className="h-8 rounded-full bg-emerald-500/10 text-[11px] text-emerald-600 shadow-none hover:bg-emerald-500/20 dark:text-emerald-400"
               disabled={disabled}
               onClick={() => onAction("approve_once")}
               size="xs"
-              variant="outline"
+              variant="ghost"
             >
-              Approve once
+              Approve
             </Button>
           ) : null}
         </div>
@@ -1030,8 +978,8 @@ function InlineSelect({
         size="xs"
         variant="ghost"
         className={cn(
-          "h-6 min-w-fit shrink-0 rounded-md border px-2 text-[11px] shadow-none transition-all duration-200",
-          "border-transparent text-muted-foreground hover:bg-accent",
+          "h-6 min-w-fit shrink-0 rounded-full border border-transparent px-2.5 text-[11px] shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          "text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground",
         )}
         title={title}
       >
