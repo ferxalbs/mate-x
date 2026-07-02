@@ -3,7 +3,8 @@ import {
   ChevronRightIcon,
   ClipboardCheckIcon,
   GitBranchIcon,
-  PanelRightIcon,
+  RefreshCcwIcon,
+  Settings2Icon,
 } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
@@ -180,29 +181,46 @@ export function EnhancementPanel({
   return (
     <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] backdrop-blur-2xl lg:flex 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
-        <div className="border-b border-[var(--panel-border)]/45 px-4 py-3">
+        <div className="border-b border-[var(--panel-border)]/45 px-4 py-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-[13px] font-semibold text-foreground">
+                <h2 className="truncate text-[14px] font-semibold tracking-tight text-foreground/95">
                   Live
                 </h2>
+                <div className="flex items-center gap-1.5 rounded-full bg-black/5 px-2 py-0.5 dark:bg-white/5">
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      error || runFailed
+                        ? "bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+                        : loading || runtime.isRunning
+                          ? "animate-pulse bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                          : health
+                            ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+                            : "bg-muted-foreground/50",
+                    )}
+                  />
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {runtime.events.length} events
+                  </span>
+                </div>
               </div>
-              <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+              <p className="mt-1 truncate text-[11.5px] leading-relaxed text-muted-foreground/90">
                 {runtime.activeRunTitle ?? panelState}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <button
                 aria-label="Hide enhancement panel"
-                className="flex size-8 items-center justify-center rounded-full border border-[var(--panel-border)]/55 bg-[var(--mate-control-bg)] text-muted-foreground backdrop-blur-md hover:border-primary/40 hover:bg-primary/12 hover:text-primary"
+                className="flex size-7 items-center justify-center rounded-full border border-transparent bg-transparent text-muted-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground"
                 onClick={() => setCollapsed(true)}
                 type="button"
               >
                 <ChevronRightIcon className="size-4" />
               </button>
               <Button
-                className="h-8 rounded-full border-[var(--panel-border)]/55 bg-[var(--mate-control-bg)] px-3 text-[11px] shadow-none backdrop-blur-md hover:border-primary/40 hover:bg-primary/12 hover:text-primary disabled:opacity-60"
+                className="h-7 rounded-full border-transparent bg-transparent px-2.5 text-[11px] font-medium text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground disabled:opacity-60"
                 disabled={loading}
                 onClick={runEnhancementScan}
                 size="xs"
@@ -213,42 +231,19 @@ export function EnhancementPanel({
               </Button>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between rounded-2xl border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] backdrop-blur-md">
-            <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-              <PanelRightIcon className="size-3.5 shrink-0" />
-              <span className="truncate">{panelState}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  error
-                    ? "bg-destructive"
-                    : runFailed
-                    ? "bg-destructive"
-                    : loading || runtime.isRunning
-                      ? "animate-pulse bg-blue-500"
-                      : health
-                        ? "bg-emerald-500"
-                        : "bg-muted-foreground",
-                )}
-              />
-              {runtime.events.length} events
-            </span>
-          </div>
           {loading ? (
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--mate-control-bg)]">
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--mate-control-bg)]">
               <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
             </div>
           ) : null}
-          <div className="mt-3 grid grid-cols-4 gap-1 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] p-1 backdrop-blur-md">
+          <div className="mt-4 grid grid-cols-4 gap-1 rounded-full bg-black/5 p-1 dark:bg-white/5">
             {views.map((view) => (
               <button
                 className={cn(
-                  "h-7 rounded-full px-1 text-[10px] font-medium transition-colors",
+                  "h-7 rounded-full px-1 text-[10.5px] font-medium transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
                   activeView === view.id
-                    ? "bg-primary/18 text-primary"
-                    : "text-muted-foreground hover:bg-accent/55 hover:text-foreground",
+                    ? "bg-white text-foreground shadow-sm dark:bg-[var(--mate-panel-bg)] dark:border dark:border-[var(--panel-border)]/45"
+                    : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5",
                 )}
                 key={view.id}
                 onClick={() => setActiveView(view.id)}
