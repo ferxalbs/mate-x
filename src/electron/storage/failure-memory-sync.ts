@@ -79,15 +79,6 @@ export class FailureMemorySync {
     await this.options.repository.upsert(merged);
     await this.options.stateStore.setLastSyncAt(this.options.workspaceId, now);
 
-    if (localDeltas.length === 0 && remoteDeltas.length === 0) {
-      await this.adapter.uploadFile(syncMarkerPath(this.prefix, this.options.workspaceId, now), jsonBytes({
-        schemaVersion: 1,
-        workspaceId: this.options.workspaceId,
-        createdAt: now,
-        records: [],
-      } satisfies FailureMemoryDeltaDocument));
-    }
-
     return {
       uploadedRecords: localDeltas.length,
       downloadedRecords: remoteDeltas.length,
@@ -242,10 +233,6 @@ function requiredString(record: Record<string, unknown>, key: string) {
 function deltaPath(prefix: string, workspaceId: string, timestamp: string, records: FailureMemory[]) {
   const digest = sha256Hex(jsonBytes(records)).slice(0, 12);
   return posix.join(prefix, workspaceId, "deltas", `${safeTimestamp(timestamp)}-${digest}.json`);
-}
-
-function syncMarkerPath(prefix: string, workspaceId: string, timestamp: string) {
-  return posix.join(prefix, workspaceId, "sync-events", `${safeTimestamp(timestamp)}.json`);
 }
 
 function recordTimestamp(record: FailureMemory) {
