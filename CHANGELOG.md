@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.02 (2) [Live Agent Trace Runtime]
+
+- Reworked the enhancement panel Agent Trace into a live runtime summary connected to local git status, RepoGraph impact, validation routes, Evidence Pack state, workspace health, and recent tool events instead of showing raw placeholder-style event rows.
+- Updated Trace, Impact, and Repo Health empty/loading states to describe actionable system state (`Local trace active`, `RepoGraph impact scoped`, `Workspace profile loading`) and normalize incoming `awaiting`/`pending` runtime text into active `Resolving`/`Queued` language.
+- Preserved the existing app shell and compact panel design while making the trace more useful for real security review workflows: changed paths, downstream fan-out, validation command signals, and attached evidence now surface directly in the panel.
+- Verified with `~/.bun/bin/bun run lint` (clean). `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI type errors in `src/components/ui/*` around `ScrollAreaRootProps` and `TooltipTriggerState`.
+
 ## Unreleased - 2026.07.02 (1) [Tool Error Streaming State Clarity]
 
 - Clarified the assistant stream UI when a tool event fails while the run is still active: messages with `error` tool events now show `Recovering after tool error` with an alert icon instead of continuing to present the state as a normal `Thinking process`.
