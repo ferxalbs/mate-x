@@ -1,10 +1,9 @@
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import {
   ChevronRightIcon,
   ClipboardCheckIcon,
   GitBranchIcon,
-  RefreshCcwIcon,
-  Settings2Icon,
 } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
@@ -213,14 +212,14 @@ export function EnhancementPanel({
             <div className="flex shrink-0 items-center gap-1">
               <button
                 aria-label="Hide enhancement panel"
-                className="flex size-7 items-center justify-center rounded-full border border-transparent bg-transparent text-muted-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground"
+                className="flex size-7 items-center justify-center rounded-full border border-transparent bg-transparent text-muted-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground active:scale-90"
                 onClick={() => setCollapsed(true)}
                 type="button"
               >
                 <ChevronRightIcon className="size-4" />
               </button>
               <Button
-                className="h-7 rounded-full border-transparent bg-transparent px-2.5 text-[11px] font-medium text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground disabled:opacity-60"
+                className="h-7 rounded-full border-transparent bg-transparent px-2.5 text-[11px] font-medium text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground active:scale-95 disabled:opacity-60"
                 disabled={loading}
                 onClick={runEnhancementScan}
                 size="xs"
@@ -240,16 +239,27 @@ export function EnhancementPanel({
             {views.map((view) => (
               <button
                 className={cn(
-                  "h-7 rounded-full px-1 text-[10.5px] font-medium transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+                  "relative flex h-7 items-center justify-center rounded-full px-1 text-[10.5px] font-medium transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] active:scale-95",
                   activeView === view.id
-                    ? "bg-white text-foreground shadow-sm dark:bg-[var(--mate-panel-bg)] dark:border dark:border-[var(--panel-border)]/45"
+                    ? "text-foreground"
                     : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5",
                 )}
                 key={view.id}
                 onClick={() => setActiveView(view.id)}
                 type="button"
               >
-                {view.label}
+                {activeView === view.id && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full bg-white shadow-sm dark:border dark:border-[var(--panel-border)]/45 dark:bg-[var(--mate-panel-bg)]"
+                    layoutId="activeTabEnhancement"
+                    transition={{
+                      damping: 30,
+                      stiffness: 400,
+                      type: "spring",
+                    }}
+                  />
+                )}
+                <span className="relative z-10">{view.label}</span>
               </button>
             ))}
           </div>
