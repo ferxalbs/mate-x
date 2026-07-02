@@ -77,21 +77,22 @@ export function ChatTopbar({
   const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
   const userTurns =
-    conversation?.messages.filter((message) => message.role === "user").length ?? 0;
+    conversation?.messages.filter((message) => message.role === "user")
+      .length ?? 0;
   const liveLabel =
     runStatus === "running"
-      ? "Live running"
+      ? "Running"
       : eventCount > 0
-        ? "Live ready"
-        : "Live idle";
+        ? "Live"
+        : "Ready";
   const liveTone =
     runStatus === "running"
-      ? "border-blue-400/45 bg-blue-500/14 text-blue-300 hover:bg-blue-500/18"
+      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-[0_0_12px_-3px_rgba(59,130,246,0.3)] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
       : eventCount > 0
-        ? "border-emerald-400/45 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/18"
+        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
         : liquidGlassEnabled
-          ? "border-[var(--panel-border)]/55 bg-[var(--mate-panel-bg)] text-foreground/80"
-          : "border-[var(--panel-border)]/60 bg-background/55 text-foreground/80";
+          ? "border-transparent bg-[var(--mate-panel-bg)] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+          : "border-transparent bg-background/40 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
   const toggleLivePanel = () => {
     window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
   };
@@ -122,11 +123,13 @@ export function ChatTopbar({
           : "glass border-b border-[var(--titlebar-border)]/40",
         state === "collapsed" && "pl-[88px]",
       )}
-      style={{
-        "--glass-bg": liquidGlassEnabled
-          ? "color-mix(in srgb, var(--titlebar) 52%, transparent)"
-          : "var(--titlebar)",
-      } as any}
+      style={
+        {
+          "--glass-bg": liquidGlassEnabled
+            ? "color-mix(in srgb, var(--titlebar) 52%, transparent)"
+            : "var(--titlebar)",
+        } as any
+      }
     >
       <div className="relative z-10 flex min-w-0 items-center gap-3">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
@@ -162,15 +165,19 @@ export function ChatTopbar({
             }
           >
             {runStatus === "running" ? (
-              <Loader2Icon className="size-3.5 animate-spin" />
+              <Loader2Icon className="size-3.5 animate-spin text-blue-400" />
+            ) : eventCount > 0 ? (
+              <div className="size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
             ) : (
-              <ActivityIcon className="size-3.5" />
+              <ActivityIcon className="size-3.5 opacity-70" />
             )}
-            <span>{liveLabel}</span>
-            <span className="rounded-full bg-[var(--mate-control-bg)] px-1.5 py-0.5 text-[10px] text-current/80">
-              {eventCount}
-            </span>
-            <ChevronDownIcon className="size-3.5 text-current/65" />
+            <span className="font-medium tracking-tight">{liveLabel}</span>
+            {eventCount > 0 && (
+              <span className="rounded-full bg-black/20 px-1.5 py-0.5 text-[10px] font-semibold text-current/90 dark:bg-white/10">
+                {eventCount}
+              </span>
+            )}
+            <ChevronDownIcon className="size-3.5 opacity-50 transition-transform duration-200" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem onClick={() => sendLiveCommand({ action: "open" })}>
@@ -305,7 +312,9 @@ export function ChatTopbar({
           variant="outline"
           className={cn(
             "size-8 rounded-full border-border/70 shadow-none backdrop-blur-md hover:bg-accent",
-            liquidGlassEnabled ? "bg-[var(--mate-panel-bg)]" : "bg-background/65",
+            liquidGlassEnabled
+              ? "bg-[var(--mate-panel-bg)]"
+              : "bg-background/65",
           )}
           onClick={onCreateThread}
         >

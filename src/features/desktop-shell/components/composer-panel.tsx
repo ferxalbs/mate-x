@@ -52,7 +52,6 @@ import {
   supportsFileInput as modelSupportsFileInput,
   supportsImageInput as modelSupportsImageInput,
   supportsReasoning as modelSupportsReasoning,
-  supportsTools,
   supportsVideoInput as modelSupportsVideoInput,
 } from "../../../lib/rainy-model-capabilities";
 import { cn } from "../../../lib/utils";
