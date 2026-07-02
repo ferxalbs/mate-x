@@ -187,7 +187,7 @@ export function EnhancementPanel({
                 <h2 className="truncate text-[14px] font-semibold tracking-tight text-foreground/95">
                   Live
                 </h2>
-                <div className="flex items-center gap-1.5 rounded-full bg-black/5 px-2 py-0.5 dark:bg-white/5">
+                <div className="flex items-center gap-1.5 rounded-full bg-accent/60 px-2 py-0.5">
                   <span
                     className={cn(
                       "size-1.5 rounded-full",
@@ -235,14 +235,14 @@ export function EnhancementPanel({
               <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
             </div>
           ) : null}
-          <div className="mt-4 grid grid-cols-4 gap-1 rounded-full bg-black/5 p-1 dark:bg-white/5">
+          <div className="mt-4 grid grid-cols-4 gap-1 rounded-full bg-accent/50 p-1">
             {views.map((view) => (
               <button
                 className={cn(
                   "relative flex h-7 items-center justify-center rounded-full px-1 text-[10.5px] font-medium transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] active:scale-95",
                   activeView === view.id
                     ? "text-foreground"
-                    : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5",
+                    : "text-muted-foreground hover:bg-accent/80 hover:text-foreground",
                 )}
                 key={view.id}
                 onClick={() => setActiveView(view.id)}
@@ -250,7 +250,7 @@ export function EnhancementPanel({
               >
                 {activeView === view.id && (
                   <motion.div
-                    className="absolute inset-0 rounded-full bg-white shadow-sm dark:border dark:border-[var(--panel-border)]/45 dark:bg-[var(--mate-panel-bg)]"
+                    className="absolute inset-0 rounded-full bg-[var(--mate-surface-bg)] shadow-sm border border-border/40"
                     layoutId="activeTabEnhancement"
                     transition={{
                       damping: 30,
