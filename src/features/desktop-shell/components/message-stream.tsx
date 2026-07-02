@@ -178,37 +178,37 @@ const MessageEntry = memo(function MessageEntry({
     return (
       <article
         className={cn(
-          "ml-auto flex w-full justify-end transition-all duration-300",
+          "group ml-auto flex w-full flex-col items-end gap-1.5 transition-all duration-300",
           settings.compactMode ? "max-w-[540px]" : "max-w-[680px]",
         )}
       >
-        <div className="group rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-4 py-3 text-left shadow-none backdrop-blur-xl">
-          <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground">
+        <div className="rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-4 py-3 text-left shadow-none backdrop-blur-xl">
+          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
             {message.content}
           </p>
-          <div className="mt-2 flex items-center justify-end gap-1.5">
-            <p className="text-[11px] text-muted-foreground/55">
-              {formatTimestamp(message.createdAt)}
-            </p>
+        </div>
+        <div className="flex items-center justify-end gap-1.5 pr-2 opacity-0 transition-opacity duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:opacity-100">
+          <p className="text-[11px] text-muted-foreground/60">
+            {formatTimestamp(message.createdAt)}
+          </p>
+          <MessageActionButton
+            ariaLabel={copied ? "Copied message" : "Copy message"}
+            icon={
+              copied ? (
+                <CheckIcon className="size-3.5" />
+              ) : (
+                <CopyIcon className="size-3.5" />
+              )
+            }
+            onClick={() => void handleCopy()}
+          />
+          {canUndo ? (
             <MessageActionButton
-              ariaLabel={copied ? "Copied message" : "Copy message"}
-              icon={
-                copied ? (
-                  <CheckIcon className="size-3.5" />
-                ) : (
-                  <CopyIcon className="size-3.5" />
-                )
-              }
-              onClick={() => void handleCopy()}
+              ariaLabel="Undo last turn"
+              icon={<RotateUndoIcon />}
+              onClick={() => void onUndo()}
             />
-            {canUndo ? (
-              <MessageActionButton
-                ariaLabel="Undo last turn"
-                icon={<RotateUndoIcon />}
-                onClick={() => void onUndo()}
-              />
-            ) : null}
-          </div>
+          ) : null}
         </div>
       </article>
     );

@@ -63,6 +63,7 @@ import {
   setEmbeddingModel,
   setModel,
 } from "../../../services/settings-client";
+import { useChatStore } from "../../../store/chat-store";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
@@ -133,6 +134,7 @@ export function ComposerPanel({
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
+  const settings = useChatStore((state) => state.settings);
   const hasWorkspace = Boolean(workspace);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -586,28 +588,30 @@ export function ComposerPanel({
                   </SelectItem>
                 ))}
               </InlineSelect>
-              <InlineSelect
-                value={embeddingModelValue}
-                onValueChange={handleEmbeddingModelChange}
-                disabled={
-                  isCatalogLoading ||
-                  isModelSaving ||
-                  embeddingCatalog.length === 0
-                }
-                label={embeddingModelLabel}
-              >
-                {embeddingCatalog.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate">{entry.label}</span>
-                      <span className="truncate text-[10px] text-muted-foreground/75">
-                        {entry.dimensions}d ·{" "}
-                        {Math.round(entry.contextLength / 1024)}k ctx
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </InlineSelect>
+              {!settings.compactMode && (
+                <InlineSelect
+                  value={embeddingModelValue}
+                  onValueChange={handleEmbeddingModelChange}
+                  disabled={
+                    isCatalogLoading ||
+                    isModelSaving ||
+                    embeddingCatalog.length === 0
+                  }
+                  label={embeddingModelLabel}
+                >
+                  {embeddingCatalog.map((entry) => (
+                    <SelectItem key={entry.id} value={entry.id}>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate">{entry.label}</span>
+                        <span className="truncate text-[10px] text-muted-foreground/75">
+                          {entry.dimensions}d ·{" "}
+                          {Math.round(entry.contextLength / 1024)}k ctx
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </InlineSelect>
+              )}
               {embeddingProgress ? (
                 <span
                   className={cn(
