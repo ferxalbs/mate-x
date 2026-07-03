@@ -1,4 +1,5 @@
 import {
+  ActivityIcon,
   AlertCircleIcon,
   CheckCircle2Icon,
   CheckIcon,
@@ -7,6 +8,7 @@ import {
   CopyIcon,
   FileTextIcon,
   LoaderCircle,
+  TerminalIcon,
 } from "lucide-react";
 import {
   memo,
@@ -668,7 +670,11 @@ function RunTimelineV2({
     [events],
   );
   const statusLabel = isStreaming ? "running" : "done";
-  const previewEvents = actionEvents.slice(0, 10);
+  const visibleEvents = isStreaming ? actionEvents.slice(-8) : actionEvents;
+  const previewEvents = visibleEvents.slice(0, 12);
+  const doneCount = actionEvents.filter((event) => event.status === "done").length;
+  const activeCount = actionEvents.filter((event) => event.status === "active").length;
+  const errorCount = actionEvents.filter((event) => event.status === "error").length;
 
   useEffect(() => {
     if (inlineEvents || !showAllActionsModal) {
@@ -688,11 +694,16 @@ function RunTimelineV2({
   }, [inlineEvents, showAllActionsModal]);
 
   if (inlineEvents) {
-    const visibleEvents = isStreaming ? actionEvents.slice(-6) : actionEvents;
-
     return (
       <section className="space-y-2">
-        <div className="space-y-1.5 rounded-2xl border border-border/45 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
+        <div className="space-y-2 rounded-2xl border border-border/45 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
+          <TraceHeader
+            activeCount={activeCount}
+            doneCount={doneCount}
+            errorCount={errorCount}
+            isStreaming={isStreaming}
+            total={actionEvents.length}
+          />
           <PolicyStopStrip events={policyStopEvents} />
           {visibleEvents.length > 0 ? (
             visibleEvents.map((event) => (
@@ -718,7 +729,7 @@ function RunTimelineV2({
     <section className="space-y-1.5">
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-[var(--mate-control-bg)] px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent hover:text-foreground"
         onClick={() => setExpanded((value) => !value)}
       >
         {expanded ? (
@@ -726,7 +737,7 @@ function RunTimelineV2({
         ) : (
           <ChevronRightIcon className="size-3.5" />
         )}
-        <span className="font-medium text-foreground/85">Model actions</span>
+        <span className="font-medium text-foreground/85">Agent trace</span>
         <span>{actionEvents.length}</span>
         <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/75">
           {statusLabel}
@@ -735,6 +746,13 @@ function RunTimelineV2({
 
       {expanded ? (
         <div className="space-y-1.5">
+          <TraceHeader
+            activeCount={activeCount}
+            doneCount={doneCount}
+            errorCount={errorCount}
+            isStreaming={isStreaming}
+            total={actionEvents.length}
+          />
           <PolicyStopStrip events={policyStopEvents} />
           {actionEvents.length > 0 ? (
             previewEvents.map((event, index) => (
@@ -827,28 +845,86 @@ function ActionEventCard({
   prefix?: string;
 }) {
   const command = extractCommandFromEvent(event);
-  const row = command
-    ? `Ran command - ${command}`
-    : `${event.label} - ${event.detail}`;
+  const display = describeTraceEvent(event, command);
 
   return (
     <div
       className={cn(
-        "min-w-0 rounded-xl border border-border/55 bg-[var(--surface-soft)]/35 px-3 py-2 text-[12px] leading-5 text-muted-foreground/95 backdrop-blur-sm transition-all hover:bg-[var(--surface-soft)]/60",
+        "min-w-0 rounded-xl border border-border/55 bg-[var(--surface-soft)]/35 px-3 py-2 text-[12px] leading-5 text-muted-foreground/95 backdrop-blur-sm transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--surface-soft)]/60",
         className,
       )}
     >
       <div className="flex min-w-0 items-start gap-2">
-        <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">
-          {prefix}
-        </span>
+        <TraceGlyph event={event} prefix={prefix} />
         <span className="min-w-0 flex-1 break-words text-foreground/90">
-          {row}
+          <span className="font-medium">{display.title}</span>
+          {display.detail ? (
+            <span className="text-muted-foreground/80"> - {display.detail}</span>
+          ) : null}
         </span>
       </div>
       {event.policy ? <ToolPolicyBadges event={event} /> : null}
     </div>
   );
+}
+
+function TraceHeader({
+  activeCount,
+  doneCount,
+  errorCount,
+  isStreaming,
+  total,
+}: {
+  activeCount: number;
+  doneCount: number;
+  errorCount: number;
+  isStreaming: boolean;
+  total: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/75">
+      <span className="inline-flex items-center gap-1 rounded-xl border border-border/45 bg-[var(--mate-surface-bg)] px-2 py-1 text-foreground/85">
+        <ActivityIcon className="size-3" />
+        {isStreaming ? "Live" : "Recorded"}
+      </span>
+      <span className="rounded-xl border border-border/45 bg-[var(--mate-surface-bg)] px-2 py-1">
+        {total} real events
+      </span>
+      {activeCount > 0 ? (
+        <span className="rounded-xl border border-primary/25 bg-primary/8 px-2 py-1 text-primary">
+          {activeCount} active
+        </span>
+      ) : null}
+      <span className="rounded-xl border border-emerald-300/25 bg-emerald-400/8 px-2 py-1 text-emerald-300">
+        {doneCount} done
+      </span>
+      {errorCount > 0 ? (
+        <span className="rounded-xl border border-amber-300/30 bg-amber-400/8 px-2 py-1 text-amber-200">
+          {errorCount} issue{errorCount === 1 ? "" : "s"}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function TraceGlyph({ event, prefix }: { event: ToolEvent; prefix: string }) {
+  if (prefix !== ">_") {
+    return (
+      <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">
+        {prefix}
+      </span>
+    );
+  }
+
+  if (event.status === "active") {
+    return <LoaderCircle className="mt-1 size-3.5 shrink-0 animate-spin text-primary/75" />;
+  }
+
+  if (event.status === "error") {
+    return <AlertCircleIcon className="mt-1 size-3.5 shrink-0 text-amber-300/90" />;
+  }
+
+  return <TerminalIcon className="mt-1 size-3.5 shrink-0 text-muted-foreground/60" />;
 }
 
 function PolicyStopStrip({ events }: { events: ToolEvent[] }) {
@@ -1027,7 +1103,8 @@ function InlineTraceStatusDot({ status }: { status: ToolEvent["status"] }) {
 }
 
 function summarizeInlineTraceEvent(event: ToolEvent) {
-  const label = event.label.replace(/^Executing\s+/i, "").trim() || event.label;
+  const label =
+    cleanTraceText(event.label.replace(/^Executing\s+/i, "")) || event.label;
   const target = extractInlineTraceTarget(event.detail);
   // Don't append "failed" if the label already contains it (e.g. "WorkPlan final gate failed")
   const alreadyDescribesFail = /fail/i.test(label);
@@ -1076,7 +1153,7 @@ function tryPrettyJson(raw: string): string | null {
 function TimelineEventRow({ event }: { event: ToolEvent }) {
   const command = extractCommandFromEvent(event);
   const prettyJson = !command ? tryPrettyJson(event.detail) : null;
-  const displayDetail = prettyJson ?? event.detail;
+  const displayDetail = prettyJson ?? cleanTraceText(event.detail);
   const hasExtra = Boolean(command) || displayDetail.length > 180;
   const [expanded, setExpanded] = useState(event.status === "active");
   const preview =
@@ -1091,7 +1168,7 @@ function TimelineEventRow({ event }: { event: ToolEvent }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <div className="text-[11px] font-medium text-foreground/90">
-              {event.label}
+              {cleanTraceText(event.label)}
             </div>
             {hasExtra ? (
               <button
@@ -1187,6 +1264,34 @@ function extractCommandFromEvent(event: ToolEvent) {
   }
 
   return `${match[1]} ${match[2]}`;
+}
+
+function describeTraceEvent(event: ToolEvent, command: string | null) {
+  if (command) {
+    return {
+      title: event.status === "active" ? "Running command" : "Ran command",
+      detail: command,
+    };
+  }
+
+  const title = cleanTraceText(event.label);
+  const detail = cleanTraceText(event.detail);
+  if (!detail || detail.toLowerCase() === title.toLowerCase()) {
+    return { title, detail: "" };
+  }
+
+  return { title, detail };
+}
+
+function cleanTraceText(value: string) {
+  return value
+    .replace(/\bawaiting\b/gi, "resolving")
+    .replace(/\bawait\b/gi, "wait")
+    .replace(/^Executing\s+/i, "")
+    .replace(/^Running\s+agent\s+pass\b/i, "Agent pass")
+    .replace(/^Done\s+agent\s+pass\b/i, "Agent pass complete")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function classifyEventPhase(event: ToolEvent): EventPhase {
