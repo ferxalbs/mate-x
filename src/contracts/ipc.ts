@@ -24,6 +24,11 @@ import type { PrivacyApi } from "./privacy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
 import type {
+  MobileBridgeDeviceSession,
+  MobileBridgePairingPayload,
+  MobileBridgeStatus,
+} from "./mobile-bridge";
+import type {
   AgentCapabilityProfile,
   AgentRoutingRecommendation,
 } from "./agent-capability-profiler";
@@ -165,6 +170,14 @@ export interface PolicyApi {
   listStops: (runId?: string) => Promise<PolicyStop[]>;
   getRunState: (runId: string) => Promise<PolicyRunState>;
   resolveStop: (request: ResolvePolicyStopRequest) => Promise<PolicyStop>;
+}
+
+export interface MobileBridgeApi {
+  startPairing: () => Promise<MobileBridgePairingPayload>;
+  stopPairing: () => Promise<MobileBridgeStatus>;
+  getStatus: () => Promise<MobileBridgeStatus>;
+  listDevices: () => Promise<MobileBridgeDeviceSession[]>;
+  revokeDevice: (deviceId: string) => Promise<MobileBridgeDeviceSession[]>;
 }
 
 export interface UiApi {

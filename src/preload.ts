@@ -9,6 +9,7 @@ import type {
   RepoInspectorApi,
   SettingsApi,
   UiApi,
+  MobileBridgeApi,
 } from "./contracts/ipc";
 
 const ASSISTANT_PROGRESS_CHANNEL = "repo:assistant-progress";
@@ -197,6 +198,14 @@ const privacyApi: PrivacyApi = {
   clearVault: () => ipcRenderer.invoke("privacy:clear-vault"),
 };
 
+const mobileApi: MobileBridgeApi = {
+  startPairing: () => ipcRenderer.invoke("mobile:start-pairing"),
+  stopPairing: () => ipcRenderer.invoke("mobile:stop-pairing"),
+  getStatus: () => ipcRenderer.invoke("mobile:get-status"),
+  listDevices: () => ipcRenderer.invoke("mobile:list-devices"),
+  revokeDevice: (deviceId) => ipcRenderer.invoke("mobile:revoke-device", deviceId),
+};
+
 contextBridge.exposeInMainWorld("mate", {
   repo: repoApi,
   git: gitApi,
@@ -205,5 +214,6 @@ contextBridge.exposeInMainWorld("mate", {
   proof: undefined,
   policy: policyApi,
   privacy: privacyApi,
+  mobile: mobileApi,
   ui: uiApi,
 });

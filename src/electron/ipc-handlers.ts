@@ -58,6 +58,7 @@ import {
 } from "../features/compliance/complianceExport";
 import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
 import { getStack } from "./main-stack";
+import { mobileBridgeService } from "./mobile-bridge-service";
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
@@ -93,6 +94,12 @@ const APP_SETTING_KEYS = new Set([
   "cursorIntegrationEnabled",
   "githubIntegrationEnabled",
   "preferredAgentIntegration",
+  "mobileCompanionEnabled",
+  "mobileCompanionRequireApproval",
+  "mobileCompanionAllowGitWrite",
+  "mobileCompanionAllowPush",
+  "mobileCompanionSessionTtlHours",
+  "mobileCompanionPrivateLanOnly",
   "supermemoryApiKey",
   "onboardingCompleted",
 ]);
@@ -999,6 +1006,15 @@ export function registerIpcHandlers() {
     "settings:update-app-settings",
     async (_event, settings: AppSettings) =>
       tursoService.updateAppSettings(validateAppSettings(settings)),
+  );
+
+  // ── Mobile Companion ───────────────────────────────────────────────────
+  ipcMain.handle("mobile:start-pairing", async () => mobileBridgeService.startPairing());
+  ipcMain.handle("mobile:stop-pairing", async () => mobileBridgeService.stopPairing());
+  ipcMain.handle("mobile:get-status", async () => mobileBridgeService.getStatus());
+  ipcMain.handle("mobile:list-devices", async () => mobileBridgeService.listDevices());
+  ipcMain.handle("mobile:revoke-device", async (_event, deviceId: string) =>
+    mobileBridgeService.revokeDevice(requireBoundedString(deviceId, "deviceId", 200)),
   );
 
   // ── GitHub Integration ──────────────────────────────────────────────────
