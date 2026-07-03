@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.03 (2) [Evidence Pack Metric Transparency]
+
+- Updated the Live Enhancement Panel Evidence Pack view so file and command metrics come only from the attached `EvidencePack`, preventing local scan fallback data from being presented as verified pack evidence.
+- Added a visible score basis row that derives the displayed percentage from `verifiedTaskScore.signals` using satisfied signal weight over total signal weight, plus passed signal count, making low confidence scores such as `18/100` explainable from real runtime data.
+- Added an explicit local-scan notice when changed files or possible validation commands exist but no Evidence Pack has been generated yet, keeping scan state separate from attested evidence state.
+- Verified with `~/.bun/bin/bun run lint` (clean). `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI type errors in `src/components/ui/*` around `ScrollAreaRootProps` and `TooltipTriggerState`.
+
 ## Unreleased - 2026.07.03 (1) [Agent Trace Reality and Efficiency Upgrade]
 
 - Redesigned the assistant Agent Trace stream to surface real captured `ToolEvent` data instead of noisy runtime phrasing: live/recorded status, real event counts, active/done/issue totals, parsed command rows, policy stops, and compact latest-event rendering now reflect actual run state.
