@@ -230,7 +230,11 @@ export function EvidencePackSection({
           verdict={verdict}
         />
       ) : null}
-      <EvidenceRow label="Files touched" value={fileLabel} />
+      <EvidenceRow
+        label="Files touched"
+        tone={filesCount > 0 ? "good" : "warn"}
+        value={fileLabel}
+      />
       <EvidenceRow
         label="Commands"
         tone={commandCount > 0 ? "good" : "warn"}
@@ -339,10 +343,12 @@ export function EvidencePackSection({
 }
 
 export function RepoHealthSection({
+  hasWorkspace,
   hasProfile,
   signals,
   nextAction,
 }: {
+  hasWorkspace: boolean;
   hasProfile: boolean;
   signals: RepoHealthSignal[];
   nextAction?: string;
@@ -355,35 +361,29 @@ export function RepoHealthSection({
         <PanelTitle icon={ZapIcon} title="Repo Health" />
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
-      {!hasProfile ? (
-        <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 backdrop-blur-md">
-          <p className="text-[11px] font-medium">Workspace profile loading</p>
+      <div
+        className={cn(
+          "rounded-2xl border p-3",
+          toneSurfaceClassName(verdict.tone),
+        )}
+      >
+        <p className="text-[10px] font-medium uppercase text-muted-foreground">
+          {hasProfile ? "Live repo verdict" : "Repo context"}
+        </p>
+        <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
+        {!hasProfile ? (
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            Trace still uses local git, RepoGraph, and run evidence while stack
-            signals resolve.
+            {hasWorkspace
+              ? "Full health profile is unavailable, so this card uses the workspace summary and does not claim test, lint, or secret scan results."
+              : "Open or import a workspace to populate repo health."}
           </p>
-        </div>
-      ) : null}
-      {hasProfile ? (
-        <div
-          className={cn(
-            "rounded-2xl border p-3",
-            toneSurfaceClassName(verdict.tone),
-          )}
-        >
-          <p className="text-[10px] font-medium uppercase text-muted-foreground">
-            Live repo verdict
-          </p>
-          <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
-        </div>
-      ) : null}
-      {hasProfile ? (
-        <dl className="grid grid-cols-2 gap-2 text-[11px]">
-          {signals.map((signal) => (
-            <HealthSignalCell signal={signal} key={signal.label} />
-          ))}
-        </dl>
-      ) : null}
+        ) : null}
+      </div>
+      <dl className="grid grid-cols-2 gap-2 text-[11px]">
+        {signals.map((signal) => (
+          <HealthSignalCell signal={signal} key={signal.label} />
+        ))}
+      </dl>
       {nextAction ? (
         <p
           className="truncate rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2.5 py-2 text-[11px] backdrop-blur-md"

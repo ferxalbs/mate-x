@@ -9,7 +9,7 @@ import {
 import { Button } from "../../../components/ui/button";
 import type { Conversation, RunStatus } from "../../../contracts/chat";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
-import type { WorkspaceHealthProfile } from "../../../contracts/workspace";
+import type { WorkspaceSummary } from "../../../contracts/workspace";
 import { cn } from "../../../lib/utils";
 import {
   EvidencePackSection,
@@ -32,8 +32,8 @@ import {
 
 interface EnhancementPanelProps {
   conversation: Conversation | null;
-  health: WorkspaceHealthProfile | null;
   runStatus: RunStatus;
+  workspace: WorkspaceSummary | null;
   workspaceId: string | null;
 }
 
@@ -46,8 +46,8 @@ const views: { id: EnhancementView; label: string }[] = [
 
 export function EnhancementPanel({
   conversation,
-  health,
   runStatus,
+  workspace,
   workspaceId,
 }: EnhancementPanelProps) {
   const [collapsed, setCollapsed] = useState(true);
@@ -62,8 +62,9 @@ export function EnhancementPanel({
   const [scanPhase, setScanPhase] = useState<string | null>(null);
 
   const runtime = getPanelRuntimeSnapshot(conversation, runStatus);
+  const health = workspace?.health ?? null;
   const summary = summarizeImpact(changedFiles, impactedFiles);
-  const repoSignals = getRepoHealthSignals(health);
+  const repoSignals = getRepoHealthSignals(health, workspace);
   const evidenceCommands = getEvidenceCommands(runtime.evidencePack);
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
   const verifiedScore = getVerifiedScore(runtime.evidencePack);
@@ -310,6 +311,7 @@ export function EnhancementPanel({
 
           <div className="mt-4 rounded-2xl border border-[var(--panel-border)]/38 bg-[var(--mate-control-bg)] p-3 backdrop-blur-md">
             <RepoHealthSection
+              hasWorkspace={Boolean(workspace)}
               hasProfile={Boolean(health)}
               signals={repoSignals}
               nextAction={health?.recommendedNextAction}
