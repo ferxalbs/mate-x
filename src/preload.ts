@@ -202,6 +202,8 @@ const mobileApi: MobileBridgeApi = {
   startPairing: () => ipcRenderer.invoke("mobile:start-pairing"),
   stopPairing: () => ipcRenderer.invoke("mobile:stop-pairing"),
   getStatus: () => ipcRenderer.invoke("mobile:get-status"),
+  getPendingPairing: () => ipcRenderer.invoke("mobile:get-pending-pairing"),
+  approvePendingPairing: (approved) => ipcRenderer.invoke("mobile:approve-pending-pairing", approved),
   listDevices: () => ipcRenderer.invoke("mobile:list-devices"),
   revokeDevice: (deviceId) => ipcRenderer.invoke("mobile:revoke-device", deviceId),
 };

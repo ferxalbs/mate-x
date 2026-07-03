@@ -1,4 +1,4 @@
-import type { GitApi, GitHubIntegrationApi, PolicyApi, PrivacyApi, RepoInspectorApi, SettingsApi, UiApi } from './contracts/ipc';
+import type { GitApi, GitHubIntegrationApi, MobileBridgeApi, PolicyApi, PrivacyApi, RepoInspectorApi, SettingsApi, UiApi } from './contracts/ipc';
 
 declare global {
   interface Window {
@@ -10,6 +10,7 @@ declare global {
       settings: SettingsApi;
       policy: PolicyApi;
       privacy: PrivacyApi;
+      mobile: MobileBridgeApi;
       ui: UiApi;
     };
   }

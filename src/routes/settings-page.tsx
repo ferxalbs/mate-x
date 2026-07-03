@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useRouterState } from '@tanstack/react-router';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   CheckIcon,
   DownloadIcon,
@@ -46,6 +47,12 @@ import {
   type PrivacyPlaceholderStyle,
   type TimeFormat,
 } from '../contracts/settings';
+import type {
+  MobileBridgeDeviceSession,
+  MobileBridgePairingPayload,
+  MobileBridgeStatus,
+  MobilePendingPairingRequest,
+} from '../contracts/mobile-bridge';
 import type {
   GitHubIntegrationStatus,
   GitHubIntegrationState,
@@ -113,6 +120,11 @@ export function SettingsPage() {
   const [isPrivacyActionBusy, setIsPrivacyActionBusy] = useState(false);
   const [githubStatus, setGithubStatus] = useState<GitHubIntegrationStatus | null>(null);
   const [isGithubStatusBusy, setIsGithubStatusBusy] = useState(false);
+  const [mobileStatus, setMobileStatus] = useState<MobileBridgeStatus | null>(null);
+  const [mobilePairingPayload, setMobilePairingPayload] = useState<MobileBridgePairingPayload | null>(null);
+  const [mobilePendingPairing, setMobilePendingPairing] = useState<MobilePendingPairingRequest | null>(null);
+  const [mobileDevices, setMobileDevices] = useState<MobileBridgeDeviceSession[]>([]);
+  const [isMobileBusy, setIsMobileBusy] = useState(false);
 
   const section: SettingsSectionId =
     pathname === '/settings/workspace-memory'
@@ -206,6 +218,66 @@ export function SettingsPage() {
       void refreshGithubStatus();
     }
   }, [refreshGithubStatus, section]);
+
+  const refreshMobileBridge = useCallback(async () => {
+    const [status, pending, devices] = await Promise.all([
+      window.mate.mobile.getStatus(),
+      window.mate.mobile.getPendingPairing(),
+      window.mate.mobile.listDevices(),
+    ]);
+    setMobileStatus(status);
+    setMobilePendingPairing(pending);
+    setMobileDevices(devices);
+  }, []);
+
+  useEffect(() => {
+    if (section === 'connections') {
+      void refreshMobileBridge();
+    }
+  }, [refreshMobileBridge, section]);
+
+  useEffect(() => {
+    if (section !== 'connections' || !mobilePairingPayload) return;
+    const timer = window.setInterval(() => void refreshMobileBridge(), 1500);
+    return () => window.clearInterval(timer);
+  }, [mobilePairingPayload, refreshMobileBridge, section]);
+
+  const handleStartMobilePairing = useCallback(async () => {
+    setIsMobileBusy(true);
+    setErrorMsg('');
+    try {
+      const payload = await window.mate.mobile.startPairing();
+      setMobilePairingPayload(payload);
+      await refreshMobileBridge();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Could not start mobile pairing.');
+      setSaveState('error');
+    } finally {
+      setIsMobileBusy(false);
+    }
+  }, [refreshMobileBridge]);
+
+  const handleStopMobilePairing = useCallback(async () => {
+    setIsMobileBusy(true);
+    try {
+      setMobilePairingPayload(null);
+      await window.mate.mobile.stopPairing();
+      await refreshMobileBridge();
+    } finally {
+      setIsMobileBusy(false);
+    }
+  }, [refreshMobileBridge]);
+
+  const handleApproveMobilePairing = useCallback(async (approved: boolean) => {
+    setIsMobileBusy(true);
+    try {
+      await window.mate.mobile.approvePendingPairing(approved);
+      setMobilePairingPayload(null);
+      await refreshMobileBridge();
+    } finally {
+      setIsMobileBusy(false);
+    }
+  }, [refreshMobileBridge]);
 
   useEffect(() => {
     return window.mate.privacy.onModelDownloadProgress((progress) => {
@@ -350,6 +422,25 @@ export function SettingsPage() {
         setSaveState('error');
       }
       return;
+    }
+
+    if (section === 'connections' && hasAppSettingsDraft) {
+      setSaveState('saving');
+      setErrorMsg('');
+      try {
+        const nextSettings = await updateAppSettings(appSettings);
+        setAppSettings(nextSettings);
+        setSavedAppSettings(nextSettings);
+        useChatStore.getState().setSettings(nextSettings);
+        setSaveState('saved');
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Could not save mobile companion settings.');
+        setSaveState('error');
+        return;
+      }
+      if (!hasKeyDraft) {
+        return;
+      }
     }
 
     const trimmedKey = inputValue.trim();
@@ -867,6 +958,125 @@ export function SettingsPage() {
                       </div>
                     }
                   />
+                  <SettingsRow
+                    title="Mobile Companion"
+                    description="Expose a scoped local WebSocket bridge for paired devices on your LAN."
+                    control={
+                      <Switch
+                        checked={appSettings.mobileCompanionEnabled}
+                        onCheckedChange={(value) => {
+                          setAppSettings((current) => ({ ...current, mobileCompanionEnabled: value }));
+                          if (saveState === 'saved') setSaveState('idle');
+                        }}
+                        disabled={isBusy}
+                      />
+                    }
+                  />
+                  <SettingsRow
+                    title="Pair mobile device"
+                    description={
+                      mobileStatus?.running
+                        ? `Bridge listening on ${mobileStatus.host}:${mobileStatus.port}`
+                        : appSettings.mobileCompanionEnabled
+                          ? 'Save settings, then start pairing to show a QR code.'
+                          : 'Enable Mobile Companion and save before pairing.'
+                    }
+                    control={
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          onClick={() => void handleStartMobilePairing()}
+                          disabled={isBusy || isMobileBusy || !savedAppSettings.mobileCompanionEnabled}
+                        >
+                          {isMobileBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+                          Start pairing
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          onClick={() => void handleStopMobilePairing()}
+                          disabled={isBusy || isMobileBusy || !mobilePairingPayload}
+                        >
+                          Stop
+                        </Button>
+                      </div>
+                    }
+                  />
+                  {mobilePairingPayload ? (
+                    <div className="rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-4">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="rounded-2xl bg-white p-3">
+                          <QRCodeSVG value={JSON.stringify(mobilePairingPayload)} size={168} />
+                        </div>
+                        <div className="min-w-[220px] flex-1 space-y-2 text-sm">
+                          <div className="font-medium text-foreground">Scan with MaTE X Mobile</div>
+                          <div className="text-xs text-muted-foreground">
+                            Expires {new Date(mobilePairingPayload.expiresAt).toLocaleTimeString()}.
+                            Desktop code {mobilePairingPayload.desktopPublicKey.slice(0, 6).toUpperCase()}.
+                          </div>
+                          <div className="break-all rounded-xl border border-[var(--panel-border)]/40 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                            {mobilePairingPayload.host}:{mobilePairingPayload.port}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {mobilePendingPairing ? (
+                    <SettingsRow
+                      title="Approve device"
+                      description={`${mobilePendingPairing.deviceName} · ${mobilePendingPairing.deviceFingerprint}`}
+                      control={
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="xs"
+                            className="h-8 rounded-lg px-3 text-[12px]"
+                            onClick={() => void handleApproveMobilePairing(true)}
+                            disabled={isBusy || isMobileBusy}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                            onClick={() => void handleApproveMobilePairing(false)}
+                            disabled={isBusy || isMobileBusy}
+                          >
+                            Deny
+                          </Button>
+                        </div>
+                      }
+                    />
+                  ) : null}
+                  {mobileDevices.length > 0 ? (
+                    <SettingsRow
+                      title="Paired devices"
+                      description={`${mobileDevices.length} remembered device${mobileDevices.length === 1 ? '' : 's'}.`}
+                      control={
+                        <div className="flex max-w-[360px] flex-col gap-2">
+                          {mobileDevices.map((device) => (
+                            <div key={device.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/40 px-3 py-2 text-xs">
+                              <span className="truncate">{device.deviceName}</span>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                className="h-7 rounded-lg px-2 text-[11px]"
+                                onClick={async () => {
+                                  setMobileDevices(await window.mate.mobile.revokeDevice(device.id));
+                                  await refreshMobileBridge();
+                                }}
+                              >
+                                Revoke
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      }
+                    />
+                  ) : null}
                 </>
               </SettingsSection>
             ) : null}
@@ -1381,9 +1591,11 @@ export function SettingsPage() {
                   <span>
                     {hasKeyDraft
                       ? 'Pending: Rainy API key'
-                      : currentKeyPrefix
-                        ? 'Rainy key saved and active'
-                        : 'Rainy API key not configured'}
+                      : changedSettingLabels.length > 0
+                        ? `Pending: ${changedSettingLabels.join(', ')}`
+                        : currentKeyPrefix
+                          ? 'Rainy key saved and active'
+                          : 'Rainy API key not configured'}
                   </span>
                 ) : section === 'trust' ? (
                   <span>
@@ -1423,7 +1635,7 @@ export function SettingsPage() {
                   onClick={() => void handleSave()}
                   disabled={
                     section === 'connections'
-                      ? !hasKeyDraft || isBusy
+                      ? (!hasKeyDraft && !hasAppSettingsDraft) || isBusy
                       : section === 'trust'
                         ? !hasTrustDraft || isBusy
                         : !hasAppSettingsDraft || isBusy
