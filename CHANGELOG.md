@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.03 (1) [Agent Trace Reality and Efficiency Upgrade]
+
+- Redesigned the assistant Agent Trace stream to surface real captured `ToolEvent` data instead of noisy runtime phrasing: live/recorded status, real event counts, active/done/issue totals, parsed command rows, policy stops, and compact latest-event rendering now reflect actual run state.
+- Updated the side-panel Agent TRACE view into connected `System links` and `Runtime events` sections with real event counters, status-specific icons, and explicit empty states so the panel no longer presents mock-like rows or marks completed events as active.
+- Normalized leaked runtime wording such as `await`/`awaiting` into user-facing action language while preserving the underlying event data, keeping trace output faster to scan without inventing timestamps, phases, or fake progress.
+- Verified targeted ESLint for `message-stream.tsx` and `enhancement-panel-sections.tsx` (clean). Full typecheck remains blocked by pre-existing unrelated UI type errors in `src/components/ui/*` around `ScrollAreaRootProps` and `TooltipTriggerState`.
+
 ## Unreleased - 2026.07.02 (2) [Live Agent Trace Runtime]
 
 - Reworked the enhancement panel Agent Trace into a live runtime summary connected to local git status, RepoGraph impact, validation routes, Evidence Pack state, workspace health, and recent tool events instead of showing raw placeholder-style event rows.

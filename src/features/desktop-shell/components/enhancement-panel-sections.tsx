@@ -1,7 +1,9 @@
 import {
   ActivityIcon,
+  AlertCircleIcon,
   CheckCircle2Icon,
   ClipboardCheckIcon,
+  Clock3Icon,
   FileArchiveIcon,
   FileSearchIcon,
   FileTextIcon,
@@ -21,6 +23,13 @@ import type {
 import { getRepoHealthVerdict } from "./enhancement-panel-utils";
 
 export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
+
+interface TracePanelRow {
+  title: string;
+  detail: string;
+  icon: typeof ActivityIcon;
+  status: ToolEvent["status"];
+}
 
 interface BaseSectionProps {
   changedFiles: string[];
@@ -46,13 +55,22 @@ export function TraceSection({
   hasHealth: boolean;
   scanPhase: string | null;
 }) {
-  const recentEvents = events.slice(-3).map((event) => ({
+  const activeStatus: ToolEvent["status"] = "active";
+  const doneStatus: ToolEvent["status"] = "done";
+  const eventCounts = events.reduce(
+    (counts, event) => {
+      counts[event.status] += 1;
+      return counts;
+    },
+    { active: 0, done: 0, error: 0 },
+  );
+  const recentEvents: TracePanelRow[] = events.slice(-5).map((event) => ({
     title: normalizeTraceTitle(event.label),
     detail: summarizeTraceDetail(event.detail),
     icon: ActivityIcon,
-    active: event.status !== "error",
+    status: event.status,
   }));
-  const traceRows = [
+  const traceRows: TracePanelRow[] = [
     {
       title:
         scanPhase ??
@@ -61,7 +79,7 @@ export function TraceSection({
         ? "Stack, git, validation, and secret signals are connected to this panel."
         : "Local git and RepoGraph signals are live; workspace health profile is still loading.",
       icon: RadarIcon,
-      active: hasHealth || Boolean(scanPhase),
+      status: hasHealth || Boolean(scanPhase) ? doneStatus : activeStatus,
     },
     {
       title: changedFiles.length > 0 ? "Change set mapped" : "Change set clean",
@@ -70,7 +88,7 @@ export function TraceSection({
           ? `${changedFiles.length} changed path${changedFiles.length === 1 ? "" : "s"} scoped before graph expansion.`
           : "No local edits detected in git status.",
       icon: FileTextIcon,
-      active: changedFiles.length > 0,
+      status: doneStatus,
     },
     {
       title:
@@ -84,7 +102,10 @@ export function TraceSection({
             ? "Changed files were scanned; no downstream fan-out returned yet."
             : "Graph is ready for the next changed path.",
       icon: FileSearchIcon,
-      active: impactedFiles.length > 0 || changedFiles.length > 0,
+      status:
+        impactedFiles.length > 0 || changedFiles.length > 0
+          ? doneStatus
+          : activeStatus,
     },
     {
       title:
@@ -96,7 +117,7 @@ export function TraceSection({
           ? `${commands.length} command signal${commands.length === 1 ? "" : "s"} selected from evidence, tests, or workspace profile.`
           : "Run evidence or workspace profiling to resolve the smallest useful validation route.",
       icon: TerminalIcon,
-      active: commands.length > 0,
+      status: commands.length > 0 ? doneStatus : activeStatus,
     },
     {
       title: evidencePack
@@ -106,46 +127,57 @@ export function TraceSection({
         ? `${evidencePack.status} with ${evidencePack.commandsExecuted?.length ?? 0} command signal${(evidencePack.commandsExecuted?.length ?? 0) === 1 ? "" : "s"}.`
         : "A verified run will attach signed evidence and compliance actions here.",
       icon: ClipboardCheckIcon,
-      active: Boolean(evidencePack),
+      status: evidencePack ? doneStatus : activeStatus,
     },
-    ...recentEvents,
   ].slice(0, 8);
 
   return (
     <section className="space-y-3">
-      <PanelTitle icon={ActivityIcon} title="TRACE Runtime" />
+      <div className="flex items-center justify-between gap-2">
+        <PanelTitle icon={ActivityIcon} title="Agent TRACE" />
+        <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-500">
+          {events.length} real events
+        </span>
+      </div>
       {isLoading ? <SkeletonStack /> : null}
-      <div className="space-y-2">
+      <dl className="grid grid-cols-3 gap-2 text-[11px]">
+        <Metric label="Active" value={eventCounts.active} />
+        <Metric label="Done" value={eventCounts.done} />
+        <Metric label="Issues" value={eventCounts.error} />
+      </dl>
+      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[10px] font-medium uppercase text-muted-foreground">
+            System links
+          </p>
+          <p className="text-[10px] text-muted-foreground/70">
+            Live state, no mock rows
+          </p>
+        </div>
+        <div className="space-y-1.5">
         {traceRows.map((row, index) => (
-          <div
-            className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md"
-            key={row.title}
-          >
-            <div className="flex items-start gap-2">
-              <span
-                className={cn(
-                  "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums",
-                  row.active
-                    ? "border-emerald-500/35 text-emerald-500"
-                    : "border-[var(--panel-border)]/35 text-muted-foreground",
-                )}
-              >
-                {index + 1}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <row.icon className="size-3.5 shrink-0 text-primary" />
-                  <p className="truncate text-[11px] font-medium">
-                    {row.title}
-                  </p>
-                </div>
-                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                  {row.detail}
-                </p>
-              </div>
-            </div>
-          </div>
+          <TraceRow index={index + 1} key={row.title} row={row} />
         ))}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[10px] font-medium uppercase text-muted-foreground">
+            Runtime events
+          </p>
+          <p className="text-[10px] text-muted-foreground/70">
+            Latest {recentEvents.length || 0}
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          {recentEvents.length > 0 ? (
+            recentEvents.map((row, index) => (
+              <TraceRow index={events.length - recentEvents.length + index + 1} key={`${row.title}:${index}`} row={row} />
+            ))
+          ) : (
+            <EmptyLine text="No runtime tool events captured for this turn yet" />
+          )}
+        </div>
       </div>
     </section>
   );
@@ -213,6 +245,65 @@ export function ImpactSection({
       </p>
     </section>
   );
+}
+
+function TraceRow({
+  index,
+  row,
+}: {
+  index: number;
+  row: TracePanelRow;
+}) {
+  const Icon = row.icon;
+
+  return (
+    <div className="rounded-2xl border border-[var(--panel-border)]/30 bg-[var(--mate-surface-bg)]/55 px-2.5 py-2">
+      <div className="flex items-start gap-2">
+        <span
+          className={cn(
+            "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums",
+            traceStatusTone(row.status),
+          )}
+        >
+          {index}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Icon className="size-3.5 shrink-0 text-primary" />
+            <p className="truncate text-[11px] font-medium">{row.title}</p>
+            <TraceStatusIcon status={row.status} />
+          </div>
+          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+            {row.detail}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TraceStatusIcon({ status }: { status: ToolEvent["status"] }) {
+  if (status === "active") {
+    return <Clock3Icon className="size-3 shrink-0 text-primary/75" />;
+  }
+
+  if (status === "error") {
+    return <AlertCircleIcon className="size-3 shrink-0 text-amber-500" />;
+  }
+
+  return <CheckCircle2Icon className="size-3 shrink-0 text-emerald-500" />;
+}
+
+function traceStatusTone(status: ToolEvent["status"]) {
+  if (status === "active") {
+    return "border-primary/35 text-primary";
+  }
+
+  if (status === "error") {
+    return "border-amber-500/35 text-amber-500";
+  }
+
+  return "border-emerald-500/35 text-emerald-500";
 }
 
 export function ValidationSection({
