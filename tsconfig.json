@@ -30,5 +30,8 @@
     "packages",
     "*.ts",
     "*.tsx"
+  ],
+  "exclude": [
+    "mate-x-app"
   ]
 }
