@@ -1,6 +1,9 @@
 import type { GitStatus } from "../../../contracts/git";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
-import type { WorkspaceHealthProfile } from "../../../contracts/workspace";
+import type {
+  WorkspaceHealthProfile,
+  WorkspaceSummary,
+} from "../../../contracts/workspace";
 import type {
   ChatMessage,
   Conversation,
@@ -102,15 +105,33 @@ export function getRepoFields(health: WorkspaceHealthProfile | null) {
 
 export function getRepoHealthSignals(
   health: WorkspaceHealthProfile | null,
+  workspace?: WorkspaceSummary | null,
 ): RepoHealthSignal[] {
   if (!health) {
+    const stackValue =
+      workspace && workspace.stack.length > 0
+        ? workspace.stack.join(", ")
+        : "Unavailable";
+
     return [
-      { label: "Stack", value: "Detecting", tone: "watch" },
-      { label: "PM", value: "Unknown", tone: "muted" },
-      { label: "Test", value: "Map pending", tone: "watch" },
-      { label: "Lint", value: "Map pending", tone: "watch" },
-      { label: "Git", value: "Pending", tone: "watch" },
-      { label: "Secrets", value: "0", tone: "good" },
+      {
+        label: "Stack",
+        value: stackValue,
+        tone: workspace?.stack.length ? "good" : "muted",
+      },
+      {
+        label: "Status",
+        value: workspace?.status ?? "No workspace",
+        tone: workspace?.status === "ready" ? "good" : "watch",
+      },
+      {
+        label: "Branch",
+        value: workspace?.branch ?? "Unavailable",
+        tone: workspace?.branch ? "good" : "muted",
+      },
+      { label: "Profile", value: "Not generated", tone: "watch" },
+      { label: "Tests", value: "Unavailable", tone: "muted" },
+      { label: "Secrets", value: "Not scanned", tone: "muted" },
     ];
   }
 
@@ -160,10 +181,14 @@ export function getRepoHealthVerdict(
   hasProfile: boolean,
 ) {
   if (!hasProfile) {
+    const hasWorkspace = signals.some((signal) => signal.tone !== "muted");
+
     return {
-      label: "Live",
-      detail: "Local trace is active while workspace profile loads.",
-      tone: "watch" as SignalTone,
+      label: hasWorkspace ? "Basic" : "No repo",
+      detail: hasWorkspace
+        ? "Using real workspace summary; health profile has not been generated."
+        : "No active workspace health data is available.",
+      tone: hasWorkspace ? ("watch" as SignalTone) : ("muted" as SignalTone),
     };
   }
 

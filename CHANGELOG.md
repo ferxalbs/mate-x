@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.03 (3) [Repo Health Real Context]
+
+- Reworked the Live Enhancement Panel Repo Health card so it no longer stays in a misleading `Workspace profile loading` state when no full health profile exists.
+- Wired Repo Health to the real `WorkspaceSummary` passed from the desktop shell, allowing the card to show actual workspace status, branch, and detected stack even before test, lint, secret, or dependency health scans are available.
+- Updated missing-profile copy to explicitly say the full health profile is unavailable and that unavailable test/lint/secret signals are not being claimed as scanned results.
+- Verified with `~/.bun/bin/bun run lint` (clean). `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI type errors in `src/components/ui/*` around `ScrollAreaRootProps` and `TooltipTriggerState`.
+
 ## Unreleased - 2026.07.03 (2) [Evidence Pack Metric Transparency]
 
 - Updated the Live Enhancement Panel Evidence Pack view so file and command metrics come only from the attached `EvidencePack`, preventing local scan fallback data from being presented as verified pack evidence.
