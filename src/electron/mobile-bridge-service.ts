@@ -44,12 +44,16 @@ interface ClientConnection {
   buffer: Buffer;
 }
 
+interface PendingPairingApproval extends MobilePairingApproval {
+  client: ClientConnection;
+}
+
 class MobileBridgeService {
   private server: ReturnType<typeof createServer> | null = null;
   private host: string | null = null;
   private port: number | null = null;
   private pairing: ActivePairing | null = null;
-  private awaitingApproval: MobilePairingApproval | null = null;
+  private awaitingApproval: PendingPairingApproval | null = null;
   private sessions = new Map<string, MobileBridgeDeviceSession>();
   private sequences = new Map<string, number>();
   private rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -120,7 +124,12 @@ class MobileBridgeService {
 
   async approvePendingPairing(approved: boolean): Promise<MobileBridgeDeviceSession | null> {
     if (!this.awaitingApproval) return null;
-    return this.approvePairing({ ...this.awaitingApproval, approved });
+    return this.approvePairing({
+      pairingId: this.awaitingApproval.pairingId,
+      deviceName: this.awaitingApproval.deviceName,
+      devicePublicKey: this.awaitingApproval.devicePublicKey,
+      approved,
+    });
   }
 
   listDevices(): MobileBridgeDeviceSession[] {
@@ -141,12 +150,19 @@ class MobileBridgeService {
     if (!this.pairing || this.pairing.payload.pairingId !== approval.pairingId) {
       throw new Error("No active pairing request.");
     }
+    const pending = this.awaitingApproval;
+    if (!pending || pending.pairingId !== approval.pairingId) {
+      throw new Error("No pending device approval.");
+    }
     if (!approval.approved) {
+      this.send(pending.client, { id: "handshake", ok: false, error: { code: "PAIRING_DENIED", message: "Pairing denied." } });
       this.pairing = null;
       this.awaitingApproval = null;
       throw new Error("Pairing denied.");
     }
     const session = await this.createSession(approval.deviceName, approval.devicePublicKey);
+    pending.client.sessionId = session.id;
+    this.send(pending.client, { id: "handshake", ok: true, payload: { sessionId: session.id, expiresAt: session.expiresAt, permissions: session.permissions } });
     this.pairing = null;
     this.awaitingApproval = null;
     this.audit("pairing_approved", { sessionId: session.id, deviceName: session.deviceName });
@@ -242,7 +258,7 @@ class MobileBridgeService {
     }
     const settings = await tursoService.getAppSettings();
     if (settings.mobileCompanionRequireApproval) {
-      this.awaitingApproval = { pairingId: message.pairingId, deviceName: this.boundString(message.deviceName, 80), devicePublicKey: this.boundString(message.devicePublicKey, 500), approved: true };
+      this.awaitingApproval = { pairingId: message.pairingId, deviceName: this.boundString(message.deviceName, 80), devicePublicKey: this.boundString(message.devicePublicKey, 500), approved: true, client };
       this.send(client, { id: "handshake", ok: false, error: { code: "AWAITING_DESKTOP_APPROVAL", message: "Desktop approval required." } });
       return;
     }
