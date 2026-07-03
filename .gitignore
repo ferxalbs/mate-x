@@ -116,3 +116,6 @@ demos
 *.md
 
 *.demo
+
+mate-x-app
+mate-x-app/*
