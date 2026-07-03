@@ -33,6 +33,12 @@ export interface AppSettings {
   cursorIntegrationEnabled: boolean;
   githubIntegrationEnabled: boolean;
   preferredAgentIntegration: AgentIntegrationId | 'none';
+  mobileCompanionEnabled: boolean;
+  mobileCompanionRequireApproval: boolean;
+  mobileCompanionAllowGitWrite: boolean;
+  mobileCompanionAllowPush: boolean;
+  mobileCompanionSessionTtlHours: number;
+  mobileCompanionPrivateLanOnly: boolean;
   supermemoryApiKey?: string;
   onboardingCompleted: boolean;
 }
@@ -64,6 +70,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   cursorIntegrationEnabled: false,
   githubIntegrationEnabled: false,
   preferredAgentIntegration: 'none',
+  mobileCompanionEnabled: false,
+  mobileCompanionRequireApproval: true,
+  mobileCompanionAllowGitWrite: false,
+  mobileCompanionAllowPush: false,
+  mobileCompanionSessionTtlHours: 24,
+  mobileCompanionPrivateLanOnly: true,
   supermemoryApiKey: '',
   onboardingCompleted: false,
 };

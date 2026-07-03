@@ -1560,6 +1560,31 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       input.preferredAgentIntegration === 'none'
         ? input.preferredAgentIntegration
         : DEFAULT_APP_SETTINGS.preferredAgentIntegration,
+    mobileCompanionEnabled:
+      typeof input.mobileCompanionEnabled === 'boolean'
+        ? input.mobileCompanionEnabled
+        : DEFAULT_APP_SETTINGS.mobileCompanionEnabled,
+    mobileCompanionRequireApproval:
+      typeof input.mobileCompanionRequireApproval === 'boolean'
+        ? input.mobileCompanionRequireApproval
+        : DEFAULT_APP_SETTINGS.mobileCompanionRequireApproval,
+    mobileCompanionAllowGitWrite:
+      typeof input.mobileCompanionAllowGitWrite === 'boolean'
+        ? input.mobileCompanionAllowGitWrite
+        : DEFAULT_APP_SETTINGS.mobileCompanionAllowGitWrite,
+    mobileCompanionAllowPush:
+      typeof input.mobileCompanionAllowPush === 'boolean'
+        ? input.mobileCompanionAllowPush
+        : DEFAULT_APP_SETTINGS.mobileCompanionAllowPush,
+    mobileCompanionSessionTtlHours:
+      typeof input.mobileCompanionSessionTtlHours === 'number' &&
+      Number.isFinite(input.mobileCompanionSessionTtlHours)
+        ? Math.min(168, Math.max(1, Math.round(input.mobileCompanionSessionTtlHours)))
+        : DEFAULT_APP_SETTINGS.mobileCompanionSessionTtlHours,
+    mobileCompanionPrivateLanOnly:
+      typeof input.mobileCompanionPrivateLanOnly === 'boolean'
+        ? input.mobileCompanionPrivateLanOnly
+        : DEFAULT_APP_SETTINGS.mobileCompanionPrivateLanOnly,
     supermemoryApiKey:
       typeof input.supermemoryApiKey === 'string'
         ? input.supermemoryApiKey
