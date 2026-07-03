@@ -25,6 +25,7 @@ import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
 import type {
   MobileBridgeDeviceSession,
+  MobilePendingPairingRequest,
   MobileBridgePairingPayload,
   MobileBridgeStatus,
 } from "./mobile-bridge";
@@ -176,6 +177,8 @@ export interface MobileBridgeApi {
   startPairing: () => Promise<MobileBridgePairingPayload>;
   stopPairing: () => Promise<MobileBridgeStatus>;
   getStatus: () => Promise<MobileBridgeStatus>;
+  getPendingPairing: () => Promise<MobilePendingPairingRequest | null>;
+  approvePendingPairing: (approved: boolean) => Promise<MobileBridgeDeviceSession | null>;
   listDevices: () => Promise<MobileBridgeDeviceSession[]>;
   revokeDevice: (deviceId: string) => Promise<MobileBridgeDeviceSession[]>;
 }

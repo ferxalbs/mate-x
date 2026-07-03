@@ -121,6 +121,13 @@ export interface MobilePairingApproval {
   approved: boolean;
 }
 
+export interface MobilePendingPairingRequest {
+  pairingId: string;
+  deviceName: string;
+  deviceFingerprint: string;
+  expiresAt: string;
+}
+
 export const MOBILE_BRIDGE_COMMAND_TYPES: readonly MobileBridgeCommandType[] = [
   "bridge:get-status",
   "workspace:list",

@@ -1012,6 +1012,10 @@ export function registerIpcHandlers() {
   ipcMain.handle("mobile:start-pairing", async () => mobileBridgeService.startPairing());
   ipcMain.handle("mobile:stop-pairing", async () => mobileBridgeService.stopPairing());
   ipcMain.handle("mobile:get-status", async () => mobileBridgeService.getStatus());
+  ipcMain.handle("mobile:get-pending-pairing", async () => mobileBridgeService.getPendingPairing());
+  ipcMain.handle("mobile:approve-pending-pairing", async (_event, approved: boolean) =>
+    mobileBridgeService.approvePendingPairing(approved === true),
+  );
   ipcMain.handle("mobile:list-devices", async () => mobileBridgeService.listDevices());
   ipcMain.handle("mobile:revoke-device", async (_event, deviceId: string) =>
     mobileBridgeService.revokeDevice(requireBoundedString(deviceId, "deviceId", 200)),

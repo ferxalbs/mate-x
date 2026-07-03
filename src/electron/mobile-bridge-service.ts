@@ -13,6 +13,7 @@ import {
   type MobileBridgeDeviceSession,
   type MobileBridgePairingPayload,
   type MobileBridgePermissions,
+  type MobilePendingPairingRequest,
   type MobileBridgeStatus,
   type MobilePairingApproval,
   type MobileWorkspaceEntry,
@@ -104,6 +105,22 @@ class MobileBridgeService {
       requireApproval: settings.mobileCompanionRequireApproval,
       privateLanOnly: settings.mobileCompanionPrivateLanOnly,
     };
+  }
+
+  getPendingPairing(): MobilePendingPairingRequest | null {
+    this.expirePairing();
+    if (!this.pairing || !this.awaitingApproval) return null;
+    return {
+      pairingId: this.awaitingApproval.pairingId,
+      deviceName: this.awaitingApproval.deviceName,
+      deviceFingerprint: this.fingerprint(this.awaitingApproval.devicePublicKey),
+      expiresAt: this.pairing.payload.expiresAt,
+    };
+  }
+
+  async approvePendingPairing(approved: boolean): Promise<MobileBridgeDeviceSession | null> {
+    if (!this.awaitingApproval) return null;
+    return this.approvePairing({ ...this.awaitingApproval, approved });
   }
 
   listDevices(): MobileBridgeDeviceSession[] {
