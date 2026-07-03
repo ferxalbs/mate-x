@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.03 (4) [Secure Mobile Companion Bridge Foundation]
+
+- Added the desktop-side Mobile Companion bridge foundation with a main-process-only local WebSocket service, QR pairing payloads, one-time pairing secrets, pairing expiry, replay protection, rate limiting, scoped command routing, and audit logging that avoids storing secrets or raw prompts.
+- Added shared mobile bridge contracts for pairing state, bridge status, device sessions, permissions, command envelopes, assistant run requests, progress events, workspace summaries, policy approvals, and read-only Git summaries.
+- Added IPC/preload support under `window.mate.mobile` for starting/stopping pairing, reading bridge status, listing/revoking devices, and approving pending pairings from the desktop UI.
+- Added Settings > Connections controls for enabling Mobile Companion, requiring desktop approval, session TTL, LAN-only mode, and future typed Git write/push permissions while keeping write commands blocked.
+- Routed mobile assistant runs through the existing `runAssistant` pipeline with `access: "approval"` so WorkPlan, Privacy Preflight, Trust Contract, Policy Stops, evidence generation, and existing progress semantics remain authoritative.
+- Fixed the approval-required pairing path so an approved mobile device receives its session over the original waiting WebSocket instead of requiring a second scan.
+- Verified the mobile companion app first-connection path with `bun run typecheck` and `expo export --platform android --clear` in `/Users/fer/Projects/mate-x-app`. Desktop `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI primitive type errors in `src/components/ui/*` around unsupported `ScrollAreaRootProps` props and `TooltipTriggerState`.
+
 ## Unreleased - 2026.07.03 (3) [Repo Health Real Context]
 
 - Reworked the Live Enhancement Panel Repo Health card so it no longer stays in a misleading `Workspace profile loading` state when no full health profile exists.
