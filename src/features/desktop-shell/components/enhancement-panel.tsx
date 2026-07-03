@@ -16,9 +16,9 @@ import {
   type EnhancementView,
   ImpactSection,
   RepoHealthSection,
-  TraceSection,
   ValidationSection,
 } from "./enhancement-panel-sections";
+import { TraceSection } from "./enhancement-trace-section";
 import {
   getChangedFiles,
   getEvidenceCommands,
@@ -275,6 +275,7 @@ export function EnhancementPanel({
               hasHealth={Boolean(health)}
               impactedFiles={impactedFiles}
               isLoading={loading || runtime.isRunning}
+              isRunning={runtime.isRunning}
               scanPhase={scanPhase}
               summary={summary}
             />

@@ -1,19 +1,19 @@
 import {
   ActivityIcon,
-  AlertCircleIcon,
   CheckCircle2Icon,
   ClipboardCheckIcon,
-  Clock3Icon,
   FileArchiveIcon,
   FileSearchIcon,
   FileTextIcon,
-  RadarIcon,
   TerminalIcon,
   ZapIcon,
 } from "lucide-react";
 
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
-import type { EvidencePack, ToolEvent } from "../../../contracts/chat";
+import type {
+  EvidencePack,
+  VerifiedTaskScoreSignal,
+} from "../../../contracts/chat";
 import { cn } from "../../../lib/utils";
 import type {
   ImpactSummary,
@@ -24,163 +24,11 @@ import { getRepoHealthVerdict } from "./enhancement-panel-utils";
 
 export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
 
-interface TracePanelRow {
-  title: string;
-  detail: string;
-  icon: typeof ActivityIcon;
-  status: ToolEvent["status"];
-}
-
 interface BaseSectionProps {
   changedFiles: string[];
   impactedFiles: RepoGraphImpactedFile[];
   isLoading?: boolean;
   summary: ImpactSummary;
-}
-
-export function TraceSection({
-  changedFiles,
-  commands,
-  evidencePack,
-  events,
-  hasHealth,
-  impactedFiles,
-  isLoading,
-  scanPhase,
-  summary,
-}: BaseSectionProps & {
-  commands: string[];
-  evidencePack: EvidencePack | null;
-  events: ToolEvent[];
-  hasHealth: boolean;
-  scanPhase: string | null;
-}) {
-  const activeStatus: ToolEvent["status"] = "active";
-  const doneStatus: ToolEvent["status"] = "done";
-  const eventCounts = events.reduce(
-    (counts, event) => {
-      counts[event.status] += 1;
-      return counts;
-    },
-    { active: 0, done: 0, error: 0 },
-  );
-  const recentEvents: TracePanelRow[] = events.slice(-5).map((event) => ({
-    title: normalizeTraceTitle(event.label),
-    detail: summarizeTraceDetail(event.detail),
-    icon: ActivityIcon,
-    status: event.status,
-  }));
-  const traceRows: TracePanelRow[] = [
-    {
-      title:
-        scanPhase ??
-        (hasHealth ? "Workspace profile linked" : "Workspace scan active"),
-      detail: hasHealth
-        ? "Stack, git, validation, and secret signals are connected to this panel."
-        : "Local git and RepoGraph signals are live; workspace health profile is still loading.",
-      icon: RadarIcon,
-      status: hasHealth || Boolean(scanPhase) ? doneStatus : activeStatus,
-    },
-    {
-      title: changedFiles.length > 0 ? "Change set mapped" : "Change set clean",
-      detail:
-        changedFiles.length > 0
-          ? `${changedFiles.length} changed path${changedFiles.length === 1 ? "" : "s"} scoped before graph expansion.`
-          : "No local edits detected in git status.",
-      icon: FileTextIcon,
-      status: doneStatus,
-    },
-    {
-      title:
-        impactedFiles.length > 0
-          ? "RepoGraph impact ready"
-          : "RepoGraph impact scoped",
-      detail:
-        impactedFiles.length > 0
-          ? `${summary.affectedCount} affected target${summary.affectedCount === 1 ? "" : "s"}; fan-out ${summary.toolFanoutCount}.`
-          : changedFiles.length > 0
-            ? "Changed files were scanned; no downstream fan-out returned yet."
-            : "Graph is ready for the next changed path.",
-      icon: FileSearchIcon,
-      status:
-        impactedFiles.length > 0 || changedFiles.length > 0
-          ? doneStatus
-          : activeStatus,
-    },
-    {
-      title:
-        commands.length > 0
-          ? "Validation route ready"
-          : "Validation route pending",
-      detail:
-        commands.length > 0
-          ? `${commands.length} command signal${commands.length === 1 ? "" : "s"} selected from evidence, tests, or workspace profile.`
-          : "Run evidence or workspace profiling to resolve the smallest useful validation route.",
-      icon: TerminalIcon,
-      status: commands.length > 0 ? doneStatus : activeStatus,
-    },
-    {
-      title: evidencePack
-        ? "Evidence pack attached"
-        : "Evidence pack not attached",
-      detail: evidencePack
-        ? `${evidencePack.status} with ${evidencePack.commandsExecuted?.length ?? 0} command signal${(evidencePack.commandsExecuted?.length ?? 0) === 1 ? "" : "s"}.`
-        : "A verified run will attach signed evidence and compliance actions here.",
-      icon: ClipboardCheckIcon,
-      status: evidencePack ? doneStatus : activeStatus,
-    },
-  ].slice(0, 8);
-
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <PanelTitle icon={ActivityIcon} title="Agent TRACE" />
-        <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-500">
-          {events.length} real events
-        </span>
-      </div>
-      {isLoading ? <SkeletonStack /> : null}
-      <dl className="grid grid-cols-3 gap-2 text-[11px]">
-        <Metric label="Active" value={eventCounts.active} />
-        <Metric label="Done" value={eventCounts.done} />
-        <Metric label="Issues" value={eventCounts.error} />
-      </dl>
-      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[10px] font-medium uppercase text-muted-foreground">
-            System links
-          </p>
-          <p className="text-[10px] text-muted-foreground/70">
-            Live state, no mock rows
-          </p>
-        </div>
-        <div className="space-y-1.5">
-        {traceRows.map((row, index) => (
-          <TraceRow index={index + 1} key={row.title} row={row} />
-        ))}
-        </div>
-      </div>
-      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[10px] font-medium uppercase text-muted-foreground">
-            Runtime events
-          </p>
-          <p className="text-[10px] text-muted-foreground/70">
-            Latest {recentEvents.length || 0}
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          {recentEvents.length > 0 ? (
-            recentEvents.map((row, index) => (
-              <TraceRow index={events.length - recentEvents.length + index + 1} key={`${row.title}:${index}`} row={row} />
-            ))
-          ) : (
-            <EmptyLine text="No runtime tool events captured for this turn yet" />
-          )}
-        </div>
-      </div>
-    </section>
-  );
 }
 
 export function ImpactSection({
@@ -245,65 +93,6 @@ export function ImpactSection({
       </p>
     </section>
   );
-}
-
-function TraceRow({
-  index,
-  row,
-}: {
-  index: number;
-  row: TracePanelRow;
-}) {
-  const Icon = row.icon;
-
-  return (
-    <div className="rounded-2xl border border-[var(--panel-border)]/30 bg-[var(--mate-surface-bg)]/55 px-2.5 py-2">
-      <div className="flex items-start gap-2">
-        <span
-          className={cn(
-            "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums",
-            traceStatusTone(row.status),
-          )}
-        >
-          {index}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Icon className="size-3.5 shrink-0 text-primary" />
-            <p className="truncate text-[11px] font-medium">{row.title}</p>
-            <TraceStatusIcon status={row.status} />
-          </div>
-          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            {row.detail}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TraceStatusIcon({ status }: { status: ToolEvent["status"] }) {
-  if (status === "active") {
-    return <Clock3Icon className="size-3 shrink-0 text-primary/75" />;
-  }
-
-  if (status === "error") {
-    return <AlertCircleIcon className="size-3 shrink-0 text-amber-500" />;
-  }
-
-  return <CheckCircle2Icon className="size-3 shrink-0 text-emerald-500" />;
-}
-
-function traceStatusTone(status: ToolEvent["status"]) {
-  if (status === "active") {
-    return "border-primary/35 text-primary";
-  }
-
-  if (status === "error") {
-    return "border-amber-500/35 text-amber-500";
-  }
-
-  return "border-emerald-500/35 text-emerald-500";
 }
 
 export function ValidationSection({
@@ -377,14 +166,19 @@ export function EvidencePackSection({
   summary: ImpactSummary;
 }) {
   const canExportCompliance = Boolean(evidencePack);
-  const filesCount = evidenceFiles.length || changedFiles.length;
-  const commandCount =
-    evidencePack?.commandsExecuted?.length ?? commands.length;
+  const filesCount = evidencePack ? evidenceFiles.length : 0;
+  const commandCount = evidencePack?.commandsExecuted?.length ?? 0;
+  const fallbackFileCount = changedFiles.length;
+  const fallbackCommandCount = commands.length;
   const verdict = evidencePack?.verdict.label ?? "Pending verified run";
   const scoreTone = getEvidenceTone(score, verdict);
   const runFailed = /fail|error|blocked/i.test(verdict);
   const lowConfidence = score !== null && score < 50;
   const fileLabel = `${filesCount} ${filesCount === 1 ? "file" : "files"}`;
+  const commandLabel = `${commandCount} ${commandCount === 1 ? "signal" : "signals"}`;
+  const scoreBreakdown = getScoreBreakdown(
+    evidencePack?.verifiedTaskScore?.signals ?? [],
+  );
   const securityTone = getSecurityRiskTone(verdict, summary.risk);
   const blastRadius =
     impactedFiles.length > 0
@@ -419,7 +213,13 @@ export function EvidencePackSection({
         </div>
         {evidencePack ? (
           <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-            {getEvidenceScoreReason(score, verdict, commandCount, filesCount)}
+            {getEvidenceScoreReason(
+              score,
+              verdict,
+              commandCount,
+              filesCount,
+              scoreBreakdown,
+            )}
           </p>
         ) : null}
       </div>
@@ -431,7 +231,24 @@ export function EvidencePackSection({
         />
       ) : null}
       <EvidenceRow label="Files touched" value={fileLabel} />
-      <EvidenceRow label="Commands" value={`${commandCount} signals`} />
+      <EvidenceRow
+        label="Commands"
+        tone={commandCount > 0 ? "good" : "warn"}
+        value={commandLabel}
+      />
+      <EvidenceRow
+        label="Score basis"
+        tone={scoreBreakdown.total > 0 ? scoreTone : "warn"}
+        value={formatScoreBasis(scoreBreakdown)}
+      />
+      {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
+        <p className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+          Local scan sees {fallbackFileCount} changed file
+          {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
+          command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
+          Evidence Pack has been generated for this run yet.
+        </p>
+      ) : null}
       <EvidenceRow
         label="Security risk"
         tone={securityTone}
@@ -765,12 +582,16 @@ function getEvidenceScoreReason(
   verdict: string,
   commandCount: number,
   filesCount: number,
+  scoreBreakdown: ScoreBreakdown,
 ) {
   if (/fail|error|blocked/i.test(verdict)) {
     return `Low score because run verdict is ${verdict}. Evidence captured ${commandCount} command signals across ${filesCount} file signal${filesCount === 1 ? "" : "s"}, but result did not complete cleanly.`;
   }
   if (score === null) {
     return "Score pending until verified task run completes.";
+  }
+  if (scoreBreakdown.total > 0) {
+    return `Score comes from verified task signals: ${formatScoreBasis(scoreBreakdown)}.`;
   }
   if (score < 50) {
     return "Low confidence. Findings may be useful, but claim needs stronger file-level verification before demo use.";
@@ -780,6 +601,39 @@ function getEvidenceScoreReason(
   }
 
   return "Evidence is strong enough for product demo summary.";
+}
+
+interface ScoreBreakdown {
+  satisfied: number;
+  total: number;
+  passed: number;
+  count: number;
+}
+
+function getScoreBreakdown(
+  signals: VerifiedTaskScoreSignal[],
+): ScoreBreakdown {
+  return signals.reduce<ScoreBreakdown>(
+    (breakdown, signal) => ({
+      satisfied: breakdown.satisfied + (signal.satisfied ? signal.weight : 0),
+      total: breakdown.total + signal.weight,
+      passed: breakdown.passed + (signal.satisfied ? 1 : 0),
+      count: breakdown.count + 1,
+    }),
+    { satisfied: 0, total: 0, passed: 0, count: 0 },
+  );
+}
+
+function formatScoreBasis(breakdown: ScoreBreakdown) {
+  if (breakdown.total <= 0 || breakdown.count <= 0) {
+    return "No weighted signals";
+  }
+
+  const weightedPercent = Math.round(
+    (breakdown.satisfied / breakdown.total) * 100,
+  );
+
+  return `${breakdown.satisfied}/${breakdown.total} weight, ${breakdown.passed}/${breakdown.count} signals (${weightedPercent}%)`;
 }
 
 function getConfidenceLabel(score: number | null, verdict: string) {
@@ -854,74 +708,6 @@ function impactTone(risk: string): SignalTone {
   }
 
   return "muted";
-}
-
-function summarizeTraceDetail(detail: string) {
-  const trimmed = detail.trim();
-
-  if (!trimmed) {
-    return "Event recorded without extra detail.";
-  }
-
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(trimmed) as
-        | {
-            channel?: string;
-            callees?: string[];
-            callers?: string[];
-            files?: string[];
-            command?: string;
-          }
-        | Array<{ channel?: string; file?: string; command?: string }>;
-
-      if (Array.isArray(parsed)) {
-        const labels = parsed
-          .map((entry) => entry.channel ?? entry.command ?? entry.file)
-          .filter(Boolean)
-          .slice(0, 3);
-        return labels.length > 0
-          ? `${labels.join(", ")}${parsed.length > labels.length ? "..." : ""}`
-          : `${parsed.length} structured events captured.`;
-      }
-
-      if (parsed.channel) {
-        const targets = [
-          ...(parsed.callees ?? []),
-          ...(parsed.callers ?? []),
-          ...(parsed.files ?? []),
-        ].slice(0, 2);
-        return targets.length > 0
-          ? `${parsed.channel} touches ${targets.join(", ")}`
-          : `${parsed.channel} IPC surface mapped.`;
-      }
-
-      if (parsed.command) {
-        return `Command signal: ${parsed.command}`;
-      }
-
-      return "Structured evidence captured.";
-    } catch {
-      return compactTraceText(trimmed);
-    }
-  }
-
-  return compactTraceText(trimmed);
-}
-
-function normalizeTraceTitle(title: string) {
-  return title
-    .replace(/\bawaiting\b/gi, "Resolving")
-    .replace(/\bpending\b/gi, "Queued")
-    .trim();
-}
-
-function compactTraceText(text: string) {
-  const compact = text
-    .replace(/\bawaiting\b/gi, "resolving")
-    .replace(/\bpending\b/gi, "queued")
-    .replace(/\s+/g, " ");
-  return compact.length > 150 ? `${compact.slice(0, 147)}...` : compact;
 }
 
 function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
