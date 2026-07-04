@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.04 (1) [YC Frontier Foundations]
+
+- Added shared frontier contracts for performance metrics, benchmark snapshots, power run policy, agent firewall decisions, threat graph nodes/edges, and Evidence Pack v2 metadata.
+- Added `powerMode` and `agentFirewallMode` app settings with defaults and Turso normalization so new settings persist safely without being dropped or overwritten.
+- Added IPC/preload surfaces for `perf:get-snapshot`, `perf:run-benchmark`, `repo:get-threat-graph`, `agent-firewall:list-decisions`, and `agent-firewall:evaluate-command`.
+- Added a lightweight threat graph snapshot built from existing RepoGraph entrypoint, IPC, env, and dependency surfaces with source-role classification for active/test/docs/generated paths.
+- Added a benchmark snapshot path that records main-process uptime, memory, warm threat-graph timing, and the resolved power policy.
+- Added an agent command risk classifier that flags remote fetch/script execution, DNS payload lookup, package lifecycle install risk, destructive filesystem commands, and secret-bearing command patterns.
+- Verified `git diff --check` clean. `~/.bun/bin/bun run lint` remains blocked by a pre-existing `src/contracts/mobile-bridge.ts` empty-interface lint error. `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI primitive type errors in `src/components/ui/*` around unsupported `ScrollAreaRootProps` props and `TooltipTriggerState`.
+
 ## Unreleased - 2026.07.03 (4) [Secure Mobile Companion Bridge Foundation]
 
 - Added the desktop-side Mobile Companion bridge foundation with a main-process-only local WebSocket service, QR pairing payloads, one-time pairing secrets, pairing expiry, replay protection, rate limiting, scoped command routing, and audit logging that avoids storing secrets or raw prompts.

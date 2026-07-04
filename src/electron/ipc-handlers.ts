@@ -5,6 +5,15 @@ import { pathToFileURL } from "node:url";
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { AssistantRunOptions, Conversation, EvidencePack } from "../contracts/chat";
+import type {
+  AgentFirewallDecision,
+  AgentFirewallMode,
+  BenchmarkSnapshot,
+  PerformanceMetric,
+  PowerRunPolicy,
+  ThreatGraphEdge,
+  ThreatGraphNode,
+} from "../contracts/frontier";
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
 import type { WorkspaceMemoryFileKind, WorkspaceTrustContract } from "../contracts/workspace";
@@ -100,9 +109,14 @@ const APP_SETTING_KEYS = new Set([
   "mobileCompanionAllowPush",
   "mobileCompanionSessionTtlHours",
   "mobileCompanionPrivateLanOnly",
+  "powerMode",
+  "agentFirewallMode",
   "supermemoryApiKey",
   "onboardingCompleted",
 ]);
+const frontierStartedAt = Date.now();
+const frontierPerformanceMetrics: PerformanceMetric[] = [];
+const frontierFirewallDecisions: AgentFirewallDecision[] = [];
 
 function assertPlainRecord(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -179,6 +193,188 @@ function validateLimit(value: unknown) {
     throw new Error("limit must be an integer between 1 and 500.");
   }
   return limit;
+}
+
+function recordPerformanceMetric(metric: Omit<PerformanceMetric, "id" | "recordedAt" | "status">) {
+  const status =
+    typeof metric.budget === "number" && metric.value > metric.budget * 1.25
+      ? "fail"
+      : typeof metric.budget === "number" && metric.value > metric.budget
+        ? "warn"
+        : "pass";
+  const recorded: PerformanceMetric = {
+    ...metric,
+    id: `metric-${Date.now()}-${frontierPerformanceMetrics.length}`,
+    status,
+    recordedAt: new Date().toISOString(),
+  };
+  frontierPerformanceMetrics.push(recorded);
+  if (frontierPerformanceMetrics.length > 200) {
+    frontierPerformanceMetrics.splice(0, frontierPerformanceMetrics.length - 200);
+  }
+  return recorded;
+}
+
+async function resolvePowerRunPolicy(): Promise<PowerRunPolicy> {
+  const settings = await tursoService.getAppSettings();
+  if (settings.powerMode === "max") {
+    return {
+      mode: "max",
+      keepAwake: true,
+      blockerType: "prevent-app-suspension",
+      reason: "Maximum throughput mode keeps long validations from app suspension.",
+    };
+  }
+  if (settings.powerMode === "balanced") {
+    return {
+      mode: "balanced",
+      keepAwake: false,
+      blockerType: "none",
+      reason: "Balanced mode avoids power blockers until an interactive run explicitly asks.",
+    };
+  }
+  return {
+    mode: "efficient",
+    keepAwake: false,
+    blockerType: "none",
+    reason: "Efficient mode keeps power blockers off by default.",
+  };
+}
+
+function classifyAgentCommand(command: string, mode: AgentFirewallMode): AgentFirewallDecision {
+  const reasons: string[] = [];
+  if (/\b(curl|wget|irm|iwr|Invoke-WebRequest|Invoke-RestMethod)\b/i.test(command)) {
+    reasons.push("Network fetch command can pull unseen runtime payloads.");
+  }
+  if (/\b(bash|sh|zsh|powershell|cmd\.exe|python|node|ruby|perl)\b/i.test(command) && /https?:\/\//i.test(command)) {
+    reasons.push("Remote script execution pattern.");
+  }
+  if (/\b(nslookup|dig|Resolve-DnsName)\b/i.test(command)) {
+    reasons.push("DNS lookup can hide payload or command configuration.");
+  }
+  if (/\b(rm\s+-rf|del\s+\/[sq]|Remove-Item\b.*-Recurse|format\s+[a-z]:)\b/i.test(command)) {
+    reasons.push("Destructive filesystem command.");
+  }
+  if (/\b(npm|pnpm|yarn|bun|pip|pipx|cargo|gem|go)\b/i.test(command) && /\b(install|add|i)\b/i.test(command)) {
+    reasons.push("Package installation can trigger lifecycle scripts.");
+  }
+  if (/\b(AWS_|GITHUB_TOKEN|RAINY|OPENAI|ANTHROPIC|\.env|ssh|keychain)\b/i.test(command)) {
+    reasons.push("Command references credentials or secret-bearing material.");
+  }
+
+  const risk: AgentFirewallDecision["risk"] =
+    reasons.some((reason) => /Destructive|Remote script/.test(reason))
+      ? "critical"
+      : reasons.length > 1
+        ? "high"
+        : reasons.length === 1
+          ? "medium"
+          : "low";
+  const decision: AgentFirewallDecision["decision"] =
+    mode === "audit-only" || risk === "low"
+      ? "allow"
+      : mode === "strict" && (risk === "high" || risk === "critical")
+        ? "block"
+        : "require-approval";
+
+  return {
+    id: `firewall-${Date.now()}-${frontierFirewallDecisions.length}`,
+    command,
+    decision,
+    mode,
+    risk,
+    reasons: reasons.length ? reasons : ["No high-risk command pattern detected."],
+    recordedAt: new Date().toISOString(),
+  };
+}
+
+async function buildBenchmarkSnapshot(): Promise<BenchmarkSnapshot> {
+  const memory = process.getProcessMemoryInfo
+    ? await process.getProcessMemoryInfo()
+    : null;
+  recordPerformanceMetric({
+    kind: "startup",
+    name: "main_process_uptime",
+    value: Date.now() - frontierStartedAt,
+    unit: "ms",
+  });
+  if (memory) {
+    const memoryBytes =
+      "privateBytes" in memory && typeof memory.privateBytes === "number"
+        ? memory.privateBytes
+        : memory.private * 1024;
+    recordPerformanceMetric({
+      kind: "memory",
+      name: "main_process_private_memory",
+      value: memoryBytes,
+      unit: "bytes",
+      budget: 512 * 1024 * 1024,
+    });
+  }
+  return {
+    generatedAt: new Date().toISOString(),
+    metrics: frontierPerformanceMetrics.slice(-50),
+    powerPolicy: await resolvePowerRunPolicy(),
+  };
+}
+
+function sourceRoleForPath(file: string): ThreatGraphNode["sourceRole"] {
+  const lower = file.toLowerCase();
+  if (/\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(__tests__|test|tests)\//.test(lower)) return "test";
+  if (/(^|\/)(docs?|readme|examples?|fixtures?)\//.test(lower) || /\.(md|mdx|rst)$/.test(lower)) return "docs";
+  if (/(^|\/)(dist|out|coverage|generated)\//.test(lower)) return "generated";
+  return "active";
+}
+
+async function buildThreatGraphSnapshot() {
+  const workspace = await resolveActiveWorkspaceForRepoGraph();
+  const [entrypoints, ipcSurface, envUsage, dependencySurface] = await Promise.all([
+    repoGraphService.getEntrypoints(workspace),
+    repoGraphService.getIpcSurface(workspace),
+    repoGraphService.getEnvUsage(workspace),
+    repoGraphService.getDependencySurface(workspace),
+  ]);
+  const nodes: ThreatGraphNode[] = [
+    { id: "workspace", kind: "workspace", label: workspace.name, sourceRole: "active", confidence: 1 },
+  ];
+  const edges: ThreatGraphEdge[] = [];
+  const addNode = (node: ThreatGraphNode) => {
+    if (!nodes.some((existing) => existing.id === node.id)) nodes.push(node);
+  };
+  const addEdge = (edge: ThreatGraphEdge) => {
+    if (!edges.some((existing) => existing.id === edge.id)) edges.push(edge);
+  };
+
+  for (const item of entrypoints.slice(0, 80) as Array<{ file?: string; path?: string; kind?: string }>) {
+    const file = String(item.file ?? item.path ?? "");
+    if (!file) continue;
+    const id = `entrypoint:${file}`;
+    addNode({ id, kind: "entrypoint", label: file, sourceRole: sourceRoleForPath(file), confidence: 0.8 });
+    addEdge({ id: `workspace->${id}`, from: "workspace", to: id, kind: "exposes", confidence: 0.7 });
+  }
+  for (const item of ipcSurface.slice(0, 80) as Array<{ channel?: string; file?: string }>) {
+    const channel = String(item.channel ?? "");
+    if (!channel) continue;
+    const id = `ipc:${channel}`;
+    addNode({ id, kind: "ipc", label: channel, sourceRole: sourceRoleForPath(String(item.file ?? "")), confidence: 0.85 });
+    addEdge({ id: `workspace->${id}`, from: "workspace", to: id, kind: "invokes", confidence: 0.8 });
+  }
+  for (const item of envUsage.slice(0, 80) as Array<{ variable?: string; name?: string; file?: string }>) {
+    const variable = String(item.variable ?? item.name ?? "");
+    if (!variable) continue;
+    const id = `env:${variable}`;
+    addNode({ id, kind: "env", label: variable, sourceRole: sourceRoleForPath(String(item.file ?? "")), confidence: 0.75 });
+    addEdge({ id: `workspace->${id}`, from: "workspace", to: id, kind: "reads", confidence: 0.7 });
+  }
+  for (const item of dependencySurface.slice(0, 80) as Array<{ name?: string; packageName?: string }>) {
+    const dependency = String(item.name ?? item.packageName ?? "");
+    if (!dependency) continue;
+    const id = `dependency:${dependency}`;
+    addNode({ id, kind: "dependency", label: dependency, sourceRole: "active", confidence: 0.65 });
+    addEdge({ id: `workspace->${id}`, from: "workspace", to: id, kind: "depends-on", confidence: 0.65 });
+  }
+
+  return { generatedAt: new Date().toISOString(), nodes, edges };
 }
 
 function validateWorkspaceMemoryKind(kind: unknown): WorkspaceMemoryFileKind {
@@ -728,6 +924,46 @@ export function registerIpcHandlers() {
   ipcMain.handle("repo:search", async (_event, query: string, limit?: number) =>
     searchInFiles(requireBoundedString(query, "query", 2_000), validateLimit(limit)),
   );
+  ipcMain.handle("repo:get-threat-graph", async () => {
+    const startedAt = Date.now();
+    const graph = await buildThreatGraphSnapshot();
+    recordPerformanceMetric({
+      kind: "run",
+      name: "threat_graph_build",
+      value: Date.now() - startedAt,
+      unit: "ms",
+      budget: 2_000,
+    });
+    return graph;
+  });
+  ipcMain.handle("perf:get-snapshot", async () => buildBenchmarkSnapshot());
+  ipcMain.handle("perf:run-benchmark", async () => {
+    const startedAt = Date.now();
+    await buildThreatGraphSnapshot();
+    recordPerformanceMetric({
+      kind: "benchmark",
+      name: "warm_threat_graph",
+      value: Date.now() - startedAt,
+      unit: "ms",
+      budget: 2_000,
+    });
+    return buildBenchmarkSnapshot();
+  });
+  ipcMain.handle("agent-firewall:list-decisions", async () =>
+    frontierFirewallDecisions.slice(-100),
+  );
+  ipcMain.handle("agent-firewall:evaluate-command", async (_event, command: string) => {
+    const settings = await tursoService.getAppSettings();
+    const decision = classifyAgentCommand(
+      requireBoundedString(command, "command", 20_000),
+      settings.agentFirewallMode,
+    );
+    frontierFirewallDecisions.push(decision);
+    if (frontierFirewallDecisions.length > 200) {
+      frontierFirewallDecisions.splice(0, frontierFirewallDecisions.length - 200);
+    }
+    return decision;
+  });
   ipcMain.handle(
     "repo:get-agent-capability-profiles",
     async (_event, workspaceId?: string) =>

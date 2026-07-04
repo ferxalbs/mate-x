@@ -4,6 +4,8 @@ import "./electron/preload/index";
 import type {
   GitApi,
   GitHubIntegrationApi,
+  AgentFirewallApi,
+  PerformanceApi,
   PolicyApi,
   PrivacyApi,
   RepoInspectorApi,
@@ -72,6 +74,7 @@ const repoApi: RepoInspectorApi = {
   listFiles: (limit) => ipcRenderer.invoke("repo:list-files", limit),
   searchInFiles: (query, limit) =>
     ipcRenderer.invoke("repo:search", query, limit),
+  getThreatGraph: () => ipcRenderer.invoke("repo:get-threat-graph"),
   getAgentCapabilityProfiles: (workspaceId) =>
     ipcRenderer.invoke("repo:get-agent-capability-profiles", workspaceId),
   getAgentRoutingRecommendation: (task, workspaceId) =>
@@ -134,6 +137,17 @@ const repoApi: RepoInspectorApi = {
       return () => ipcRenderer.removeListener("repo-graph:embedding-progress", handler);
     },
   },
+};
+
+const performanceApi: PerformanceApi = {
+  getSnapshot: () => ipcRenderer.invoke("perf:get-snapshot"),
+  runBenchmark: () => ipcRenderer.invoke("perf:run-benchmark"),
+};
+
+const agentFirewallApi: AgentFirewallApi = {
+  listDecisions: () => ipcRenderer.invoke("agent-firewall:list-decisions"),
+  evaluateCommand: (command) =>
+    ipcRenderer.invoke("agent-firewall:evaluate-command", command),
 };
 
 const gitApi: GitApi = {
@@ -213,6 +227,8 @@ contextBridge.exposeInMainWorld("mate", {
   git: gitApi,
   settings: settingsApi,
   github: githubApi,
+  performance: performanceApi,
+  agentFirewall: agentFirewallApi,
   proof: undefined,
   policy: policyApi,
   privacy: privacyApi,
