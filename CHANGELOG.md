@@ -1,6 +1,15 @@
 # CHANGELOG
 
-## Unreleased - 2026.07.04 (1) [YC Frontier Foundations]
+## Unreleased - 2026.07.04 (2) [Mission Cockpit and Semantic Working Set]
+
+- Reworked the empty workspace start state into a mission cockpit that makes the core MaTE X workflow immediate: open repo, map risk, run focused audit, verify, and preserve evidence.
+- Updated quick prompts around high-signal security work: audit repo, triage risk, verify fix, and export evidence, with explicit runtime-surface, proof, confidence, verification, and noise-exclusion expectations.
+- Added Working Set compiler v2 semantic context for runtime surfaces, trust boundaries, source roles, dependency signals, and excluded-noise policy so agent runs start with compact repo intelligence instead of generic chat context.
+- Added a pure semantic-context helper plus focused unit coverage for classifying active runtime code, docs/reference signals, tests, dependency signals, and trust boundaries.
+- Added sandbox report power-policy visibility documenting the idle-light default and explicit keep-awake behavior for long or interactive validations.
+- Verified targeted semantic-context test and touched-file ESLint clean. Full `~/.bun/bin/bun run lint` remains blocked by pre-existing `src/contracts/mobile-bridge.ts` empty-interface lint error; full `~/.bun/bin/bun run typecheck` remains blocked by pre-existing UI primitive type errors in `src/components/ui/*`.
+
+## Unreleased - 2026.07.04 (1) [Frontier Foundations]
 
 - Added shared frontier contracts for performance metrics, benchmark snapshots, power run policy, agent firewall decisions, threat graph nodes/edges, and Evidence Pack v2 metadata.
 - Added `powerMode` and `agentFirewallMode` app settings with defaults and Turso normalization so new settings persist safely without being dropped or overwritten.

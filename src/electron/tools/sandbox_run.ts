@@ -352,6 +352,7 @@ export function buildSandboxReport(input: {
     `NODE_ENV: ${input.nodeEnv}`,
     `Keep awake: ${input.keepAwake}`,
     `Power save blocker: ${typeof input.powerBlockerId === "number" ? input.powerSaveBlockerType : "not_active"}`,
+    `Power policy: idle-light by default; keepAwake only activates for explicit long or interactive validation.`,
     typeof input.prepareDurationMs === "number"
       ? `Prepare duration ms: ${input.prepareDurationMs}`
       : undefined,

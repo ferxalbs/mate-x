@@ -6,6 +6,7 @@ import type { SearchMatch, WorkspaceMemoryBootstrapContext, WorkspaceSummary } f
 import type { WorkingSet, WorkingSetFile, WorkingSetScript } from "../contracts/working-set";
 import { createId } from "../lib/id";
 import { tursoService } from "./turso-service";
+import { buildSemanticContext } from "./working-set-semantic-context";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TOKEN_BUDGET = 1800;
@@ -125,6 +126,7 @@ export class WorkingSetCompiler {
         id: createId("working-set"),
         workspaceId: input.workspace.id,
         compiledAt,
+        compilerVersion: "v2",
         tokenBudget,
         tokenEstimate: 0,
         runMode: input.runMode,
@@ -133,6 +135,12 @@ export class WorkingSetCompiler {
         truncated: false,
       },
       objective: input.prompt,
+      semanticContext: buildSemanticContext({
+        prompt: input.prompt,
+        fileKeys,
+        gitState: input.gitState,
+        primaryFiles,
+      }),
       primaryTargetFiles: primaryFiles,
       directlyImportedFiles: sortRanked(imported).slice(0, 8),
       directlyImportingFiles: sortRanked(importing).slice(0, 8),
@@ -163,6 +171,8 @@ export function renderWorkingSetForPrompt(workingSet: WorkingSet): string {
   return [
     "Use this working set first. Do not inspect unrelated files unless evidence requires it.",
     `Budget: ${workingSet.metadata.tokenEstimate}/${workingSet.metadata.tokenBudget} tokens`,
+    `Working set compiler: ${workingSet.metadata.compilerVersion ?? "v1"}`,
+    renderSemanticContext(workingSet.semanticContext),
     renderFiles("Primary target files", workingSet.primaryTargetFiles),
     renderFiles("Directly imported files", workingSet.directlyImportedFiles),
     renderFiles("Directly importing files", workingSet.directlyImportingFiles),
@@ -298,6 +308,21 @@ function renderFiles(label: string, files: WorkingSetFile[]) {
     return `${label}: none`;
   }
   return `${label}:\n${files.map((file) => `- ${file.path} (${file.score}): ${file.reasons.join("; ")}`).join("\n")}`;
+}
+
+function renderSemanticContext(context: WorkingSet["semanticContext"]) {
+  if (!context) {
+    return "Semantic repo context: not available for this stored working set";
+  }
+
+  return [
+    "Semantic repo context:",
+    `- Runtime surfaces: ${context.runtimeSurfaces.join("; ")}`,
+    `- Trust boundaries: ${context.trustBoundaries.join("; ")}`,
+    `- Source roles: ${context.sourceRoles.join("; ")}`,
+    `- Dependency signals: ${context.dependencySignals.join("; ")}`,
+    `- Noise policy: ${context.excludedNoise.join(" ")}`,
+  ].join("\n");
 }
 
 function renderScripts(scripts: WorkingSetScript[]) {
