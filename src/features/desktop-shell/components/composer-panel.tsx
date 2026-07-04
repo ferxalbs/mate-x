@@ -239,8 +239,7 @@ export function ComposerPanel({
     : "Reasoning off";
   const isModelDisabled =
     isCatalogLoading || isModelSaving || catalog.length === 0;
-  const accessValue =
-    trustContract?.autonomy === "trusted-patch" ? "full" : "approval";
+  const accessValue = "approval";
   const trustAllowed = trustContract?.allowedActions.slice(0, 4).join(", ") || "pending";
   const trustBlocked = trustContract?.blockedActions.slice(0, 3).join(", ") || "none";
   const trustPaths = trustContract?.allowedPaths.slice(0, 3).join(", ") || "pending";

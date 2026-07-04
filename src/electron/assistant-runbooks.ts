@@ -10,7 +10,7 @@ const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   reasoningEnabled: true,
   reasoning: "high",
   mode: "build",
-  access: "full",
+  access: "approval",
   runbookId: "patch_test_verify",
 };
 
@@ -255,7 +255,7 @@ export function resolveAssistantRunOptions(
         ? options.mode
         : DEFAULT_ASSISTANT_OPTIONS.mode,
     access:
-      options?.access === "approval"
+      options?.access === "approval" || options?.access === "full"
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
     serviceTier: normalizeRainyServiceTier(options?.serviceTier),
