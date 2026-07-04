@@ -20,6 +20,7 @@ import {
   getRainyEmbeddingModelConfig,
   requestRainyEmbeddings,
 } from './rainy-service';
+import { getEmbeddingContent } from './repo-graph-embedding-privacy';
 import { tursoService } from './turso-service';
 
 type RepoGraphWorkspace = Pick<WorkspaceEntry, 'id' | 'name' | 'path'>;
@@ -623,12 +624,13 @@ function sanitizeEmbeddingIndexError(error: unknown) {
 
 function buildEmbeddingInput(node: RepoGraphNode, content: string | undefined, contextLength: number) {
   const purpose = typeof node.metadata?.purpose === 'string' ? node.metadata.purpose : '';
+  const sanitizedContent = getEmbeddingContent(node.key, content);
   const text = [
     `kind: ${node.kind}`,
     `path: ${node.key}`,
     `label: ${node.label}`,
     purpose ? `purpose: ${purpose}` : '',
-    content ? `content:\n${content}` : '',
+    sanitizedContent ? `content:\n${sanitizedContent}` : '',
   ].filter(Boolean).join('\n');
 
   return text.slice(0, contextLength);
