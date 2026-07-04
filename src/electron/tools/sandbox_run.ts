@@ -12,7 +12,6 @@ import { buildToolProcessEnv, killProcessTree, parseDirectCommand } from "./proc
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
-const LONG_RUNNING_TIMEOUT_SECONDS = 60;
 const DEFAULT_EXECUTION_MODE = "isolated-copy";
 const MAX_ISOLATED_COPY_BYTES = 500 * 1024 * 1024;
 const MAX_ISOLATED_COPY_FILES = 50_000;
@@ -201,10 +200,8 @@ function appendOutput(current: string, next: string, maxOutputChars: number) {
   return `${current}${next}`.slice(0, maxOutputChars);
 }
 
-function resolveKeepAwake(value: unknown, timeoutSeconds: number) {
-  return typeof value === "boolean"
-    ? value
-    : timeoutSeconds >= LONG_RUNNING_TIMEOUT_SECONDS;
+function resolveKeepAwake(value: unknown, _timeoutSeconds: number) {
+  return typeof value === "boolean" ? value : false;
 }
 
 function resolvePowerSaveBlockerType(value: unknown): PowerSaveBlockerType {
@@ -529,7 +526,7 @@ export const sandboxRunnerTool: Tool = {
       keepAwake: {
         type: "boolean",
         description:
-          "Use Electron powerSaveBlocker during the run. Defaults to true for timeoutSeconds >= 60 and false for shorter runs.",
+          "Use Electron powerSaveBlocker during the run. Defaults to false for power efficiency. Set true only for interactive/browser runs or long validations that must not be suspended.",
       },
       powerSaveBlockerType: {
         type: "string",
