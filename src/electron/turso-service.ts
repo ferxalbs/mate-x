@@ -1585,6 +1585,14 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.mobileCompanionPrivateLanOnly === 'boolean'
         ? input.mobileCompanionPrivateLanOnly
         : DEFAULT_APP_SETTINGS.mobileCompanionPrivateLanOnly,
+    powerMode:
+      input.powerMode === 'efficient' || input.powerMode === 'balanced' || input.powerMode === 'max'
+        ? input.powerMode
+        : DEFAULT_APP_SETTINGS.powerMode,
+    agentFirewallMode:
+      input.agentFirewallMode === 'strict' || input.agentFirewallMode === 'balanced' || input.agentFirewallMode === 'audit-only'
+        ? input.agentFirewallMode
+        : DEFAULT_APP_SETTINGS.agentFirewallMode,
     supermemoryApiKey:
       typeof input.supermemoryApiKey === 'string'
         ? input.supermemoryApiKey

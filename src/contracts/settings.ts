@@ -5,6 +5,8 @@ export type AgentTraceVersion = 'v1' | 'v2';
 export type PrivacyMode = 'off' | 'warn' | 'review' | 'strict';
 export type PrivacyPlaceholderStyle = 'simple' | 'typed' | 'stable';
 export type AgentIntegrationId = 'codex' | 'antigravity' | 'cursor';
+export type PowerMode = 'efficient' | 'balanced' | 'max';
+export type AgentFirewallMode = 'strict' | 'balanced' | 'audit-only';
 
 export interface AppSettings {
   appearance: AppearancePreference;
@@ -39,6 +41,8 @@ export interface AppSettings {
   mobileCompanionAllowPush: boolean;
   mobileCompanionSessionTtlHours: number;
   mobileCompanionPrivateLanOnly: boolean;
+  powerMode: PowerMode;
+  agentFirewallMode: AgentFirewallMode;
   supermemoryApiKey?: string;
   onboardingCompleted: boolean;
 }
@@ -76,6 +80,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   mobileCompanionAllowPush: false,
   mobileCompanionSessionTtlHours: 24,
   mobileCompanionPrivateLanOnly: true,
+  powerMode: 'efficient',
+  agentFirewallMode: 'strict',
   supermemoryApiKey: '',
   onboardingCompleted: false,
 };

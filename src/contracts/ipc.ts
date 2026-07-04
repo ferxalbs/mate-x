@@ -6,6 +6,11 @@ import type {
 } from "./chat";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
 import type {
+  AgentFirewallDecision,
+  BenchmarkSnapshot,
+  ThreatGraphSnapshot,
+} from "./frontier";
+import type {
   GitHubChangedFile,
   GitHubCheckSummary,
   GitHubIntegrationResult,
@@ -74,6 +79,7 @@ export interface RepoInspectorApi {
   ) => Promise<void>;
   listFiles: (limit?: number) => Promise<string[]>;
   searchInFiles: (query: string, limit?: number) => Promise<SearchMatch[]>;
+  getThreatGraph: () => Promise<ThreatGraphSnapshot>;
   getAgentCapabilityProfiles: (
     workspaceId?: string,
   ) => Promise<AgentCapabilityProfile[]>;
@@ -104,6 +110,16 @@ export interface RepoInspectorApi {
     target: "folder" | "vscode" | "terminal",
   ) => Promise<void>;
   graph: RepoGraphApi;
+}
+
+export interface PerformanceApi {
+  getSnapshot: () => Promise<BenchmarkSnapshot>;
+  runBenchmark: () => Promise<BenchmarkSnapshot>;
+}
+
+export interface AgentFirewallApi {
+  listDecisions: () => Promise<AgentFirewallDecision[]>;
+  evaluateCommand: (command: string) => Promise<AgentFirewallDecision>;
 }
 
 export interface ComplianceExportResult {
