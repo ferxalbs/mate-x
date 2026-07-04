@@ -2,7 +2,7 @@
   "name": "mate-x",
   "productName": "MaTE X",
   "version": "0.1.0",
-  "description": "AI-powered desktop shell for developers",
+  "description": "Local-first secure development agent for repository risk mapping, fix validation, and evidence preservation",
   "main": ".vite/build/main.js",
   "repository": {
     "type": "git",
@@ -19,10 +19,10 @@
   },
   "keywords": [],
   "author": {
-    "name": "ferxalbs",
-    "email": "enosislabsoff@gmail.com"
+    "name": "Enosis Labs, Inc.",
+    "email": "legal@enosislabs.com"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",
