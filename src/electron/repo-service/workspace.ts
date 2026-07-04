@@ -174,12 +174,12 @@ async function buildWorkspaceSnapshot(
     return buildEmptyWorkspaceSnapshot();
   }
   const resolvedWorkspaceId =
-    workspaces.some((workspace) => workspace.id === activeWorkspaceId)
+    activeWorkspaceId && workspaces.some((workspace) => workspace.id === activeWorkspaceId)
       ? activeWorkspaceId
-      : workspaces[0].id;
+      : null;
 
   if (!resolvedWorkspaceId) {
-    throw new Error("No workspace is available.");
+    throw new Error('No active workspace. Add or select a repository to analyze.');
   }
 
   const workspace = await resolveWorkspace(resolvedWorkspaceId, workspaces);

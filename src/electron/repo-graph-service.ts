@@ -849,10 +849,12 @@ async function loadActiveWorkspace() {
   // an active workspace for evidence, runs, and graph ops.
   const workspaces = await tursoService.getWorkspaces();
   const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
-  const workspace =
-    workspaces.find((entry) => entry.id === activeWorkspaceId) ?? workspaces[0];
+  if (!activeWorkspaceId) {
+    throw new Error('No active workspace. Add or select a repository to analyze.');
+  }
+  const workspace = workspaces.find((entry) => entry.id === activeWorkspaceId);
   if (!workspace) {
-    throw new Error('No active workspace available.');
+    throw new Error('Active workspace not found (it may have been removed).');
   }
   return workspace;
 }

@@ -656,16 +656,7 @@ function vscodeFileUri(value: string) {
 }
 
 async function resolveActiveWorkspacePath() {
-  const workspaces = await tursoService.getWorkspaces();
-  const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
-  const activeWorkspace =
-    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
-    workspaces[0];
-
-  if (!activeWorkspace) {
-    throw new Error("No active workspace available.");
-  }
-
+  const activeWorkspace = await resolveActiveWorkspace();
   return activeWorkspace.path;
 }
 
