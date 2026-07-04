@@ -483,6 +483,13 @@ function validateAssistantOptions(options: unknown): AssistantRunOptions | undef
       optionalBoundedString(item.text, `attachments[${index}].text`, MAX_IPC_TEXT_LENGTH);
     }
   }
+  if (
+    record.access !== undefined &&
+    record.access !== "approval" &&
+    record.access !== "full"
+  ) {
+    throw new Error('Assistant options access must be "approval" or "full".');
+  }
 
   return record as unknown as AssistantRunOptions;
 }
