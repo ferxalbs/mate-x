@@ -24,6 +24,7 @@ import { policyService } from "./policy-service";
 import { getWorkspaceEntries, getWorkspaceSummary, runAssistant } from "./repo-service";
 import { repoGraphService, resolveActiveWorkspaceForRepoGraph } from "./repo-graph-service";
 import { GitService } from "./git-service";
+import { isPrivateLanAddress } from "./mobile-bridge-network";
 import { tursoService } from "./turso-service";
 
 const MAX_MESSAGE_BYTES = 64_000;
@@ -65,7 +66,7 @@ class MobileBridgeService {
       throw new Error("Mobile companion is disabled.");
     }
 
-    await this.ensureServer();
+    await this.ensureServer(settings.mobileCompanionPrivateLanOnly);
     const pairingSecret = randomBytes(24).toString("base64url");
     const payload: MobileBridgePairingPayload = {
       version: MOBILE_BRIDGE_PROTOCOL_VERSION,
@@ -170,9 +171,9 @@ class MobileBridgeService {
     return session;
   }
 
-  private async ensureServer() {
+  private async ensureServer(privateLanOnly: boolean) {
     if (this.server) return;
-    this.host = this.resolveLanHost();
+    this.host = this.resolveLanHost(privateLanOnly);
     this.server = createServer((req, res) => {
       res.writeHead(404);
       res.end();
@@ -316,8 +317,10 @@ class MobileBridgeService {
         return new GitService(workspace.path).getDiff();
       }
       case "assistant:run":
+        if (!session.permissions.canRunAssistant) throw new Error("Assistant run not allowed.");
         return this.runAssistantFromMobile(envelope.payload, client, envelope.id);
       case "policy:list-stops":
+        if (!session.permissions.canResolvePolicyStops) throw new Error("Policy access not allowed.");
         return policyService.listStops(typeof envelope.payload === "string" ? envelope.payload : undefined);
       case "policy:resolve-stop":
         if (!session.permissions.canResolvePolicyStops) throw new Error("Policy resolution not allowed.");
@@ -503,10 +506,14 @@ class MobileBridgeService {
     }
   }
 
-  private resolveLanHost() {
+  private resolveLanHost(privateLanOnly: boolean) {
     for (const entries of Object.values(networkInterfaces())) {
       for (const entry of entries ?? []) {
-        if (entry.family === "IPv4" && !entry.internal) return entry.address;
+        if (
+          entry.family === "IPv4" &&
+          !entry.internal &&
+          (!privateLanOnly || isPrivateLanAddress(entry.address))
+        ) return entry.address;
       }
     }
     return "127.0.0.1";
