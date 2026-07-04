@@ -5,7 +5,7 @@ import type { GitCommit, GitDiff, GitStatus } from "../contracts/git";
 export class GitService {
   private git: SimpleGit;
 
-  constructor(workingDir: string = process.cwd()) {
+  constructor(workingDir: string) {
     this.git = simpleGit(workingDir);
   }
 
@@ -92,5 +92,3 @@ export class GitService {
     return status.current || "unknown";
   }
 }
-
-export const gitService = new GitService();
