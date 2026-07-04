@@ -59,6 +59,12 @@
       "skillPath": "skills/compress/SKILL.md",
       "computedHash": "c91bdf427a68b686ee9d6f63766c72d164b16915434736edfedf13e24dae0e8c"
     },
+    "gabrielobholz-corner-smoothing": {
+      "source": "gabrielobholz/corner-smoothing-skill",
+      "sourceType": "github",
+      "skillPath": "skills/gabrielobholz-corner-smoothing/SKILL.md",
+      "computedHash": "26eec93a22bc7bbdb902224b8ddd88e0ed74d0a557f2b7e75c024e4432b0a18c"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
