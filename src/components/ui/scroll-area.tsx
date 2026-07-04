@@ -3,11 +3,20 @@ import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"
 
+type ScrollAreaProps = ScrollAreaPrimitive.Root.Props & {
+  hideScrollbars?: boolean
+  scrollbarGutter?: boolean
+  scrollFade?: boolean
+}
+
 function ScrollArea({
   className,
   children,
+  hideScrollbars = false,
+  scrollbarGutter = false,
+  scrollFade = false,
   ...props
-}: ScrollAreaPrimitive.Root.Props) {
+}: ScrollAreaProps) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -16,7 +25,13 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        className={cn(
+          "size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1",
+          hideScrollbars && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          scrollbarGutter && "[scrollbar-gutter:stable]",
+          scrollFade &&
+            "[mask-image:linear-gradient(to_bottom,transparent_0,black_16px,black_calc(100%-16px),transparent_100%)]"
+        )}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

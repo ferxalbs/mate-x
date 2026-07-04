@@ -111,7 +111,7 @@ export interface MobileGitReadOnlySummary {
   diff?: GitDiff;
 }
 
-export interface MobilePolicyApprovalRequest extends ResolvePolicyStopRequest {}
+export type MobilePolicyApprovalRequest = ResolvePolicyStopRequest;
 export type MobilePolicyStop = PolicyStop;
 
 export interface MobilePairingApproval {

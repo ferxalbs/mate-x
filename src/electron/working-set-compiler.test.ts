@@ -24,6 +24,7 @@ describe("buildSemanticContext", () => {
       ],
     });
 
+    assert.ok(semanticContext, "semantic context should be built");
     assert.ok(semanticContext.runtimeSurfaces.includes("HTTP/API routes"));
     assert.ok(semanticContext.trustBoundaries.includes("renderer to main process"));
     assert.ok(semanticContext.sourceRoles.includes("docs/reference only"));
