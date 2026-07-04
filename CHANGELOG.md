@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.04 (3) [Trust Stabilization]
+
+- Restored green quality gates by fixing the mobile bridge empty-interface lint error, adding typed `ScrollArea` behavior props, narrowing the sidebar trigger prop surface, and asserting semantic context before test property reads.
+- Removed unsafe active-workspace fallbacks from workspace snapshots, RepoGraph loading, IPC active workspace path resolution, and Git service construction so repository operations fail closed instead of silently targeting `workspaces[0]` or the launch directory.
+- Hardened RepoGraph embedding privacy by sending metadata-only content for `.env` and sensitive path names, locally redacting secret-bearing lines and PEM blocks before any embedding request, and adding focused coverage for env omission and token redaction.
+- Made assistant autonomy safer by defaulting run options to approval-required access, preserving explicit trusted `full` access only when supplied, validating IPC access values, and preventing renderer runs from silently escalating based on trust contract state.
+- Tightened Mobile Companion safety by enforcing `canRunAssistant` and `canResolvePolicyStops` in command routing, keeping mobile assistant runs approval-only, preserving fail-closed Git write/push behavior, and enforcing private-LAN host selection when enabled.
+- Verified with `~/.bun/bin/bun run lint` and `~/.bun/bin/bun run typecheck` (both clean), plus focused tests for RepoGraph embedding privacy, assistant access defaults, and Mobile Companion private-LAN detection.
+
 ## Unreleased - 2026.07.04 (2) [Mission Cockpit and Semantic Working Set]
 
 - Reworked the empty workspace start state into a mission cockpit that makes the core MaTE X workflow immediate: open repo, map risk, run focused audit, verify, and preserve evidence.
