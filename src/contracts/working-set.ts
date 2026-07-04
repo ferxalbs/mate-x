@@ -30,6 +30,7 @@ export interface WorkingSetMetadata {
   id: string;
   workspaceId: string;
   compiledAt: string;
+  compilerVersion?: "v1" | "v2";
   tokenBudget: number;
   tokenEstimate: number;
   runMode: string;
@@ -41,6 +42,13 @@ export interface WorkingSetMetadata {
 export interface WorkingSet {
   metadata: WorkingSetMetadata;
   objective: string;
+  semanticContext?: {
+    runtimeSurfaces: string[];
+    trustBoundaries: string[];
+    sourceRoles: string[];
+    dependencySignals: string[];
+    excludedNoise: string[];
+  };
   primaryTargetFiles: WorkingSetFile[];
   directlyImportedFiles: WorkingSetFile[];
   directlyImportingFiles: WorkingSetFile[];

@@ -1,8 +1,12 @@
 import {
+  ActivityIcon,
   BrainIcon,
+  CheckCircle2Icon,
   ExternalLinkIcon,
   FileTextIcon,
+  GaugeIcon,
   ShieldCheckIcon,
+  ZapIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -25,28 +29,41 @@ interface EmptyChatStateProps {
 const quickPrompts = [
   {
     icon: <ShieldCheckIcon className="size-3.5 text-emerald-500" />,
-    label: "Risk Review",
+    label: "Audit Repo",
     prompt:
-      "Review the current workspace for high-impact security risk. Prioritize authentication, trust boundaries, data validation, and secret exposure.",
+      "Open with an instant repo orientation, then run a focused high-impact security audit. Prioritize runtime surfaces, trust boundaries, data validation, auth, secrets, and dependency risk. Separate active findings from tests, docs, examples, fixtures, and generated files.",
   },
   {
     icon: <BrainIcon className="size-3.5 text-purple-500" />,
-    label: "Vulnerability Triage",
+    label: "Triage Risk",
     prompt:
-      "Triage vulnerability candidates in recent changes. Separate active runtime findings from tests, docs, examples, and reference signals.",
+      "Triage vulnerability candidates in recent changes. For each candidate, show exploit path, affected runtime surface, confidence, proof, fix plan, verification command, and excluded noise.",
   },
   {
-    icon: <FileTextIcon className="size-3.5 text-blue-500" />,
-    label: "Fix Validation",
+    icon: <CheckCircle2Icon className="size-3.5 text-blue-500" />,
+    label: "Verify Fix",
     prompt:
-      "Validate recent security fixes with available tests, traces, and evidence. Identify any remaining exploitability conditions or missing mitigations.",
+      "Validate recent security fixes with available tests, traces, and evidence. Identify remaining exploitability conditions, missing mitigations, and the exact verification proof.",
   },
   {
-    icon: <ExternalLinkIcon className="size-3.5 text-amber-500" />,
-    label: "Evidence Report",
+    icon: <FileTextIcon className="size-3.5 text-amber-500" />,
+    label: "Export Evidence",
     prompt:
       "Prepare an evidence-ready security report for this workspace. Include prioritized risks, remediation status, and audit-ready local evidence.",
   },
+];
+
+const cockpitSteps = [
+  { icon: <ExternalLinkIcon className="size-4" />, label: "Open repo", detail: "local trust contract" },
+  { icon: <ActivityIcon className="size-4" />, label: "Risk map", detail: "runtime surfaces" },
+  { icon: <ShieldCheckIcon className="size-4" />, label: "Focused audit", detail: "high-signal only" },
+  { icon: <CheckCircle2Icon className="size-4" />, label: "Verify", detail: "proof + evidence" },
+];
+
+const cockpitMetrics = [
+  { icon: <ZapIcon className="size-3.5" />, label: "First signal", value: "instant" },
+  { icon: <GaugeIcon className="size-3.5" />, label: "Power mode", value: "idle-light" },
+  { icon: <FileTextIcon className="size-3.5" />, label: "Evidence", value: "live" },
 ];
 
 export function EmptyChatState({
@@ -60,7 +77,9 @@ export function EmptyChatState({
     ? "Something needs attention"
     : !isBootstrapped
       ? "Loading workspace"
-      : `What should we secure in ${workspace?.name ?? "mate-x"}?`;
+      : workspace
+        ? `${workspace.name} mission cockpit`
+        : "Open a repo. See risk first.";
   const statusText =
     lastError ??
     "MaTE X is restoring your previous session and checking local workspace state.";
@@ -82,11 +101,35 @@ export function EmptyChatState({
 
   return (
     <div className="grid min-h-full grid-rows-[1fr_auto_1fr] px-4 py-10">
-      <div className="flex items-end justify-center pb-7">
+      <div className="flex items-end justify-center pb-6">
         <div className="w-full max-w-[820px]">
+          <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {cockpitSteps.map((step) => (
+              <div
+                key={step.label}
+                className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)]/70 px-3 py-3 text-left backdrop-blur-xl"
+              >
+                <div className="mb-2 text-foreground/70">{step.icon}</div>
+                <div className="text-[12px] font-medium text-foreground/90">{step.label}</div>
+                <div className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{step.detail}</div>
+              </div>
+            ))}
+          </div>
           <h1 className="text-center text-2xl font-medium text-foreground/90 sm:text-[32px]">
             {title}
           </h1>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {cockpitMetrics.map((metric) => (
+              <div
+                key={metric.label}
+                className="flex h-8 items-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)]/65 px-3 text-[11px] text-muted-foreground/80 backdrop-blur-xl"
+              >
+                <span className="text-foreground/65">{metric.icon}</span>
+                <span>{metric.label}</span>
+                <span className="font-medium text-foreground/85">{metric.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <div className="mx-auto w-full max-w-[820px]">{composer}</div>
