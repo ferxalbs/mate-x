@@ -367,6 +367,11 @@ export function RepoHealthSection({
   nextAction?: string;
 }) {
   const verdict = getRepoHealthVerdict(signals, hasProfile);
+  const action = nextAction ?? (hasWorkspace
+    ? hasProfile
+      ? "Review weak signals before relying on this repo profile."
+      : "Run Scan to build a live health profile for this workspace."
+    : "Open a workspace to begin analysis.");
 
   return (
     <section className="space-y-3">
@@ -374,38 +379,27 @@ export function RepoHealthSection({
         <PanelTitle icon={ZapIcon} title="Repo Health" />
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
-      <Card
+      <div
         className={cn(
-          "border-border/70 shadow-none",
+          "rounded-2xl border border-border/70 px-3 py-2.5 shadow-none",
           toneSurfaceClassName(verdict.tone),
         )}
       >
-        <CardContent className="p-3">
-          <p className="text-[10px] tracking-wider font-medium uppercase text-muted-foreground/70">
-            {hasProfile ? "Live repo verdict" : "Repo context"}
-          </p>
-        <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
-        {!hasProfile ? (
-          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            {hasWorkspace
-              ? "Full health profile is unavailable, so this card uses the workspace summary and does not claim test, lint, or secret scan results."
-              : "Open or import a workspace to populate repo health."}
-          </p>
-        ) : null}
-        </CardContent>
-      </Card>
+        <p className="text-[10px] tracking-wider font-medium uppercase text-muted-foreground/70">
+          {hasProfile ? "Live repo verdict" : "Metadata only"}
+        </p>
+        <p className="mt-1 break-words text-[12px] font-semibold leading-5">
+          {verdict.detail}
+        </p>
+      </div>
       <dl className="grid grid-cols-2 gap-2 text-[11px]">
         {signals.map((signal) => (
           <HealthSignalCell signal={signal} key={signal.label} />
         ))}
       </dl>
-      {nextAction ? (
-        <Card className="border-border/70 shadow-none bg-transparent">
-          <CardContent className="px-2.5 py-2 text-[11px] break-words">
-            {nextAction}
-          </CardContent>
-        </Card>
-      ) : null}
+      <div className="rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] break-words text-muted-foreground">
+        {action}
+      </div>
     </section>
   );
 }

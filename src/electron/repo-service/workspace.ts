@@ -12,6 +12,7 @@ import { ripgrepPath } from "../rg-binary";
 import type { Conversation } from "../../contracts/chat";
 import type { SearchMatch, WorkspaceMemoryBootstrapContext, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary, WorkspaceTrustContract } from "../../contracts/workspace";
 import { MATE_AGENT_PROMPT_STOP_WORDS } from "../../config/mate-agent";
+import { buildWorkspaceHealthProfile } from "./workspace-health";
 
 const execFileAsync = promisify(execFile);
 
@@ -281,6 +282,12 @@ async function buildWorkspaceSummary(
   const stack = deriveStack(files, packageJson);
   const dirtyCount = status?.files.length ?? 0;
   const apiKey = await tursoService.getApiKey();
+  const health = buildWorkspaceHealthProfile({
+    files,
+    packageJson,
+    stack,
+    status,
+  });
 
   return {
     id: workspace.id,
@@ -289,10 +296,11 @@ async function buildWorkspaceSummary(
     branch: status?.current || "not-a-repo",
     status: "ready",
     stack,
+    health,
     facts: [
       {
         label: "Package manager",
-        value: packageJson?.includes('"bun') ? "bun" : "unknown",
+        value: health.packageManager,
       },
       { label: "Tracked files", value: String(files.length) },
       {

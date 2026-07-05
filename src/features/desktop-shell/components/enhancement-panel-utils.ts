@@ -108,31 +108,20 @@ export function getRepoHealthSignals(
   workspace?: WorkspaceSummary | null,
 ): RepoHealthSignal[] {
   if (!health) {
-    const stackValue =
-      workspace && workspace.stack.length > 0
-        ? workspace.stack.join(", ")
-        : "Unavailable";
-
-    return [
-      {
-        label: "Stack",
-        value: stackValue,
-        tone: workspace?.stack.length ? "good" : "muted",
-      },
-      {
-        label: "Status",
-        value: workspace?.status ?? "No workspace",
-        tone: workspace?.status === "ready" ? "good" : "watch",
-      },
-      {
-        label: "Branch",
-        value: workspace?.branch ?? "Unavailable",
-        tone: workspace?.branch ? "good" : "muted",
-      },
-      { label: "Profile", value: "Not generated", tone: "watch" },
-      { label: "Tests", value: "Unavailable", tone: "muted" },
-      { label: "Secrets", value: "Not scanned", tone: "muted" },
-    ];
+    return workspace
+      ? [
+          {
+            label: "Status",
+            value: workspace.status,
+            tone: workspace.status === "ready" ? "good" : "watch",
+          },
+          {
+            label: "Branch",
+            value: workspace.branch,
+            tone: workspace.branch ? "good" : "muted",
+          },
+        ]
+      : [];
   }
 
   const stackValue = health.stack.length > 0 ? health.stack.join(", ") : "Unknown";
@@ -154,7 +143,7 @@ export function getRepoHealthSignals(
       tone: health.packageManager === "unknown" ? "warn" : "good",
     },
     {
-      label: "Test",
+      label: "Tests",
       value: health.testCommand,
       tone: hasTestCommand ? "good" : "warn",
     },
@@ -170,7 +159,7 @@ export function getRepoHealthSignals(
     },
     {
       label: "Secrets",
-      value: String(secretCount),
+      value: secretCount > 0 ? `${secretCount} risk signal${secretCount === 1 ? "" : "s"}` : "0 risk signals",
       tone: secretCount > 0 ? "bad" : "good",
     },
   ];
@@ -184,10 +173,10 @@ export function getRepoHealthVerdict(
     const hasWorkspace = signals.some((signal) => signal.tone !== "muted");
 
     return {
-      label: hasWorkspace ? "Basic" : "No repo",
+      label: hasWorkspace ? "Pending" : "No repo",
       detail: hasWorkspace
-        ? "Using real workspace summary; health profile has not been generated."
-        : "No active workspace health data is available.",
+        ? "Workspace metadata loaded. Run a scan to populate tests, lint, and secret signals."
+        : "Open or import a workspace to start repo health analysis.",
       tone: hasWorkspace ? ("watch" as SignalTone) : ("muted" as SignalTone),
     };
   }
