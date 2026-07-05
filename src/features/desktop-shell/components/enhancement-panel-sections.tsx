@@ -27,7 +27,18 @@ import { Card, CardContent } from "../../../components/ui/card";
 
 export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
 
-export function TrustGateCard({ state }: { state: TrustGateState }) {
+export function TrustGateCard({
+  onMakeTrustworthy,
+  state,
+}: {
+  onMakeTrustworthy?: () => void;
+  state: TrustGateState;
+}) {
+  const canMakeTrustworthy =
+    Boolean(onMakeTrustworthy) &&
+    state.status !== "trusted" &&
+    state.status !== "resolving";
+
   return (
     <Card
       className={cn(
@@ -50,17 +61,42 @@ export function TrustGateCard({ state }: { state: TrustGateState }) {
         <p className="mt-2 text-[11px] font-medium text-foreground">
           Don&apos;t merge vibes. Agent changes are not trusted until proven.
         </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <TonePill label={`Confidence: ${state.confidenceLabel}`} tone={state.tone} />
+          <TonePill label={`Validation: ${state.validationState}`} tone={state.validationState === "passed" ? "good" : "watch"} />
+          <TonePill label={`Proof: ${state.evidencePackState}`} tone={state.evidencePackState === "signed_strong" ? "good" : "watch"} />
+        </div>
         <ul className="mt-2 space-y-1.5 text-[10px] leading-4 text-muted-foreground">
-          {state.why.slice(0, 2).map((reason) => (
+          {state.reasons.slice(0, 2).map((reason) => (
             <li className="break-words" key={reason}>
               {reason}
             </li>
           ))}
         </ul>
+        {state.missingProof.length > 0 ? (
+          <p className="mt-2 break-words text-[10px] leading-4 text-muted-foreground">
+            Missing proof: {state.missingProof.slice(0, 3).join(", ")}
+          </p>
+        ) : null}
         <div className="mt-3 rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] text-muted-foreground">
           <span className="font-medium text-foreground">Next:</span>{" "}
-          {state.nextAction}
+          {state.suggestedNextAction}
         </div>
+        {canMakeTrustworthy ? (
+          <button
+            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)]"
+            onClick={onMakeTrustworthy}
+            type="button"
+          >
+            <ZapIcon className="size-3.5" />
+            Make it trustworthy
+          </button>
+        ) : null}
+        {state.touchedRiskSurfaces.length > 0 ? (
+          <p className="mt-2 break-all font-mono text-[10px] leading-4 text-muted-foreground">
+            Risk surface: {state.touchedRiskSurfaces.slice(0, 2).join(", ")}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
