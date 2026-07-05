@@ -117,7 +117,7 @@ export function ValidationSection({
     <section className="space-y-3">
       <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
       {isLoading ? <SkeletonStack /> : null}
-      <Card className="border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md font-mono text-[10px]">
+      <Card className="border-border/70 shadow-none bg-transparent font-mono text-[10px]">
         <CardContent className="p-3">
           <div className="mb-3 flex items-center gap-1.5 border-b border-border/70 pb-2 text-muted-foreground">
             <span className="size-2 rounded-full bg-border" />
@@ -255,7 +255,7 @@ export function EvidencePackSection({
         value={formatScoreBasis(scoreBreakdown)}
       />
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
-        <Card className="border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+        <Card className="border-border/70 shadow-none bg-transparent">
           <CardContent className="px-3 py-2 text-[10px] leading-4 text-muted-foreground">
             Local scan sees {fallbackFileCount} changed file
             {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
@@ -316,7 +316,7 @@ export function EvidencePackSection({
               : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
-      <Card className="border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+      <Card className="border-border/70 shadow-none bg-transparent">
         <CardContent className="p-2.5">
           <p className="text-[10px] tracking-wider uppercase text-muted-foreground/70">
             Compliance Actions
@@ -400,7 +400,7 @@ export function RepoHealthSection({
         ))}
       </dl>
       {nextAction ? (
-        <Card className="border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+        <Card className="border-border/70 shadow-none bg-transparent">
           <CardContent className="px-2.5 py-2 text-[11px] break-words">
             {nextAction}
           </CardContent>
@@ -429,7 +429,7 @@ function PanelTitle({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+    <Card className="border-border/70 shadow-none bg-transparent">
       <CardContent className="px-2 py-1.5">
         <dt className="text-muted-foreground/70 tracking-wider text-[10px] uppercase">{label}</dt>
         <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
@@ -483,7 +483,7 @@ function ImpactNode({
 
 function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
   return (
-    <Card className="border-border/50 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+    <Card className="border-border/50 shadow-none bg-transparent">
       <CardContent className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]" title={entry.reason}>
         <span className="shrink-0 text-muted-foreground tabular-nums">
           d{entry.distance}
@@ -504,7 +504,7 @@ function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
 
 function EmptyLine({ text }: { text: string }) {
   return (
-    <Card className="border-border/50 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+    <Card className="border-border/50 shadow-none bg-transparent">
       <CardContent className="px-2.5 py-1.5 text-[11px] text-muted-foreground">
         {text}
       </CardContent>
@@ -531,7 +531,7 @@ function EvidenceRow({
   value: string;
 }) {
   return (
-    <Card className="border-border/50 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+    <Card className="border-border/50 shadow-none bg-transparent">
       <CardContent className="flex items-center justify-between gap-3 px-3 py-2 text-[11px]">
         <span className="text-muted-foreground">{label}</span>
         <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
@@ -737,7 +737,7 @@ function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
   return (
     <Card
       className={cn(
-        "min-w-0 border-border/50 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md",
+        "min-w-0 border-border/50 shadow-none bg-transparent",
       )}
     >
       <CardContent className="px-2.5 py-2">
@@ -773,19 +773,19 @@ function TonePill({ label, tone }: { label: string; tone: SignalTone }) {
 
 function toneSurfaceClassName(tone: SignalTone) {
   if (tone === "bad") {
-    return "border-destructive/35 bg-destructive/[0.05] backdrop-blur-md";
+    return "border-destructive/35 bg-destructive/[0.05]";
   }
   if (tone === "warn") {
-    return "border-amber-500/35 bg-amber-500/[0.05] backdrop-blur-md";
+    return "border-amber-500/35 bg-amber-500/[0.05]";
   }
   if (tone === "watch") {
-    return "border-yellow-500/30 bg-yellow-500/[0.045] backdrop-blur-md";
+    return "border-yellow-500/30 bg-yellow-500/[0.045]";
   }
   if (tone === "good") {
-    return "border-emerald-500/30 bg-emerald-500/[0.045] backdrop-blur-md";
+    return "border-emerald-500/30 bg-emerald-500/[0.045]";
   }
 
-  return "border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] backdrop-blur-md";
+  return "border-[var(--panel-border)]/35 bg-transparent";
 }
 
 function toneTextClassName(tone: SignalTone) {
