@@ -6,6 +6,7 @@ import { useChatStore } from "../../../store/chat-store";
 import { ComposerDock } from "./composer-dock";
 import { EmptyChatState } from "./empty-chat-state";
 import { MessageStream } from "./message-stream";
+import { MessageScroller, MessageScrollerProvider } from "../../../components/ui/message-scroller";
 
 interface ChatWorkspaceProps {
   canUndoLastTurn: boolean;
@@ -14,14 +15,8 @@ interface ChatWorkspaceProps {
   isRunning: boolean;
   lastError: string | null;
   messages: ChatMessage[];
-  onScrollToBottom: () => void;
   onSelectPrompt: (prompt: string) => void;
   onUndoLastTurn: () => Promise<string | null>;
-  onVisibilityChange: (visible: boolean) => void;
-  scrollerRef: RefObject<HTMLDivElement | null>;
-  showScrollButton: boolean;
-  traceVersion: "v1" | "v2";
-  traceV2InlineEvents: boolean;
   workspace: WorkspaceSummary | null;
 }
 
@@ -34,38 +29,22 @@ export function ChatWorkspace({
   isRunning,
   lastError,
   messages,
-  onScrollToBottom,
   onSelectPrompt,
   onUndoLastTurn,
-  onVisibilityChange,
-  scrollerRef,
-  showScrollButton,
-  traceVersion,
-  traceV2InlineEvents,
   workspace,
 }: ChatWorkspaceProps) {
   const settings = useChatStore((state) => state.settings);
   const hasMessages = messages.length > 0;
-  const reserveFloatingSpace = hasMessages && settings.floatingInput;
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
-      <div
-        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent"
-        style={{
-          paddingBottom: reserveFloatingSpace ? floatingComposerHeight : 0,
-        }}
-      >
+    <MessageScrollerProvider autoScroll>
+      <MessageScroller className="bg-transparent">
         {hasMessages ? (
           <MessageStream
             canUndoLastTurn={canUndoLastTurn}
             isRunning={isRunning}
             messages={messages}
             onUndoLastTurn={onUndoLastTurn}
-            onVisibilityChange={onVisibilityChange}
-            scrollerRef={scrollerRef}
-            traceVersion={traceVersion}
-            traceV2InlineEvents={traceV2InlineEvents}
           />
         ) : (
           <EmptyChatState
@@ -76,16 +55,12 @@ export function ChatWorkspace({
             workspace={workspace}
           />
         )}
-      </div>
-      {hasMessages ? (
-        <ComposerDock
-          hasMessages={hasMessages}
-          onScrollToBottom={onScrollToBottom}
-          showScrollButton={showScrollButton}
-        >
-          {composer}
-        </ComposerDock>
-      ) : null}
-    </div>
+        {hasMessages ? (
+          <ComposerDock hasMessages={hasMessages}>
+            {composer}
+          </ComposerDock>
+        ) : null}
+      </MessageScroller>
+    </MessageScrollerProvider>
   );
 }
