@@ -536,8 +536,7 @@ export function buildFallbackResponse(
           .join("\n")
       : "- Working tree clean.";
 
-  const errorLine =
-    error instanceof Error ? `\n\nRainy API error: ${error.message}` : "";
+  const errorLine = error instanceof Error ? `\n\n${formatRainyApiError(error)}` : "";
 
   return [
     `Request: ${prompt}`,
@@ -555,6 +554,28 @@ export function buildFallbackResponse(
     "Next move: inspect the matched files and update the active workspace flow before making changes.",
     errorLine,
   ].join("\n");
+}
+
+function formatRainyApiError(error: Error) {
+  if (error.name === "AbortError" || /\babort(?:ed)?\b|\bcancel(?:led)?\b/i.test(error.message)) {
+    return "API paused: connection stopped.";
+  }
+
+  const statusCode = error.message.match(/\b(?:status(?: code)?\s*)?([45]\d{2})\b/i)?.[1];
+  if (!statusCode) {
+    return `API error: ${error.message}`;
+  }
+
+  const summary =
+    statusCode === "403"
+      ? "Access denied. Check API key, model access, or billing permissions."
+      : ["500", "502", "503", "504"].includes(statusCode)
+        ? "Provider unavailable. Retry later or switch model/tier."
+        : statusCode === "429"
+          ? "Rate limit hit. Wait briefly, then retry."
+          : "Request failed.";
+
+  return `API ${statusCode}: ${summary}`;
 }
 
 export function parseDirectSecurityPathTraceArgs(prompt: string): {

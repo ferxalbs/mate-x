@@ -3,7 +3,6 @@ import {
   BrainIcon,
   FileIcon,
   ImageIcon,
-  LoaderCircle,
   PaperclipIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
@@ -128,7 +127,9 @@ export function ComposerPanel({
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
+  const [isCancellingRun, setIsCancellingRun] = useState(false);
   const settings = useChatStore((state) => state.settings);
+  const cancelActiveRun = useChatStore((state) => state.cancelActiveRun);
   const hasWorkspace = Boolean(workspace);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -441,6 +442,19 @@ export function ComposerPanel({
     }
   }
 
+  async function handleCancelRun() {
+    if (!isRunning || isCancellingRun) {
+      return;
+    }
+
+    setIsCancellingRun(true);
+    try {
+      await cancelActiveRun();
+    } finally {
+      setIsCancellingRun(false);
+    }
+  }
+
   async function handlePolicyAction(action: PolicyStopAction) {
     if (!pendingPolicyStop || isResolvingPolicyStop) {
       return;
@@ -733,18 +747,19 @@ export function ComposerPanel({
                 </Button>
               ) : null}
               <Button
-                aria-label={isRunning ? "Thinking" : "Send"}
+                aria-label={isRunning ? "Pause API connection" : "Send"}
                 className={cn(
                   "size-8 rounded-full border-0 bg-foreground text-background shadow-md transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:scale-105 hover:bg-foreground/90 hover:shadow-lg",
                   isRunning ? "opacity-80 scale-95" : "",
                 )}
-                disabled={isRunning || isModelSaving || !hasWorkspace}
-                onClick={handleSubmit}
+                disabled={isCancellingRun || isModelSaving || !hasWorkspace}
+                onClick={isRunning ? handleCancelRun : handleSubmit}
                 size="icon-sm"
+                title={isRunning ? "Pause API connection" : "Send"}
                 variant="outline"
               >
                 {isRunning ? (
-                  <LoaderCircle className="size-3.5 animate-spin" />
+                  <XIcon className="size-3.5" />
                 ) : (
                   <ArrowUpIcon className="size-4" />
                 )}

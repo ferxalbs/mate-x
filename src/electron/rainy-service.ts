@@ -684,6 +684,7 @@ export async function requestRainyChatCompletionStream(params: {
   capabilities?: RainyModelCatalogEntry["capabilities"];
   maxTokens?: number;
   serviceTier?: RainyServiceTier;
+  signal?: AbortSignal;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = createRainyClient(params.apiKey);
   const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
@@ -715,7 +716,7 @@ export async function requestRainyChatCompletionStream(params: {
   try {
     stream = (await client.chat.completions.create(
       { ...request, stream: true } as any,
-      { timeout: RAINY_REQUEST_TIMEOUT_MS },
+      { signal: params.signal, timeout: RAINY_REQUEST_TIMEOUT_MS },
     )) as unknown as AsyncIterable<any>;
   } catch (error) {
     if (!params.toolChoice || !isUnsupportedToolChoiceError(error)) {
@@ -736,7 +737,7 @@ export async function requestRainyChatCompletionStream(params: {
         }),
         stream: true,
       } as any,
-      { timeout: RAINY_REQUEST_TIMEOUT_MS },
+      { signal: params.signal, timeout: RAINY_REQUEST_TIMEOUT_MS },
     )) as unknown as AsyncIterable<any>;
   }
 
@@ -820,6 +821,7 @@ export async function requestRainyResponsesCompletion(params: {
   tools?: ResponsesFunctionTool[];
   toolChoice?: "auto" | "required" | "none";
   serviceTier?: RainyServiceTier;
+  signal?: AbortSignal;
 }): Promise<OpenAIResponse> {
   const client = createRainyClient(params.apiKey);
   const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
@@ -844,6 +846,7 @@ export async function requestRainyResponsesCompletion(params: {
       ...(serviceTier === "standard" ? {} : { service_tier: serviceTier }),
     } as any,
     {
+      signal: params.signal,
       timeout: RAINY_REQUEST_TIMEOUT_MS,
     },
   );
