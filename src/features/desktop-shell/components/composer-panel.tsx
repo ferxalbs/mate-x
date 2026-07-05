@@ -461,15 +461,15 @@ export function ComposerPanel({
           ref={containerRef}
           className={cn(
             "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-            "glass border border-[var(--panel-border)]/40 bg-[var(--panel)]/92 shadow-sm backdrop-blur-xl",
-            isDraggingFile ? "ring-2 ring-primary/60 bg-[var(--panel)]" : "",
+            "bg-foreground/5 border border-foreground/[0.06] shadow-[0_4px_24px_rgba(0,0,0,0.02)] backdrop-blur-3xl",
+            isDraggingFile ? "ring-2 ring-foreground/20 bg-foreground/10" : "",
           )}
           style={{ 
-            "--glass-bg": "var(--panel)",
             clipPath: containerDimensions.width > 0 
               ? `path("${appleCornerPath({ width: containerDimensions.width, height: containerDimensions.height, radius: 32, smoothing: 60 })}")` 
               : "none",
-            borderRadius: containerDimensions.width > 0 ? 0 : 32 // fallback if observer fails/hasn't run
+            borderRadius: containerDimensions.width > 0 ? 0 : 32
+
           } as React.CSSProperties}
           onDragEnter={(event) => {
             event.preventDefault();
@@ -506,7 +506,7 @@ export function ComposerPanel({
 
           <div className="relative z-10 bg-transparent px-5 py-4">
             <textarea
-              className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 focus:placeholder:text-muted-foreground/85 sm:min-h-[60px]"
+              className="min-h-[76px] w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-foreground outline-none placeholder:text-foreground/40 focus:placeholder:text-foreground/60 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -566,7 +566,7 @@ export function ComposerPanel({
               />
               <button
                 aria-label="Attach files"
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/75 transition-colors hover:bg-accent hover:text-foreground sm:size-6"
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-all hover:bg-foreground/15 hover:text-foreground hover:scale-105 sm:size-7"
                 disabled={!hasWorkspace}
                 onClick={() => fileInputRef.current?.click()}
                 title="Attach files"
@@ -636,10 +636,10 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-accent hover:text-foreground sm:size-6",
+                    "flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/5 transition-all hover:bg-foreground/15 hover:scale-105 sm:size-7",
                     reasoningEnabled
                       ? "text-foreground"
-                      : "text-muted-foreground/50",
+                      : "text-foreground/40",
                   )}
                   onClick={() => setReasoningEnabled((value) => !value)}
                   title={reasoningToggleLabel}
@@ -736,8 +736,8 @@ export function ComposerPanel({
               <Button
                 aria-label={isRunning ? "Thinking" : "Send"}
                 className={cn(
-                  "size-8 rounded-full border-0 bg-primary p-0 text-primary-foreground shadow-sm transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-primary/90 hover:shadow",
-                  isRunning ? "opacity-80" : "",
+                  "size-8 rounded-full border-0 bg-foreground text-background shadow-md transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:scale-105 hover:bg-foreground/90 hover:shadow-lg",
+                  isRunning ? "opacity-80 scale-95" : "",
                 )}
                 disabled={isRunning || isModelSaving || !hasWorkspace}
                 onClick={handleSubmit}
