@@ -14,6 +14,7 @@ import type {
   EvidencePack,
   VerifiedTaskScoreSignal,
 } from "../../../contracts/chat";
+import type { WorkspaceSummary } from "../../../contracts/workspace";
 import { cn } from "../../../lib/utils";
 import type {
   ImpactSummary,
@@ -186,6 +187,7 @@ export function EvidencePackSection({
   const scoreBreakdown = getScoreBreakdown(
     evidencePack?.verifiedTaskScore?.signals ?? [],
   );
+  const hasVerifiedScore = score !== null && scoreBreakdown.count > 0;
   const securityTone = getSecurityRiskTone(verdict, summary.risk);
   const blastRadius =
     impactedFiles.length > 0
@@ -198,40 +200,15 @@ export function EvidencePackSection({
     <section className="space-y-3">
       <PanelTitle icon={ClipboardCheckIcon} title="Evidence Pack" />
       {!evidencePack ? <SkeletonStack /> : null}
-      <Card
-        className={cn(
-          "border-border/70 shadow-none",
-          toneSurfaceClassName(scoreTone),
-        )}
-      >
-        <CardContent className="p-3">
-          <p className="text-[10px] tracking-wider uppercase text-muted-foreground/70">
-            Evidence Confidence
-          </p>
-        <div className="mt-1 flex items-baseline gap-1">
-          <span
-            className={cn(
-              "text-3xl font-semibold",
-              toneValueClassName(scoreTone),
-            )}
-          >
-            {score ?? "--"}
-          </span>
-          <span className="text-[12px] text-muted-foreground">/100</span>
-        </div>
-        {evidencePack ? (
-          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-            {getEvidenceScoreReason(
-              score,
-              verdict,
-              commandCount,
-              filesCount,
-              scoreBreakdown,
-            )}
-          </p>
-        ) : null}
-        </CardContent>
-      </Card>
+      <EvidenceConfidenceCard
+        commandCount={commandCount}
+        filesCount={filesCount}
+        hasVerifiedScore={hasVerifiedScore}
+        score={score}
+        scoreBreakdown={scoreBreakdown}
+        scoreTone={scoreTone}
+        verdict={verdict}
+      />
       {runFailed ? (
         <FailureReasonCard
           commandCount={commandCount}
@@ -358,11 +335,13 @@ export function EvidencePackSection({
 export function RepoHealthSection({
   hasWorkspace,
   hasProfile,
+  workspace,
   signals,
   nextAction,
 }: {
   hasWorkspace: boolean;
   hasProfile: boolean;
+  workspace?: WorkspaceSummary | null;
   signals: RepoHealthSignal[];
   nextAction?: string;
 }) {
@@ -392,6 +371,22 @@ export function RepoHealthSection({
           {verdict.detail}
         </p>
       </div>
+      {workspace ? (
+        <div className="rounded-2xl border border-border/50 bg-transparent px-2.5 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            Workspace
+          </p>
+          <p className="mt-1 break-words text-[11px] font-semibold text-foreground">
+            {workspace.name}
+          </p>
+          <p className="mt-1 break-all font-mono text-[10px] leading-4 text-muted-foreground">
+            {workspace.path}
+          </p>
+          <p className="mt-1 break-words text-[10px] text-muted-foreground">
+            {workspace.branch ? `Branch ${workspace.branch}` : "Branch unknown"}
+          </p>
+        </div>
+      ) : null}
       <dl className="grid grid-cols-2 gap-2 text-[11px]">
         {signals.map((signal) => (
           <HealthSignalCell signal={signal} key={signal.label} />
@@ -418,6 +413,68 @@ function PanelTitle({
         {title}
       </h3>
     </div>
+  );
+}
+
+function EvidenceConfidenceCard({
+  commandCount,
+  filesCount,
+  hasVerifiedScore,
+  score,
+  scoreBreakdown,
+  scoreTone,
+  verdict,
+}: {
+  commandCount: number;
+  filesCount: number;
+  hasVerifiedScore: boolean;
+  score: number | null;
+  scoreBreakdown: ScoreBreakdown;
+  scoreTone: SignalTone;
+  verdict: string;
+}) {
+  const label = hasVerifiedScore
+    ? String(score)
+    : verdict === "Pending verified run"
+      ? "Pending"
+      : "Needs evidence";
+
+  return (
+    <Card
+      className={cn(
+        "rounded-2xl border-border/70 shadow-none",
+        toneSurfaceClassName(hasVerifiedScore ? scoreTone : "watch"),
+      )}
+    >
+      <CardContent className="p-3">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+          Evidence Confidence
+        </p>
+        <div className="mt-1 flex items-baseline gap-1">
+          <span
+            className={cn(
+              hasVerifiedScore ? "text-3xl" : "text-[17px]",
+              "break-words font-semibold leading-7",
+              toneValueClassName(hasVerifiedScore ? scoreTone : "watch"),
+            )}
+          >
+            {label}
+          </span>
+          {hasVerifiedScore ? (
+            <span className="text-[12px] text-muted-foreground">/100</span>
+          ) : null}
+        </div>
+        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+          {getEvidenceScoreReason(
+            hasVerifiedScore ? score : null,
+            verdict,
+            commandCount,
+            filesCount,
+            scoreBreakdown,
+          )}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -605,7 +662,9 @@ function getEvidenceScoreReason(
     return `Low score because run verdict is ${verdict}. Evidence captured ${commandCount} command signals across ${filesCount} file signal${filesCount === 1 ? "" : "s"}, but result did not complete cleanly.`;
   }
   if (score === null) {
-    return "Score pending until verified task run completes.";
+    return verdict === "Pending verified run"
+      ? "Score pending until verified task run completes."
+      : "Needs verified task signals before MaTE X can score confidence.";
   }
   if (scoreBreakdown.total > 0) {
     return `Score comes from verified task signals: ${formatScoreBasis(scoreBreakdown)}.`;

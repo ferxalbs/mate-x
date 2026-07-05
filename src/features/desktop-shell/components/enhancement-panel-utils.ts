@@ -266,6 +266,16 @@ export function getVerifiedScore(evidencePack: EvidencePack | null) {
   return evidencePack?.verifiedTaskScore?.score ?? null;
 }
 
+export function hasVerifiedEvidenceSignals(evidencePack: EvidencePack | null) {
+  return Boolean(evidencePack?.verifiedTaskScore?.signals?.length);
+}
+
+export function getVerifiedEvidenceScore(evidencePack: EvidencePack | null) {
+  return hasVerifiedEvidenceSignals(evidencePack)
+    ? (evidencePack?.verifiedTaskScore?.score ?? null)
+    : null;
+}
+
 export function getEvidenceCommands(evidencePack: EvidencePack | null) {
   return evidencePack?.commandsExecuted?.map((entry) => entry.command) ?? [];
 }

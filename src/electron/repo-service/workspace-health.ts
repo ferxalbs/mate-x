@@ -14,7 +14,7 @@ export function buildWorkspaceHealthProfile({
 }): WorkspaceHealthProfile {
   const packageData = parsePackageJson(packageJson);
   const scripts = readPackageScripts(packageData);
-  const packageManager = detectPackageManager(files, packageJson);
+  const packageManager = detectPackageManager(files, packageData);
   const testCommand = detectScriptCommand(packageManager, scripts, [
     "test",
     "test:unit",
@@ -82,24 +82,51 @@ function readPackageScripts(packageData: unknown): Record<string, string> {
   );
 }
 
-function detectPackageManager(files: string[], packageJson: string | null) {
-  if (files.includes("bun.lock") || packageJson?.includes('"bun')) return "bun";
+export function detectPackageManager(files: string[], packageData: unknown) {
+  const declaredManager = readDeclaredPackageManager(packageData);
+  if (declaredManager) return declaredManager;
+
+  if (files.includes("bun.lock")) return "bun";
   if (files.includes("pnpm-lock.yaml")) return "pnpm";
   if (files.includes("yarn.lock")) return "yarn";
   if (files.includes("package-lock.json")) return "npm";
 
-  return packageJson ? "npm" : "unknown";
+  return "unknown";
 }
 
-function detectScriptCommand(
+export function detectScriptCommand(
   packageManager: string,
   scripts: Record<string, string>,
   candidates: string[],
 ) {
   const scriptName = candidates.find((candidate) => scripts[candidate]);
   if (!scriptName) return "unknown";
+  if (!isNodePackageManager(packageManager)) return "unknown";
 
-  return `${packageManager === "unknown" ? "npm" : packageManager} run ${scriptName}`;
+  return `${packageManager} run ${scriptName}`;
+}
+
+function readDeclaredPackageManager(packageData: unknown) {
+  if (
+    !packageData ||
+    typeof packageData !== "object" ||
+    !("packageManager" in packageData) ||
+    typeof packageData.packageManager !== "string"
+  ) {
+    return null;
+  }
+
+  const manager = packageData.packageManager.split("@")[0]?.trim();
+  return isNodePackageManager(manager) ? manager : null;
+}
+
+function isNodePackageManager(manager: string | undefined | null) {
+  return (
+    manager === "bun" ||
+    manager === "pnpm" ||
+    manager === "yarn" ||
+    manager === "npm"
+  );
 }
 
 function detectPrimaryFramework(stack: string[]) {

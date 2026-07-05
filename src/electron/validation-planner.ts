@@ -241,7 +241,23 @@ function normalizeFiles(files: string[]) {
 function scriptCommand(input: ValidationPlannerInput, script: string) {
   if (!['lint', 'typecheck', 'test', 'build'].includes(script)) return undefined;
   if (!input.packageScripts[script]) return undefined;
-  return `${input.profile?.packageManager ?? 'npm'} run ${script}`;
+  const packageManager = normalizeNodePackageManager(input.profile?.packageManager);
+  if (!packageManager) return undefined;
+  return `${packageManager} run ${script}`;
+}
+
+function normalizeNodePackageManager(packageManager: string | undefined) {
+  const manager = packageManager?.split('@')[0]?.trim();
+  if (
+    manager === 'bun' ||
+    manager === 'pnpm' ||
+    manager === 'yarn' ||
+    manager === 'npm'
+  ) {
+    return manager;
+  }
+
+  return undefined;
 }
 
 function findLikelyTestPath(changedFiles: string[], impactedFiles: string[]) {
