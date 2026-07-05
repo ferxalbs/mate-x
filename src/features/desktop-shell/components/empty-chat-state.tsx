@@ -53,18 +53,7 @@ const quickPrompts = [
   },
 ];
 
-const cockpitSteps = [
-  { icon: <ExternalLinkIcon className="size-4" />, label: "Open repo", detail: "local trust contract" },
-  { icon: <ActivityIcon className="size-4" />, label: "Risk map", detail: "runtime surfaces" },
-  { icon: <ShieldCheckIcon className="size-4" />, label: "Focused audit", detail: "high-signal only" },
-  { icon: <CheckCircle2Icon className="size-4" />, label: "Verify", detail: "proof + evidence" },
-];
 
-const cockpitMetrics = [
-  { icon: <ZapIcon className="size-3.5" />, label: "First signal", value: "instant" },
-  { icon: <GaugeIcon className="size-3.5" />, label: "Power mode", value: "idle-light" },
-  { icon: <FileTextIcon className="size-3.5" />, label: "Evidence", value: "live" },
-];
 
 export function EmptyChatState({
   isBootstrapped,
@@ -103,33 +92,9 @@ export function EmptyChatState({
     <div className="grid min-h-full grid-rows-[1fr_auto_1fr] px-4 py-10">
       <div className="flex items-end justify-center pb-6">
         <div className="w-full max-w-[820px]">
-          <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {cockpitSteps.map((step) => (
-              <div
-                key={step.label}
-                className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)]/70 px-3 py-3 text-left backdrop-blur-xl"
-              >
-                <div className="mb-2 text-foreground/70">{step.icon}</div>
-                <div className="text-[12px] font-medium text-foreground/90">{step.label}</div>
-                <div className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{step.detail}</div>
-              </div>
-            ))}
-          </div>
           <h1 className="text-center text-2xl font-medium text-foreground/90 sm:text-[32px]">
             {title}
           </h1>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            {cockpitMetrics.map((metric) => (
-              <div
-                key={metric.label}
-                className="flex h-8 items-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)]/65 px-3 text-[11px] text-muted-foreground/80 backdrop-blur-xl"
-              >
-                <span className="text-foreground/65">{metric.icon}</span>
-                <span>{metric.label}</span>
-                <span className="font-medium text-foreground/85">{metric.value}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
       <div className="mx-auto w-full max-w-[820px]">{composer}</div>
