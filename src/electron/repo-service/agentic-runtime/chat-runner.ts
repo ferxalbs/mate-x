@@ -60,6 +60,7 @@ export async function requestRainyChatAgenticResponse({
   appSettings,
   runId,
   serviceTier,
+  signal,
 }: {
   apiKey: string;
   history: string[];
@@ -76,6 +77,7 @@ export async function requestRainyChatAgenticResponse({
   appSettings: AppSettings;
   runId: string;
   serviceTier?: AssistantRunOptions["serviceTier"];
+  signal?: AbortSignal;
 }): Promise<{
   toolExecutions: ToolExecutionRecord[];
   content: string;
@@ -173,6 +175,7 @@ export async function requestRainyChatAgenticResponse({
         capabilities,
         maxTokens,
         serviceTier,
+        signal,
         onReasoningDelta: (delta: string) => {
           streamedThought += delta;
           emitProgress(

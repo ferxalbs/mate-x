@@ -93,6 +93,7 @@ export interface RepoInspectorApi {
     options?: AssistantRunOptions,
     runId?: string,
   ) => Promise<AssistantExecution>;
+  cancelAssistant: (runId: string) => Promise<boolean>;
   generateComplianceReport: (
     request: { taskId: string },
   ) => Promise<ComplianceExportResult>;

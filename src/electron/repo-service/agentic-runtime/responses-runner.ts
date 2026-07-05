@@ -40,6 +40,7 @@ export async function requestRainyResponsesAgenticResponse({
   appSettings,
   runId,
   serviceTier,
+  signal,
 }: {
   apiKey: string;
   history: string[];
@@ -54,6 +55,7 @@ export async function requestRainyResponsesAgenticResponse({
   appSettings: AppSettings;
   runId: string;
   serviceTier?: AssistantRunOptions["serviceTier"];
+  signal?: AbortSignal;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
@@ -116,6 +118,7 @@ export async function requestRainyResponsesAgenticResponse({
             ? "none"
             : "auto",
       serviceTier,
+      signal,
     });
 
     previousResponseId = response.id;

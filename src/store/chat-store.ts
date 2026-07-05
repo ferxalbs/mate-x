@@ -17,6 +17,7 @@ import type {
 import { createId } from "../lib/id";
 import {
   bootstrapWorkspaceState,
+  cancelAssistant,
   onAssistantProgress,
   openWorkspacePicker,
   removeWorkspace,
@@ -57,6 +58,7 @@ interface ChatState {
   deleteThread: (threadId: string) => Promise<void>;
   renameThread: (threadId: string, title: string) => Promise<void>;
   submitPrompt: (prompt: string, options: AssistantRunOptions) => Promise<void>;
+  cancelActiveRun: () => Promise<void>;
   undoLastTurn: () => Promise<string | null>;
   settings: AppSettings;
   setSettings: (settings: AppSettings) => void;
@@ -65,6 +67,7 @@ interface ChatState {
 let assistantProgressUnsubscribe: (() => void) | null = null;
 const ASSISTANT_PROGRESS_FLUSH_MS = 120;
 const TERMINAL_RUN_STATUSES = new Set<RunStatus>(["completed", "failed"]);
+const API_STATUS_ERROR_PATTERN = /\b(?:status(?: code)?\s*)?([45]\d{2})\b/i;
 
 type AssistantProgressPayload = Parameters<
   Parameters<typeof onAssistantProgress>[0]
@@ -136,6 +139,42 @@ function applyWorkspaceSnapshot(
       [nextWorkspaceId]: nextActiveThreadId,
     },
   };
+}
+
+function formatAssistantError(error: unknown) {
+  const rawMessage =
+    error instanceof Error ? error.message : "The assistant failed before responding.";
+  const statusCode = rawMessage.match(API_STATUS_ERROR_PATTERN)?.[1];
+
+  if (
+    error instanceof Error &&
+    (error.name === "AbortError" || /\babort(?:ed)?\b|\bcancel(?:led)?\b/i.test(rawMessage))
+  ) {
+    return "Run paused. API connection stopped.";
+  }
+
+  if (statusCode) {
+    return `API ${statusCode}: ${summarizeApiStatus(statusCode)}`;
+  }
+
+  return rawMessage;
+}
+
+function summarizeApiStatus(statusCode: string) {
+  switch (statusCode) {
+    case "401":
+    case "403":
+      return "Access denied. Check API key, model access, or billing permissions.";
+    case "429":
+      return "Rate limit hit. Wait briefly, then retry.";
+    case "500":
+    case "502":
+    case "503":
+    case "504":
+      return "Provider unavailable. Retry later or switch model/tier.";
+    default:
+      return "Request failed.";
+  }
 }
 
 async function persistWorkspaceState(
@@ -862,19 +901,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       });
     } catch (error) {
+      const formattedError = formatAssistantError(error);
       const fallbackMessage: ChatMessage = {
         id: createId("assistant"),
         role: "assistant",
-        content:
-          error instanceof Error
-            ? `The assistant failed before responding.\n\n${error.message}`
-            : "The assistant failed before responding.",
+        content: formattedError,
         createdAt: new Date().toISOString(),
         artifacts: [
           {
             id: "assistant-error",
             label: "Status",
-            value: "Failed",
+            value: formattedError,
             tone: "warning",
           },
         ],
@@ -929,6 +966,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       });
     }
+  },
+  async cancelActiveRun() {
+    const activeRun = get().activeRun;
+    if (!activeRun) {
+      return;
+    }
+
+    await cancelAssistant(activeRun.runId);
+    set((state) =>
+      state.activeRun?.runId === activeRun.runId
+        ? { activeRun: null, runStatus: "failed" }
+        : {},
+    );
   },
   async undoLastTurn() {
     const workspaceId = get().activeWorkspaceId;

@@ -71,6 +71,7 @@ import { mobileBridgeService } from "./mobile-bridge-service";
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
+const activeAssistantRunControllers = new Map<string, AbortController>();
 const MAX_IPC_TEXT_LENGTH = 200_000;
 const MAX_IPC_ARRAY_LENGTH = 500;
 const WORKSPACE_MEMORY_FILE_KINDS = new Set<WorkspaceMemoryFileKind>(["memory", "guardrails", "workstate"]);
@@ -985,6 +986,13 @@ export function registerIpcHandlers() {
       runId?: string,
       workspaceId?: string,
     ) => {
+      const normalizedRunId = runId
+        ? requireBoundedString(runId, "runId", 200)
+        : undefined;
+      const assistantAbortController = new AbortController();
+      if (normalizedRunId) {
+        activeAssistantRunControllers.set(normalizedRunId, assistantAbortController);
+      }
       let pendingProgress: {
         runId: string;
         status: string;
@@ -1059,18 +1067,29 @@ export function registerIpcHandlers() {
         // evidence artifacts are always scoped to the user-selected target repo.
         optionalWorkspaceId(workspaceId),
         validateAssistantOptions(options),
-        runId
+        normalizedRunId
           ? {
-              runId: requireBoundedString(runId, "runId", 200),
+              runId: normalizedRunId,
               emit: emitProgress,
+              signal: assistantAbortController.signal,
             }
           : undefined,
         );
       } finally {
+        if (normalizedRunId) {
+          activeAssistantRunControllers.delete(normalizedRunId);
+        }
         flushProgress();
       }
     },
   );
+  ipcMain.handle("repo:cancel-assistant", async (_event, runId: string) => {
+    const normalizedRunId = requireBoundedString(runId, "runId", 200);
+    const controller = activeAssistantRunControllers.get(normalizedRunId);
+    controller?.abort();
+    activeAssistantRunControllers.delete(normalizedRunId);
+    return Boolean(controller);
+  });
 
   ipcMain.handle("repo-graph:refresh", async () => {
     const workspace = await resolveActiveWorkspaceForRepoGraph();

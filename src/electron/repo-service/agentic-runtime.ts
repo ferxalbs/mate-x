@@ -47,6 +47,7 @@ export async function requestRainyAgenticResponse({
   emitProgress,
   appSettings,
   runId,
+  signal,
 }: {
   apiKey: string;
   history: string[];
@@ -64,6 +65,7 @@ export async function requestRainyAgenticResponse({
   emitProgress: (content?: string, thought?: string) => void;
   appSettings: AppSettings;
   runId: string;
+  signal?: AbortSignal;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
@@ -236,6 +238,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       appSettings,
       runId,
       serviceTier,
+      signal,
     });
   }
 
@@ -255,5 +258,6 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     appSettings,
     runId,
     serviceTier,
+    signal,
   });
 }

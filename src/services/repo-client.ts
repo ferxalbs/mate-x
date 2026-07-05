@@ -105,6 +105,10 @@ export function runAssistant(
   return getMateApi().runAssistant(prompt, history, options, runId);
 }
 
+export function cancelAssistant(runId: string) {
+  return getMateApi().cancelAssistant(runId);
+}
+
 export function onAssistantProgress(
   listener: (progress: AssistantRunProgress) => void,
 ) {

@@ -32,6 +32,7 @@ export type { RepoSnapshot } from "./repo-service/workspace";
 interface AssistantProgressReporter {
   runId: string;
   emit: (progress: AssistantRunProgress) => void;
+  signal?: AbortSignal;
 }
 
 const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
@@ -343,6 +344,7 @@ export async function runAssistant(
         emitProgress,
         appSettings,
         runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+        signal: progressReporter?.signal,
       });
       thought =
         "thought" in result && typeof result.thought === "string"
