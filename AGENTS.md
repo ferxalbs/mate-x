@@ -159,6 +159,11 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
     - Avoid slow, sluggish, or purely linear CSS transitions (e.g., `ease-linear`).
     - Use fast, elegant, Apple-style animations that feel fluid and highly responsive.
     - Prefer short durations like `duration-[250ms]` paired with snappy easing functions such as `ease-[cubic-bezier(0.2,0.8,0.2,1)]` for interactive elements like sidebars and menus.
+7. **Cards & Data Panels**:
+    - Always use `border-border/70` and `shadow-none` for `Card` components to maintain the flat, minimalist aesthetic.
+    - Leverage scrollable constraints (`min-h-0`, `flex-1`) combined with `ScrollArea` to construct clean layouts without stretching the entire view.
+    - Prevent horizontal overflow gracefully: always apply `break-all` and `break-words` on typography displaying dynamic data, long text, JSON, or hashes.
+    - Use uppercase, tracking-wider, `text-[10px]` typography for section labels, metric headers, or minor tags (`text-muted-foreground/70`).
 
 ***
 
@@ -191,6 +196,7 @@ tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
 The skill has specialized workflows that produce better results than ad-hoc answers.
 
 Key routing rules:
+
 - Product ideas, "is this worth building", brainstorming -> invoke office-hours
 - Bugs, errors, "why is this broken", 500 errors -> invoke investigate
 - Ship, deploy, push, create PR -> invoke ship
