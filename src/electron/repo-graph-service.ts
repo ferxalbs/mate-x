@@ -12,6 +12,10 @@ import type {
   RepoGraphIpcSurface,
   RepoGraphNode,
   RepoGraphNodeKind,
+  RepoGraphArchitectureSummary,
+  RepoGraphChangeDetection,
+  RepoGraphSemanticProfile,
+  RepoGraphSemanticSearchResult,
   RepoGraphSnapshot,
 } from '../contracts/repo-graph';
 import type { WorkspaceEntry } from '../contracts/workspace';
@@ -74,6 +78,25 @@ const EMBEDDING_BATCH_SIZE = 32;
 const AUTO_INDEX_DELAY_MS = 1_500;
 const AUTO_INDEX_BURST_DELAY_MS = 2_500;
 const AUTO_INDEX_BURST_THRESHOLD = 12;
+const SEMANTIC_SEARCH_LIMIT = 12;
+const SEMANTIC_SNIPPET_CHARS = 2_400;
+
+type IndexedFileContent = {
+  content: string;
+  size: number;
+  mtimeMs: number;
+};
+
+type SemanticEmbeddingTarget = {
+  node: RepoGraphNode;
+  profile: RepoGraphSemanticProfile;
+  text: string;
+  contentHash: string;
+  semanticHash: string;
+  embeddingTextHash: string;
+  size: number;
+  mtimeMs: number;
+};
 
 export class RepoGraphService {
   private watchers = new Map<string, FSWatcher>();
@@ -343,6 +366,134 @@ export class RepoGraphService {
       .sort((a, b) => a.dependency.localeCompare(b.dependency));
   }
 
+  async semanticSearch(
+    workspace: RepoGraphWorkspace,
+    query: string,
+    options: { limit?: number; role?: string; risk?: string } = {},
+  ): Promise<RepoGraphSemanticSearchResult[]> {
+    await this.ensureWorkspaceGraph(workspace);
+    const embeddingModel =
+      (await tursoService.getEmbeddingModel()) ?? RAINY_REPO_EMBEDDING_MODEL;
+    const embeddings = await tursoService.getRepoEmbeddings(workspace.id, embeddingModel);
+    const queryVector = await embedSearchQuery(query, embeddingModel);
+    const tokens = tokenizeSearchText(query);
+    const limit = clampLimit(options.limit);
+
+    return embeddings
+      .map((entry) => {
+        const profile = parseSemanticProfile(entry.metadata);
+        if (!profile) {
+          return null;
+        }
+        if (options.role && profile.role !== options.role) {
+          return null;
+        }
+        if (options.risk && !profile.riskTags.includes(options.risk)) {
+          return null;
+        }
+        const lexicalScore = scoreLexicalProfile(profile, tokens);
+        const vectorScore = queryVector.length ? cosineSimilarity(queryVector, entry.embedding) : 0;
+        const roleBoost = tokens.has(profile.role) ? 0.08 : 0;
+        const riskBoost = profile.riskTags.some((tag) => tokens.has(tag)) ? 0.08 : 0;
+        const score = vectorScore * 0.58 + lexicalScore * 0.32 + roleBoost + riskBoost;
+        return {
+          file: profile.file,
+          score: Number(score.toFixed(4)),
+          reason: describeSemanticMatch(profile, tokens, vectorScore),
+          role: profile.role,
+          matchedFields: matchedSemanticFields(profile, tokens),
+          confidence: profile.confidence,
+          relatedFiles: uniqueSorted(profile.imports).slice(0, 8),
+          readRecommendation: buildReadRecommendation(profile),
+        };
+      })
+      .filter((entry): entry is RepoGraphSemanticSearchResult => Boolean(entry))
+      .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
+      .slice(0, limit);
+  }
+
+  async getSemanticProfile(
+    workspace: RepoGraphWorkspace,
+    file: string,
+  ): Promise<RepoGraphSemanticProfile | null> {
+    await this.ensureWorkspaceGraph(workspace);
+    const normalized = normalizeRelativePath(file);
+    const nodes = await tursoService.getRepoGraphNodes(workspace.id, ['file', 'test', 'config', 'manifest']);
+    const node = nodes.find((entry) => entry.key === normalized);
+    return parseSemanticProfile(node?.metadata) ?? null;
+  }
+
+  async getArchitectureSummary(workspace: RepoGraphWorkspace): Promise<RepoGraphArchitectureSummary> {
+    await this.ensureWorkspaceGraph(workspace);
+    const [entrypoints, ipcSurface, envUsage, dependencySurface, nodes] = await Promise.all([
+      this.getEntrypoints(workspace),
+      this.getIpcSurface(workspace),
+      this.getEnvUsage(workspace),
+      this.getDependencySurface(workspace),
+      tursoService.getRepoGraphNodes(workspace.id, ['file', 'test', 'config', 'manifest']),
+    ]);
+    const profiles = nodes
+      .map((node) => parseSemanticProfile(node.metadata))
+      .filter((profile): profile is RepoGraphSemanticProfile => Boolean(profile));
+
+    return {
+      entrypoints,
+      roles: countBy(profiles.map((profile) => profile.role)),
+      riskTags: countBy(profiles.flatMap((profile) => profile.riskTags)),
+      ipcChannels: uniqueSorted(ipcSurface.map((entry) => entry.channel)).slice(0, 80),
+      envVars: uniqueSorted(envUsage.map((entry) => entry.variable)).slice(0, 80),
+      dependencies: uniqueSorted(dependencySurface.map((entry) => entry.dependency)).slice(0, 120),
+    };
+  }
+
+  async detectChanges(
+    workspace: RepoGraphWorkspace,
+    files?: string[],
+  ): Promise<RepoGraphChangeDetection> {
+    const states = await tursoService.getRepoFileIndexStates(workspace.id);
+    const stateByPath = new Map(states.map((state) => [state.path, state]));
+    const targetFiles = files?.length
+      ? files.map(normalizeRelativePath).filter(isIndexableFile)
+      : await collectIndexableFiles(workspace.path);
+    const seen = new Set<string>();
+    const changedFiles: string[] = [];
+    const unchangedFiles: string[] = [];
+    const removedFiles: string[] = [];
+
+    for (const file of targetFiles) {
+      seen.add(file);
+      const indexedContent = await readSmallFile(path.join(workspace.path, file));
+      if (!indexedContent) {
+        removedFiles.push(file);
+        continue;
+      }
+      const existing = stateByPath.get(file);
+      if (
+        existing &&
+        existing.size === indexedContent.size &&
+        existing.mtimeMs === indexedContent.mtimeMs
+      ) {
+        unchangedFiles.push(file);
+      } else {
+        changedFiles.push(file);
+      }
+    }
+
+    if (!files?.length) {
+      for (const state of states) {
+        if (!seen.has(state.path)) {
+          removedFiles.push(state.path);
+        }
+      }
+    }
+
+    return {
+      changedFiles: uniqueSorted(changedFiles),
+      removedFiles: uniqueSorted(removedFiles),
+      unchangedFiles: uniqueSorted(unchangedFiles),
+    };
+  }
+
   async getPromptSummary(workspace: RepoGraphWorkspace) {
     await this.ensureWorkspaceGraph(workspace);
     const [snapshot, entrypoints, ipcSurface, envUsage] = await Promise.all([
@@ -366,17 +517,22 @@ export class RepoGraphService {
   ) {
     const files = await collectIndexableFiles(workspace.path);
     const builder = new GraphBuilder(workspace.id);
-    const fileContents = new Map<string, string>();
+    const fileContents = new Map<string, IndexedFileContent>();
 
     for (const file of files) {
       const kind = classifyFile(file);
       builder.node(kind, file, file, { extension: path.extname(file) });
       const absolutePath = path.join(workspace.path, file);
-      const content = await readSmallFile(absolutePath);
-      if (content === null) {
+      const indexedContent = await readSmallFile(absolutePath);
+      if (indexedContent === null) {
         continue;
       }
-      fileContents.set(file, content);
+      const { content } = indexedContent;
+      fileContents.set(file, indexedContent);
+      builder.node(kind, file, file, {
+        extension: path.extname(file),
+        semanticProfile: buildSemanticProfile(file, kind, content),
+      });
       if (kind === 'test') {
         linkTestFile(builder, file, files);
       }
@@ -502,8 +658,17 @@ export class RepoGraphService {
     }
     const timer = setTimeout(() => {
       this.refreshTimers.delete(workspace.id);
+      const pendingChanges = this.pendingWatcherChanges.get(workspace.id);
       this.pendingWatcherChanges.delete(workspace.id);
-      void this.refreshWorkspace(workspace);
+      void (async () => {
+        if (
+          pendingChanges?.size &&
+          !(await hasIndexableFingerprintChanges(workspace, [...pendingChanges]))
+        ) {
+          return;
+        }
+        await this.refreshWorkspace(workspace);
+      })();
     }, delayMs);
     this.refreshTimers.set(workspace.id, timer);
   }
@@ -530,7 +695,7 @@ export class RepoGraphService {
 async function indexRepoGraphEmbeddings(
   workspaceId: string,
   nodes: RepoGraphNode[],
-  fileContents: Map<string, string>,
+  fileContents: Map<string, IndexedFileContent>,
   onProgress?: RepoGraphEmbeddingProgressReporter,
 ) {
   const apiKey = await tursoService.getApiKey();
@@ -541,13 +706,60 @@ async function indexRepoGraphEmbeddings(
     (await tursoService.getEmbeddingModel()) ?? RAINY_REPO_EMBEDDING_MODEL;
   const embeddingConfig = getRainyEmbeddingModelConfig(embeddingModel);
 
-  const embeddingTargets = nodes
+  const embeddingTargets: SemanticEmbeddingTarget[] = nodes
     .filter((node) => node.kind === 'file' || node.kind === 'test')
-    .map((node) => ({
-      node,
-      text: buildEmbeddingInput(node, fileContents.get(node.key), embeddingConfig.contextLength),
-    }))
+    .map((node) => {
+      const indexedContent = fileContents.get(node.key);
+      const profile = parseSemanticProfile(node.metadata)
+        ?? buildSemanticProfile(node.key, node.kind, indexedContent?.content ?? '');
+      const text = buildEmbeddingInput(
+        node,
+        profile,
+        indexedContent?.content,
+        embeddingConfig.contextLength,
+      );
+      return {
+        node,
+        profile,
+        text,
+        contentHash: hashKey(getEmbeddingContent(node.key, indexedContent?.content)),
+        semanticHash: hashKey(JSON.stringify(profile)),
+        embeddingTextHash: hashKey(text),
+        size: indexedContent?.size ?? 0,
+        mtimeMs: indexedContent?.mtimeMs ?? 0,
+      };
+    })
     .filter((target) => target.text.length > 0);
+  const previousStates = await tursoService.getRepoFileIndexStates(workspaceId);
+  const previousStateByPath = new Map(previousStates.map((state) => [state.path, state]));
+  const currentPaths = new Set(embeddingTargets.map((target) => target.node.key));
+  const removedPaths = previousStates
+    .filter((state) => !currentPaths.has(state.path))
+    .map((state) => state.path);
+  const removedNodeIds = removedPaths.map((file) => stableNodeId(workspaceId, classifyFile(file), file));
+  await tursoService.deleteRepoFileIndexStates(workspaceId, removedPaths);
+  await tursoService.deleteRepoEmbeddingsForNodeIds(workspaceId, removedNodeIds);
+
+  const changedTargets = embeddingTargets.filter((target) => {
+    const previous = previousStateByPath.get(target.node.key);
+    return !previous
+      || previous.model !== embeddingModel
+      || previous.dimensions !== embeddingConfig.dimensions
+      || previous.embeddingTextHash !== target.embeddingTextHash;
+  });
+
+  if (changedTargets.length === 0) {
+    onProgress?.({
+      workspaceId,
+      model: embeddingModel,
+      indexed: 0,
+      total: embeddingTargets.length,
+      percent: 100,
+      state: 'ready',
+    });
+    return;
+  }
+
   const entries: Array<{
     nodeId: string;
     model: string;
@@ -555,16 +767,26 @@ async function indexRepoGraphEmbeddings(
     contentHash: string;
     embedding: number[];
   }> = [];
+  const indexedStates: Array<{
+    path: string;
+    size: number;
+    mtimeMs: number;
+    contentHash: string;
+    semanticHash: string;
+    embeddingTextHash: string;
+    model: string;
+    dimensions: number;
+  }> = [];
 
-  for (let index = 0; index < embeddingTargets.length; index += EMBEDDING_BATCH_SIZE) {
-    const batch = embeddingTargets.slice(index, index + EMBEDDING_BATCH_SIZE);
+  for (let index = 0; index < changedTargets.length; index += EMBEDDING_BATCH_SIZE) {
+    const batch = changedTargets.slice(index, index + EMBEDDING_BATCH_SIZE);
     onProgress?.({
       workspaceId,
       model: embeddingModel,
       indexed: entries.length,
-      total: embeddingTargets.length,
-      percent: embeddingTargets.length
-        ? Math.round((entries.length / embeddingTargets.length) * 100)
+      total: changedTargets.length,
+      percent: changedTargets.length
+        ? Math.round((entries.length / changedTargets.length) * 100)
         : 100,
       state: 'indexing',
     });
@@ -582,13 +804,13 @@ async function indexRepoGraphEmbeddings(
         workspaceId,
         model: embeddingModel,
         indexed: entries.length,
-        total: embeddingTargets.length,
-        percent: embeddingTargets.length
-          ? Math.round((entries.length / embeddingTargets.length) * 100)
+        total: changedTargets.length,
+        percent: changedTargets.length
+          ? Math.round((entries.length / changedTargets.length) * 100)
           : 0,
         state: 'failed',
       });
-      break;
+      return;
     }
 
     vectors.forEach((embedding, vectorIndex) => {
@@ -600,18 +822,29 @@ async function indexRepoGraphEmbeddings(
         nodeId: target.node.id,
         model: embeddingModel,
         dimensions: embedding.length,
-        contentHash: hashKey(target.text),
+        contentHash: target.embeddingTextHash,
         embedding,
+      });
+      indexedStates.push({
+        path: target.node.key,
+        size: target.size,
+        mtimeMs: target.mtimeMs,
+        contentHash: target.contentHash,
+        semanticHash: target.semanticHash,
+        embeddingTextHash: target.embeddingTextHash,
+        model: embeddingModel,
+        dimensions: embedding.length,
       });
     });
   }
 
-  await tursoService.replaceRepoEmbeddings(workspaceId, entries);
+  await tursoService.upsertRepoEmbeddings(workspaceId, entries);
+  await tursoService.upsertRepoFileIndexStates(workspaceId, indexedStates);
   onProgress?.({
     workspaceId,
     model: embeddingModel,
     indexed: entries.length,
-    total: embeddingTargets.length,
+    total: changedTargets.length,
     percent: 100,
     state: 'ready',
   });
@@ -622,18 +855,107 @@ function sanitizeEmbeddingIndexError(error: unknown) {
   return message.replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]');
 }
 
-function buildEmbeddingInput(node: RepoGraphNode, content: string | undefined, contextLength: number) {
-  const purpose = typeof node.metadata?.purpose === 'string' ? node.metadata.purpose : '';
+function buildEmbeddingInput(
+  node: RepoGraphNode,
+  profile: RepoGraphSemanticProfile,
+  content: string | undefined,
+  contextLength: number,
+) {
   const sanitizedContent = getEmbeddingContent(node.key, content);
+  const snippet = sanitizedContent.slice(0, SEMANTIC_SNIPPET_CHARS);
   const text = [
     `kind: ${node.kind}`,
     `path: ${node.key}`,
-    `label: ${node.label}`,
-    purpose ? `purpose: ${purpose}` : '',
-    sanitizedContent ? `content:\n${sanitizedContent}` : '',
+    `role: ${profile.role}`,
+    `language: ${profile.language}`,
+    profile.runtime.length ? `runtime: ${profile.runtime.join(', ')}` : '',
+    profile.symbols.length ? `symbols: ${profile.symbols.slice(0, 40).join(', ')}` : '',
+    profile.imports.length ? `imports: ${profile.imports.slice(0, 30).join(', ')}` : '',
+    profile.ipcChannels.length ? `ipc: ${profile.ipcChannels.join(', ')}` : '',
+    profile.envVars.length ? `env: ${profile.envVars.join(', ')}` : '',
+    profile.dependencies.length ? `dependencies: ${profile.dependencies.slice(0, 30).join(', ')}` : '',
+    profile.riskTags.length ? `risk: ${profile.riskTags.join(', ')}` : '',
+    profile.trustBoundaries.length ? `trust_boundaries: ${profile.trustBoundaries.join(', ')}` : '',
+    `summary: ${profile.summary}`,
+    snippet ? `high_signal_snippet:\n${snippet}` : '',
   ].filter(Boolean).join('\n');
 
   return text.slice(0, contextLength);
+}
+
+function buildSemanticProfile(
+  file: string,
+  kind: RepoGraphNodeKind,
+  content: string,
+): RepoGraphSemanticProfile {
+  const extension = path.extname(file).replace('.', '') || 'text';
+  const imports = extractImportSpecifiers(content);
+  const ipcChannels = uniqueSorted([
+    ...extractIpcChannels(content, ['ipcRenderer.invoke', 'ipcRenderer.send']),
+    ...extractIpcChannels(content, ['ipcMain.handle', 'ipcMain.on']),
+  ]);
+  const envVars = extractEnvVars(content);
+  const symbols = extractSymbols(content);
+  const dependencies = imports
+    .filter((specifier) => !specifier.startsWith('.'))
+    .map((specifier) => specifier.split('/')[0]?.startsWith('@')
+      ? specifier.split('/').slice(0, 2).join('/')
+      : specifier.split('/')[0])
+    .filter((dependency): dependency is string => Boolean(dependency));
+  const role = inferSemanticRole(file, kind, content);
+  const runtime = inferRuntime(file, content);
+  const riskTags = inferRiskTags(file, content, ipcChannels, envVars);
+  const trustBoundaries = inferTrustBoundaries(file, content, ipcChannels, envVars);
+  const summary = [
+    `${role} ${extension} file`,
+    runtime.length ? `runtime ${runtime.join('/')}` : '',
+    symbols.length ? `exports ${symbols.slice(0, 6).join(', ')}` : '',
+    ipcChannels.length ? `ipc ${ipcChannels.join(', ')}` : '',
+    envVars.length ? `env ${envVars.join(', ')}` : '',
+    riskTags.length ? `risk ${riskTags.join(', ')}` : '',
+  ].filter(Boolean).join('; ');
+
+  return {
+    file,
+    role,
+    language: extension,
+    runtime,
+    symbols: uniqueSorted(symbols).slice(0, 80),
+    imports: uniqueSorted(imports).slice(0, 80),
+    ipcChannels,
+    envVars: uniqueSorted(envVars).slice(0, 80),
+    dependencies: uniqueSorted(dependencies).slice(0, 80),
+    riskTags,
+    trustBoundaries,
+    confidence: inferProfileConfidence(kind, content, symbols, imports),
+    summary,
+  };
+}
+
+function parseSemanticProfile(metadata: Record<string, unknown> | undefined) {
+  const raw = metadata?.semanticProfile;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return null;
+  }
+  const profile = raw as Partial<RepoGraphSemanticProfile>;
+  if (typeof profile.file !== 'string' || typeof profile.role !== 'string') {
+    return null;
+  }
+  return {
+    file: profile.file,
+    role: profile.role,
+    language: typeof profile.language === 'string' ? profile.language : 'text',
+    runtime: stringArray(profile.runtime),
+    symbols: stringArray(profile.symbols),
+    imports: stringArray(profile.imports),
+    ipcChannels: stringArray(profile.ipcChannels),
+    envVars: stringArray(profile.envVars),
+    dependencies: stringArray(profile.dependencies),
+    riskTags: stringArray(profile.riskTags),
+    trustBoundaries: stringArray(profile.trustBoundaries),
+    confidence: typeof profile.confidence === 'number' ? profile.confidence : 0.5,
+    summary: typeof profile.summary === 'string' ? profile.summary : profile.role,
+  } satisfies RepoGraphSemanticProfile;
 }
 
 class GraphBuilder {
@@ -649,16 +971,23 @@ class GraphBuilder {
     metadata?: Record<string, unknown>,
   ) {
     const normalizedKey = normalizeRelativePath(key);
-    const id = `graph_${this.workspaceId}_${kind}_${hashKey(normalizedKey)}`;
+    const id = stableNodeId(this.workspaceId, kind, normalizedKey);
+    const existing = this.nodes.get(`${kind}:${normalizedKey}`);
     const node: RepoGraphNode = {
       id,
       workspaceId: this.workspaceId,
       kind,
       key: normalizedKey,
       label,
-      metadata,
+      metadata: {
+        ...(existing?.metadata ?? {}),
+        ...(metadata ?? {}),
+      },
       updatedAt: new Date(0).toISOString(),
     };
+    if (!Object.keys(node.metadata ?? {}).length) {
+      delete node.metadata;
+    }
     this.nodes.set(`${kind}:${normalizedKey}`, node);
     return node;
   }
@@ -720,11 +1049,19 @@ async function collectIndexableFiles(rootPath: string) {
 }
 
 async function readSmallFile(filePath: string) {
-  const fileStat = await stat(filePath);
-  if (fileStat.size > MAX_FILE_BYTES) {
+  try {
+    const fileStat = await stat(filePath);
+    if (fileStat.size > MAX_FILE_BYTES) {
+      return null;
+    }
+    return {
+      content: await readFile(filePath, 'utf8'),
+      size: fileStat.size,
+      mtimeMs: Math.floor(fileStat.mtimeMs),
+    };
+  } catch {
     return null;
   }
-  return readFile(filePath, 'utf8');
 }
 
 function parseSourceFile(
@@ -815,8 +1152,9 @@ function parsePackageManifest(builder: GraphBuilder, file: string, content: stri
   }
 }
 
-function inferEntrypoints(builder: GraphBuilder, contents: Map<string, string>) {
-  for (const [file, content] of contents) {
+function inferEntrypoints(builder: GraphBuilder, contents: Map<string, IndexedFileContent>) {
+  for (const [file, indexedContent] of contents) {
+    const { content } = indexedContent;
     const basename = path.basename(file);
     if (['main.ts', 'main.tsx', 'renderer.tsx', 'preload.ts', 'index.ts', 'index.tsx'].includes(basename)) {
       builder.edge('file', file, 'entrypoint', file, 'entrypoint_for', { reason: 'conventional entrypoint' });
@@ -924,6 +1262,22 @@ function extractExports(content: string) {
     }
   }
   return [...exports];
+}
+
+function extractSymbols(content: string) {
+  const symbols = new Set(extractExports(content));
+  const patterns = [
+    /\b(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+    /\bclass\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+    /\b(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=/g,
+    /\b(?:interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of content.matchAll(pattern)) {
+      symbols.add(match[1]);
+    }
+  }
+  return [...symbols];
 }
 
 function extractEnvVars(content: string) {
@@ -1083,6 +1437,246 @@ function inferCommandPurpose(script: string, command: string) {
     return 'dev';
   }
   return 'script';
+}
+
+function inferSemanticRole(file: string, kind: RepoGraphNodeKind, content: string) {
+  if (kind === 'test') return 'test';
+  if (kind === 'manifest') return 'manifest';
+  if (kind === 'config') return 'config';
+  if (file.includes('/ipc/') || /\bipcMain\.(?:handle|on)\b/.test(content)) return 'ipc-handler';
+  if (/\bipcRenderer\.(?:invoke|send)\b/.test(content)) return 'ipc-client';
+  if (file.includes('/tools/') || /export\s+const\s+\w+Tool\b/.test(content)) return 'agent-tool';
+  if (file.includes('/services/') || file.includes('-service')) return 'service';
+  if (file.endsWith('.tsx') || /\bReact\b|jsx|tsx|createRoot\(/i.test(content)) return 'ui';
+  if (file.includes('/store/') || /\bcreate\(/.test(content)) return 'state-store';
+  if (file.includes('/contracts/') || /\binterface\b|\btype\b/.test(content)) return 'contract';
+  if (/\bapp\.whenReady\(|\bBrowserWindow\b/.test(content)) return 'electron-main';
+  return 'runtime-code';
+}
+
+function inferRuntime(file: string, content: string) {
+  const runtime = new Set<string>();
+  if (file.includes('src/electron/') || /\bapp\.whenReady\(|\bipcMain\b|\bBrowserWindow\b/.test(content)) {
+    runtime.add('electron-main');
+  }
+  if (/\bipcRenderer\b|\bcontextBridge\b/.test(content)) {
+    runtime.add('electron-preload');
+  }
+  if (file.endsWith('.tsx') || /\bReact\b|\bcreateRoot\(/.test(content)) {
+    runtime.add('renderer');
+  }
+  if (/\bnode:|\bprocess\.env\b|\bfs\b|\bpath\b/.test(content)) {
+    runtime.add('node');
+  }
+  return [...runtime].sort();
+}
+
+function inferRiskTags(
+  file: string,
+  content: string,
+  ipcChannels: string[],
+  envVars: string[],
+) {
+  const tags = new Set<string>();
+  if (ipcChannels.length) tags.add('ipc');
+  if (envVars.length || /\.env/.test(file)) tags.add('secrets-config');
+  if (/\b(exec|execFile|spawn|execSync|spawnSync)\s*\(/.test(content)) tags.add('shell-exec');
+  if (/\b(readFile|writeFile|createReadStream|createWriteStream|rm|unlink)\s*\(/.test(content)) tags.add('filesystem');
+  if (/\bfetch\s*\(|\baxios\b|\bhttps?\.request\b/.test(content)) tags.add('network');
+  if (/\binnerHTML\b|\bdangerouslySetInnerHTML\b/.test(content)) tags.add('dom-injection');
+  if (/\bapiKey\b|\btoken\b|\bsecret\b/i.test(content)) tags.add('credential-flow');
+  if (file.includes('/privacy/') || file.includes('/security/') || file.includes('/tools/')) tags.add('security-analysis');
+  return [...tags].sort();
+}
+
+function inferTrustBoundaries(
+  file: string,
+  content: string,
+  ipcChannels: string[],
+  envVars: string[],
+) {
+  const boundaries = new Set<string>();
+  if (ipcChannels.length) boundaries.add('renderer-main-ipc');
+  if (envVars.length) boundaries.add('local-env');
+  if (/\bfetch\s*\(|\brequestRainy|\bOpenAI\b/.test(content)) boundaries.add('remote-api');
+  if (/\breadFile\b|\bwriteFile\b|\breaddir\b|\bstat\b/.test(content)) boundaries.add('local-filesystem');
+  if (file.includes('/storage/')) boundaries.add('external-storage');
+  return [...boundaries].sort();
+}
+
+function inferProfileConfidence(
+  kind: RepoGraphNodeKind,
+  content: string,
+  symbols: string[],
+  imports: string[],
+) {
+  let confidence = kind === 'file' ? 0.55 : 0.7;
+  if (symbols.length) confidence += 0.15;
+  if (imports.length) confidence += 0.1;
+  if (/\bipc(Main|Renderer)\b|\bprocess\.env\b|\bexport\b/.test(content)) confidence += 0.1;
+  return Math.min(0.95, Number(confidence.toFixed(2)));
+}
+
+async function hasIndexableFingerprintChanges(
+  workspace: RepoGraphWorkspace,
+  files: string[],
+) {
+  const states = await tursoService.getRepoFileIndexStates(workspace.id);
+  const stateByPath = new Map(states.map((state) => [state.path, state]));
+  for (const rawFile of files) {
+    const file = normalizeRelativePath(rawFile);
+    if (!isIndexableFile(file)) {
+      continue;
+    }
+    const existing = stateByPath.get(file);
+    const indexedContent = await readSmallFile(path.join(workspace.path, file));
+    if (!existing || !indexedContent) {
+      return true;
+    }
+    if (existing.size !== indexedContent.size || existing.mtimeMs !== indexedContent.mtimeMs) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function embedSearchQuery(query: string, model: string) {
+  const apiKey = await tursoService.getApiKey();
+  if (!apiKey || !query.trim()) {
+    return [];
+  }
+  try {
+    const config = getRainyEmbeddingModelConfig(model);
+    const [vector] = await requestRainyEmbeddings({
+      apiKey,
+      model,
+      dimensions: config.dimensions,
+      input: [query.slice(0, config.contextLength)],
+    });
+    return vector ?? [];
+  } catch (error) {
+    console.warn('RepoGraph semantic query embedding failed:', sanitizeEmbeddingIndexError(error));
+    return [];
+  }
+}
+
+function tokenizeSearchText(text: string) {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9_:-]+/)
+      .filter((token) => token.length > 1),
+  );
+}
+
+function scoreLexicalProfile(profile: RepoGraphSemanticProfile, tokens: Set<string>) {
+  if (tokens.size === 0) {
+    return 0;
+  }
+  const fields = [
+    profile.file,
+    profile.role,
+    profile.summary,
+    ...profile.symbols,
+    ...profile.imports,
+    ...profile.ipcChannels,
+    ...profile.envVars,
+    ...profile.dependencies,
+    ...profile.riskTags,
+    ...profile.trustBoundaries,
+  ].join(' ').toLowerCase();
+  let matches = 0;
+  for (const token of tokens) {
+    if (fields.includes(token)) {
+      matches += 1;
+    }
+  }
+  return matches / tokens.size;
+}
+
+function cosineSimilarity(left: number[], right: number[]) {
+  const length = Math.min(left.length, right.length);
+  if (!length) {
+    return 0;
+  }
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+  for (let index = 0; index < length; index += 1) {
+    dot += left[index] * right[index];
+    leftMagnitude += left[index] * left[index];
+    rightMagnitude += right[index] * right[index];
+  }
+  if (!leftMagnitude || !rightMagnitude) {
+    return 0;
+  }
+  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+}
+
+function describeSemanticMatch(
+  profile: RepoGraphSemanticProfile,
+  tokens: Set<string>,
+  vectorScore: number,
+) {
+  const matched = matchedSemanticFields(profile, tokens);
+  if (matched.length) {
+    return `Matched ${matched.join(', ')} on ${profile.role}.`;
+  }
+  return vectorScore > 0 ? `Vector match on ${profile.role}.` : `Profile match on ${profile.role}.`;
+}
+
+function matchedSemanticFields(profile: RepoGraphSemanticProfile, tokens: Set<string>) {
+  const fields: Array<[string, string[]]> = [
+    ['path', [profile.file]],
+    ['role', [profile.role]],
+    ['symbols', profile.symbols],
+    ['imports', profile.imports],
+    ['ipc', profile.ipcChannels],
+    ['env', profile.envVars],
+    ['dependencies', profile.dependencies],
+    ['risk', profile.riskTags],
+    ['trust', profile.trustBoundaries],
+  ];
+  return fields
+    .filter(([, values]) => values.some((value) => {
+      const normalized = value.toLowerCase();
+      return [...tokens].some((token) => normalized.includes(token));
+    }))
+    .map(([field]) => field);
+}
+
+function buildReadRecommendation(profile: RepoGraphSemanticProfile) {
+  if (profile.riskTags.length) {
+    return `Read if task touches ${profile.riskTags.slice(0, 3).join(', ')}.`;
+  }
+  if (profile.role === 'contract' || profile.role === 'config') {
+    return `Read for interface or configuration changes.`;
+  }
+  return `Read only if modifying ${profile.role} behavior.`;
+}
+
+function countBy(values: string[]) {
+  return values.reduce<Record<string, number>>((counts, value) => {
+    counts[value] = (counts[value] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function clampLimit(limit: number | undefined) {
+  if (!Number.isFinite(limit)) {
+    return SEMANTIC_SEARCH_LIMIT;
+  }
+  return Math.max(1, Math.min(50, Math.floor(limit ?? SEMANTIC_SEARCH_LIMIT)));
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function stableNodeId(workspaceId: string, kind: RepoGraphNodeKind, key: string) {
+  return `graph_${workspaceId}_${kind}_${hashKey(normalizeRelativePath(key))}`;
 }
 
 function normalizeRelativePath(filePath: string) {

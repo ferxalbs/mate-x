@@ -1130,6 +1130,38 @@ export function registerIpcHandlers() {
     const workspace = await resolveActiveWorkspaceForRepoGraph();
     return repoGraphService.getDependencySurface(workspace);
   });
+  ipcMain.handle("repo-graph:semantic-search", async (_event, query: string, limit?: number, role?: string, risk?: string) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.semanticSearch(
+      workspace,
+      requireBoundedString(query, "query", 2_000),
+      {
+        limit: typeof limit === "number" ? limit : undefined,
+        role: optionalBoundedString(role, "role", 80)?.trim() || undefined,
+        risk: optionalBoundedString(risk, "risk", 80)?.trim() || undefined,
+      },
+    );
+  });
+  ipcMain.handle("repo-graph:get-semantic-profile", async (_event, file: string) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getSemanticProfile(
+      workspace,
+      assertSafeRelativePath(requireBoundedString(file, "file", 2_000), "file"),
+    );
+  });
+  ipcMain.handle("repo-graph:get-architecture-summary", async () => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.getArchitectureSummary(workspace);
+  });
+  ipcMain.handle("repo-graph:detect-changes", async (_event, files?: string[]) => {
+    const workspace = await resolveActiveWorkspaceForRepoGraph();
+    return repoGraphService.detectChanges(
+      workspace,
+      Array.isArray(files)
+        ? requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files"))
+        : undefined,
+    );
+  });
 
   ipcMain.handle("mate-x:orchestrator:execute", async (_event, action: unknown) => {
     if (!action || typeof action !== "object") {
