@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.05 (1) [Live Repo Health Profile]
+
+- Reworked the Live Enhancement Panel Repo Health system so it uses real workspace health data instead of placeholder-style fallback cells for tests, lint, secrets, and profile state.
+- Added main-process workspace health profiling from actual git status, workspace file inventory, `package.json` scripts, package manager lockfiles, detected stack, test runner signals, secret-risk filenames, dependency warnings, and dirty-state evidence.
+- Extracted the health-profile builder into `src/electron/repo-service/workspace-health.ts` so `workspace.ts` stays focused on workspace summary orchestration and the health system can grow with future detectors.
+- Updated Repo Health panel copy and signal mapping to separate real workspace metadata from generated health profiles, avoiding fake scan claims when profile data is absent.
+- Verified with `~/.bun/bin/bun run lint` and `~/.bun/bin/bun run typecheck` (both clean).
+
 ## Unreleased - 2026.07.04 (3) [Trust Stabilization]
 
 - Aligned product metadata and legal fields with the MaTE X OpenCore model by replacing the generic desktop-shell package description, removing the incorrect MIT package licence claim, and matching the licensed work name to the secure local-repository agent positioning.
