@@ -55,15 +55,10 @@ import {
   supportsVideoInput as modelSupportsVideoInput,
 } from "../../../lib/rainy-model-capabilities";
 import { cn } from "../../../lib/utils";
-import {
-  getEmbeddingModel,
-  getModel,
-  listEmbeddingModels,
-  listModels,
-  setEmbeddingModel,
-  setModel,
-} from "../../../services/settings-client";
+import { getEmbeddingModel, getModel, listEmbeddingModels, listModels, setEmbeddingModel, setModel } from "../../../services/settings-client";
 import { useChatStore } from "../../../store/chat-store";
+import { useResizeObserver } from "../../../hooks/use-resize-observer";
+import { appleCornerPath } from "../../../lib/utils";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
@@ -137,6 +132,8 @@ export function ComposerPanel({
   const settings = useChatStore((state) => state.settings);
   const hasWorkspace = Boolean(workspace);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const containerDimensions = useResizeObserver(containerRef);
 
   useEffect(() => {
     let cancelled = false;
@@ -461,12 +458,19 @@ export function ComposerPanel({
   return (
     <>
         <div
+          ref={containerRef}
           className={cn(
-            "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+            "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
             "glass border border-[var(--panel-border)]/40 bg-[var(--panel)]/92 shadow-sm backdrop-blur-xl",
-            isDraggingFile ? "ring-2 ring-primary/60 bg-[var(--panel)]/95" : "",
+            isDraggingFile ? "ring-2 ring-primary/60 bg-[var(--panel)]" : "",
           )}
-          style={{ "--glass-bg": "var(--panel)" } as React.CSSProperties}
+          style={{ 
+            "--glass-bg": "var(--panel)",
+            clipPath: containerDimensions.width > 0 
+              ? `path("${appleCornerPath({ width: containerDimensions.width, height: containerDimensions.height, radius: 32, smoothing: 60 })}")` 
+              : "none",
+            borderRadius: containerDimensions.width > 0 ? 0 : 32 // fallback if observer fails/hasn't run
+          } as React.CSSProperties}
           onDragEnter={(event) => {
             event.preventDefault();
             if (event.dataTransfer.types.includes("Files")) {
@@ -502,7 +506,7 @@ export function ComposerPanel({
 
           <div className="relative z-10 bg-transparent px-5 py-4">
             <textarea
-              className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 sm:min-h-[60px]"
+              className="min-h-[76px] w-full resize-none bg-transparent text-[14px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 focus:placeholder:text-muted-foreground/85 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -562,7 +566,7 @@ export function ComposerPanel({
               />
               <button
                 aria-label="Attach files"
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent sm:size-6"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/75 transition-colors hover:bg-accent hover:text-foreground sm:size-6"
                 disabled={!hasWorkspace}
                 onClick={() => fileInputRef.current?.click()}
                 title="Attach files"
@@ -632,10 +636,10 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent sm:size-6",
+                    "flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-accent hover:text-foreground sm:size-6",
                     reasoningEnabled
                       ? "text-foreground"
-                      : "text-muted-foreground/60",
+                      : "text-muted-foreground/50",
                   )}
                   onClick={() => setReasoningEnabled((value) => !value)}
                   title={reasoningToggleLabel}
