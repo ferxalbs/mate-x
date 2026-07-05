@@ -20,11 +20,51 @@ import type {
   ImpactSummary,
   RepoHealthSignal,
   SignalTone,
+  TrustGateState,
 } from "./enhancement-panel-utils";
 import { getRepoHealthVerdict } from "./enhancement-panel-utils";
 import { Card, CardContent } from "../../../components/ui/card";
 
 export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
+
+export function TrustGateCard({ state }: { state: TrustGateState }) {
+  return (
+    <Card
+      className={cn(
+        "mb-4 rounded-2xl border-border/70 shadow-none",
+        toneSurfaceClassName(state.tone),
+      )}
+    >
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              Trust Gate
+            </p>
+            <p className={cn("mt-1 break-words text-[16px] font-semibold leading-6", toneValueClassName(state.tone))}>
+              {state.verdict}
+            </p>
+          </div>
+          <TonePill label={state.proofLabel} tone={state.tone} />
+        </div>
+        <p className="mt-2 text-[11px] font-medium text-foreground">
+          Don&apos;t merge vibes. Agent changes are not trusted until proven.
+        </p>
+        <ul className="mt-2 space-y-1.5 text-[10px] leading-4 text-muted-foreground">
+          {state.why.slice(0, 2).map((reason) => (
+            <li className="break-words" key={reason}>
+              {reason}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Next:</span>{" "}
+          {state.nextAction}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface BaseSectionProps {
   changedFiles: string[];
@@ -198,7 +238,7 @@ export function EvidencePackSection({
 
   return (
     <section className="space-y-3">
-      <PanelTitle icon={ClipboardCheckIcon} title="Evidence Pack" />
+      <PanelTitle icon={ClipboardCheckIcon} title="Ship Proof" />
       {!evidencePack ? <SkeletonStack /> : null}
       <EvidenceConfidenceCard
         commandCount={commandCount}
@@ -237,7 +277,7 @@ export function EvidencePackSection({
             Local scan sees {fallbackFileCount} changed file
             {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
             command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
-            Evidence Pack has been generated for this run yet.
+            Ship Proof has been generated for this run yet.
           </CardContent>
         </Card>
       ) : null}
@@ -448,7 +488,7 @@ function EvidenceConfidenceCard({
     >
       <CardContent className="p-3">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-          Evidence Confidence
+          Proof Confidence
         </p>
         <div className="mt-1 flex items-baseline gap-1">
           <span
