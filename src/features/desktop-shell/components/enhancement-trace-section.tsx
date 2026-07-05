@@ -13,6 +13,7 @@ import {
 import type { EvidencePack, ToolEvent } from "../../../contracts/chat";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import { cn } from "../../../lib/utils";
+import { Card, CardContent } from "../../../components/ui/card";
 import type { ImpactSummary } from "./enhancement-panel-utils";
 
 interface TracePanelRow {
@@ -203,13 +204,14 @@ function TraceGroup({
   title: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-medium uppercase text-muted-foreground">
-          {title}
-        </p>
-        <p className="text-[10px] text-muted-foreground/70">{caption}</p>
-      </div>
+    <Card className="border-border/70 shadow-none bg-transparent">
+      <CardContent className="p-2.5">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[10px] tracking-wider font-medium uppercase text-muted-foreground/70">
+            {title}
+          </p>
+          <p className="text-[10px] text-muted-foreground/70">{caption}</p>
+        </div>
       <div className="space-y-1.5">
         {rows.length > 0 ? (
           rows.map((row, index) => (
@@ -223,7 +225,8 @@ function TraceGroup({
           <EmptyLine text={emptyText ?? "No trace rows available"} />
         )}
       </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -237,28 +240,30 @@ function TraceRow({
   const Icon = row.icon;
 
   return (
-    <div className="rounded-2xl border border-[var(--panel-border)]/30 bg-[var(--mate-surface-bg)]/55 px-2.5 py-2">
-      <div className="flex items-start gap-2">
-        <span
-          className={cn(
-            "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums",
-            traceStatusTone(row.status),
-          )}
-        >
-          {index}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Icon className="size-3.5 shrink-0 text-primary" />
-            <p className="truncate text-[11px] font-medium">{row.title}</p>
-            <TraceStatusIcon status={row.status} />
+    <Card className="border-border/50 shadow-none bg-transparent">
+      <CardContent className="px-2.5 py-2">
+        <div className="flex items-start gap-2">
+          <span
+            className={cn(
+              "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums",
+              traceStatusTone(row.status),
+            )}
+          >
+            {index}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Icon className="size-3.5 shrink-0 text-primary" />
+              <p className="truncate text-[11px] font-medium text-foreground">{row.title}</p>
+              <TraceStatusIcon status={row.status} />
+            </div>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground break-words">
+              {row.detail}
+            </p>
           </div>
-          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            {row.detail}
-          </p>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -305,26 +310,32 @@ function PanelTitle({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2 py-1.5 backdrop-blur-md">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold tabular-nums">{value}</dd>
-    </div>
+    <Card className="border-border/70 shadow-none bg-transparent">
+      <CardContent className="px-2 py-1.5">
+        <dt className="text-muted-foreground/70 uppercase tracking-wider text-[10px]">{label}</dt>
+        <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
+      </CardContent>
+    </Card>
   );
 }
 
 function EmptyLine({ text }: { text: string }) {
   return (
-    <p className="rounded-2xl border border-[var(--panel-border)]/30 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md">
-      {text}
-    </p>
+    <Card className="border-border/50 shadow-none bg-transparent">
+      <CardContent className="px-2.5 py-1.5">
+        <p className="text-[11px] text-muted-foreground">
+          {text}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
 function SkeletonStack() {
   return (
     <div className="space-y-2">
-      <div className="h-10 animate-pulse rounded-2xl border border-[var(--panel-border)]/25 bg-[var(--mate-control-bg)]" />
-      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-[var(--panel-border)]/20 bg-[var(--mate-control-bg)]" />
+      <div className="h-10 animate-pulse rounded-2xl border border-border/70 bg-transparent" />
+      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-border/70 bg-transparent" />
     </div>
   );
 }

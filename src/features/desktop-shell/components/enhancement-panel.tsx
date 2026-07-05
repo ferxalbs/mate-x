@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
+import { Card, CardContent } from "../../../components/ui/card";
+import { ScrollArea } from "../../../components/ui/scroll-area";
 import type { Conversation, RunStatus } from "../../../contracts/chat";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
@@ -266,7 +268,8 @@ export function EnhancementPanel({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="px-4 py-4">
           {activeView === "trace" ? (
             <TraceSection
               changedFiles={changedFiles}
@@ -309,26 +312,33 @@ export function EnhancementPanel({
             />
           ) : null}
 
-          <div className="mt-4 rounded-2xl border border-[var(--panel-border)]/38 bg-[var(--mate-control-bg)] p-3 backdrop-blur-md">
-            <RepoHealthSection
-              hasWorkspace={Boolean(workspace)}
-              hasProfile={Boolean(health)}
-              signals={repoSignals}
-              nextAction={health?.recommendedNextAction}
-            />
-          </div>
+          <Card className="mt-4 border-border/70 shadow-none bg-transparent">
+            <CardContent className="p-3">
+              <RepoHealthSection
+                hasWorkspace={Boolean(workspace)}
+                hasProfile={Boolean(health)}
+                signals={repoSignals}
+                nextAction={health?.recommendedNextAction}
+              />
+            </CardContent>
+          </Card>
 
           {error ? (
-            <p className="mt-3 rounded-2xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
-              {error}
-            </p>
+            <Card className="mt-3 border-destructive/40 shadow-none bg-destructive/5">
+              <CardContent className="px-3 py-2 text-[11px] text-destructive">
+                {error}
+              </CardContent>
+            </Card>
           ) : !runtime.evidencePack && activeView === "evidence" ? (
-            <p className="mt-3 rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] text-muted-foreground backdrop-blur-md">
-              <ClipboardCheckIcon className="mr-1 inline size-3.5" />
-              Evidence Pack appears after verified run completes.
-            </p>
+            <Card className="mt-3 border-border/70 shadow-none bg-transparent">
+              <CardContent className="px-3 py-2 text-[11px] text-muted-foreground">
+                <ClipboardCheckIcon className="mr-1 inline size-3.5" />
+                Evidence Pack appears after verified run completes.
+              </CardContent>
+            </Card>
           ) : null}
-        </div>
+          </div>
+        </ScrollArea>
       </div>
     </aside>
   );

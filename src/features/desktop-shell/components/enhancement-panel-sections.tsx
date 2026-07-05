@@ -21,6 +21,7 @@ import type {
   SignalTone,
 } from "./enhancement-panel-utils";
 import { getRepoHealthVerdict } from "./enhancement-panel-utils";
+import { Card, CardContent } from "../../../components/ui/card";
 
 export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
 
@@ -55,20 +56,22 @@ export function ImpactSection({
         <Metric label="Affected" value={summary.affectedCount} />
         <Metric label="Fan-out" value={summary.toolFanoutCount} />
       </dl>
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-3">
-        <p className="text-[10px] font-medium uppercase text-amber-500">
-          {sourceIsArtifact ? "Evidence artifact" : "Source of change"}
-        </p>
-        <p className="mt-1 truncate font-mono text-[11px]" title={source}>
-          {source}
-        </p>
+      <Card className="border-amber-500/20 shadow-none bg-amber-500/[0.04]">
+        <CardContent className="p-3">
+          <p className="text-[10px] tracking-wider font-medium uppercase text-amber-500">
+            {sourceIsArtifact ? "Evidence artifact" : "Source of change"}
+          </p>
+          <p className="mt-1 break-all font-mono text-[11px] text-foreground" title={source}>
+            {source}
+          </p>
         {sourceIsArtifact ? (
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
             Artifact captured from run. Source-code paths must come from trace
             or RepoGraph before claiming impact.
           </p>
         ) : null}
-      </div>
+        </CardContent>
+      </Card>
       <div className="grid grid-cols-2 gap-2">
         <ImpactNode label="Direct impact" tone="good" value={directImpact} />
         <ImpactNode
@@ -87,10 +90,12 @@ export function ImpactSection({
           <EmptyLine text="Run scan after edits to calculate blast radius" />
         ) : null}
       </div>
-      <p className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] px-3 py-2 text-[10px] leading-4 text-muted-foreground">
-        Optimization: verify impacted paths first, skip unrelated suites when
-        RepoGraph proves isolation.
-      </p>
+      <Card className="border-blue-500/15 shadow-none bg-blue-500/[0.04]">
+        <CardContent className="px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+          Optimization: verify impacted paths first, skip unrelated suites when
+          RepoGraph proves isolation.
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -112,34 +117,36 @@ export function ValidationSection({
     <section className="space-y-3">
       <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
       {isLoading ? <SkeletonStack /> : null}
-      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[#0a0a0a]/80 p-3 font-mono text-[10px]">
-        <div className="mb-3 flex items-center gap-1.5 border-b border-white/10 pb-2 text-muted-foreground">
-          <span className="size-2 rounded-full bg-white/15" />
-          <span className="size-2 rounded-full bg-white/15" />
-          <span className="size-2 rounded-full bg-white/15" />
-          <span className="ml-1">mate-x verification</span>
-        </div>
-        <div className="space-y-3">
-          {visibleCommands.map((command) => (
-            <div key={command}>
+      <Card className="border-border/70 shadow-none bg-transparent font-mono text-[10px]">
+        <CardContent className="p-3">
+          <div className="mb-3 flex items-center gap-1.5 border-b border-border/70 pb-2 text-muted-foreground">
+            <span className="size-2 rounded-full bg-border" />
+            <span className="size-2 rounded-full bg-border" />
+            <span className="size-2 rounded-full bg-border" />
+            <span className="ml-1 uppercase tracking-wider text-[10px]">mate-x verification</span>
+          </div>
+          <div className="space-y-3">
+            {visibleCommands.map((command) => (
+              <div key={command}>
+                <p className="text-muted-foreground break-all">
+                  $ {formatCommandLabel(command)}
+                </p>
+                <p className="mt-1 border-l border-emerald-500/25 pl-3 text-emerald-500">
+                  {evidencePack
+                    ? "executed evidence signal"
+                    : "planned from workspace profile"}
+                </p>
+              </div>
+            ))}
+            {visibleCommands.length === 0 ? (
               <p className="text-muted-foreground">
-                $ {formatCommandLabel(command)}
+                No validation command evidence yet. Run verified task or scan
+                changed files.
               </p>
-              <p className="mt-1 border-l border-emerald-500/25 pl-3 text-emerald-400">
-                {evidencePack
-                  ? "executed evidence signal"
-                  : "planned from workspace profile"}
-              </p>
-            </div>
-          ))}
-          {visibleCommands.length === 0 ? (
-            <p className="text-muted-foreground">
-              No validation command evidence yet. Run verified task or scan
-              changed files.
-            </p>
-          ) : null}
-        </div>
-      </div>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid grid-cols-2 gap-2 text-[11px]">
         <Metric label="Mapped tests" value={tests.length} />
         <Metric label="Commands" value={visibleCommands.length} />
@@ -191,15 +198,16 @@ export function EvidencePackSection({
     <section className="space-y-3">
       <PanelTitle icon={ClipboardCheckIcon} title="Evidence Pack" />
       {!evidencePack ? <SkeletonStack /> : null}
-      <div
+      <Card
         className={cn(
-          "rounded-2xl border p-3",
+          "border-border/70 shadow-none",
           toneSurfaceClassName(scoreTone),
         )}
       >
-        <p className="text-[10px] uppercase text-muted-foreground">
-          Evidence Confidence
-        </p>
+        <CardContent className="p-3">
+          <p className="text-[10px] tracking-wider uppercase text-muted-foreground/70">
+            Evidence Confidence
+          </p>
         <div className="mt-1 flex items-baseline gap-1">
           <span
             className={cn(
@@ -222,7 +230,8 @@ export function EvidencePackSection({
             )}
           </p>
         ) : null}
-      </div>
+        </CardContent>
+      </Card>
       {runFailed ? (
         <FailureReasonCard
           commandCount={commandCount}
@@ -246,12 +255,14 @@ export function EvidencePackSection({
         value={formatScoreBasis(scoreBreakdown)}
       />
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
-        <p className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[10px] leading-4 text-muted-foreground">
-          Local scan sees {fallbackFileCount} changed file
-          {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
-          command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
-          Evidence Pack has been generated for this run yet.
-        </p>
+        <Card className="border-border/70 shadow-none bg-transparent">
+          <CardContent className="px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+            Local scan sees {fallbackFileCount} changed file
+            {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
+            command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
+            Evidence Pack has been generated for this run yet.
+          </CardContent>
+        </Card>
       ) : null}
       <EvidenceRow
         label="Security risk"
@@ -305,10 +316,11 @@ export function EvidencePackSection({
               : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
-      <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-panel-bg)] p-2.5 backdrop-blur-md">
-        <p className="text-[10px] uppercase text-muted-foreground">
-          Compliance Actions
-        </p>
+      <Card className="border-border/70 shadow-none bg-transparent">
+        <CardContent className="p-2.5">
+          <p className="text-[10px] tracking-wider uppercase text-muted-foreground/70">
+            Compliance Actions
+          </p>
         <button
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
           disabled={!canExportCompliance}
@@ -337,7 +349,8 @@ export function EvidencePackSection({
           <FileTextIcon className="size-3.5" />
           Export Agent Runbook
         </button>
-      </div>
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -361,15 +374,16 @@ export function RepoHealthSection({
         <PanelTitle icon={ZapIcon} title="Repo Health" />
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
-      <div
+      <Card
         className={cn(
-          "rounded-2xl border p-3",
+          "border-border/70 shadow-none",
           toneSurfaceClassName(verdict.tone),
         )}
       >
-        <p className="text-[10px] font-medium uppercase text-muted-foreground">
-          {hasProfile ? "Live repo verdict" : "Repo context"}
-        </p>
+        <CardContent className="p-3">
+          <p className="text-[10px] tracking-wider font-medium uppercase text-muted-foreground/70">
+            {hasProfile ? "Live repo verdict" : "Repo context"}
+          </p>
         <p className="mt-1 text-[12px] font-semibold">{verdict.detail}</p>
         {!hasProfile ? (
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
@@ -378,19 +392,19 @@ export function RepoHealthSection({
               : "Open or import a workspace to populate repo health."}
           </p>
         ) : null}
-      </div>
+        </CardContent>
+      </Card>
       <dl className="grid grid-cols-2 gap-2 text-[11px]">
         {signals.map((signal) => (
           <HealthSignalCell signal={signal} key={signal.label} />
         ))}
       </dl>
       {nextAction ? (
-        <p
-          className="truncate rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2.5 py-2 text-[11px] backdrop-blur-md"
-          title={nextAction}
-        >
-          {nextAction}
-        </p>
+        <Card className="border-border/70 shadow-none bg-transparent">
+          <CardContent className="px-2.5 py-2 text-[11px] break-words">
+            {nextAction}
+          </CardContent>
+        </Card>
       ) : null}
     </section>
   );
@@ -415,10 +429,12 @@ function PanelTitle({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2 py-1.5 backdrop-blur-md">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold tabular-nums">{value}</dd>
-    </div>
+    <Card className="border-border/70 shadow-none bg-transparent">
+      <CardContent className="px-2 py-1.5">
+        <dt className="text-muted-foreground/70 tracking-wider text-[10px] uppercase">{label}</dt>
+        <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -445,59 +461,62 @@ function ImpactNode({
   value: string;
 }) {
   return (
-    <div
+    <Card
       className={cn(
-        "rounded-2xl border p-2.5 text-center",
+        "border-border/70 shadow-none text-center",
         tone === "good"
           ? "border-emerald-500/20 bg-emerald-500/[0.04]"
-          : "border-[var(--panel-border)]/30 bg-[var(--mate-control-bg)] opacity-70",
+          : "bg-transparent",
       )}
     >
-      <p className="text-[10px] font-medium uppercase text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 truncate font-mono text-[10px]" title={value}>
-        {value}
-      </p>
-    </div>
+      <CardContent className="p-2.5">
+        <p className="text-[10px] font-medium uppercase text-muted-foreground/70 tracking-wider">
+          {label}
+        </p>
+        <p className="mt-1 break-all font-mono text-[10px] text-foreground" title={value}>
+          {value}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
 function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
   return (
-    <div
-      className="flex items-center gap-2 rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] backdrop-blur-md"
-      title={entry.reason}
-    >
-      <span className="shrink-0 text-muted-foreground tabular-nums">
-        d{entry.distance}
-      </span>
-      <FileTextIcon className="size-3 shrink-0 text-primary" />
-      <span className="min-w-0 flex-1 truncate">
-        {entry.group ?? entry.file}
-      </span>
-      {entry.hiddenCount ? (
-        <span className="shrink-0 text-muted-foreground">
-          +{entry.hiddenCount}
+    <Card className="border-border/50 shadow-none bg-transparent">
+      <CardContent className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]" title={entry.reason}>
+        <span className="shrink-0 text-muted-foreground tabular-nums">
+          d{entry.distance}
         </span>
-      ) : null}
-    </div>
+        <FileTextIcon className="size-3 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate text-foreground">
+          {entry.group ?? entry.file}
+        </span>
+        {entry.hiddenCount ? (
+          <span className="shrink-0 text-muted-foreground">
+            +{entry.hiddenCount}
+          </span>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
 function EmptyLine({ text }: { text: string }) {
   return (
-    <p className="rounded-2xl border border-[var(--panel-border)]/30 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md">
-      {text}
-    </p>
+    <Card className="border-border/50 shadow-none bg-transparent">
+      <CardContent className="px-2.5 py-1.5 text-[11px] text-muted-foreground">
+        {text}
+      </CardContent>
+    </Card>
   );
 }
 
 function SkeletonStack() {
   return (
     <div className="space-y-2">
-      <div className="h-10 animate-pulse rounded-2xl border border-[var(--panel-border)]/25 bg-[var(--mate-control-bg)]" />
-      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-[var(--panel-border)]/20 bg-[var(--mate-control-bg)]" />
+      <div className="h-10 animate-pulse rounded-2xl border border-border/70 bg-transparent" />
+      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-border/70 bg-transparent" />
     </div>
   );
 }
@@ -512,15 +531,17 @@ function EvidenceRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] backdrop-blur-md">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
-        <CheckCircle2Icon
-          className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
-        />
-        <span className="truncate">{value}</span>
-      </span>
-    </div>
+    <Card className="border-border/50 shadow-none bg-transparent">
+      <CardContent className="flex items-center justify-between gap-3 px-3 py-2 text-[11px]">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
+          <CheckCircle2Icon
+            className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
+          />
+          <span className="truncate text-foreground">{value}</span>
+        </span>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -534,19 +555,21 @@ function FailureReasonCard({
   verdict: string;
 }) {
   return (
-    <div className="rounded-2xl border border-destructive/35 bg-destructive/[0.045] p-3">
-      <p className="text-[10px] font-medium uppercase text-destructive">
-        Blocking issue
-      </p>
-      <p className="mt-1 text-[11px] font-semibold text-foreground">
-        {verdict}: evidence run did not complete cleanly.
-      </p>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        Captured {commandCount} command signals and {filesCount} file signal
-        {filesCount === 1 ? "" : "s"}, but review cannot be trusted until
-        file-level diff evidence completes.
-      </p>
-    </div>
+    <Card className="border-destructive/35 shadow-none bg-destructive/[0.045]">
+      <CardContent className="p-3">
+        <p className="text-[10px] tracking-wider font-medium uppercase text-destructive">
+          Blocking issue
+        </p>
+        <p className="mt-1 text-[11px] font-semibold text-foreground">
+          {verdict}: evidence run did not complete cleanly.
+        </p>
+        <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+          Captured {commandCount} command signals and {filesCount} file signal
+          {filesCount === 1 ? "" : "s"}, but review cannot be trusted until
+          file-level diff evidence completes.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -712,25 +735,26 @@ function impactTone(risk: string): SignalTone {
 
 function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
   return (
-    <div
+    <Card
       className={cn(
-        "min-w-0 rounded-2xl border px-2.5 py-2",
-        toneSurfaceClassName(signal.tone),
+        "min-w-0 border-border/50 shadow-none bg-transparent",
       )}
     >
-      <dt className="flex items-center justify-between gap-2 text-muted-foreground">
-        <span className="truncate">{signal.label}</span>
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            toneDotClassName(signal.tone),
-          )}
-        />
-      </dt>
-      <dd className="mt-1 truncate font-medium" title={signal.value}>
-        {signal.value}
-      </dd>
-    </div>
+      <CardContent className="px-2.5 py-2">
+        <dt className="flex items-center justify-between gap-2 text-muted-foreground">
+          <span className="truncate">{signal.label}</span>
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              toneDotClassName(signal.tone),
+            )}
+          />
+        </dt>
+        <dd className="mt-1 truncate font-medium text-foreground" title={signal.value}>
+          {signal.value}
+        </dd>
+      </CardContent>
+    </Card>
   );
 }
 
