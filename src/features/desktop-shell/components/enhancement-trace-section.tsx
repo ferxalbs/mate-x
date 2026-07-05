@@ -204,7 +204,7 @@ function TraceGroup({
   title: string;
 }) {
   return (
-    <Card className="border-border/70 shadow-none bg-transparent">
+    <Card className="border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
       <CardContent className="p-2.5">
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="text-[10px] tracking-wider font-medium uppercase text-muted-foreground/70">
@@ -240,7 +240,7 @@ function TraceRow({
   const Icon = row.icon;
 
   return (
-    <Card className="border-border/50 shadow-none bg-transparent">
+    <Card className="border-border/50 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
       <CardContent className="px-2.5 py-2">
         <div className="flex items-start gap-2">
           <span
