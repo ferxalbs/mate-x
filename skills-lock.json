@@ -65,6 +65,12 @@
       "skillPath": "skills/gabrielobholz-corner-smoothing/SKILL.md",
       "computedHash": "26eec93a22bc7bbdb902224b8ddd88e0ed74d0a557f2b7e75c024e4432b0a18c"
     },
+    "migrate-radix-to-base": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "skillPath": "skills/migrate-radix-to-base/SKILL.md",
+      "computedHash": "e1f2030ee5059be3dff0812ca0e4b995ee9fa3132176f049ebe6c90346a6755e"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
