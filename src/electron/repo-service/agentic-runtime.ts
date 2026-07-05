@@ -157,6 +157,8 @@ Working set discipline:
 - If the narrow validation command exits 0, treat the reported failure as resolved or unreproduced. Do not claim pending type errors, mismatches, or failures without a nonzero command result or exact diagnostic text.
 - Inspect files only when the working set, graph context, diffs, or command output identifies a concrete unresolved question.
 - Prefer Repo Intelligence Graph tools over grep or broad file listing when selecting any additional files.
+- Use Repo Intelligence Graph as semantic memory, not only file lookup. Before reading broad code, prefer semantic_search for concepts, get_semantic_profile for one candidate file, get_architecture_summary for unfamiliar repositories, and detect_changes for cache/change questions.
+- Treat semantic_search results as a ranked shortlist, not proof. Read only the top files needed to answer or patch; prefer get_impacted_files/get_tests_for_file before editing or validating.
 
 Git status:
 ${gitStatus || "(clean)"}
@@ -174,7 +176,14 @@ ${repoGraphSummary}
 
 You are running in an agent loop, not a single reply.
 First, use the working set, workspace metadata, git status, prompt-linked matches, and conversation history already provided here.
-Before broad file search, use Repo Intelligence Graph APIs for entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
+Before broad file search, use Repo Intelligence Graph APIs for semantic_search, semantic profiles, architecture summary, change detection, entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
+Repo Intelligence efficiency contract:
+- Unknown codebase or architecture question: call get_architecture_summary before reading files.
+- Concept, feature, security surface, API, route, IPC, env, dependency, or symbol hunt: call semantic_search first; then read the smallest top-ranked file ranges.
+- Known candidate file: call get_semantic_profile before reading unless exact line evidence is already supplied.
+- Change or re-index concern: call detect_changes before refresh; avoid refresh when unchanged.
+- Patch planning: combine semantic_search with get_impacted_files and get_tests_for_file so validation targets affected behavior, not the whole repo by default.
+- Evidence standard: graph results guide exploration; confirmed claims still require source, diff, command, or security-tool evidence.
 Security tool playbook:
 - For secret exposure, call secret_scan first. Keep evidence redacted; use source_map_analyzer for built bundles/maps and client env leakage.
 - For broad repo triage, use attack_surface_scan or deep_analysis_pipeline, then candidate_revalidator before calling a finding confirmed.
