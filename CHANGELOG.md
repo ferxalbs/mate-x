@@ -5,6 +5,7 @@
 - Added Trust Gate verdicts for AI-made changes, showing whether the current workspace is trusted, needs validation, risky, blocked, or not proven.
 - Added the "Make it trustworthy" flow using existing repo intelligence, validation planning, proof generation, policy stops, Privacy Firewall, Agent Trace, and VTS signals.
 - Reframed Evidence Pack as user-facing Ship Proof and receipts in casual UI while preserving Evidence Pack naming for compliance exports and disk artifacts.
+- Refined Trust Gate UX from internal telemetry into a plain-language ship/readiness verdict with progressive details.
 - Strengthened honest states for missing validation, risky touched surfaces, unresolved policy stops, stale local diffs, weak proof, and unsupported release/readiness claims.
 - Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and focused Bun tests for the touched Trust Gate/evidence panel logic.
 

@@ -50,7 +50,10 @@ export function MessageStream({
     isRunning && messages.at(-1)?.role === "assistant";
 
   return (
-    <MessageScrollerViewport className="px-4 pt-6 pb-6 transition-all duration-300 sm:px-6 lg:px-9">
+    <MessageScrollerViewport className={cn(
+      "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9",
+      settings.blurEnabled ? "pb-[200px]" : "pb-6"
+    )}>
       <MessageScrollerContent
         className={cn(
           "mx-auto flex w-full flex-col transition-all duration-300",

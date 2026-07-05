@@ -38,11 +38,17 @@ interface EnhancementPanelProps {
 }
 
 const views: { id: EnhancementView; label: string }[] = [
-  { id: "trace", label: "TRACE" },
-  { id: "impact", label: "Impact" },
-  { id: "validation", label: "Validation" },
-  { id: "evidence", label: "Evidence" },
+  { id: "status", label: "Status" },
+  { id: "review", label: "Review" },
+  { id: "details", label: "Details" },
+  { id: "advanced", label: "Advanced" },
 ];
+
+function normalizeEnhancementView(view: EnhancementView): EnhancementView {
+  if (view === "trace" || view === "evidence") return "advanced";
+  if (view === "impact" || view === "validation") return "details";
+  return view;
+}
 
 export function EnhancementPanel({
   conversation,
@@ -102,6 +108,7 @@ export function EnhancementPanel({
     isRunning: runtime.isRunning,
     summary,
   });
+  const activeGroup = normalizeEnhancementView(activeView);
 
   useEffect(() => {
     setChangedFiles([]);
@@ -109,7 +116,7 @@ export function EnhancementPanel({
     setTests([]);
     setError(null);
     setScanPhase(null);
-    setActiveView("trace");
+    setActiveView("status");
   }, [workspaceId]);
 
   const runEnhancementScan = useCallback(async () => {
@@ -123,7 +130,7 @@ export function EnhancementPanel({
     try {
       const status = await window.mate.git.getStatus();
       const files = getChangedFiles(status);
-      setScanPhase("Refreshing RepoGraph");
+      setScanPhase("Refreshing repo map");
       await window.mate.repo.graph.refresh();
       setScanPhase(
         files.length > 0 ? "Mapping changed paths" : "Checking workspace graph",
@@ -140,7 +147,7 @@ export function EnhancementPanel({
       setChangedFiles(files);
       setImpactedFiles(impact);
       setTests([...new Set(testLists.flat())].slice(0, 6));
-      setActiveView(files.length > 0 ? "impact" : "trace");
+      setActiveView(files.length > 0 ? "review" : "status");
     } catch (scanError) {
       setError((scanError as Error).message);
     } finally {
@@ -167,7 +174,7 @@ export function EnhancementPanel({
     const handleCommand = (event: Event) => {
       const detail = (event as CustomEvent<{ action?: "open" | "scan"; view?: EnhancementView }>).detail;
       if (detail?.view) {
-        setActiveView(detail.view);
+        setActiveView(normalizeEnhancementView(detail.view));
         setCollapsed(false);
       }
       if (detail?.action === "open") {
@@ -222,7 +229,25 @@ export function EnhancementPanel({
             onMakeTrustworthy={onMakeTrustworthy}
             state={trustGate}
           />
-          {activeView === "trace" ? (
+          {activeGroup === "details" || activeGroup === "review" ? (
+            <>
+              <ImpactSection
+                changedFiles={changedFiles}
+                impactedFiles={impactedFiles}
+                isLoading={loading}
+                summary={summary}
+              />
+              <div className="mt-4">
+                <ValidationSection
+                  commands={commands}
+                  evidencePack={runtime.evidencePack}
+                  isLoading={runtime.isRunning}
+                  tests={tests}
+                />
+              </div>
+            </>
+          ) : null}
+          {activeGroup === "advanced" ? (
             <TraceSection
               changedFiles={changedFiles}
               commands={commands}
@@ -236,32 +261,18 @@ export function EnhancementPanel({
               summary={summary}
             />
           ) : null}
-          {activeView === "impact" ? (
-            <ImpactSection
-              changedFiles={changedFiles}
-              impactedFiles={impactedFiles}
-              isLoading={loading}
-              summary={summary}
-            />
-          ) : null}
-          {activeView === "validation" ? (
-            <ValidationSection
-              commands={commands}
-              evidencePack={runtime.evidencePack}
-              isLoading={runtime.isRunning}
-              tests={tests}
-            />
-          ) : null}
-          {activeView === "evidence" ? (
-            <EvidencePackSection
-              changedFiles={changedFiles}
-              commands={commands}
-              evidenceFiles={evidenceFiles}
-              evidencePack={runtime.evidencePack}
-              impactedFiles={impactedFiles}
-              score={verifiedScore}
-              summary={summary}
-            />
+          {activeGroup === "advanced" ? (
+            <div className="mt-4">
+              <EvidencePackSection
+                changedFiles={changedFiles}
+                commands={commands}
+                evidenceFiles={evidenceFiles}
+                evidencePack={runtime.evidencePack}
+                impactedFiles={impactedFiles}
+                score={verifiedScore}
+                summary={summary}
+              />
+            </div>
           ) : null}
 
           <Card className="mt-4 border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
@@ -282,7 +293,7 @@ export function EnhancementPanel({
                 {error}
               </CardContent>
             </Card>
-          ) : !runtime.evidencePack && activeView === "evidence" ? (
+          ) : !runtime.evidencePack && activeGroup === "advanced" ? (
             <Card className="mt-3 border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
               <CardContent className="px-3 py-2 text-[11px] text-muted-foreground">
                 <ClipboardCheckIcon className="mr-1 inline size-3.5" />

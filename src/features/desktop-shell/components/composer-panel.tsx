@@ -474,7 +474,9 @@ export function ComposerPanel({
           ref={containerRef}
           className={cn(
             "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-            "bg-foreground/5 border border-foreground/[0.06] shadow-[0_4px_24px_rgba(0,0,0,0.02)] backdrop-blur-3xl",
+            settings.blurEnabled
+              ? "bg-popover/50 backdrop-blur-3xl border border-border/30 shadow-[0_12px_40px_rgba(0,0,0,0.12)]"
+              : "bg-foreground/5 border border-foreground/[0.06] shadow-[0_4px_24px_rgba(0,0,0,0.02)]",
             isDraggingFile ? "ring-2 ring-foreground/20 bg-foreground/10" : "",
           )}
           style={{ 

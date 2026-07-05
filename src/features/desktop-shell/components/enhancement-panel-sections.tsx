@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIcon,
   CheckCircle2Icon,
@@ -25,7 +26,15 @@ import type {
 import { getRepoHealthVerdict } from "./enhancement-panel-utils";
 import { Card, CardContent } from "../../../components/ui/card";
 
-export type EnhancementView = "trace" | "impact" | "validation" | "evidence";
+export type EnhancementView =
+  | "status"
+  | "review"
+  | "details"
+  | "advanced"
+  | "trace"
+  | "impact"
+  | "validation"
+  | "evidence";
 
 export function TrustGateCard({
   onMakeTrustworthy,
@@ -34,10 +43,13 @@ export function TrustGateCard({
   onMakeTrustworthy?: () => void;
   state: TrustGateState;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const canMakeTrustworthy =
     Boolean(onMakeTrustworthy) &&
     state.status !== "trusted" &&
     state.status !== "resolving";
+  const primaryShowsDetails =
+    state.primaryActionLabel === "Show details" || !canMakeTrustworthy;
 
   return (
     <Card
@@ -50,51 +62,75 @@ export function TrustGateCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-              Trust Gate
+              Readiness
             </p>
             <p className={cn("mt-1 break-words text-[16px] font-semibold leading-6", toneValueClassName(state.tone))}>
-              {state.verdict}
+              {state.headline}
             </p>
           </div>
-          <TonePill label={state.proofLabel} tone={state.tone} />
+          <TonePill label={state.confidenceLabel === "verified" ? "Verified" : "Needs check"} tone={state.tone} />
         </div>
-        <p className="mt-2 text-[11px] font-medium text-foreground">
-          Don&apos;t merge vibes. Agent changes are not trusted until proven.
+        <p className="mt-2 text-[11px] leading-4 text-foreground">
+          {state.explanation}
         </p>
-        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-          Validation: {humanizeState(state.validationState)} · Proof:{" "}
-          {humanizeState(state.evidencePackState)}
-        </p>
-        <ul className="mt-2 space-y-1 text-[10px] leading-4 text-muted-foreground">
-          {state.reasons.slice(0, 1).map((reason) => (
-            <li className="break-words" key={reason}>
-              {reason}
-            </li>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {state.reasonChips.slice(0, 4).map((chip) => (
+            <span
+              className="rounded-full border border-border/60 bg-[var(--panel)]/45 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+              key={chip}
+            >
+              {chip}
+            </span>
           ))}
-        </ul>
-        {state.missingProof.length > 0 ? (
-          <p className="mt-2 break-words text-[10px] leading-4 text-muted-foreground">
-            Missing proof: {state.missingProof.slice(0, 3).join(", ")}
-          </p>
-        ) : null}
-        <div className="mt-3 rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] text-muted-foreground">
-          <span className="font-medium text-foreground">Next:</span>{" "}
-          {state.suggestedNextAction}
         </div>
-        {canMakeTrustworthy ? (
+        <div className="mt-3 rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Recommended:</span>{" "}
+          {state.recommendedAction}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
           <button
-            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)]"
-            onClick={onMakeTrustworthy}
+            className="inline-flex flex-1 items-center justify-center rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)] disabled:cursor-default disabled:opacity-60"
+            onClick={
+              primaryShowsDetails
+                ? () => setDetailsOpen(true)
+                : canMakeTrustworthy
+                  ? onMakeTrustworthy
+                  : undefined
+            }
             type="button"
           >
-            <ZapIcon className="size-3.5" />
-            Make it trustworthy
+            {state.primaryActionLabel}
           </button>
-        ) : null}
-        {state.touchedRiskSurfaces.length > 0 ? (
-          <p className="mt-2 break-all font-mono text-[10px] leading-4 text-muted-foreground">
-            Risk surface: {state.touchedRiskSurfaces.slice(0, 2).join(", ")}
-          </p>
+          <button
+            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+            onClick={() => setDetailsOpen((open) => !open)}
+            type="button"
+          >
+            {detailsOpen ? "Hide details" : "Show details"}
+          </button>
+        </div>
+        {detailsOpen ? (
+          <div className="mt-3 space-y-2 rounded-2xl border border-border/60 bg-transparent p-2.5 text-[10px] leading-4 text-muted-foreground">
+            <p>
+              Validation: {humanizeState(state.validationState)} · Proof:{" "}
+              {humanizeState(state.evidencePackState)}
+            </p>
+            {state.reasons.slice(0, 2).map((reason) => (
+              <p className="break-words" key={reason}>
+                {reason}
+              </p>
+            ))}
+            {state.missingProof.length > 0 ? (
+              <p className="break-words">
+                Missing proof: {state.missingProof.slice(0, 3).join(", ")}
+              </p>
+            ) : null}
+            {state.touchedRiskSurfaces.length > 0 ? (
+              <p className="break-all font-mono">
+                Risk surface: {state.touchedRiskSurfaces.slice(0, 2).join(", ")}
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </CardContent>
     </Card>

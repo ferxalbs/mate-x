@@ -15,12 +15,11 @@ import type {
 export type ImpactRisk = "High" | "Medium" | "Low" | "None";
 export type SignalTone = "good" | "watch" | "warn" | "bad" | "muted";
 export type TrustGateVerdict =
-  | "Trusted / Ready"
-  | "Resolving trust"
-  | "Needs validation"
-  | "Risky change"
+  | "Ready"
+  | "Not ready"
+  | "Risky"
   | "Blocked"
-  | "Unknown / Not proven";
+  | "Unknown";
 export type TrustGateStatus =
   | "trusted"
   | "resolving"
@@ -57,6 +56,11 @@ export interface RepoHealthSignal {
 export interface TrustGateState {
   status: TrustGateStatus;
   verdict: TrustGateVerdict;
+  headline: TrustGateVerdict;
+  explanation: string;
+  recommendedAction: string;
+  primaryActionLabel: string;
+  reasonChips: string[];
   confidenceLabel: TrustGateConfidence;
   tone: SignalTone;
   reasons: string[];
@@ -154,17 +158,17 @@ export function getRepoHealthSignals(
   if (!health) {
     return workspace
       ? [
-          {
-            label: "Status",
-            value: workspace.status,
-            tone: workspace.status === "ready" ? "good" : "watch",
-          },
-          {
-            label: "Branch",
-            value: workspace.branch,
-            tone: workspace.branch ? "good" : "muted",
-          },
-        ]
+        {
+          label: "Status",
+          value: workspace.status,
+          tone: workspace.status === "ready" ? "good" : "watch",
+        },
+        {
+          label: "Branch",
+          value: workspace.branch,
+          tone: workspace.branch ? "good" : "muted",
+        },
+      ]
       : [];
   }
 
@@ -358,9 +362,20 @@ export function deriveTrustGate({
         : "present_weak";
 
   const buildState = (
-    state: Omit<TrustGateState, "reasons" | "suggestedNextAction" | "sourceSignalsUsed">,
+    state: Omit<
+      TrustGateState,
+      | "headline"
+      | "explanation"
+      | "recommendedAction"
+      | "primaryActionLabel"
+      | "reasonChips"
+      | "reasons"
+      | "suggestedNextAction"
+      | "sourceSignalsUsed"
+    >,
   ): TrustGateState => ({
     ...state,
+    ...getHumanTrustGateCopy(state, changedFiles.length),
     reasons: state.why,
     suggestedNextAction: state.nextAction,
     sourceSignalsUsed,
@@ -369,7 +384,7 @@ export function deriveTrustGate({
   if (isRunning) {
     return buildState({
       status: "resolving",
-      verdict: "Resolving trust",
+      verdict: "Not ready",
       confidenceLabel: "none",
       tone: eventPolicyStop ? "warn" : "watch",
       proofLabel,
@@ -379,12 +394,12 @@ export function deriveTrustGate({
           : "Run is still producing tool, validation, and proof signals.",
         "Final Trust Gate waits for runtime evidence, not assistant wording.",
       ],
-      missingProof: ["Final Evidence Pack/VTS verdict"],
+      missingProof: ["Final proof verdict"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: eventPolicyStop ? "unresolved" : "none",
       evidencePackState,
-      nextAction: "Wait for proof",
+      nextAction: "Wait for safety check",
     });
   }
 
@@ -396,10 +411,10 @@ export function deriveTrustGate({
       tone: "bad",
       proofLabel,
       why: [
-        hasPolicyStop ? "Unresolved policy stop recorded in proof data." : "Run ended blocked or failed.",
-        "Agent changes are not trusted until proven.",
+        hasPolicyStop ? "An unresolved approval or safety stop is recorded." : "The run ended blocked or failed.",
+        "Do not continue until this is resolved.",
       ],
-      missingProof: ["Resolved policy stop", "Passing validation evidence"],
+      missingProof: ["Resolved stop", "Passing validation"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "unresolved" : "none",
@@ -411,91 +426,91 @@ export function deriveTrustGate({
   if (riskyFiles.length > 0 && !hasVerifiedSignals) {
     return buildState({
       status: "risky",
-      verdict: "Risky change",
+      verdict: "Risky",
       confidenceLabel: "low",
       tone: "warn",
       proofLabel,
       why: [
         `${riskyFiles.length} auth, session, env, payment, network, dependency, IPC, or runtime surface change${riskyFiles.length === 1 ? "" : "s"} detected.`,
-        hasValidation ? "Validation is planned but not proven by Ship Proof." : "No validation command is proven yet.",
+        hasValidation ? "A validation command is available, but no passing result is proven yet." : "No validation command is proven yet.",
       ],
-      missingProof: ["Risk-surface validation", "Strong VTS evidence"],
+      missingProof: ["Risk-surface validation", "Strong proof"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Review auth/session changes",
+      nextAction: "Run safety check",
     });
   }
 
   if (!evidencePack) {
     return buildState({
       status: changedFiles.length > 0 ? "needs_validation" : "unknown",
-      verdict: changedFiles.length > 0 ? "Needs validation" : "Unknown / Not proven",
+      verdict: changedFiles.length > 0 ? "Not ready" : "Unknown",
       confidenceLabel: "none",
       tone: changedFiles.length > 0 ? "watch" : "muted",
       proofLabel,
       why: [
         changedFiles.length > 0
-          ? `${changedFiles.length} changed file${changedFiles.length === 1 ? "" : "s"} found without Ship Proof.`
-          : "No proof has been generated for the current workspace.",
+          ? `${changedFiles.length} changed file${changedFiles.length === 1 ? "" : "s"} found without a proven passing check.`
+          : "No evidence has been generated for the current workspace.",
         "MaTE X checks what your AI agent changed before you ship.",
       ],
-      missingProof: ["Evidence Pack", "VTS", "Validation command result"],
+      missingProof: ["Proof missing", "No validation passed"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: changedFiles.length > 0 ? "Generate proof" : "Open Evidence details",
+      nextAction: changedFiles.length > 0 ? "Run safety check" : "Open details",
     });
   }
 
   if (!hasVerifiedSignals || score === null) {
     return buildState({
       status: "needs_validation",
-      verdict: "Needs validation",
+      verdict: "Not ready",
       confidenceLabel: "low",
       tone: "watch",
       proofLabel,
       why: [
-        "Proof exists, but verified task signals are missing.",
+        "Proof exists, but safety signals are missing.",
         hasValidation ? "Validation commands exist but need verified results." : "No validation command evidence yet.",
       ],
-      missingProof: ["Verified task signals", "Passing validation evidence"],
+      missingProof: ["Verified task signals", "Passing validation"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run focused validation",
+      nextAction: "Run safety check",
     });
   }
 
   if (!hasExecutedValidation || validationState !== "passed") {
     return buildState({
       status: "needs_validation",
-      verdict: "Needs validation",
+      verdict: "Not ready",
       confidenceLabel: "medium",
       tone: "watch",
       proofLabel,
       why: [
         !hasExecutedValidation
-          ? "Ship Proof has score signals, but no command evidence."
+          ? "Proof has score signals, but no command evidence."
           : "Validation evidence did not prove a passing run.",
-        "Can I ship this is still unproven.",
+        "Readiness is still unproven.",
       ],
-      missingProof: ["Passing validation command result"],
+      missingProof: ["Passing validation"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run focused validation",
+      nextAction: "Run safety check",
     });
   }
 
   if (riskyFiles.length > 0 && evidencePackState !== "signed_strong") {
     return buildState({
       status: "risky",
-      verdict: "Risky change",
+      verdict: "Risky",
       confidenceLabel: score >= 75 ? "medium" : "low",
       tone: "warn",
       proofLabel,
@@ -503,19 +518,19 @@ export function deriveTrustGate({
         "Risky surfaces changed without strong proof.",
         "Review the remaining risk before merging.",
       ],
-      missingProof: score < 85 ? ["Strong VTS score"] : ["Strong risky-surface proof"],
+      missingProof: score < 85 ? ["Strong proof score"] : ["Strong risky-surface proof"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Open Evidence details",
+      nextAction: "Show details",
     });
   }
 
   if (hasDirtyRepo) {
     return buildState({
       status: "needs_validation",
-      verdict: "Needs validation",
+      verdict: "Not ready",
       confidenceLabel: "medium",
       tone: "watch",
       proofLabel,
@@ -528,46 +543,125 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Generate proof",
+      nextAction: "Run safety check",
     });
   }
 
   if (summary.risk === "High" || score < 85) {
     return buildState({
       status: "risky",
-      verdict: "Risky change",
+      verdict: "Risky",
       confidenceLabel: score >= 75 ? "medium" : "low",
       tone: "warn",
       proofLabel,
       why: [
         summary.risk === "High"
-          ? "RepoGraph impact is high."
+          ? "The change touches a broad area."
           : `Verified score is ${score}/100.`,
         "Review the remaining risk before merging.",
       ],
-      missingProof: score < 85 ? ["Strong VTS score"] : [],
+      missingProof: score < 85 ? ["Strong proof score"] : [],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Open Evidence details",
+      nextAction: "Show details",
     });
   }
 
   return buildState({
     status: "trusted",
-    verdict: "Trusted / Ready",
+    verdict: "Ready",
     confidenceLabel: "verified",
     tone: "good",
     proofLabel,
-    why: ["Verified Ship Proof is present.", "Validation evidence exists and git is clean."],
+    why: ["Passing validation is proven.", "The checked workspace is clean."],
     missingProof: [],
     touchedRiskSurfaces: riskyFiles,
     validationState,
     policyStopState: hasPolicyStop ? "resolved" : "none",
     evidencePackState,
-    nextAction: "Can ship",
+    nextAction: "Continue",
   });
+}
+
+function getHumanTrustGateCopy(
+  state: Omit<
+    TrustGateState,
+    | "headline"
+    | "explanation"
+    | "recommendedAction"
+    | "primaryActionLabel"
+    | "reasonChips"
+    | "reasons"
+    | "suggestedNextAction"
+    | "sourceSignalsUsed"
+  >,
+  changedFileCount: number,
+) {
+  const validationChip =
+    state.validationState === "passed"
+      ? "Validation passed"
+      : state.validationState === "failed"
+        ? "Validation failed"
+        : "No validation passed";
+  const proofChip =
+    state.evidencePackState === "signed_strong"
+      ? "Proof complete"
+      : "Proof missing";
+  const changeChip =
+    changedFileCount > 0
+      ? `${changedFileCount} file${changedFileCount === 1 ? "" : "s"} changed`
+      : "No changed files";
+  const riskChip =
+    state.touchedRiskSurfaces.length > 0
+      ? `${state.touchedRiskSurfaces.length} risky surface${state.touchedRiskSurfaces.length === 1 ? "" : "s"}`
+      : "";
+
+  const base = {
+    headline: state.verdict,
+    recommendedAction: state.nextAction,
+    primaryActionLabel: state.status === "trusted" ? "Continue" : "Run safety check",
+    reasonChips: [changeChip, validationChip, proofChip, riskChip].filter(Boolean),
+  };
+
+  if (state.status === "trusted") {
+    return {
+      ...base,
+      explanation: "MaTE X has proof that validation passed for the checked changes.",
+    };
+  }
+
+  if (state.status === "blocked") {
+    return {
+      ...base,
+      primaryActionLabel: "Show details",
+      explanation: "MaTE X found a safety or approval stop that must be resolved first.",
+    };
+  }
+
+  if (state.status === "risky") {
+    return {
+      ...base,
+      explanation: "These changes touch sensitive areas and do not yet have enough proof to continue.",
+    };
+  }
+
+  if (state.status === "unknown") {
+    return {
+      ...base,
+      primaryActionLabel: "Show details",
+      explanation: "MaTE X does not have enough information yet to judge this workspace.",
+    };
+  }
+
+  return {
+    ...base,
+    explanation:
+      changedFileCount > 0
+        ? "MaTE X found changed files, but no passing validation command has been proven yet."
+        : "MaTE X is still waiting for a proven passing validation result.",
+  };
 }
 
 export interface PanelRuntimeSnapshot {
