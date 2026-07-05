@@ -142,6 +142,7 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Needs validation");
     assert.equal(state.validationState, "not_run");
+    assert.equal(state.proofLabel, "Proof incomplete");
     assert.match(state.missingProof.join(" "), /Passing validation/);
   });
 
