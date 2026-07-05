@@ -187,6 +187,20 @@ export class TursoService {
           UNIQUE(workspace_id, node_id, model),
           FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         )`,
+        `CREATE TABLE IF NOT EXISTS repo_file_index_state (
+          workspace_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          size INTEGER NOT NULL,
+          mtime_ms INTEGER NOT NULL,
+          content_hash TEXT NOT NULL,
+          semantic_hash TEXT NOT NULL,
+          embedding_text_hash TEXT NOT NULL,
+          model TEXT NOT NULL,
+          dimensions INTEGER NOT NULL,
+          indexed_at TEXT NOT NULL,
+          PRIMARY KEY(workspace_id, path),
+          FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        )`,
         `CREATE TABLE IF NOT EXISTS agent_capability_profiles (
           scope TEXT NOT NULL,
           workspace_id TEXT NOT NULL,
@@ -226,6 +240,8 @@ export class TursoService {
           ON repo_graph_edges(workspace_id, kind)`,
         `CREATE INDEX IF NOT EXISTS idx_repo_embeddings_workspace_model
           ON repo_embeddings(workspace_id, model)`,
+        `CREATE INDEX IF NOT EXISTS idx_repo_file_index_state_model
+          ON repo_file_index_state(workspace_id, model, dimensions)`,
         `CREATE INDEX IF NOT EXISTS idx_failure_memory_workspace_signature
           ON failure_memory(workspace_id, error_signature)`,
         `CREATE INDEX IF NOT EXISTS idx_privacy_vault_workspace_hash
@@ -1188,6 +1204,187 @@ export class TursoService {
     await this.getClient().batch(statements, 'write');
   }
 
+  async upsertRepoEmbeddings(
+    workspaceId: string,
+    embeddings: Array<{
+      nodeId: string;
+      model: string;
+      dimensions: number;
+      contentHash: string;
+      embedding: number[];
+    }>,
+  ): Promise<void> {
+    await this.initialize();
+    if (embeddings.length === 0 || !(await this.workspaceExists(workspaceId))) {
+      return;
+    }
+    const indexedAt = new Date().toISOString();
+    await this.getClient().batch(
+      embeddings.map((entry) => ({
+        sql: `INSERT INTO repo_embeddings (id, workspace_id, node_id, model, dimensions, content_hash, embedding_json, indexed_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(workspace_id, node_id, model) DO UPDATE SET
+                dimensions = excluded.dimensions,
+                content_hash = excluded.content_hash,
+                embedding_json = excluded.embedding_json,
+                indexed_at = excluded.indexed_at`,
+        args: [
+          `${workspaceId}:${entry.model}:${entry.nodeId}`,
+          workspaceId,
+          entry.nodeId,
+          entry.model,
+          entry.dimensions,
+          entry.contentHash,
+          JSON.stringify(entry.embedding),
+          indexedAt,
+        ],
+      })),
+      'write',
+    );
+  }
+
+  async deleteRepoEmbeddingsForNodeIds(
+    workspaceId: string,
+    nodeIds: string[],
+  ): Promise<void> {
+    await this.initialize();
+    if (nodeIds.length === 0) {
+      return;
+    }
+    await this.getClient().execute({
+      sql: `DELETE FROM repo_embeddings
+            WHERE workspace_id = ?
+              AND node_id IN (${nodeIds.map(() => '?').join(', ')})`,
+      args: [workspaceId, ...nodeIds],
+    });
+  }
+
+  async getRepoEmbeddings(workspaceId: string, model?: string): Promise<Array<{
+    nodeId: string;
+    path: string;
+    model: string;
+    dimensions: number;
+    contentHash: string;
+    embedding: number[];
+    metadata?: Record<string, unknown>;
+  }>> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT e.node_id, n.key, e.model, e.dimensions, e.content_hash, e.embedding_json, n.metadata_json
+            FROM repo_embeddings e
+            JOIN repo_graph_nodes n ON n.id = e.node_id AND n.workspace_id = e.workspace_id
+            WHERE e.workspace_id = ? ${model ? 'AND e.model = ?' : ''}
+            ORDER BY n.key`,
+      args: model ? [workspaceId, model] : [workspaceId],
+    });
+
+    return result.rows.map((row) => ({
+      nodeId: String(row.node_id),
+      path: String(row.key),
+      model: String(row.model),
+      dimensions: Number(row.dimensions),
+      contentHash: String(row.content_hash),
+      embedding: safeParseNumberArray(String(row.embedding_json)),
+      metadata: row.metadata_json
+        ? safeParseRecord(String(row.metadata_json))
+        : undefined,
+    }));
+  }
+
+  async getRepoFileIndexStates(workspaceId: string): Promise<Array<{
+    path: string;
+    size: number;
+    mtimeMs: number;
+    contentHash: string;
+    semanticHash: string;
+    embeddingTextHash: string;
+    model: string;
+    dimensions: number;
+    indexedAt: string;
+  }>> {
+    await this.initialize();
+    const result = await this.getClient().execute({
+      sql: `SELECT path, size, mtime_ms, content_hash, semantic_hash, embedding_text_hash, model, dimensions, indexed_at
+            FROM repo_file_index_state
+            WHERE workspace_id = ?
+            ORDER BY path`,
+      args: [workspaceId],
+    });
+
+    return result.rows.map((row) => ({
+      path: String(row.path),
+      size: Number(row.size),
+      mtimeMs: Number(row.mtime_ms),
+      contentHash: String(row.content_hash),
+      semanticHash: String(row.semantic_hash),
+      embeddingTextHash: String(row.embedding_text_hash),
+      model: String(row.model),
+      dimensions: Number(row.dimensions),
+      indexedAt: String(row.indexed_at),
+    }));
+  }
+
+  async upsertRepoFileIndexStates(
+    workspaceId: string,
+    states: Array<{
+      path: string;
+      size: number;
+      mtimeMs: number;
+      contentHash: string;
+      semanticHash: string;
+      embeddingTextHash: string;
+      model: string;
+      dimensions: number;
+    }>,
+  ): Promise<void> {
+    await this.initialize();
+    if (states.length === 0 || !(await this.workspaceExists(workspaceId))) {
+      return;
+    }
+    const indexedAt = new Date().toISOString();
+    await this.getClient().batch(
+      states.map((state) => ({
+        sql: `INSERT INTO repo_file_index_state (workspace_id, path, size, mtime_ms, content_hash, semantic_hash, embedding_text_hash, model, dimensions, indexed_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(workspace_id, path) DO UPDATE SET
+                size = excluded.size,
+                mtime_ms = excluded.mtime_ms,
+                content_hash = excluded.content_hash,
+                semantic_hash = excluded.semantic_hash,
+                embedding_text_hash = excluded.embedding_text_hash,
+                model = excluded.model,
+                dimensions = excluded.dimensions,
+                indexed_at = excluded.indexed_at`,
+        args: [
+          workspaceId,
+          state.path,
+          state.size,
+          state.mtimeMs,
+          state.contentHash,
+          state.semanticHash,
+          state.embeddingTextHash,
+          state.model,
+          state.dimensions,
+          indexedAt,
+        ],
+      })),
+      'write',
+    );
+  }
+
+  async deleteRepoFileIndexStates(workspaceId: string, paths: string[]): Promise<void> {
+    await this.initialize();
+    if (paths.length === 0) {
+      return;
+    }
+    await this.getClient().execute({
+      sql: `DELETE FROM repo_file_index_state
+            WHERE workspace_id = ?
+              AND path IN (${paths.map(() => '?').join(', ')})`,
+      args: [workspaceId, ...paths],
+    });
+  }
+
   async getRepoGraphNodes(workspaceId: string, kinds?: string[]): Promise<RepoGraphNode[]> {
     await this.initialize();
     const whereKinds = kinds?.length
@@ -1438,6 +1635,17 @@ function safeParseRecord(raw: string): Record<string, unknown> | undefined {
       : undefined;
   } catch {
     return undefined;
+  }
+}
+
+function safeParseNumberArray(raw: string): number[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+      : [];
+  } catch {
+    return [];
   }
 }
 

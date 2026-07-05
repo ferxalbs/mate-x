@@ -90,6 +90,48 @@ export interface RepoGraphDependencySurface {
   files: string[];
 }
 
+export interface RepoGraphSemanticProfile {
+  file: string;
+  role: string;
+  language: string;
+  runtime: string[];
+  symbols: string[];
+  imports: string[];
+  ipcChannels: string[];
+  envVars: string[];
+  dependencies: string[];
+  riskTags: string[];
+  trustBoundaries: string[];
+  confidence: number;
+  summary: string;
+}
+
+export interface RepoGraphSemanticSearchResult {
+  file: string;
+  score: number;
+  reason: string;
+  role: string;
+  matchedFields: string[];
+  confidence: number;
+  relatedFiles: string[];
+  readRecommendation: string;
+}
+
+export interface RepoGraphArchitectureSummary {
+  entrypoints: RepoGraphEntrypoint[];
+  roles: Record<string, number>;
+  riskTags: Record<string, number>;
+  ipcChannels: string[];
+  envVars: string[];
+  dependencies: string[];
+}
+
+export interface RepoGraphChangeDetection {
+  changedFiles: string[];
+  removedFiles: string[];
+  unchangedFiles: string[];
+}
+
 export interface RepoGraphEmbeddingProgress {
   workspaceId: string;
   model: string;
@@ -108,5 +150,9 @@ export interface RepoGraphApi {
   getIpcSurface: () => Promise<RepoGraphIpcSurface[]>;
   getEnvUsage: (variable?: string) => Promise<RepoGraphEnvUsage[]>;
   getDependencySurface: () => Promise<RepoGraphDependencySurface[]>;
+  semanticSearch: (query: string, limit?: number, role?: string, risk?: string) => Promise<RepoGraphSemanticSearchResult[]>;
+  getSemanticProfile: (file: string) => Promise<RepoGraphSemanticProfile | null>;
+  getArchitectureSummary: () => Promise<RepoGraphArchitectureSummary>;
+  detectChanges: (files?: string[]) => Promise<RepoGraphChangeDetection>;
   onEmbeddingProgress: (listener: (progress: RepoGraphEmbeddingProgress) => void) => () => void;
 }

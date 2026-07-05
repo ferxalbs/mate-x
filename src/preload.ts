@@ -130,6 +130,14 @@ const repoApi: RepoInspectorApi = {
       ipcRenderer.invoke("repo-graph:get-env-usage", variable),
     getDependencySurface: () =>
       ipcRenderer.invoke("repo-graph:get-dependency-surface"),
+    semanticSearch: (query, limit, role, risk) =>
+      ipcRenderer.invoke("repo-graph:semantic-search", query, limit, role, risk),
+    getSemanticProfile: (file) =>
+      ipcRenderer.invoke("repo-graph:get-semantic-profile", file),
+    getArchitectureSummary: () =>
+      ipcRenderer.invoke("repo-graph:get-architecture-summary"),
+    detectChanges: (files) =>
+      ipcRenderer.invoke("repo-graph:detect-changes", files),
     onEmbeddingProgress: (listener) => {
       const handler = (
         _event: Electron.IpcRendererEvent,

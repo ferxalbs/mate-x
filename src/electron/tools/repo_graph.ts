@@ -10,7 +10,11 @@ type RepoGraphOperation =
   | "get_import_chain"
   | "get_ipc_surface"
   | "get_env_usage"
-  | "get_dependency_surface";
+  | "get_dependency_surface"
+  | "semantic_search"
+  | "get_semantic_profile"
+  | "get_architecture_summary"
+  | "detect_changes";
 
 export const repoGraphTool: Tool = {
   name: "repo_graph",
@@ -30,12 +34,32 @@ export const repoGraphTool: Tool = {
           "get_ipc_surface",
           "get_env_usage",
           "get_dependency_surface",
+          "semantic_search",
+          "get_semantic_profile",
+          "get_architecture_summary",
+          "detect_changes",
         ],
+      },
+      query: {
+        type: "string",
+        description: "Search query for semantic_search.",
+      },
+      limit: {
+        type: "number",
+        description: "Maximum semantic_search results.",
+      },
+      role: {
+        type: "string",
+        description: "Optional semantic role filter for semantic_search.",
+      },
+      risk: {
+        type: "string",
+        description: "Optional risk tag filter for semantic_search.",
       },
       files: {
         type: "array",
         items: { type: "string" },
-        description: "Changed files for get_impacted_files.",
+        description: "Changed files for get_impacted_files or detect_changes.",
       },
       file: {
         type: "string",
@@ -97,6 +121,35 @@ export const repoGraphTool: Tool = {
         );
       case "get_dependency_surface":
         return stringify(await repoGraphService.getDependencySurface(workspace));
+      case "semantic_search":
+        return stringify(
+          await repoGraphService.semanticSearch(
+            workspace,
+            String(args.query ?? ""),
+            {
+              limit: typeof args.limit === "number" ? args.limit : undefined,
+              role: typeof args.role === "string" && args.role.trim()
+                ? args.role.trim()
+                : undefined,
+              risk: typeof args.risk === "string" && args.risk.trim()
+                ? args.risk.trim()
+                : undefined,
+            },
+          ),
+        );
+      case "get_semantic_profile":
+        return stringify(
+          await repoGraphService.getSemanticProfile(workspace, String(args.file ?? "")),
+        );
+      case "get_architecture_summary":
+        return stringify(await repoGraphService.getArchitectureSummary(workspace));
+      case "detect_changes":
+        return stringify(
+          await repoGraphService.detectChanges(
+            workspace,
+            Array.isArray(args.files) ? args.files : undefined,
+          ),
+        );
       default:
         return `Unknown repo_graph operation: ${String(args.operation)}`;
     }
