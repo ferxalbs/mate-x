@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased v0.1.1 - 2026.07.05 (4) [Trust Gate Ship Proof UX]
+
+- Added a first-class Trust Gate surface to the Live Enhancement Panel that answers whether agent changes are trusted, need validation, risky, blocked, or unproven using existing workspace health, git dirty state, changed files, RepoGraph impact, validation commands, Evidence Pack/VTS, and policy-stop signals.
+- Reframed the casual Evidence Pack path as Ship Proof while preserving Evidence Pack naming for compliance/export internals.
+- Added focused Trust Gate derivation coverage for ready proof, no proof, dirty repo, missing validation, policy stop, and risky runtime-surface changes.
+
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]
 
 - Reworked RepoGraph embeddings to use change-gated indexing with per-file index state, incremental embedding upserts, stale embedding cleanup, and no full workspace embedding wipe on refresh.

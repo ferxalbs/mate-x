@@ -12,10 +12,12 @@ import {
   type EnhancementView,
   ImpactSection,
   RepoHealthSection,
+  TrustGateCard,
   ValidationSection,
 } from "./enhancement-panel-sections";
 import { TraceSection } from "./enhancement-trace-section";
 import {
+  deriveTrustGate,
   getChangedFiles,
   getEvidenceCommands,
   getEvidenceFiles,
@@ -89,6 +91,13 @@ export function EnhancementPanel({
     evidenceCommands.length > 0
       ? evidenceCommands
       : getVerificationCommands(tests, health);
+  const trustGate = deriveTrustGate({
+    changedFiles,
+    commands,
+    evidencePack: runtime.evidencePack,
+    health,
+    summary,
+  });
 
   useEffect(() => {
     setChangedFiles([]);
@@ -205,6 +214,7 @@ export function EnhancementPanel({
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-4 py-4">
+          <TrustGateCard state={trustGate} />
           {activeView === "trace" ? (
             <TraceSection
               changedFiles={changedFiles}
@@ -269,7 +279,7 @@ export function EnhancementPanel({
             <Card className="mt-3 border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
               <CardContent className="px-3 py-2 text-[11px] text-muted-foreground">
                 <ClipboardCheckIcon className="mr-1 inline size-3.5" />
-                Evidence Pack appears after verified run completes.
+                Ship Proof appears after verified run completes.
               </CardContent>
             </Card>
           ) : null}
