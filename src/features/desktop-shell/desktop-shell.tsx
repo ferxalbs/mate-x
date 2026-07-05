@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useNavigate } from "@tanstack/react-router";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
 import { useTheme } from "../../hooks/use-theme";
@@ -15,6 +15,7 @@ import { SearchModal } from "./components/search-modal";
 
 
 export function DesktopShell() {
+  const navigate = useNavigate();
   const workspaces = useChatStore((state) => state.workspaces);
   const workspace = useChatStore((state) => state.workspace);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -102,11 +103,17 @@ export function DesktopShell() {
             activeWorkspaceId={activeWorkspaceId}
             activeThreadId={activeThreadId}
             onActivateWorkspace={activateWorkspace}
-            onCreateThread={createThread}
+            onCreateThread={() => {
+              createThread();
+              navigate({ to: '/' });
+            }}
             onImportWorkspace={importWorkspace}
             onOpenSearch={() => setSearchOpen(true)}
             onRemoveWorkspace={removeWorkspace}
-            onSelectThread={selectThread}
+            onSelectThread={(id) => {
+              selectThread(id);
+              navigate({ to: '/' });
+            }}
             onRenameThread={renameThread}
             theme={theme}
             resolvedTheme={resolvedTheme}

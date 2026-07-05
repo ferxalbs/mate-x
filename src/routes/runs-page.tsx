@@ -13,6 +13,9 @@ import { useMemo, useState } from "react";
 import type { ChatMessage, Conversation, ReproducibleRun, ToolEvent } from "@/contracts/chat";
 import { formatTimestamp } from "@/lib/time";
 import { useChatStore } from "@/store/chat-store";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { usePlatform } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 
 type MissionRun = {
   id: string;
@@ -216,6 +219,9 @@ function summarizeResult(message: ChatMessage) {
 }
 
 export function RunsPage() {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const platform = usePlatform();
+  const { state } = useSidebar();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const workspace = useChatStore((state) => state.workspace);
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
@@ -334,12 +340,19 @@ export function RunsPage() {
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
-      <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5">
-        <div className="min-w-0">
-          <h1 className="truncate text-sm font-semibold text-foreground">Mission Log</h1>
-          <p className="truncate text-[11px] text-muted-foreground">
-            Real assistant runs from current workspace, shown as reviewable execution history.
-          </p>
+      <header className={cn(
+        "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5 transition-[padding-left] duration-200 ease-linear",
+        state === "collapsed" && platform === "mac" && "pl-[88px]",
+        platform === "windows" && "pr-[138px]"
+      )}>
+        <div className="flex items-center gap-3 min-w-0">
+          <SidebarTrigger className="-ml-1" />
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold text-foreground">Mission Log</h1>
+            <p className="truncate text-[11px] text-muted-foreground">
+              Real assistant runs from current workspace, shown as reviewable execution history.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <button

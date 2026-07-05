@@ -77,7 +77,9 @@ import {
   setApiKey,
   updateAppSettings,
 } from '../services/settings-client';
-import { useChatStore } from '../store/chat-store';
+import { useChatStore } from "@/store/chat-store";
+import { usePlatform } from "@/hooks/use-platform";
+import { useSidebar } from '@/components/ui/sidebar';
 import {
   isValidRainyApiKey,
   serializeAppSettings,
@@ -99,6 +101,8 @@ type SettingsSectionId =
 export function SettingsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { setAppearance, setTheme, setBlurEnabled } = useTheme();
+  const { state } = useSidebar();
+  const platform = usePlatform();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const activeWorkspace = useChatStore((state) => state.workspace);
   const [currentKeyPrefix, setCurrentKeyPrefix] = useState<string | null>(null);
@@ -640,8 +644,10 @@ export function SettingsPage() {
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--mate-page-bg)] text-foreground">
         <header
           className={cn(
-            "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center px-5",
-            "glass border-b border-border/70",
+            "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 px-4 transition-[padding-left] duration-200 ease-linear",
+            "border-b border-border/70 glass",
+            state === "collapsed" && platform === "mac" && "pl-[88px]",
+            platform === "windows" && "pr-[138px]"
           )}
           style={{ '--glass-bg': 'var(--titlebar)' } as any}
         >
