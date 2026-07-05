@@ -957,6 +957,7 @@ function isInlineTraceEvent(event: ToolEvent) {
     label.includes("workspace metadata") ||
     label.includes("repository surface") ||
     label.includes("prompt-linked files") ||
+    label.includes("rainy api fallback") ||
     label.includes("response complete")
   ) {
     return false;

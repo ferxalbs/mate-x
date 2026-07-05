@@ -520,6 +520,10 @@ export function buildFallbackResponse(
   snapshot: RepoSnapshot,
   error?: unknown,
 ): string {
+  if (error instanceof Error) {
+    return formatRainyApiError(error);
+  }
+
   const matches =
     snapshot.promptMatches.length > 0
       ? snapshot.promptMatches
@@ -536,8 +540,6 @@ export function buildFallbackResponse(
           .join("\n")
       : "- Working tree clean.";
 
-  const errorLine = error instanceof Error ? `\n\n${formatRainyApiError(error)}` : "";
-
   return [
     `Request: ${prompt}`,
     "",
@@ -552,7 +554,6 @@ export function buildFallbackResponse(
     gitLines,
     "",
     "Next move: inspect the matched files and update the active workspace flow before making changes.",
-    errorLine,
   ].join("\n");
 }
 

@@ -68,6 +68,7 @@ let assistantProgressUnsubscribe: (() => void) | null = null;
 const ASSISTANT_PROGRESS_FLUSH_MS = 120;
 const TERMINAL_RUN_STATUSES = new Set<RunStatus>(["completed", "failed"]);
 const API_STATUS_ERROR_PATTERN = /\b(?:status(?: code)?\s*)?([45]\d{2})\b/i;
+const ASSISTANT_FIRST_PROGRESS_TIMEOUT_MS = 12_000;
 
 type AssistantProgressPayload = Parameters<
   Parameters<typeof onAssistantProgress>[0]
@@ -175,6 +176,12 @@ function summarizeApiStatus(statusCode: string) {
     default:
       return "Request failed.";
   }
+}
+
+function createNoProgressTimeoutError() {
+  return new Error(
+    "API timeout: no response after 12 seconds. Connection stopped to avoid repeated calls.",
+  );
 }
 
 async function persistWorkspaceState(
@@ -834,12 +841,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      const execution = await runAssistant(
+      const noProgressTimeout = new Promise<never>((_, reject) => {
+        window.setTimeout(() => {
+          const state = get();
+          const activeRun = state.activeRun;
+          if (activeRun?.runId !== runId) {
+            return;
+          }
+          const activeThread = (
+            state.threadsByWorkspace[activeRun.workspaceId] ?? []
+          ).find((thread) => thread.id === activeRun.threadId);
+          const activeMessage = activeThread?.messages.find(
+            (message) => message.id === activeRun.messageId,
+          );
+          const hasProgress =
+            Boolean(activeMessage?.content.trim()) ||
+            Boolean(activeMessage?.thought?.trim()) ||
+            Boolean(activeMessage?.events?.length) ||
+            Boolean(activeMessage?.artifacts?.length);
+
+          if (hasProgress) {
+            return;
+          }
+
+          void cancelAssistant(runId);
+          reject(createNoProgressTimeoutError());
+        }, ASSISTANT_FIRST_PROGRESS_TIMEOUT_MS);
+      });
+      const assistantExecution = runAssistant(
         displayedPrompt,
         historyBeforePrompt,
         options,
         runId,
       );
+      const execution = await Promise.race([
+        assistantExecution,
+        noProgressTimeout,
+      ]);
 
       const finalRun = await sealRunIntegrity({
         ...reproducibleRun,
