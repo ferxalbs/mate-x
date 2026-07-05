@@ -57,7 +57,8 @@ describe("trust gate derivation", () => {
     commandsExecuted: [{ command: "~/.bun/bin/bun run lint" }],
     verifiedTaskScore: {
       score: 88,
-      signals: [{ satisfied: true, weight: 1 }],
+      status: "verified",
+      signals: [{ id: "validation_passed", satisfied: true, weight: 1 }],
     },
   } as unknown as EvidencePack;
 
@@ -72,6 +73,8 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Trusted / Ready");
     assert.equal(state.nextAction, "Can ship");
+    assert.equal(state.validationState, "passed");
+    assert.equal(state.evidencePackState, "signed_strong");
   });
 
   it("returns unknown when no evidence or changed files exist", () => {
@@ -117,6 +120,29 @@ describe("trust gate derivation", () => {
     assert.equal(state.nextAction, "Run focused validation");
   });
 
+  it("does not trust final claims when no commands ran", () => {
+    const state = deriveTrustGate({
+      changedFiles: [],
+      commands: [],
+      evidencePack: {
+        status: "complete",
+        verdict: { label: "Fixed and ready" },
+        commandsExecuted: [],
+        verifiedTaskScore: {
+          score: 92,
+          status: "verified",
+          signals: [{ id: "claimed_files_exist", satisfied: true, weight: 1 }],
+        },
+      } as unknown as EvidencePack,
+      health: cleanHealth,
+      summary: baseSummary,
+    });
+
+    assert.equal(state.verdict, "Needs validation");
+    assert.equal(state.validationState, "not_run");
+    assert.match(state.missingProof.join(" "), /Passing validation/);
+  });
+
   it("blocks when a policy stop is recorded", () => {
     const state = deriveTrustGate({
       changedFiles: ["src/electron/ipc.ts"],
@@ -132,6 +158,7 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Blocked");
     assert.equal(state.nextAction, "Resolve policy stop");
+    assert.equal(state.policyStopState, "unresolved");
   });
 
   it("flags risky surfaces touched before proof", () => {
@@ -145,5 +172,65 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Risky change");
     assert.equal(state.nextAction, "Review auth/session changes");
+    assert.deepEqual(state.touchedRiskSurfaces, ["src/electron/session-service.ts"]);
+  });
+
+  it("elevates payment and network surfaces without strong proof", () => {
+    const state = deriveTrustGate({
+      changedFiles: ["src/features/billing/payment-client.ts"],
+      commands: [],
+      evidencePack: {
+        status: "complete",
+        verdict: { label: "Complete" },
+        verifiedTaskScore: {
+          score: 80,
+          status: "partially_verified",
+          signals: [{ id: "validation_passed", satisfied: true, weight: 1 }],
+        },
+        commandsExecuted: [{ command: "~/.bun/bin/bun run typecheck" }],
+      } as unknown as EvidencePack,
+      health: cleanHealth,
+      summary: baseSummary,
+    });
+
+    assert.equal(state.verdict, "Risky change");
+    assert.equal(state.evidencePackState, "present_weak");
+  });
+
+  it("keeps low VTS evidence risky even after validation", () => {
+    const state = deriveTrustGate({
+      changedFiles: [],
+      commands: [],
+      evidencePack: {
+        status: "complete",
+        verdict: { label: "Complete" },
+        commandsExecuted: [{ command: "~/.bun/bin/bun run lint" }],
+        verifiedTaskScore: {
+          score: 64,
+          status: "partially_verified",
+          signals: [{ id: "validation_passed", satisfied: true, weight: 1 }],
+        },
+      } as unknown as EvidencePack,
+      health: cleanHealth,
+      summary: baseSummary,
+    });
+
+    assert.equal(state.verdict, "Risky change");
+    assert.match(state.missingProof.join(" "), /Strong VTS/);
+  });
+
+  it("shows resolving trust while a run is active", () => {
+    const state = deriveTrustGate({
+      changedFiles: ["src/electron/ipc.ts"],
+      commands: ["~/.bun/bin/bun run typecheck"],
+      evidencePack: null,
+      events: [{ id: "event-1", label: "sandbox_run", detail: "Running focused validation.", status: "active" }],
+      health: { gitDirtyState: "dirty" } as WorkspaceHealthProfile,
+      isRunning: true,
+      summary: baseSummary,
+    });
+
+    assert.equal(state.verdict, "Resolving trust");
+    assert.equal(state.status, "resolving");
   });
 });

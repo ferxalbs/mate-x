@@ -31,6 +31,7 @@ export function DesktopShell() {
   const createThread = useChatStore((state) => state.createThread);
   const selectThread = useChatStore((state) => state.selectThread);
   const renameThread = useChatStore((state) => state.renameThread);
+  const submitPrompt = useChatStore((state) => state.submitPrompt);
   const threads = activeWorkspaceId
     ? (threadsByWorkspace[activeWorkspaceId] ?? [])
     : [];
@@ -139,6 +140,23 @@ export function DesktopShell() {
             </div>
             <EnhancementPanel
               conversation={threads.find((thread) => thread.id === activeThreadId) ?? null}
+              onMakeTrustworthy={() => {
+                void submitPrompt(
+                  [
+                    "Make this workspace trustworthy for the current changes.",
+                    "Use the existing MaTE X runtime systems: RepoGraph semantic memory, Validation Planner, sandbox/test tools, Evidence Pack, VTS, Agent Trace, Agent Firewall, and Privacy Firewall.",
+                    "Scope first with semantic memory and git status. Inspect changed files and impacted risky surfaces only. Run focused validation where safe. Use approval-required policy stops for risky operations.",
+                    "Do not claim a fix or release readiness unless validation and proof actually exist. If proof is missing or validation cannot run, explicitly downgrade the Trust Gate result and name the missing proof.",
+                  ].join("\n"),
+                  {
+                    reasoningEnabled: true,
+                    reasoning: "high",
+                    mode: "build",
+                    access: "approval",
+                    runbookId: "patch_test_verify",
+                  },
+                );
+              }}
               runStatus={runStatus}
               workspace={workspace}
               workspaceId={activeWorkspaceId}

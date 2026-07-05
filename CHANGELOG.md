@@ -3,6 +3,9 @@
 ## Unreleased v0.1.1 - 2026.07.05 (4) [Trust Gate Ship Proof UX]
 
 - Added a first-class Trust Gate surface to the Live Enhancement Panel that answers whether agent changes are trusted, need validation, risky, blocked, or unproven using existing workspace health, git dirty state, changed files, RepoGraph impact, validation commands, Evidence Pack/VTS, and policy-stop signals.
+- Made Trust Gate state operational with typed deterministic fields for status, confidence, reasons, missing proof, touched risk surfaces, validation state, policy-stop state, Evidence Pack state, suggested next action, and source signals used.
+- Added a "Make it trustworthy" action that routes through the existing assistant run path with approval-required access and focused validation/proof instructions instead of creating a fake UI-only trust state.
+- Strengthened runtime guidance so agent runs must downgrade unsupported claims, prefer RepoGraph semantic scoping over broad reads, and keep Trust Gate/Evidence Pack grounded in tool, validation, firewall, and VTS evidence.
 - Reframed the casual Evidence Pack path as Ship Proof while preserving Evidence Pack naming for compliance/export internals.
 - Added focused Trust Gate derivation coverage for ready proof, no proof, dirty repo, missing validation, policy stop, and risky runtime-surface changes.
 

@@ -31,6 +31,7 @@ import {
 
 interface EnhancementPanelProps {
   conversation: Conversation | null;
+  onMakeTrustworthy?: () => void;
   runStatus: RunStatus;
   workspace: WorkspaceSummary | null;
   workspaceId: string | null;
@@ -45,6 +46,7 @@ const views: { id: EnhancementView; label: string }[] = [
 
 export function EnhancementPanel({
   conversation,
+  onMakeTrustworthy,
   runStatus,
   workspace,
   workspaceId,
@@ -95,7 +97,9 @@ export function EnhancementPanel({
     changedFiles,
     commands,
     evidencePack: runtime.evidencePack,
+    events: runtime.events,
     health,
+    isRunning: runtime.isRunning,
     summary,
   });
 
@@ -214,7 +218,10 @@ export function EnhancementPanel({
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-4 py-4">
-          <TrustGateCard state={trustGate} />
+          <TrustGateCard
+            onMakeTrustworthy={onMakeTrustworthy}
+            state={trustGate}
+          />
           {activeView === "trace" ? (
             <TraceSection
               changedFiles={changedFiles}
