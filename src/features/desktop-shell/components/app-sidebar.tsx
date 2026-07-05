@@ -51,6 +51,7 @@ import type {
 } from "../../../contracts/workspace";
 import type { AppSettings } from "../../../contracts/settings";
 import type { Theme } from "../../../hooks/use-theme";
+import { usePlatform } from "../../../hooks/use-platform";
 import { cn } from "../../../lib/utils";
 import { useLocalStorage, type LocalStorageCodec } from "../../../hooks/useLocalStorage";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -140,6 +141,7 @@ export function AppSidebar({
   onSelectThread,
   onRenameThread,
 }: AppSidebarProps) {
+  const platform = usePlatform();
   const [expandedWorkspaces, setExpandedWorkspaces] = useLocalStorage<
     Record<string, boolean>
   >("matex-sidebar-expanded-workspaces", {}, expandedWorkspacesCodec);
@@ -162,7 +164,10 @@ export function AppSidebar({
 
   const sidebarContent = (
     <div className="relative z-10 flex h-full min-h-0 flex-col">
-      <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[88px]">
+      <SidebarHeader className={cn(
+        "drag-region h-[52px] flex-row items-center gap-2 px-4 py-0",
+        platform === "mac" && "pl-[88px]"
+      )}>
         <div className="flex min-w-0 items-center gap-2">
           <div className="ml-1 flex min-w-0 items-center gap-1.5">
             <span className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">

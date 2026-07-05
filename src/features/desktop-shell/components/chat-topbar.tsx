@@ -23,6 +23,7 @@ import { SidebarTrigger, useSidebar } from "../../../components/ui/sidebar";
 import type { Conversation, RunStatus } from "../../../contracts/chat";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
 import type { Appearance } from "../../../hooks/use-theme";
+import { usePlatform } from "../../../hooks/use-platform";
 import { cn } from "../../../lib/utils";
 import { openWorkspacePath } from "../../../services/repo-client";
 
@@ -72,6 +73,7 @@ export function ChatTopbar({
   onCreateThread,
 }: ChatTopbarProps) {
   const { state } = useSidebar();
+  const platform = usePlatform();
   const [openTarget, setOpenTarget] = useState("folder");
   const [gitAction, setGitAction] = useState("commit-push");
   const title = conversation?.title ?? "No active thread";
@@ -121,7 +123,8 @@ export function ChatTopbar({
         liquidGlassEnabled
           ? "bg-transparent"
           : "glass border-b border-[var(--titlebar-border)]/40",
-        state === "collapsed" && "pl-[88px]",
+        state === "collapsed" && platform === "mac" && "pl-[88px]",
+        platform === "windows" && "pr-[138px]",
       )}
       style={
         {
