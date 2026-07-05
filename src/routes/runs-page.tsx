@@ -386,7 +386,7 @@ export function RunsPage() {
             className="h-7 rounded-full px-3 text-xs text-sky-600 dark:text-sky-300"
             onClick={() => void loadStandalonePacks()}
           >
-            Browse Evidence Packs (disk)
+            Browse Proof Receipts
           </Button>
           <GitBranchIcon className="size-3.5" />
           <span className="max-w-[280px] truncate">{workspace?.path ?? "No workspace selected"}</span>
@@ -396,7 +396,7 @@ export function RunsPage() {
       {showStandalonePacks && (
         <div className="border-b border-border/70 bg-[var(--panel)]/80 px-4 py-3 text-xs">
           <div className="mb-2 flex items-center justify-between">
-            <div className="font-medium text-foreground">Workspace Evidence Packs (standalone from .mate-x/evidence)</div>
+            <div className="font-medium text-foreground">Workspace proof receipts from .mate-x/evidence</div>
             <Button variant="ghost" size="sm" onClick={() => { setShowStandalonePacks(false); setSelectedLocalTaskId(null); setLocalPackDetail(null); }}>
               Close
             </Button>
@@ -585,7 +585,7 @@ export function RunsPage() {
                               <div className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
                                 {selectedRun.record.integrity.rootHash}
                               </div>
-                              <div className="mt-1 text-[11px] text-muted-foreground">Exportable evidence pack · trusted replay ready</div>
+                              <div className="mt-1 text-[11px] text-muted-foreground">Exportable proof receipt · replay material preserved</div>
                             </>
                           ) : (
                             <>

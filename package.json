@@ -1,8 +1,8 @@
 {
   "name": "mate-x",
   "productName": "MaTE X",
-  "version": "0.1.0",
-  "description": "Local-first secure development agent for repository risk mapping, fix validation, and evidence preservation",
+  "version": "0.1.1",
+  "description": "Local Trust Gate for AI-made code changes, fix validation, and proof preservation",
   "main": ".vite/build/main.js",
   "repository": {
     "type": "git",

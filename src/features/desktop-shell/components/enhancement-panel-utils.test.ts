@@ -5,8 +5,10 @@ import type { EvidencePack } from "../../../contracts/chat";
 import type { WorkspaceHealthProfile } from "../../../contracts/workspace";
 import {
   deriveTrustGate,
+  getRepoHealthVerdict,
   getVerifiedEvidenceScore,
   hasVerifiedEvidenceSignals,
+  type RepoHealthSignal,
   type ImpactSummary,
 } from "./enhancement-panel-utils";
 
@@ -232,5 +234,29 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Resolving trust");
     assert.equal(state.status, "resolving");
+  });
+});
+
+describe("repo health copy", () => {
+  it("does not claim scans ran when only workspace metadata exists", () => {
+    const verdict = getRepoHealthVerdict(
+      [{ label: "Status", value: "ready", tone: "good" }],
+      false,
+    );
+
+    assert.equal(verdict.label, "Pending");
+    assert.match(verdict.detail, /Map repo signals/);
+    assert.doesNotMatch(verdict.detail, /scan/i);
+  });
+
+  it("describes unresolved watch signals without implying validation passed", () => {
+    const verdict = getRepoHealthVerdict(
+      [{ label: "Git", value: "dirty", tone: "watch" }] as RepoHealthSignal[],
+      true,
+    );
+
+    assert.equal(verdict.label, "Watch");
+    assert.match(verdict.detail, /live trust signals/);
+    assert.doesNotMatch(verdict.detail, /passed|trusted/i);
   });
 });

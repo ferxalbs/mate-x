@@ -145,7 +145,7 @@ function buildTraceModel(input: {
       detail: hasImpact
         ? `${input.summary.affectedCount} affected target${input.summary.affectedCount === 1 ? "" : "s"}; fan-out ${input.summary.toolFanoutCount}.`
         : hasChanges
-          ? "Changed files scanned; no downstream target returned."
+          ? "Changed paths were mapped; no downstream target returned."
           : "No changed path to expand.",
       icon: FileSearchIcon,
       status: hasImpact || hasChanges || !busy ? doneStatus : activeStatus,
@@ -159,10 +159,10 @@ function buildTraceModel(input: {
       status: hasCommands ? doneStatus : busy ? activeStatus : doneStatus,
     },
     {
-      title: input.evidencePack ? "Evidence pack attached" : "Evidence pack unavailable",
+      title: input.evidencePack ? "Ship Proof attached" : "Ship Proof unavailable",
       detail: input.evidencePack
         ? `${input.evidencePack.status} with ${input.evidencePack.commandsExecuted?.length ?? 0} command signal${(input.evidencePack.commandsExecuted?.length ?? 0) === 1 ? "" : "s"}.`
-        : "No verified run evidence pack attached yet.",
+        : "No verified run proof receipt attached yet.",
       icon: ClipboardCheckIcon,
       status: input.evidencePack ? doneStatus : busy ? activeStatus : doneStatus,
     },
@@ -185,7 +185,7 @@ function buildTraceModel(input: {
     eventCounts,
     healthTone,
     linkRows,
-    linksCaption: busy ? "Live scan state" : "Connected state",
+    linksCaption: busy ? "Live trust state" : "Connected state",
     recentEvents,
   };
 }

@@ -164,7 +164,7 @@ export function ImpactSection({
           <ImpactRow entry={entry} key={`${entry.file}:${entry.distance}`} />
         ))}
         {impactedFiles.length === 0 ? (
-          <EmptyLine text="Run scan after edits to calculate blast radius" />
+          <EmptyLine text="Map changed paths to estimate blast radius" />
         ) : null}
       </div>
       <Card className="border-blue-500/15 shadow-none bg-blue-500/[0.04]">
@@ -217,8 +217,8 @@ export function ValidationSection({
             ))}
             {visibleCommands.length === 0 ? (
               <p className="text-muted-foreground">
-                No validation command evidence yet. Run verified task or scan
-                changed files.
+                No validation command evidence yet. Run a verified task or map
+                changed files first.
               </p>
             ) : null}
           </div>
@@ -310,7 +310,7 @@ export function EvidencePackSection({
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
         <Card className="border-border/70 shadow-none bg-transparent">
           <CardContent className="px-3 py-2 text-[10px] leading-4 text-muted-foreground">
-            Local scan sees {fallbackFileCount} changed file
+            Local repo signals show {fallbackFileCount} changed file
             {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
             command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
             Ship Proof has been generated for this run yet.
@@ -425,7 +425,7 @@ export function RepoHealthSection({
   const action = nextAction ?? (hasWorkspace
     ? hasProfile
       ? "Review weak signals before relying on this repo profile."
-      : "Run Scan to build a live health profile for this workspace."
+      : "Map repo signals to build a live health profile for this workspace."
     : "Open a workspace to begin analysis.");
 
   return (
@@ -746,13 +746,13 @@ function getEvidenceScoreReason(
     return `Score comes from verified task signals: ${formatScoreBasis(scoreBreakdown)}.`;
   }
   if (score < 50) {
-    return "Low confidence. Findings may be useful, but claim needs stronger file-level verification before demo use.";
+    return "Low confidence. Findings may be useful, but claims need stronger file-level verification before shipping.";
   }
   if (score < 75) {
-    return "Partial confidence. Review unresolved risks before demo claim.";
+    return "Partial confidence. Review unresolved risks before shipping.";
   }
 
-  return "Evidence is strong enough for product demo summary.";
+  return "Evidence is strong enough for a proof-backed summary.";
 }
 
 interface ScoreBreakdown {
@@ -816,10 +816,10 @@ function getVerdictReadiness(score: number | null) {
     return "Needs evidence";
   }
   if (score < 75) {
-    return "Review before demo";
+    return "Review first";
   }
 
-  return "Demo-ready";
+  return "Proof-backed";
 }
 
 function getSecurityRiskTone(

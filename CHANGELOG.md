@@ -1,13 +1,12 @@
 # CHANGELOG
 
-## Unreleased v0.1.1 - 2026.07.05 (4) [Trust Gate Ship Proof UX]
+## v0.1.1 - 2026.07.05 (4) [Trust Gate]
 
-- Added a first-class Trust Gate surface to the Live Enhancement Panel that answers whether agent changes are trusted, need validation, risky, blocked, or unproven using existing workspace health, git dirty state, changed files, RepoGraph impact, validation commands, Evidence Pack/VTS, and policy-stop signals.
-- Made Trust Gate state operational with typed deterministic fields for status, confidence, reasons, missing proof, touched risk surfaces, validation state, policy-stop state, Evidence Pack state, suggested next action, and source signals used.
-- Added a "Make it trustworthy" action that routes through the existing assistant run path with approval-required access and focused validation/proof instructions instead of creating a fake UI-only trust state.
-- Strengthened runtime guidance so agent runs must downgrade unsupported claims, prefer RepoGraph semantic scoping over broad reads, and keep Trust Gate/Evidence Pack grounded in tool, validation, firewall, and VTS evidence.
-- Reframed the casual Evidence Pack path as Ship Proof while preserving Evidence Pack naming for compliance/export internals.
-- Added focused Trust Gate derivation coverage for ready proof, no proof, dirty repo, missing validation, policy stop, and risky runtime-surface changes.
+- Added Trust Gate verdicts for AI-made changes, showing whether the current workspace is trusted, needs validation, risky, blocked, or not proven.
+- Added the "Make it trustworthy" flow using existing repo intelligence, validation planning, proof generation, policy stops, Privacy Firewall, Agent Trace, and VTS signals.
+- Reframed Evidence Pack as user-facing Ship Proof and receipts in casual UI while preserving Evidence Pack naming for compliance exports and disk artifacts.
+- Strengthened honest states for missing validation, risky touched surfaces, unresolved policy stops, stale local diffs, weak proof, and unsupported release/readiness claims.
+- Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and focused Bun tests for the touched Trust Gate/evidence panel logic.
 
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]
 

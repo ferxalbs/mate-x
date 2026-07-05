@@ -219,7 +219,7 @@ export function getRepoHealthVerdict(
     return {
       label: hasWorkspace ? "Pending" : "No repo",
       detail: hasWorkspace
-        ? "Workspace metadata loaded. Run a scan to populate tests, lint, and secret signals."
+        ? "Workspace metadata loaded. Map repo signals to populate tests, lint, and secret indicators."
         : "Open or import a workspace to start repo health analysis.",
       tone: hasWorkspace ? ("watch" as SignalTone) : ("muted" as SignalTone),
     };
@@ -244,7 +244,7 @@ export function getRepoHealthVerdict(
   if (signals.some((signal) => signal.tone === "watch")) {
     return {
       label: "Watch",
-      detail: "Repo usable, but live scan still resolving.",
+      detail: "Repo usable, but live trust signals are still resolving.",
       tone: "watch" as SignalTone,
     };
   }

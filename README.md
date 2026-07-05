@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Secure development agent for local repositories.</strong><br/>
-  See risk earlier. Validate fixes. Keep local-first evidence.
+  <strong>Trust Gate for vibe-coded software.</strong><br/>
+  Don't merge vibes. Check AI-made changes before you ship.
 </p>
 
 <p align="center">
@@ -13,19 +13,23 @@
   <a href="https://mate-x.xyz"><img alt="Website" src="https://img.shields.io/badge/website-mate--x.xyz-171717?labelColor=171717&color=10b981"></a>
 </p>
 
-MaTE X is an Electron desktop application for writing and reviewing secure code from day one across arbitrary local repositories. It opens a local codebase, classifies project surfaces, reasons over trust boundaries and data flow, prioritizes high-signal vulnerability candidates, and helps validate fixes with evidence while keeping privileged operations inside the desktop main process.
+MaTE X is an Electron desktop application that acts as a local trust layer for arbitrary repositories. It opens a local codebase, classifies project surfaces, checks what an AI agent changed, surfaces risk, validates when possible, and preserves proof while keeping privileged operations inside the desktop main process.
 
-The product is designed for repository security work, not generic chat over files. Analysis must separate runtime code from tests, docs, examples, generated files, scanner rules, and reference material so findings stay grounded in the code that can actually execute. The goal is to move security into the development loop: see risk earlier, patch with review, verify remediation, and preserve audit-ready evidence.
+The product is designed for repository security work, not generic chat over files. Analysis must separate runtime code from tests, docs, examples, generated files, scanner rules, and reference material so findings stay grounded in the code that can actually execute. The goal is to move security into the development loop: vibe code fast, but ship only what is proven.
+
+MaTE X does not guarantee security, prevent every bug, or replace human review. It gives teams a Trust Gate: agent changes are not trusted until validation, policy, and proof signals support the verdict.
 
 ## What MaTE X Does
 
+- Shows a Trust Gate verdict for the opened repo so users can see whether AI-made changes are trusted, need validation, risky, blocked, or not proven.
+- Provides a "Make it trustworthy" flow that uses existing repo intelligence, validation tools, policy stops, Agent Trace, VTS, and proof artifacts instead of inventing green status.
 - Reviews local repositories for security-relevant behavior, configuration risk, dependency risk, unsafe data flow, and trust-boundary violations before they become release blockers.
 - Uses semantic classification before reporting findings: framework, runtime surface, source role, environment, entry points, sinks, and evidence confidence.
 - Prioritizes high-impact issues, supports scoped remediation guidance, and validates fixes with tests, traces, or evidence where available.
 - Keeps file system access, Git operations, local persistence, API key lookup, and other sensitive actions in the Electron main process.
 - Sends only deliberately prepared context to the Rainy API v3 backend after local privacy checks and redaction gates.
 - Stores settings, run state, findings, and compliance artifacts locally.
-- Produces local evidence packs for completed agent runs when compliance output is enabled.
+- Produces local Ship Proof receipts and compliance Evidence Packs for completed agent runs when proof output is available.
 
 ## Architecture
 
