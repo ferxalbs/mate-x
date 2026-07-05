@@ -434,7 +434,7 @@ export function RunsPage() {
                 Captured Runs
               </div>
             </div>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="flex flex-col gap-1 p-2">
                 {runs.map((run) => {
                   const status = runStatus === "running" && run.id === runs[0]?.id ? "running" : run.status;
@@ -471,7 +471,7 @@ export function RunsPage() {
           </aside>
 
           <main className="min-h-0 flex flex-col">
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="p-6">
                 <div className="mb-5 grid grid-cols-5 gap-2">
                   <Metric label="Status" value={selectedStatus ?? "unknown"} />
@@ -528,8 +528,8 @@ export function RunsPage() {
                                   {event.status}
                                 </Badge>
                               </div>
-                              <div className="mt-1 text-[11px] font-medium text-foreground/80">{event.label}</div>
-                              <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                              <div className="mt-1 text-[11px] font-medium text-foreground/80 break-words">{event.label}</div>
+                              <p className="mt-1 whitespace-pre-wrap break-all text-xs leading-5 text-muted-foreground">
                                 {event.detail || "No detail captured for this event."}
                               </p>
                             </CardContent>
@@ -549,7 +549,7 @@ export function RunsPage() {
           </main>
 
           <aside className="min-h-0 border-l border-border/70 flex flex-col">
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="p-5">
                 <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
                   Run Evidence
@@ -567,8 +567,8 @@ export function RunsPage() {
                       {decisionTrail.map((decision) => (
                         <Card key={`${decision.label}:${decision.detail}`} className="border-border/60 shadow-none">
                           <CardContent className="px-2.5 py-2">
-                            <div className="font-medium text-foreground">{decision.label}</div>
-                            <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{decision.detail}</div>
+                            <div className="font-medium text-foreground break-words">{decision.label}</div>
+                            <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground break-all">{decision.detail}</div>
                           </CardContent>
                         </Card>
                       ))}
