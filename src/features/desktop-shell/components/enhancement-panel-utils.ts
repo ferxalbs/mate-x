@@ -343,9 +343,11 @@ export function deriveTrustGate({
     hasPolicyStop || eventPolicyStop ? "policy stops" : "",
   ].filter(Boolean);
   const proofLabel = evidencePack
-    ? hasVerifiedSignals
-      ? "Ship Proof ready"
-      : "Ship Proof needs evidence"
+    ? hasVerifiedSignals && validationState === "passed" && score !== null && score >= 85
+      ? "Proof-backed"
+      : hasVerifiedSignals
+        ? "Proof incomplete"
+        : "Needs proof"
     : "No Ship Proof yet";
   const evidencePackState: TrustGateEvidenceState = !evidencePack
     ? "missing"

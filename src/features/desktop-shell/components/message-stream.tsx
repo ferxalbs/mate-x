@@ -396,9 +396,11 @@ function isInlineTraceEvent(event: ToolEvent) {
 
 
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
-  const [expanded, setExpanded] = useState(event.status === "error");
+  const [expanded, setExpanded] = useState(
+    event.status === "error" && !isMissingInternalToolEvent(event),
+  );
   const summary = summarizeInlineTraceEvent(event);
-  const rawDetail = extractCommandFromEvent(event) ?? event.detail;
+  const rawDetail = getUserFacingTraceDetail(event);
   const detail = tryPrettyJson(rawDetail) ?? rawDetail;
 
   return (
@@ -428,11 +430,15 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
 function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
   const active = events.some((event) => event.status === "active");
   const failed = events.some((event) => event.status === "error");
-  const [expanded, setExpanded] = useState(failed);
+  const missingInternalOnly =
+    failed && events.every((event) => event.status !== "error" || isMissingInternalToolEvent(event));
+  const [expanded, setExpanded] = useState(failed && !missingInternalOnly);
   const label =
     events.length === 1
       ? summarizeInlineTraceEvent(events[0])
-      : `${active ? "Running" : "Ran"} ${events.length} actions`;
+      : failed
+        ? `${events.filter((event) => event.status === "error").length} action${events.filter((event) => event.status === "error").length === 1 ? "" : "s"} need attention`
+        : `${active ? "Running" : "Ran"} ${events.length} actions`;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] text-[12px] leading-5 text-muted-foreground/72">
@@ -481,6 +487,11 @@ function InlineTraceStatusDot({ status }: { status: ToolEvent["status"] }) {
 }
 
 function summarizeInlineTraceEvent(event: ToolEvent) {
+  if (isMissingInternalToolEvent(event)) {
+    const tool = missingInternalToolName(event);
+    return tool ? `Tool unavailable - ${tool}` : "Tool unavailable";
+  }
+
   const label =
     cleanTraceText(event.label.replace(/^Executing\s+/i, "")) || event.label;
   const target = extractInlineTraceTarget(event.detail);
@@ -492,6 +503,25 @@ function summarizeInlineTraceEvent(event: ToolEvent) {
   }
 
   return target ? `${label} - ${target}` : label;
+}
+
+function getUserFacingTraceDetail(event: ToolEvent) {
+  if (isMissingInternalToolEvent(event)) {
+    const tool = missingInternalToolName(event);
+    return tool
+      ? `${tool} is not available in this build. The run should fall back to available repo tools instead of asking you to debug this.`
+      : "A requested internal tool is not available in this build. The run should fall back to available repo tools.";
+  }
+
+  return extractCommandFromEvent(event) ?? event.detail;
+}
+
+function isMissingInternalToolEvent(event: ToolEvent) {
+  return event.status === "error" && /Tool\s+"[^"]+"\s+not found/i.test(event.detail);
+}
+
+function missingInternalToolName(event: ToolEvent) {
+  return event.detail.match(/Tool\s+"([^"]+)"/i)?.[1] ?? null;
 }
 
 function extractInlineTraceTarget(detail: string) {

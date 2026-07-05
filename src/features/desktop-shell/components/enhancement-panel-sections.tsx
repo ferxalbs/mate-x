@@ -61,13 +61,12 @@ export function TrustGateCard({
         <p className="mt-2 text-[11px] font-medium text-foreground">
           Don&apos;t merge vibes. Agent changes are not trusted until proven.
         </p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <TonePill label={`Confidence: ${state.confidenceLabel}`} tone={state.tone} />
-          <TonePill label={`Validation: ${state.validationState}`} tone={state.validationState === "passed" ? "good" : "watch"} />
-          <TonePill label={`Proof: ${state.evidencePackState}`} tone={state.evidencePackState === "signed_strong" ? "good" : "watch"} />
-        </div>
-        <ul className="mt-2 space-y-1.5 text-[10px] leading-4 text-muted-foreground">
-          {state.reasons.slice(0, 2).map((reason) => (
+        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+          Validation: {humanizeState(state.validationState)} · Proof:{" "}
+          {humanizeState(state.evidencePackState)}
+        </p>
+        <ul className="mt-2 space-y-1 text-[10px] leading-4 text-muted-foreground">
+          {state.reasons.slice(0, 1).map((reason) => (
             <li className="break-words" key={reason}>
               {reason}
             </li>
@@ -100,6 +99,10 @@ export function TrustGateCard({
       </CardContent>
     </Card>
   );
+}
+
+function humanizeState(value: string) {
+  return value.replace(/_/g, " ");
 }
 
 interface BaseSectionProps {
