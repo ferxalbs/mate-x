@@ -54,11 +54,10 @@ import {
   supportsReasoning as modelSupportsReasoning,
   supportsVideoInput as modelSupportsVideoInput,
 } from "../../../lib/rainy-model-capabilities";
-import { cn } from "../../../lib/utils";
+import { appleCornerPath, cn } from "../../../lib/utils";
 import { getEmbeddingModel, getModel, listEmbeddingModels, listModels, setEmbeddingModel, setModel } from "../../../services/settings-client";
 import { useChatStore } from "../../../store/chat-store";
 import { useResizeObserver } from "../../../hooks/use-resize-observer";
-import { appleCornerPath } from "../../../lib/utils";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
