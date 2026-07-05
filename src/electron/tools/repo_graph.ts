@@ -19,7 +19,7 @@ type RepoGraphOperation =
 export const repoGraphTool: Tool = {
   name: "repo_graph",
   description:
-    "Query persistent repository structure before broad search. Use for entrypoints, impacted files, tests, import chains, IPC, env vars, and dependencies.",
+    "Query persistent repository semantic memory before reading files. Use semantic_search for concepts/symbols/risk surfaces, get_semantic_profile for one candidate file, get_architecture_summary for unfamiliar repos, detect_changes before refresh, and graph operations for entrypoints, impacted files, tests, imports, IPC, env vars, and dependencies.",
   parameters: {
     type: "object",
     properties: {
@@ -42,7 +42,7 @@ export const repoGraphTool: Tool = {
       },
       query: {
         type: "string",
-        description: "Search query for semantic_search.",
+        description: "Concept, symbol, behavior, risk, route, IPC, env, dependency, or feature query for semantic_search.",
       },
       limit: {
         type: "number",
@@ -50,11 +50,11 @@ export const repoGraphTool: Tool = {
       },
       role: {
         type: "string",
-        description: "Optional semantic role filter for semantic_search.",
+        description: "Optional semantic role filter for semantic_search, such as service, agent-tool, ipc-handler, ui, contract, config, test, or runtime-code.",
       },
       risk: {
         type: "string",
-        description: "Optional risk tag filter for semantic_search.",
+        description: "Optional risk tag filter for semantic_search, such as ipc, filesystem, network, shell-exec, secrets-config, credential-flow, or security-analysis.",
       },
       files: {
         type: "array",

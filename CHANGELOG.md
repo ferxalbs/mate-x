@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]
+
+- Reworked RepoGraph embeddings to use change-gated indexing with per-file index state, incremental embedding upserts, stale embedding cleanup, and no full workspace embedding wipe on refresh.
+- Added compact semantic profiles for indexed files, covering role, runtime, symbols, imports, IPC channels, env vars, dependencies, trust boundaries, risk tags, confidence, and summary.
+- Added agent-facing semantic memory operations for semantic search, file semantic profiles, architecture summaries, and change detection across the RepoGraph IPC, preload, contract, and tool surfaces.
+- Strengthened agent system prompt and `repo_graph` tool guidance so agents use semantic memory before broad file reads, reducing token and API usage while keeping graph results separate from proof.
+- Verified with `~/.bun/bin/bun run typecheck`; lint is currently blocked by local ESLint/TypeScript package resolution error `ERR_PACKAGE_PATH_NOT_EXPORTED` before source diagnostics.
+
 ## Unreleased - 2026.07.05 (2) [Evidence Panel Confidence and Bun Health]
 
 - Reworked the Live Enhancement Panel into a thinner container with dedicated header/tab chrome and clearer Evidence and Repo Health cards, keeping the compact side-panel shell intact.

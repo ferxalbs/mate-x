@@ -1,29 +1,58 @@
 {
   "compilerOptions": {
+    /* ─── TypeScript 7 / Go Compiler Performance ─────────────────────────────
+       The Go compiler parallelises parsing, type-checking and emit automatically.
+       No "parallel" flag exists in tsconfig; parallelism is always-on.
+       Use --checkers / --builders on the CLI to tune worker counts if needed.
+    ────────────────────────────────────────────────────────────────────────── */
+
+    /* Incremental builds – saves a dependency graph so only changed files
+       are re-compiled on subsequent runs. Works great with the Go engine. */
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuildinfo",
+
+    /* Parallel-safe declaration emit – allows the Go compiler to emit .d.ts
+       files for each file independently without traversing the whole graph. */
+    "isolatedDeclarations": false,          // set true only if you add declaration:true
+
+    /* Ensures deterministic output when the Go checker processes types in
+       parallel (prevents non-deterministic union/intersection ordering). */
+    "stableTypeOrdering": true,
+
+    /* ─── Target & Module ────────────────────────────────────────────────── */
     "target": "ESNext",
     "module": "ESNext",
-    "allowJs": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "noImplicitAny": true,
-    "sourceMap": true,
-    "jsx": "react-jsx",
-    "outDir": "dist",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "ignoreDeprecations": "6.0",
-    "types": [
-      "node"
-    ],
-    "baseUrl": ".",
+
+    /* ─── Type Checking ──────────────────────────────────────────────────── */
+    "strict": true,
+    "noImplicitAny": true,
+
+    /* CRUCIAL: skips type-checking inside node_modules – saves RAM & time */
+    "skipLibCheck": true,
+
+    /* ─── Emit ───────────────────────────────────────────────────────────── */
+    "outDir": "dist",
+    "sourceMap": true,
+
+    /* ─── Compatibility ──────────────────────────────────────────────────── */
+    "allowJs": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "types": ["node"],
+
+    /* ─── Path Aliases ───────────────────────────────────────────────────── */
+    /* baseUrl was removed in TS 7 – use relative paths in "paths" instead */
     "paths": {
-      "~/*": [
-        "src/*"
-      ],
-      "@/*": [
-        "src/*"
-      ]
-    }
+      "~/*": ["./src/*"],
+      "@/*": ["./src/*"]
+    },
+
+    /* Suppresses deprecation errors introduced in TS ≤ 6.0
+       (e.g. baseUrl alone, older moduleResolution values, etc.) */
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "src",
@@ -32,6 +61,8 @@
     "*.tsx"
   ],
   "exclude": [
+    "node_modules",
+    "dist",
     "mate-x-app"
   ]
 }
