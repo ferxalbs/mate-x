@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.05 (2) [Evidence Panel Confidence and Bun Health]
+
+- Reworked the Live Enhancement Panel into a thinner container with dedicated header/tab chrome and clearer Evidence and Repo Health cards, keeping the compact side-panel shell intact.
+- Changed Evidence confidence rendering so incomplete or signal-less packs show `Pending` / `Needs evidence` instead of misleading numeric low scores such as `18/100`.
+- Fixed workspace health package-manager detection to respect `packageManager` and lockfile evidence, including `bun.lock`, and to avoid inventing `npm run ...` validation commands when the manager is unknown.
+- Anchored Repo Health display to the active workspace name, path, and branch so health signals are visibly scoped to the current repo.
+- Added focused coverage for Bun/unknown package-manager detection and Evidence confidence score gating.
+- Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and `~/.bun/bin/bun test src/electron/repo-service/workspace-health.test.ts src/features/desktop-shell/components/enhancement-panel-utils.test.ts` (all clean).
+
 ## Unreleased - 2026.07.05 (1) [Live Repo Health Profile]
 
 - Reworked the Live Enhancement Panel Repo Health system so it uses real workspace health data instead of placeholder-style fallback cells for tests, lint, secrets, and profile state.
