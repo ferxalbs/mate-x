@@ -64,7 +64,7 @@ describe("trust gate derivation", () => {
     },
   } as unknown as EvidencePack;
 
-  it("returns ready when proof, validation, and clean git are present", () => {
+  it("maps signed evidence and passed validation to Ready", () => {
     const state = deriveTrustGate({
       changedFiles: [],
       commands: [],
@@ -73,13 +73,14 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Trusted / Ready");
-    assert.equal(state.nextAction, "Can ship");
+    assert.equal(state.verdict, "Ready");
+    assert.equal(state.headline, "Ready");
+    assert.equal(state.nextAction, "Continue");
     assert.equal(state.validationState, "passed");
     assert.equal(state.evidencePackState, "signed_strong");
   });
 
-  it("returns unknown when no evidence or changed files exist", () => {
+  it("maps no evidence and no changes to Unknown", () => {
     const state = deriveTrustGate({
       changedFiles: [],
       commands: [],
@@ -88,11 +89,12 @@ describe("trust gate derivation", () => {
       summary: { ...baseSummary, risk: "None" },
     });
 
-    assert.equal(state.verdict, "Unknown / Not proven");
+    assert.equal(state.verdict, "Unknown");
+    assert.equal(state.headline, "Unknown");
     assert.equal(state.proofLabel, "No Ship Proof yet");
   });
 
-  it("requires validation for a dirty repo without proof", () => {
+  it("maps no validation and changed files to Not ready", () => {
     const state = deriveTrustGate({
       changedFiles: ["src/features/chat.tsx"],
       commands: ["~/.bun/bin/bun run typecheck"],
@@ -101,8 +103,15 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Needs validation");
-    assert.equal(state.nextAction, "Generate proof");
+    assert.equal(state.verdict, "Not ready");
+    assert.equal(state.headline, "Not ready");
+    assert.equal(state.explanation, "MaTE X found changed files, but no passing validation command has been proven yet.");
+    assert.equal(state.nextAction, "Run safety check");
+    assert.deepEqual(state.reasonChips.slice(0, 3), [
+      "1 file changed",
+      "No validation passed",
+      "Proof missing",
+    ]);
   });
 
   it("requires validation when proof has no verified signals", () => {
@@ -118,8 +127,8 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Needs validation");
-    assert.equal(state.nextAction, "Run focused validation");
+    assert.equal(state.verdict, "Not ready");
+    assert.equal(state.nextAction, "Run safety check");
   });
 
   it("does not trust final claims when no commands ran", () => {
@@ -140,7 +149,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Needs validation");
+    assert.equal(state.verdict, "Not ready");
     assert.equal(state.validationState, "not_run");
     assert.equal(state.proofLabel, "Proof incomplete");
     assert.match(state.missingProof.join(" "), /Passing validation/);
@@ -160,11 +169,12 @@ describe("trust gate derivation", () => {
     });
 
     assert.equal(state.verdict, "Blocked");
+    assert.equal(state.headline, "Blocked");
     assert.equal(state.nextAction, "Resolve policy stop");
     assert.equal(state.policyStopState, "unresolved");
   });
 
-  it("flags risky surfaces touched before proof", () => {
+  it("maps risky surface touched without proof to Risky", () => {
     const state = deriveTrustGate({
       changedFiles: ["src/electron/session-service.ts"],
       commands: ["~/.bun/bin/bun run typecheck"],
@@ -173,8 +183,9 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Risky change");
-    assert.equal(state.nextAction, "Review auth/session changes");
+    assert.equal(state.verdict, "Risky");
+    assert.equal(state.headline, "Risky");
+    assert.equal(state.nextAction, "Run safety check");
     assert.deepEqual(state.touchedRiskSurfaces, ["src/electron/session-service.ts"]);
   });
 
@@ -196,7 +207,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Risky change");
+    assert.equal(state.verdict, "Risky");
     assert.equal(state.evidencePackState, "present_weak");
   });
 
@@ -218,8 +229,8 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Risky change");
-    assert.match(state.missingProof.join(" "), /Strong VTS/);
+    assert.equal(state.verdict, "Risky");
+    assert.match(state.missingProof.join(" "), /Strong proof/);
   });
 
   it("shows resolving trust while a run is active", () => {
@@ -233,7 +244,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Resolving trust");
+    assert.equal(state.verdict, "Not ready");
     assert.equal(state.status, "resolving");
   });
 });
