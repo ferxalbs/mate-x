@@ -59,12 +59,13 @@ const config: ForgeConfig = {
     // Using a function suppresses the Forge Vite-plugin warning while letting
     // us keep our custom exclusions on top of its default ".vite-only" logic.
     ignore: (file: string) => {
+      const normalizedFile = file.replace(/\\/g, '/').replace(/^\/+/, '');
       // Replicate the Forge Vite plugin default: only ship the .vite output dir.
-      if (!file.startsWith('/.vite')) return true;
+      if (normalizedFile && !normalizedFile.startsWith('.vite')) return true;
       // Additionally strip source test/fixture artefacts that may end up there.
-      if (/(^|[/\\]).*\.test\.ts$/.test(file)) return true;
-      if (/(^|[/\\])__tests__([/\\]|$)/.test(file)) return true;
-      if (/(^|[/\\])fixtures([/\\]|$)/.test(file)) return true;
+      if (/(^|\/).*\.test\.ts$/.test(normalizedFile)) return true;
+      if (/(^|\/)__tests__(\/|$)/.test(normalizedFile)) return true;
+      if (/(^|\/)fixtures(\/|$)/.test(normalizedFile)) return true;
       return false;
     },
     executableName: 'mate-x',
