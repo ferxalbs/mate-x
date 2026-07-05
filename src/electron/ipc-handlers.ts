@@ -87,7 +87,6 @@ const APP_SETTING_KEYS = new Set([
   "diffLineWrapping",
   "assistantOutput",
   "compactMode",
-  "floatingInput",
   "archiveConfirmation",
   "deleteConfirmation",
   "agentProfilerAutoSwitch",

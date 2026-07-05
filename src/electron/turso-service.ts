@@ -1809,10 +1809,6 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.compactMode === 'boolean'
         ? input.compactMode
         : DEFAULT_APP_SETTINGS.compactMode,
-    floatingInput:
-      typeof input.floatingInput === 'boolean'
-        ? input.floatingInput
-        : DEFAULT_APP_SETTINGS.floatingInput,
     onboardingCompleted:
       typeof input.onboardingCompleted === 'boolean'
         ? input.onboardingCompleted

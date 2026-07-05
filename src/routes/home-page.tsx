@@ -11,9 +11,6 @@ import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 
 export function HomePage() {
-  const messageScrollerRef = useRef<HTMLDivElement | null>(null);
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const [traceVersion, setTraceVersion] = useState<'v1' | 'v2'>('v2');
   const [traceV2InlineEvents, setTraceV2InlineEvents] = useState(false);
   const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
   const [composerPrompt, setComposerPrompt] = useState('');
@@ -64,7 +61,6 @@ export function HomePage() {
     void getAppSettings()
       .then((settings) => {
         if (!cancelled) {
-          setTraceVersion(settings.agentTraceVersion);
           setTraceV2InlineEvents(settings.agentTraceV2InlineEvents);
         }
       })
@@ -111,7 +107,6 @@ export function HomePage() {
       const customEvent = event as CustomEvent<AppSettings>;
       const nextSettings = customEvent.detail;
       if (!nextSettings) return;
-      setTraceVersion(nextSettings.agentTraceVersion);
       setTraceV2InlineEvents(nextSettings.agentTraceV2InlineEvents);
     };
 
@@ -139,19 +134,8 @@ export function HomePage() {
         isRunning={runStatus === 'running'}
         lastError={lastError}
         messages={messages}
-        onScrollToBottom={() =>
-          messageScrollerRef.current?.scrollTo({
-            top: messageScrollerRef.current.scrollHeight,
-            behavior: 'smooth',
-          })
-        }
         onSelectPrompt={setComposerPrompt}
         onUndoLastTurn={undoLastTurn}
-        onVisibilityChange={setShowScrollButton}
-        scrollerRef={messageScrollerRef}
-        showScrollButton={showScrollButton}
-        traceVersion={traceVersion}
-        traceV2InlineEvents={traceV2InlineEvents}
         workspace={workspace}
       />
     </section>

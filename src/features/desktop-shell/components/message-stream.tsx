@@ -28,96 +28,40 @@ import type {
 } from "../../../contracts/chat";
 import { formatTimestamp } from "../../../lib/time";
 import { cn } from "../../../lib/utils";
+import { MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton } from "../../../components/ui/message-scroller";
 import { ChatMarkdown } from "./chat-markdown";
-import { EvidencePackCard } from "./evidence-pack-card";
 import { useChatStore } from "../../../store/chat-store";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
   messages: ChatMessage[];
   isRunning: boolean;
-  traceVersion: "v1" | "v2";
-  traceV2InlineEvents: boolean;
   onUndoLastTurn: () => Promise<string | null>;
-  onVisibilityChange: (visible: boolean) => void;
-  scrollerRef: RefObject<HTMLDivElement | null>;
 }
 
 export function MessageStream({
   canUndoLastTurn,
   messages,
   isRunning,
-  traceVersion,
-  traceV2InlineEvents,
   onUndoLastTurn,
-  onVisibilityChange,
-  scrollerRef,
 }: MessageStreamProps) {
   const settings = useChatStore((state) => state.settings);
-  const shouldStickToBottomRef = useRef(true);
   const hasStreamingAssistantMessage =
     isRunning && messages.at(-1)?.role === "assistant";
 
-  useEffect(() => {
-    const element = scrollerRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateScrollState = () => {
-      const distanceFromBottom =
-        element.scrollHeight - element.scrollTop - element.clientHeight;
-      const nextShowScrollButton =
-        messages.length > 0 && distanceFromBottom > 140;
-      const nextStickToBottom = distanceFromBottom < 32;
-
-      shouldStickToBottomRef.current = nextStickToBottom;
-      onVisibilityChange(nextShowScrollButton);
-    };
-
-    updateScrollState();
-    element.addEventListener("scroll", updateScrollState, { passive: true });
-
-    return () => {
-      element.removeEventListener("scroll", updateScrollState);
-      onVisibilityChange(false);
-    };
-  }, [onVisibilityChange, scrollerRef, messages.length]);
-
-  useEffect(() => {
-    const element = scrollerRef.current;
-    if (!element) return;
-    if (messages.length === 0) {
-      element.scrollTo({ top: 0, behavior: "auto" });
-      return;
-    }
-    if (!shouldStickToBottomRef.current && messages.length > 0) {
-      return;
-    }
-
-    element.scrollTo({
-      top: element.scrollHeight,
-      behavior: isRunning ? "auto" : "smooth",
-    });
-  }, [messages, isRunning]);
-
   return (
-    <div
-      ref={scrollerRef}
-      className="flex min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-6 transition-all duration-300 sm:px-6 lg:px-9"
-    >
-      <div
+    <MessageScrollerViewport className="px-4 pt-6 pb-6 transition-all duration-300 sm:px-6 lg:px-9">
+      <MessageScrollerContent
         className={cn(
-          "mx-auto flex w-full flex-1 flex-col transition-all duration-300",
+          "mx-auto flex w-full flex-col transition-all duration-300",
           settings.compactMode && messages.length > 0
             ? "max-w-[680px]"
             : "max-w-[820px]",
         )}
       >
-        <div className="flex flex-1 flex-col gap-7">
-          {messages.map((message, index) => (
+        {messages.map((message, index) => (
+          <MessageScrollerItem key={message.id}>
             <MessageEntry
-              key={message.id}
               canUndo={
                 canUndoLastTurn &&
                 message.role === "user" &&
@@ -130,15 +74,18 @@ export function MessageStream({
               }
               message={message}
               onUndo={onUndoLastTurn}
-              traceVersion={traceVersion}
-              traceV2InlineEvents={traceV2InlineEvents}
             />
-          ))}
+          </MessageScrollerItem>
+        ))}
 
-          {isRunning && !hasStreamingAssistantMessage ? <ThinkingRow /> : null}
-        </div>
-      </div>
-    </div>
+        {isRunning && !hasStreamingAssistantMessage ? (
+          <MessageScrollerItem>
+            <ThinkingRow />
+          </MessageScrollerItem>
+        ) : null}
+      </MessageScrollerContent>
+      <MessageScrollerButton />
+    </MessageScrollerViewport>
   );
 }
 
@@ -147,15 +94,11 @@ const MessageEntry = memo(function MessageEntry({
   isStreaming,
   canUndo,
   onUndo,
-  traceVersion,
-  traceV2InlineEvents,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
   canUndo: boolean;
   onUndo: () => Promise<string | null>;
-  traceVersion: "v1" | "v2";
-  traceV2InlineEvents: boolean;
 }) {
   const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
@@ -181,7 +124,7 @@ const MessageEntry = memo(function MessageEntry({
     return (
       <article
         className={cn(
-          "group ml-auto flex w-full flex-col items-end gap-1.5 transition-all duration-300",
+          "group ml-auto flex w-full flex-col items-end gap-1.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
           settings.compactMode ? "max-w-[540px]" : "max-w-[680px]",
         )}
       >
@@ -218,25 +161,9 @@ const MessageEntry = memo(function MessageEntry({
   }
 
   const normalizedContent = deferredContent.trim();
-  const hideMarkdownWhileStreaming =
-    isStreaming &&
-    hasTimeline &&
-    !(traceVersion === "v2" && traceV2InlineEvents);
-  const hideProgressTranscript =
-    hasTimeline &&
-    isProgressTranscript(normalizedContent) &&
-    !normalizedContent.toLowerCase().includes("recent execution trace:");
-  const shouldRenderMarkdown =
-    normalizedContent.length > 0 &&
-    !hideMarkdownWhileStreaming &&
-    !hideProgressTranscript;
-  const shouldRenderResultFallback =
-    !isStreaming && hasTimeline && !shouldRenderMarkdown;
-  const shouldRenderEvidencePack =
-    !isStreaming && Boolean(message.evidencePack);
 
   return (
-    <article className="group pl-6">
+    <article className="group animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] pl-6">
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
         {thought ? (
           <ThinkingRow
@@ -245,39 +172,15 @@ const MessageEntry = memo(function MessageEntry({
             thought={thought}
           />
         ) : null}
-        {traceVersion === "v2" && traceV2InlineEvents ? (
-          normalizedContent.length > 0 || hasTimeline ? (
-            <InterleavedMessageContent
-              content={message.content}
-              events={events}
-              isStreaming={isStreaming}
-            />
-          ) : isStreaming ? (
-            <AssistantPendingRow events={events} />
-          ) : null
-        ) : (
-          <>
-            {shouldRenderMarkdown ? (
-              <ChatMarkdown
-                content={deferredContent}
-                isStreaming={isStreaming}
-              />
-            ) : null}
-            {shouldRenderEvidencePack ? (
-              <EvidencePackCard evidencePack={message.evidencePack!} />
-            ) : null}
-            {hasTimeline ? (
-              <RunTimeline
-                artifacts={artifacts}
-                events={events}
-                isStreaming={isStreaming}
-                traceVersion={traceVersion}
-                traceV2InlineEvents={traceV2InlineEvents}
-              />
-            ) : null}
-            {shouldRenderResultFallback ? <ResultFallback /> : null}
-          </>
-        )}
+        {normalizedContent.length > 0 || hasTimeline ? (
+          <InterleavedMessageContent
+            content={message.content}
+            events={events}
+            isStreaming={isStreaming}
+          />
+        ) : isStreaming ? (
+          <AssistantPendingRow events={events} />
+        ) : null}
       </div>
       <div className="mt-2 flex items-center gap-1.5">
         <p className="text-[11px] text-muted-foreground/55">
@@ -471,482 +374,6 @@ function ResultFallback() {
   );
 }
 
-function RunTimeline({
-  events,
-  artifacts,
-  isStreaming,
-  traceVersion,
-  traceV2InlineEvents,
-}: {
-  events: ToolEvent[];
-  artifacts: MessageArtifact[];
-  isStreaming: boolean;
-  traceVersion: "v1" | "v2";
-  traceV2InlineEvents: boolean;
-}) {
-  if (traceVersion === "v2") {
-    return (
-      <RunTimelineV2
-        events={events}
-        artifacts={artifacts}
-        isStreaming={isStreaming}
-        inlineEvents={traceV2InlineEvents}
-      />
-    );
-  }
-
-  return (
-    <RunTimelineV1
-      events={events}
-      artifacts={artifacts}
-      isStreaming={isStreaming}
-    />
-  );
-}
-
-function RunTimelineV1({
-  events,
-  artifacts,
-  isStreaming,
-}: {
-  events: ToolEvent[];
-  artifacts: MessageArtifact[];
-  isStreaming: boolean;
-}) {
-  const [expanded, setExpanded] = useState(isStreaming);
-  const [phaseFilter, setPhaseFilter] = useState<"all" | EventPhase>("all");
-  const total = events.length;
-  const doneCount = events.filter((event) => event.status === "done").length;
-  const errorCount = events.filter((event) => event.status === "error").length;
-  const policyStopEvents = events.filter(isPolicyStopEvent);
-  const phaseCounts = useMemo(() => {
-    const counts: Record<EventPhase, number> = {
-      initial: 0,
-      investigation: 0,
-      updates: 0,
-      summary: 0,
-    };
-
-    for (const event of events) {
-      counts[classifyEventPhase(event)] += 1;
-    }
-
-    return counts;
-  }, [events]);
-  const filteredEvents = useMemo(
-    () =>
-      phaseFilter === "all"
-        ? events
-        : events.filter((event) => classifyEventPhase(event) === phaseFilter),
-    [events, phaseFilter],
-  );
-
-  useEffect(() => {
-    if (isStreaming) {
-      setExpanded(true);
-      return;
-    }
-
-    setExpanded(false);
-  }, [isStreaming, total]);
-
-  return (
-    <section className="rounded-2xl border border-border/65 bg-[var(--mate-surface-bg)] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-xl">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? (
-            <ChevronDownIcon className="size-3.5" />
-          ) : (
-            <ChevronRightIcon className="size-3.5" />
-          )}
-          Action stream
-          <span className="text-muted-foreground/65">{total} events</span>
-        </button>
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
-          <span>{doneCount} done</span>
-          {policyStopEvents.length > 0 ? (
-            <span className="text-amber-300/90">
-              {policyStopEvents.length} blocked
-            </span>
-          ) : null}
-          {errorCount > 0 ? (
-            <span className="text-amber-300/90">{errorCount} issues</span>
-          ) : null}
-        </div>
-      </div>
-      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
-        <span className="rounded-md border border-border/60 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md">
-          Agent Trace v1
-        </span>
-        <PhaseFilterChip
-          active={phaseFilter === "all"}
-          label={`All (${total})`}
-          onClick={() => setPhaseFilter("all")}
-        />
-        <PhaseFilterChip
-          active={phaseFilter === "initial"}
-          label={`Initial (${phaseCounts.initial})`}
-          onClick={() => setPhaseFilter("initial")}
-        />
-        <PhaseFilterChip
-          active={phaseFilter === "investigation"}
-          label={`Investigation (${phaseCounts.investigation})`}
-          onClick={() => setPhaseFilter("investigation")}
-        />
-        <PhaseFilterChip
-          active={phaseFilter === "updates"}
-          label={`Updates (${phaseCounts.updates})`}
-          onClick={() => setPhaseFilter("updates")}
-        />
-        <PhaseFilterChip
-          active={phaseFilter === "summary"}
-          label={`Summary (${phaseCounts.summary})`}
-          onClick={() => setPhaseFilter("summary")}
-        />
-      </div>
-
-      <PolicyStopStrip events={policyStopEvents} />
-
-      {artifacts.length > 0 ? (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {artifacts.slice(0, 6).map((artifact) => (
-            <span
-              key={artifact.id}
-              className={cn(
-                "rounded-md border px-2 py-1 text-[10px] leading-none",
-                artifact.tone === "success"
-                  ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
-                  : artifact.tone === "warning"
-                    ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
-                    : "border-border/60 bg-[var(--mate-control-bg)] text-muted-foreground",
-              )}
-            >
-              {artifact.label}: {artifact.value}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      {expanded ? (
-        <div className="space-y-1.5">
-          {filteredEvents.map((event) => (
-            <TimelineEventRow key={event.id} event={event} />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-2 text-[11px] text-muted-foreground backdrop-blur-md">
-          Details are collapsed. Expand{" "}
-          <span className="text-foreground/85">Run activity</span> to inspect
-          audit rows and commands.
-        </div>
-      )}
-    </section>
-  );
-}
-
-function RunTimelineV2({
-  events,
-  artifacts,
-  isStreaming,
-  inlineEvents,
-}: {
-  events: ToolEvent[];
-  artifacts: MessageArtifact[];
-  isStreaming: boolean;
-  inlineEvents: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [showAllActionsModal, setShowAllActionsModal] = useState(false);
-  const actionEvents = useMemo(
-    () => events.filter(isInlineTraceEvent),
-    [events],
-  );
-  const policyStopEvents = useMemo(
-    () => events.filter(isPolicyStopEvent),
-    [events],
-  );
-  const statusLabel = isStreaming ? "running" : "done";
-  const visibleEvents = isStreaming ? actionEvents.slice(-8) : actionEvents;
-  const previewEvents = visibleEvents.slice(0, 12);
-  const doneCount = actionEvents.filter((event) => event.status === "done").length;
-  const activeCount = actionEvents.filter((event) => event.status === "active").length;
-  const errorCount = actionEvents.filter((event) => event.status === "error").length;
-
-  useEffect(() => {
-    if (inlineEvents || !showAllActionsModal) {
-      return;
-    }
-
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowAllActionsModal(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [inlineEvents, showAllActionsModal]);
-
-  if (inlineEvents) {
-    return (
-      <section className="space-y-2">
-        <div className="space-y-2 rounded-2xl border border-border/45 bg-[var(--mate-control-bg)] p-2.5 backdrop-blur-md">
-          <TraceHeader
-            activeCount={activeCount}
-            doneCount={doneCount}
-            errorCount={errorCount}
-            isStreaming={isStreaming}
-            total={actionEvents.length}
-          />
-          <PolicyStopStrip events={policyStopEvents} />
-          {visibleEvents.length > 0 ? (
-            visibleEvents.map((event) => (
-              <ActionEventCard key={event.id} event={event} />
-            ))
-          ) : (
-            <div className="rounded-xl border border-border/35 bg-[var(--mate-surface-bg)] px-3 py-2 text-[12px] text-muted-foreground backdrop-blur-md">
-              No tool actions captured in this turn.
-            </div>
-          )}
-          {isStreaming && actionEvents.length > visibleEvents.length ? (
-            <div className="px-1 pt-0.5 text-[11px] text-muted-foreground/55">
-              Showing latest {visibleEvents.length} of {actionEvents.length}{" "}
-              trace events.
-            </div>
-          ) : null}
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="space-y-1.5">
-      <button
-        type="button"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent hover:text-foreground"
-        onClick={() => setExpanded((value) => !value)}
-      >
-        {expanded ? (
-          <ChevronDownIcon className="size-3.5" />
-        ) : (
-          <ChevronRightIcon className="size-3.5" />
-        )}
-        <span className="font-medium text-foreground/85">Agent trace</span>
-        <span>{actionEvents.length}</span>
-        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/75">
-          {statusLabel}
-        </span>
-      </button>
-
-      {expanded ? (
-        <div className="space-y-1.5">
-          <TraceHeader
-            activeCount={activeCount}
-            doneCount={doneCount}
-            errorCount={errorCount}
-            isStreaming={isStreaming}
-            total={actionEvents.length}
-          />
-          <PolicyStopStrip events={policyStopEvents} />
-          {actionEvents.length > 0 ? (
-            previewEvents.map((event, index) => (
-              <ActionEventCard
-                key={event.id}
-                event={event}
-                className={index % 2 === 0 ? "mr-5" : "ml-5"}
-              />
-            ))
-          ) : (
-            <div className="rounded-xl border border-border/40 bg-[var(--mate-control-bg)] px-3 py-2 text-[12px] text-muted-foreground backdrop-blur-md">
-              No tool actions captured in this turn.
-            </div>
-          )}
-          {actionEvents.length > previewEvents.length ? (
-            <button
-              type="button"
-              className="inline-flex items-center rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground"
-              onClick={() => setShowAllActionsModal(true)}
-            >
-              View all actions ({actionEvents.length})
-            </button>
-          ) : null}
-          {artifacts.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {artifacts.slice(0, 4).map((artifact) => (
-                <span
-                  key={artifact.id}
-                  className={cn(
-                    "rounded-md border px-2 py-1 text-[10px] leading-none",
-                    artifact.tone === "success"
-                      ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
-                      : artifact.tone === "warning"
-                        ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
-                        : "border-border/60 bg-[var(--mate-control-bg)] text-muted-foreground",
-                  )}
-                >
-                  {artifact.label}: {artifact.value}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {showAllActionsModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
-          onClick={() => setShowAllActionsModal(false)}
-        >
-          <div
-            className="w-full max-w-3xl rounded-2xl border border-border/60 bg-[var(--mate-surface-bg)] p-3 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-[12px] font-semibold text-foreground/90">
-                All model actions
-              </div>
-              <button
-                type="button"
-                className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground"
-                onClick={() => setShowAllActionsModal(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="max-h-[64vh] space-y-1.5 overflow-y-auto pr-1">
-              {actionEvents.map((event, index) => (
-                <ActionEventCard
-                  key={event.id}
-                  event={event}
-                  prefix={`${index + 1}.`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function ActionEventCard({
-  event,
-  className,
-  prefix = ">_",
-}: {
-  event: ToolEvent;
-  className?: string;
-  prefix?: string;
-}) {
-  const command = extractCommandFromEvent(event);
-  const display = describeTraceEvent(event, command);
-
-  return (
-    <div
-      className={cn(
-        "min-w-0 rounded-xl border border-border/55 bg-[var(--surface-soft)]/35 px-3 py-2 text-[12px] leading-5 text-muted-foreground/95 backdrop-blur-sm transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--surface-soft)]/60",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 items-start gap-2">
-        <TraceGlyph event={event} prefix={prefix} />
-        <span className="min-w-0 flex-1 break-words text-foreground/90">
-          <span className="font-medium">{display.title}</span>
-          {display.detail ? (
-            <span className="text-muted-foreground/80"> - {display.detail}</span>
-          ) : null}
-        </span>
-      </div>
-      {event.policy ? <ToolPolicyBadges event={event} /> : null}
-    </div>
-  );
-}
-
-function TraceHeader({
-  activeCount,
-  doneCount,
-  errorCount,
-  isStreaming,
-  total,
-}: {
-  activeCount: number;
-  doneCount: number;
-  errorCount: number;
-  isStreaming: boolean;
-  total: number;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/75">
-      <span className="inline-flex items-center gap-1 rounded-xl border border-border/45 bg-[var(--mate-surface-bg)] px-2 py-1 text-foreground/85">
-        <ActivityIcon className="size-3" />
-        {isStreaming ? "Live" : "Recorded"}
-      </span>
-      <span className="rounded-xl border border-border/45 bg-[var(--mate-surface-bg)] px-2 py-1">
-        {total} real events
-      </span>
-      {activeCount > 0 ? (
-        <span className="rounded-xl border border-primary/25 bg-primary/8 px-2 py-1 text-primary">
-          {activeCount} active
-        </span>
-      ) : null}
-      <span className="rounded-xl border border-emerald-300/25 bg-emerald-400/8 px-2 py-1 text-emerald-300">
-        {doneCount} done
-      </span>
-      {errorCount > 0 ? (
-        <span className="rounded-xl border border-amber-300/30 bg-amber-400/8 px-2 py-1 text-amber-200">
-          {errorCount} issue{errorCount === 1 ? "" : "s"}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function TraceGlyph({ event, prefix }: { event: ToolEvent; prefix: string }) {
-  if (prefix !== ">_") {
-    return (
-      <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">
-        {prefix}
-      </span>
-    );
-  }
-
-  if (event.status === "active") {
-    return <LoaderCircle className="mt-1 size-3.5 shrink-0 animate-spin text-primary/75" />;
-  }
-
-  if (event.status === "error") {
-    return <AlertCircleIcon className="mt-1 size-3.5 shrink-0 text-amber-300/90" />;
-  }
-
-  return <TerminalIcon className="mt-1 size-3.5 shrink-0 text-muted-foreground/60" />;
-}
-
-function PolicyStopStrip({ events }: { events: ToolEvent[] }) {
-  if (events.length === 0) return null;
-
-  return (
-    <div className="mb-2 rounded-2xl border border-amber-300/30 bg-amber-400/8 px-3 py-2 text-[11px] leading-5 text-amber-200">
-      <div className="flex items-center gap-1.5 font-medium">
-        <AlertCircleIcon className="size-3.5" />
-        Policy Stops: MaTE X blocked action
-        <span className="text-amber-200/70">{events.length}</span>
-      </div>
-      <div className="mt-1 space-y-1 text-amber-100/85">
-        {events.slice(0, 3).map((event) => (
-          <div className="break-words" key={event.id}>
-            {event.policy?.reason ?? event.detail}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function isInlineTraceEvent(event: ToolEvent) {
   const label = event.label.toLowerCase();
@@ -966,57 +393,7 @@ function isInlineTraceEvent(event: ToolEvent) {
   return label.startsWith("executing ") || event.status === "error";
 }
 
-function isPolicyStopEvent(event: ToolEvent) {
-  return (
-    event.policy?.allowedByContract === false ||
-    /(?:Workspace Trust Contract blocks|Policy stop)/i.test(event.detail)
-  );
-}
 
-type EventPhase = "initial" | "investigation" | "updates" | "summary";
-
-function PhaseFilterChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-md border px-2 py-1 transition-colors",
-        active
-          ? "border-border/70 bg-accent text-foreground"
-          : "border-border/55 bg-[var(--mate-control-bg)] text-muted-foreground hover:bg-accent hover:text-foreground",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-function StatusIcon({ status }: { status: ToolEvent["status"] }) {
-  if (status === "active") {
-    return (
-      <LoaderCircle className="mt-0.5 size-3.5 shrink-0 animate-spin text-foreground/80" />
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-300/90" />
-    );
-  }
-
-  return (
-    <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0 text-emerald-300/90" />
-  );
-}
 
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
   const [expanded, setExpanded] = useState(event.status === "error");
@@ -1025,7 +402,7 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
   const detail = tryPrettyJson(rawDetail) ?? rawDetail;
 
   return (
-    <div className="text-[12px] leading-5 text-muted-foreground/72">
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] text-[12px] leading-5 text-muted-foreground/72">
       <button
         type="button"
         className="inline-flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent/45 hover:text-foreground/85"
@@ -1040,7 +417,7 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
         <span className="truncate">{summary}</span>
       </button>
       {expanded && detail ? (
-        <div className="ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-[var(--mate-control-bg)] px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78 backdrop-blur-md">
+        <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-[var(--mate-control-bg)] px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78 backdrop-blur-md">
           {detail}
         </div>
       ) : null}
@@ -1058,7 +435,7 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
       : `${active ? "Running" : "Ran"} ${events.length} actions`;
 
   return (
-    <div className="text-[12px] leading-5 text-muted-foreground/72">
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] text-[12px] leading-5 text-muted-foreground/72">
       <button
         type="button"
         className="inline-flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent/45 hover:text-foreground/85"
@@ -1075,7 +452,7 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
         <span className="truncate">{label}</span>
       </button>
       {expanded ? (
-        <div className="ml-6 mt-1 space-y-1">
+        <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ml-6 mt-1 space-y-1">
           {events.map((event) => (
             <CompactInlineTrace key={event.id} event={event} />
           ))}
@@ -1151,59 +528,6 @@ function tryPrettyJson(raw: string): string | null {
   }
 }
 
-function TimelineEventRow({ event }: { event: ToolEvent }) {
-  const command = extractCommandFromEvent(event);
-  const prettyJson = !command ? tryPrettyJson(event.detail) : null;
-  const displayDetail = prettyJson ?? cleanTraceText(event.detail);
-  const hasExtra = Boolean(command) || displayDetail.length > 180;
-  const [expanded, setExpanded] = useState(event.status === "active");
-  const preview =
-    displayDetail.length > 180
-      ? `${displayDetail.slice(0, 177).trimEnd()}...`
-      : displayDetail;
-
-  return (
-    <div className="rounded-lg border border-border/45 bg-[var(--mate-control-bg)] px-2.5 py-2 backdrop-blur-md">
-      <div className="flex items-start gap-2">
-        <StatusIcon status={event.status} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-[11px] font-medium text-foreground/90">
-              {cleanTraceText(event.label)}
-            </div>
-            {hasExtra ? (
-              <button
-                type="button"
-                className="inline-flex items-center rounded px-1 text-[10px] text-muted-foreground/75 transition-colors hover:bg-accent hover:text-foreground"
-                onClick={() => setExpanded((value) => !value)}
-              >
-                {expanded ? (
-                  <ChevronDownIcon className="size-3" />
-                ) : (
-                  <ChevronRightIcon className="size-3" />
-                )}
-              </button>
-            ) : null}
-          </div>
-          <div
-            className={cn(
-              "mt-0.5 text-[11px] leading-5 text-muted-foreground",
-              prettyJson && "whitespace-pre-wrap font-mono text-[10px]",
-            )}
-          >
-            {expanded ? displayDetail : preview}
-          </div>
-          {event.policy ? <ToolPolicyBadges event={event} /> : null}
-          {command ? (
-            <div className="mt-1 rounded-md border border-border/45 bg-[var(--mate-control-bg)] px-2 py-1 font-mono text-[10px] leading-4 text-foreground/85 backdrop-blur-md">
-              {command}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ToolPolicyBadges({ event }: { event: ToolEvent }) {
   const policy = event.policy;
@@ -1295,69 +619,6 @@ function cleanTraceText(value: string) {
     .trim();
 }
 
-function classifyEventPhase(event: ToolEvent): EventPhase {
-  const label = event.label.toLowerCase();
-  const detail = event.detail.toLowerCase();
-  const combined = `${label} ${detail}`;
-
-  if (
-    combined.includes("response complete") ||
-    combined.includes("turn complete") ||
-    combined.includes("final") ||
-    combined.includes("synthesis")
-  ) {
-    return "summary";
-  }
-
-  if (
-    combined.includes("executing") ||
-    combined.includes("tool") ||
-    combined.includes("command") ||
-    combined.includes("patch") ||
-    combined.includes("file change")
-  ) {
-    return "investigation";
-  }
-
-  if (
-    combined.includes("running agent pass") ||
-    combined.includes("start") ||
-    combined.includes("turn started") ||
-    combined.includes("agent message")
-  ) {
-    return "initial";
-  }
-
-  return "updates";
-}
-
-function isProgressTranscript(content: string) {
-  if (!content) {
-    return false;
-  }
-
-  const lowered = content.toLowerCase();
-  const signals = [
-    "running agent pass",
-    "done agent pass",
-    "tool batch",
-    "executing ",
-    "continue investigation",
-    "response complete",
-    // WorkPlan / gate patterns from Rainy agent runtime
-    "workplan",
-    "work-plan",
-    "workplanid",
-    "gate failed",
-    "gate passed",
-    "ran 2 actions",
-    "ran 1 action",
-    "\"stages\":",
-    "\"verdict\":",
-  ];
-
-  return signals.some((signal) => lowered.includes(signal));
-}
 
 function MessageActionButton({
   ariaLabel,

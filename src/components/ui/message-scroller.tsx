@@ -9,6 +9,8 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ArrowDownIcon } from "lucide-react"
+import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
+import { ScrollBar } from "./scroll-area"
 
 function MessageScrollerProvider(
   props: React.ComponentProps<typeof MessageScrollerPrimitive.Provider>
@@ -21,14 +23,17 @@ function MessageScroller({
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Root>) {
   return (
-    <MessageScrollerPrimitive.Root
-      data-slot="message-scroller"
-      className={cn(
-        "group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden",
-        className
-      )}
-      {...props}
-    />
+    <ScrollAreaPrimitive.Root className="relative flex size-full min-h-0 flex-col overflow-hidden">
+      <MessageScrollerPrimitive.Root
+        data-slot="message-scroller"
+        className={cn(
+          "group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden",
+          className
+        )}
+        {...props}
+      />
+      <ScrollBar />
+    </ScrollAreaPrimitive.Root>
   )
 }
 
@@ -37,13 +42,17 @@ function MessageScrollerViewport({
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Viewport>) {
   return (
-    <MessageScrollerPrimitive.Viewport
-      data-slot="message-scroller-viewport"
-      className={cn(
-        "size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-thumb-transparent data-autoscrolling:scrollbar-track-transparent",
-        className
-      )}
-      {...props}
+    <ScrollAreaPrimitive.Viewport
+      render={
+        <MessageScrollerPrimitive.Viewport
+          data-slot="message-scroller-viewport"
+          className={cn(
+            "size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-thumb-transparent data-autoscrolling:scrollbar-track-transparent [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
+            className
+          )}
+          {...props}
+        />
+      }
     />
   )
 }

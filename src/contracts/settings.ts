@@ -18,7 +18,6 @@ export interface AppSettings {
   diffLineWrapping: boolean;
   assistantOutput: boolean;
   compactMode: boolean;
-  floatingInput: boolean;
   archiveConfirmation: boolean;
   deleteConfirmation: boolean;
   agentProfilerAutoSwitch: boolean;
@@ -57,7 +56,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   diffLineWrapping: true,
   assistantOutput: true,
   compactMode: true,
-  floatingInput: false,
   archiveConfirmation: true,
   deleteConfirmation: true,
   agentProfilerAutoSwitch: false,

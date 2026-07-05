@@ -480,13 +480,9 @@ export function SettingsPage() {
         appearance: DEFAULT_APP_SETTINGS.appearance,
         theme: DEFAULT_APP_SETTINGS.theme,
         blurEnabled: DEFAULT_APP_SETTINGS.blurEnabled,
-        timeFormat: DEFAULT_APP_SETTINGS.timeFormat,
-        agentTraceVersion: DEFAULT_APP_SETTINGS.agentTraceVersion,
-        agentTraceV2InlineEvents: DEFAULT_APP_SETTINGS.agentTraceV2InlineEvents,
         diffLineWrapping: DEFAULT_APP_SETTINGS.diffLineWrapping,
         assistantOutput: DEFAULT_APP_SETTINGS.assistantOutput,
         compactMode: DEFAULT_APP_SETTINGS.compactMode,
-        floatingInput: DEFAULT_APP_SETTINGS.floatingInput,
       }));
       setAppearance('system');
       setTheme('default');
@@ -544,14 +540,9 @@ export function SettingsPage() {
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
       ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Blur effects'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
-      ...(appSettings.agentTraceVersion !== savedAppSettings.agentTraceVersion ? ['Agent Trace mode'] : []),
-      ...(appSettings.agentTraceV2InlineEvents !== savedAppSettings.agentTraceV2InlineEvents
-        ? ['Agent Trace v2 inline events']
-        : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
       ...(appSettings.compactMode !== savedAppSettings.compactMode ? ['Compact UI'] : []),
-      ...(appSettings.floatingInput !== savedAppSettings.floatingInput ? ['Floating input'] : []),
       ...(appSettings.archiveConfirmation !== savedAppSettings.archiveConfirmation ? ['Archive confirmation'] : []),
       ...(appSettings.deleteConfirmation !== savedAppSettings.deleteConfirmation ? ['Delete confirmation'] : []),
       ...(appSettings.supermemoryApiKey !== savedAppSettings.supermemoryApiKey ? ['Supermemory API key'] : []),
@@ -593,8 +584,6 @@ export function SettingsPage() {
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
       appSettings.diffLineWrapping,
-      appSettings.agentTraceVersion,
-      appSettings.agentTraceV2InlineEvents,
       appSettings.codexIntegrationEnabled,
       appSettings.antigravityIntegrationEnabled,
       appSettings.cursorIntegrationEnabled,
@@ -618,8 +607,6 @@ export function SettingsPage() {
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
       savedAppSettings.diffLineWrapping,
-      savedAppSettings.agentTraceVersion,
-      savedAppSettings.agentTraceV2InlineEvents,
       savedAppSettings.timeFormat,
       savedAppSettings.codexIntegrationEnabled,
       savedAppSettings.antigravityIntegrationEnabled,
@@ -778,55 +765,6 @@ export function SettingsPage() {
                     }
                   />
                   <SettingsRow
-                    title="Agent Trace mode"
-                    description="Select the trace protocol version used for assistant runs."
-                    control={
-                      <Select
-                        value={appSettings.agentTraceVersion}
-                        onValueChange={(value) => {
-                          const nextVersion = value as AgentTraceVersion;
-                          setAppSettings((current) => ({
-                            ...current,
-                            agentTraceVersion: nextVersion,
-                            agentTraceV2InlineEvents:
-                              nextVersion === 'v2' ? current.agentTraceV2InlineEvents : false,
-                          }));
-                          if (saveState === 'saved') {
-                            setSaveState('idle');
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="w-[150px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="v1">Version 1</SelectItem>
-                          <SelectItem value="v2">Version 2</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    }
-                  />
-                  {appSettings.agentTraceVersion === 'v2' ? (
-                    <SettingsRow
-                      title="Inline event streaming (v2)"
-                      description="Show agent trace events directly inside the assistant streaming response."
-                      control={
-                        <Switch
-                          checked={appSettings.agentTraceV2InlineEvents}
-                          onCheckedChange={(value) => {
-                            setAppSettings((current) => ({
-                              ...current,
-                              agentTraceV2InlineEvents: value,
-                            }));
-                            if (saveState === 'saved') {
-                              setSaveState('idle');
-                            }
-                          }}
-                        />
-                      }
-                    />
-                  ) : null}
-                  <SettingsRow
                     title="Diff line wrapping"
                     description="Set the default wrap state when the diff panel opens."
                     control={
@@ -864,21 +802,6 @@ export function SettingsPage() {
                         checked={appSettings.compactMode}
                         onCheckedChange={(value) => {
                           setAppSettings((current) => ({ ...current, compactMode: value }));
-                          if (saveState === 'saved') {
-                            setSaveState('idle');
-                          }
-                        }}
-                      />
-                    }
-                  />
-                  <SettingsRow
-                    title="Floating input"
-                    description="The chat composer floats with a premium semi-transparent backdrop blur."
-                    control={
-                      <Switch
-                        checked={appSettings.floatingInput}
-                        onCheckedChange={(value) => {
-                          setAppSettings((current) => ({ ...current, floatingInput: value }));
                           if (saveState === 'saved') {
                             setSaveState('idle');
                           }
