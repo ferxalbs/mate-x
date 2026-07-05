@@ -1,12 +1,8 @@
 import {
-  ActivityIcon,
   BrainIcon,
   CheckCircle2Icon,
-  ExternalLinkIcon,
   FileTextIcon,
-  GaugeIcon,
   ShieldCheckIcon,
-  ZapIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 

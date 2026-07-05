@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 type MissionRun = {
   id: string;
@@ -226,7 +226,6 @@ function summarizeResult(message: ChatMessage) {
 }
 
 export function RunsPage() {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const platform = usePlatform();
   const { state } = useSidebar();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -356,7 +355,7 @@ export function RunsPage() {
   }
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
       <header className={cn(
         "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5 transition-[padding-left] duration-200 ease-linear",
         state === "collapsed" && platform === "mac" && "pl-[88px]",

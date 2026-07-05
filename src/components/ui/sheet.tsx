@@ -166,11 +166,10 @@ function SheetDescription({ className, ...props }: SheetPrimitive.Description.Pr
 
 function SheetPanel({
   className,
-  scrollFade = true,
   ...props
-}: React.ComponentProps<"div"> & { scrollFade?: boolean }) {
+}: React.ComponentProps<"div">) {
   return (
-    <ScrollArea scrollFade={scrollFade}>
+    <ScrollArea className="h-full">
       <div
         className={cn(
           "p-6 in-[[data-slot=sheet-popup]:has([data-slot=sheet-header])]:pt-1 in-[[data-slot=sheet-popup]:has([data-slot=sheet-footer]:not(.border-t))]:pb-1",
