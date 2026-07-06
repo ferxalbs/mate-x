@@ -10,10 +10,10 @@ import { PanelHeader, PanelTabs } from "./enhancement-panel-chrome";
 import {
   EvidencePackSection,
   type EnhancementView,
-  ImpactSection,
-  RepoHealthSection,
+  DetailsSection,
+  ReviewQueueSection,
+  ShipStatusStrip,
   TrustGateCard,
-  ValidationSection,
 } from "./enhancement-panel-sections";
 import { TraceSection } from "./enhancement-trace-section";
 import {
@@ -21,11 +21,11 @@ import {
   getChangedFiles,
   getEvidenceCommands,
   getEvidenceFiles,
+  getShipStatusHeaderLabel,
   getPanelRuntimeSnapshot,
   getRepoHealthSignals,
   getVerifiedEvidenceScore,
   getVerificationCommands,
-  hasVerifiedEvidenceSignals,
   summarizeImpact,
 } from "./enhancement-panel-utils";
 
@@ -76,25 +76,7 @@ export function EnhancementPanel({
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
   const verifiedScore = getVerifiedEvidenceScore(runtime.evidencePack);
   const verdictLabel = runtime.evidencePack?.verdict.label ?? "";
-  const cleanVerdictLabel = verdictLabel.replace(/\*/g, "").trim();
   const runFailed = /fail|error|blocked/i.test(verdictLabel);
-  const needsEvidence =
-    runtime.evidencePack !== null && !hasVerifiedEvidenceSignals(runtime.evidencePack);
-  const lowConfidence =
-    verifiedScore !== null && verifiedScore < 50 && runtime.evidencePack !== null;
-  const panelState = error
-    ? "Needs attention"
-    : runFailed
-      ? verdictLabel
-      : needsEvidence
-        ? "Needs evidence"
-      : lowConfidence
-        ? `Low confidence: ${cleanVerdictLabel || "review incomplete"}`
-      : loading || runtime.isRunning
-        ? scanPhase ?? "Processing"
-        : health
-        ? runtime.statusLabel
-        : "Local trace active";
   const commands =
     evidenceCommands.length > 0
       ? evidenceCommands
@@ -108,6 +90,12 @@ export function EnhancementPanel({
     isRunning: runtime.isRunning,
     summary,
   });
+  const topbarShipStatus = getShipStatusHeaderLabel(trustGate);
+  const panelState = error
+    ? "Needs attention"
+    : loading || runtime.isRunning
+      ? scanPhase ?? "Processing"
+      : topbarShipStatus;
   const activeGroup = normalizeEnhancementView(activeView);
 
   useEffect(() => {
@@ -225,27 +213,34 @@ export function EnhancementPanel({
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-4 py-4">
-          <TrustGateCard
-            onMakeTrustworthy={onMakeTrustworthy}
-            state={trustGate}
-          />
-          {activeGroup === "details" || activeGroup === "review" ? (
-            <>
-              <ImpactSection
-                changedFiles={changedFiles}
-                impactedFiles={impactedFiles}
-                isLoading={loading}
-                summary={summary}
-              />
-              <div className="mt-4">
-                <ValidationSection
-                  commands={commands}
-                  evidencePack={runtime.evidencePack}
-                  isLoading={runtime.isRunning}
-                  tests={tests}
-                />
-              </div>
-            </>
+          {activeGroup === "status" ? (
+            <TrustGateCard
+              onMakeTrustworthy={onMakeTrustworthy}
+              state={trustGate}
+            />
+          ) : (
+            <ShipStatusStrip state={trustGate} />
+          )}
+          {activeGroup === "review" ? (
+            <ReviewQueueSection
+              changedFiles={changedFiles}
+              impactedFiles={impactedFiles}
+              isLoading={loading}
+              onMapChanges={runEnhancementScan}
+              state={trustGate}
+              summary={summary}
+            />
+          ) : null}
+          {activeGroup === "details" ? (
+            <DetailsSection
+              commands={commands}
+              evidencePack={runtime.evidencePack}
+              hasProfile={Boolean(health)}
+              nextAction={health?.recommendedNextAction}
+              signals={repoSignals}
+              tests={tests}
+              workspace={workspace}
+            />
           ) : null}
           {activeGroup === "advanced" ? (
             <TraceSection
@@ -274,18 +269,6 @@ export function EnhancementPanel({
               />
             </div>
           ) : null}
-
-          <Card className="mt-4 border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
-            <CardContent className="p-3">
-              <RepoHealthSection
-                hasWorkspace={Boolean(workspace)}
-                hasProfile={Boolean(health)}
-                workspace={workspace}
-                signals={repoSignals}
-                nextAction={health?.recommendedNextAction}
-              />
-            </CardContent>
-          </Card>
 
           {error ? (
             <Card className="mt-3 border-destructive/40 shadow-none bg-destructive/5">

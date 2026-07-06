@@ -5,6 +5,7 @@ import type { EvidencePack } from "../../../contracts/chat";
 import type { WorkspaceHealthProfile } from "../../../contracts/workspace";
 import {
   deriveTrustGate,
+  getShipStatusHeaderLabel,
   getRepoHealthVerdict,
   getVerifiedEvidenceScore,
   hasVerifiedEvidenceSignals,
@@ -76,6 +77,8 @@ describe("trust gate derivation", () => {
     assert.equal(state.verdict, "Ready");
     assert.equal(state.headline, "Ready");
     assert.equal(state.nextAction, "Continue");
+    assert.equal(state.primaryActionLabel, "View proof");
+    assert.equal(getShipStatusHeaderLabel(state), state.headline);
     assert.equal(state.validationState, "passed");
     assert.equal(state.evidencePackState, "signed_strong");
   });
@@ -92,6 +95,8 @@ describe("trust gate derivation", () => {
     assert.equal(state.verdict, "Unknown");
     assert.equal(state.headline, "Unknown");
     assert.equal(state.proofLabel, "No Ship Proof yet");
+    assert.equal(state.primaryActionLabel, "Show details");
+    assert.equal(getShipStatusHeaderLabel(state), "Unknown");
   });
 
   it("maps no validation and changed files to Not ready", () => {
@@ -104,7 +109,8 @@ describe("trust gate derivation", () => {
     });
 
     assert.equal(state.verdict, "Not ready");
-    assert.equal(state.headline, "Not ready");
+    assert.equal(state.headline, "Needs check");
+    assert.equal(getShipStatusHeaderLabel(state), "Needs check");
     assert.equal(state.explanation, "MaTE X found changed files, but no passing validation command has been proven yet.");
     assert.equal(state.nextAction, "Run safety check");
     assert.deepEqual(state.reasonChips.slice(0, 3), [
@@ -185,6 +191,8 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Risky");
     assert.equal(state.headline, "Risky");
+    assert.equal(state.primaryActionLabel, "Inspect risk");
+    assert.equal(getShipStatusHeaderLabel(state), "Risky");
     assert.equal(state.nextAction, "Run safety check");
     assert.deepEqual(state.touchedRiskSurfaces, ["src/electron/session-service.ts"]);
   });
@@ -246,6 +254,40 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Not ready");
     assert.equal(state.status, "resolving");
+    assert.equal(getShipStatusHeaderLabel(state), "Needs check");
+  });
+
+  it("labels changed files as changed, not repo health totals", () => {
+    const state = deriveTrustGate({
+      changedFiles: [
+        "src/features/chat.tsx",
+        "src/features/home.tsx",
+        "src/electron/ipc.ts",
+        "src/preload.ts",
+        "src/contracts/chat.ts",
+      ],
+      commands: [],
+      evidencePack: null,
+      health: { gitDirtyState: "dirty" } as WorkspaceHealthProfile,
+      summary: { ...baseSummary, affectedCount: 61, risk: "High" },
+    });
+
+    assert.match(state.reasonChips.join(" "), /5 files changed/);
+    assert.doesNotMatch(state.reasonChips.join(" "), /61 files changed/);
+  });
+
+  it("does not offer proof export as the primary action when proof is missing", () => {
+    const state = deriveTrustGate({
+      changedFiles: ["src/features/chat.tsx"],
+      commands: [],
+      evidencePack: null,
+      health: { gitDirtyState: "dirty" } as WorkspaceHealthProfile,
+      summary: baseSummary,
+    });
+
+    assert.notEqual(state.primaryActionLabel, "Export Evidence");
+    assert.notEqual(state.primaryActionLabel, "View proof");
+    assert.equal(state.proofLabel, "No Ship Proof yet");
   });
 });
 

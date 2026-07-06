@@ -25,27 +25,27 @@ interface EmptyChatStateProps {
 const quickPrompts = [
   {
     icon: <ShieldCheckIcon className="size-3.5 text-emerald-500" />,
-    label: "Audit Repo",
+    label: "Can I ship?",
     prompt:
-      "Open with an instant repo orientation, then run a focused high-impact security audit. Prioritize runtime surfaces, trust boundaries, data validation, auth, secrets, and dependency risk. Separate active findings from tests, docs, examples, fixtures, and generated files.",
+      "Tell me if I can ship the current repo changes. Use existing git, validation, proof, and risk signals only. Give one verdict, one reason, and one next action.",
   },
   {
     icon: <BrainIcon className="size-3.5 text-purple-500" />,
-    label: "Triage Risk",
+    label: "Explain changes",
     prompt:
-      "Triage vulnerability candidates in recent changes. For each candidate, show exploit path, affected runtime surface, confidence, proof, fix plan, verification command, and excluded noise.",
+      "Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.",
   },
   {
     icon: <CheckCircle2Icon className="size-3.5 text-blue-500" />,
-    label: "Verify Fix",
+    label: "Find risky changes",
     prompt:
-      "Validate recent security fixes with available tests, traces, and evidence. Identify remaining exploitability conditions, missing mitigations, and the exact verification proof.",
+      "Find risky changes in the current diff. Focus on auth, sessions, IPC, dependencies, network, secrets, privacy, and runtime boundaries. Separate real risk from reference noise.",
   },
   {
     icon: <FileTextIcon className="size-3.5 text-amber-500" />,
-    label: "Export Evidence",
+    label: "Run safety check",
     prompt:
-      "Prepare an evidence-ready security report for this workspace. Include prioritized risks, remediation status, and audit-ready local evidence.",
+      "Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.",
   },
 ];
 
@@ -63,7 +63,7 @@ export function EmptyChatState({
     : !isBootstrapped
       ? "Loading workspace"
       : workspace
-        ? `${workspace.name} mission cockpit`
+        ? "Can I ship this?"
         : "Open a repo. See risk first.";
   const statusText =
     lastError ??
@@ -87,10 +87,18 @@ export function EmptyChatState({
   return (
     <div className="grid min-h-full grid-rows-[1fr_auto_1fr] px-4 py-10">
       <div className="flex items-end justify-center pb-6">
-        <div className="w-full max-w-[820px]">
+        <div className="w-full max-w-[820px] text-center">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            Safety Status
+          </p>
           <h1 className="text-center text-2xl font-medium text-foreground/90 sm:text-[32px]">
             {title}
           </h1>
+          <p className="mx-auto mt-2 max-w-[620px] text-[13px] leading-relaxed text-muted-foreground/75">
+            {workspace
+              ? `${workspace.name} is ready for a safety decision. Ask MaTE X to check whether you can ship, fix, or prove the current changes.`
+              : "Open a workspace to get one verdict, one reason, and one next action."}
+          </p>
         </div>
       </div>
       <div className="mx-auto w-full max-w-[820px]">{composer}</div>

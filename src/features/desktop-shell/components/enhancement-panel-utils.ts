@@ -20,6 +20,7 @@ export type TrustGateVerdict =
   | "Risky"
   | "Blocked"
   | "Unknown";
+export type ShipStatusLabel = TrustGateVerdict | "Needs check";
 export type TrustGateStatus =
   | "trusted"
   | "resolving"
@@ -56,7 +57,7 @@ export interface RepoHealthSignal {
 export interface TrustGateState {
   status: TrustGateStatus;
   verdict: TrustGateVerdict;
-  headline: TrustGateVerdict;
+  headline: ShipStatusLabel;
   explanation: string;
   recommendedAction: string;
   primaryActionLabel: string;
@@ -74,6 +75,12 @@ export interface TrustGateState {
   nextAction: string;
   proofLabel: string;
   sourceSignalsUsed: string[];
+}
+
+export function getShipStatusHeaderLabel(state: TrustGateState) {
+  if (state.status === "resolving") return "Needs check";
+  if (state.status === "needs_validation") return "Needs check";
+  return state.verdict;
 }
 
 export function getChangedFiles(status: GitStatus) {
@@ -598,7 +605,10 @@ function getHumanTrustGateCopy(
     | "sourceSignalsUsed"
   >,
   changedFileCount: number,
-) {
+): Pick<
+  TrustGateState,
+  "headline" | "explanation" | "recommendedAction" | "primaryActionLabel" | "reasonChips"
+> {
   const validationChip =
     state.validationState === "passed"
       ? "Validation passed"
@@ -618,17 +628,21 @@ function getHumanTrustGateCopy(
       ? `${state.touchedRiskSurfaces.length} risky surface${state.touchedRiskSurfaces.length === 1 ? "" : "s"}`
       : "";
 
-  const base = {
-    headline: state.verdict,
+  const base: Pick<
+    TrustGateState,
+    "headline" | "recommendedAction" | "primaryActionLabel" | "reasonChips"
+  > = {
+    headline: state.status === "needs_validation" ? "Needs check" : state.verdict,
     recommendedAction: state.nextAction,
-    primaryActionLabel: state.status === "trusted" ? "Continue" : "Run safety check",
+    primaryActionLabel: state.status === "trusted" ? "View proof" : "Run safety check",
     reasonChips: [changeChip, validationChip, proofChip, riskChip].filter(Boolean),
   };
 
   if (state.status === "trusted") {
     return {
       ...base,
-      explanation: "MaTE X has proof that validation passed for the checked changes.",
+      recommendedAction: "View proof",
+      explanation: "Validation passed and proof is available.",
     };
   }
 
@@ -643,6 +657,7 @@ function getHumanTrustGateCopy(
   if (state.status === "risky") {
     return {
       ...base,
+      primaryActionLabel: "Inspect risk",
       explanation: "These changes touch sensitive areas and do not yet have enough proof to continue.",
     };
   }
