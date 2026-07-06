@@ -1,4 +1,5 @@
-import { assert, describe, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "bun:test";
 import { buildVisibleToastLayout, shouldHideCollapsedToastContent } from "./toast.logic";
 
 describe("shouldHideCollapsedToastContent", () => {

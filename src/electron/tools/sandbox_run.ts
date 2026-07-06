@@ -211,7 +211,9 @@ function resolvePowerSaveBlockerType(value: unknown): PowerSaveBlockerType {
 }
 
 function resolveExecutionMode(value: unknown): SandboxExecutionMode {
-  return value === "isolated-copy" ? "isolated-copy" : DEFAULT_EXECUTION_MODE;
+  return value === "direct" || value === "isolated-copy"
+    ? value
+    : DEFAULT_EXECUTION_MODE;
 }
 
 function formatStartFailure(error: Error, command: string) {

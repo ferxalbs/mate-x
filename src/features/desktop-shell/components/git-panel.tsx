@@ -13,6 +13,7 @@ import {
 import { useGitStore } from '../../../store/git-store';
 import { cn } from '../../../lib/utils';
 import { useChatStore } from '../../../store/chat-store';
+import { shouldGateGitAction, type GitSafetyAction } from './git-safety';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -30,11 +31,11 @@ function basename(path: string) {
   return path.split('/').pop() ?? path;
 }
 
-function repoNeedsShipGate() {
+function repoNeedsShipGate(action: GitSafetyAction) {
   const state = (window as any).__mateShipGateState as
     | { validated?: boolean; status?: string }
     | undefined;
-  return !state?.validated;
+  return shouldGateGitAction(action, state);
 }
 
 function requestShipGate() {
@@ -153,7 +154,7 @@ export function GitPanel() {
           return;
         }
 
-        if (action === 'commit-push' && repoNeedsShipGate()) {
+        if ((action === 'commit' || action === 'commit-push') && repoNeedsShipGate(action)) {
           requestShipGate();
           return;
         }
@@ -169,7 +170,7 @@ export function GitPanel() {
       }
 
       if (action === 'push-pr') {
-        if (repoNeedsShipGate()) {
+        if (repoNeedsShipGate('push-pr')) {
           requestShipGate();
           return;
         }
@@ -215,7 +216,7 @@ export function GitPanel() {
           {/* Push */}
           <button
             onClick={() => {
-              if (repoNeedsShipGate()) {
+              if (repoNeedsShipGate('push')) {
                 requestShipGate();
                 return;
               }

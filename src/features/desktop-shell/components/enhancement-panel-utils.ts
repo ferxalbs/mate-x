@@ -115,7 +115,7 @@ export function getShipStatusMode({
   state: TrustGateState;
 }): ShipStatusMode {
   if (activeGateRequested) return "active";
-  if (state.status === "blocked" || state.status === "resolving") return "active";
+  if (state.status === "blocked" || state.policyStopState === "unresolved") return "active";
   if (state.touchedRiskSurfaces.length > 0 && state.status === "risky") return "active";
 
   const messages = conversation?.messages ?? [];
@@ -123,6 +123,17 @@ export function getShipStatusMode({
   if (
     latestMessage?.role === "assistant" &&
     (latestMessage.evidencePack?.filesModified?.length ?? 0) > 0 &&
+    state.status !== "trusted"
+  ) {
+    return "active";
+  }
+  if (
+    latestMessage?.role === "assistant" &&
+    latestMessage.events?.some((event) =>
+      /\b(file_editor|auto_patch|mutation|edit|patch|modified|created|deleted)\b/i.test(
+        `${event.label} ${event.detail ?? ""}`,
+      ),
+    ) &&
     state.status !== "trusted"
   ) {
     return "active";
@@ -766,7 +777,7 @@ export function getPanelRuntimeSnapshot(
         ? "Running"
         : evidencePack
           ? evidencePack.status
-          : "No pack",
+          : "No proof yet",
     isRunning: runStatus === "running",
   };
 }

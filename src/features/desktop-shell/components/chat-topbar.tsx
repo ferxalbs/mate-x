@@ -76,7 +76,7 @@ export function ChatTopbar({
   const platform = usePlatform();
   const [openTarget, setOpenTarget] = useState("folder");
   const [gitAction, setGitAction] = useState("commit-push");
-  const [repoSafetyLabel, setRepoSafetyLabel] = useState("Clean");
+  const [repoSafetyLabel, setRepoSafetyLabel] = useState("Needs check");
   const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
   const userTurns =

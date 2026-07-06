@@ -171,9 +171,15 @@ export function ShipStatusStrip({
   const message =
     state.status === "trusted"
       ? "Safe to continue."
+      : state.status === "resolving"
+        ? hasChanges
+          ? `${hasChanges} under safety check.`
+          : "Safety check running."
       : state.status === "unknown"
         ? "Repo safety check is available when you need it."
-        : `${hasChanges ?? "Repo"} need${hasChanges?.startsWith("1 ") ? "s" : ""} a safety check before commit.`;
+        : hasChanges
+          ? `${hasChanges} need${hasChanges.startsWith("1 ") ? "s" : ""} a safety check before commit.`
+          : "Repo needs a safety check before commit.";
 
   return (
     <div
