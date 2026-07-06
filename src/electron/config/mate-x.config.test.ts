@@ -31,7 +31,7 @@ describe("MaTE X config", () => {
     assert.equal(config.storage.evidencePacks.prefix, "evidence-packs/");
     assert.equal(config.storage.evidencePacks.retentionDays, 365);
     assert.equal(config.orchestration.criticLoop.minVTS, 0.85);
-    assert.equal(config.orchestration.routing.autoRoute, true);
+    assert.equal(config.orchestration.routing.autoRoute, false);
     assert.equal(config.privacy.scanBeforeUpload, true);
     assert.equal(config.failureMemory.maxRecordsPerSync, 500);
   });
@@ -92,7 +92,7 @@ describe("MaTE X config", () => {
 
   it("reads config from a custom path", async () => {
     const path = await writeConfig({
-      storage: { backend: "s3", bucket: "custom", region: "us-east-1", credentials: { profile: "dev" } },
+      storage: { backend: "s3", bucket: "custom", region: "us-east-1", credentials: { profile: "$AWS_PROFILE" } },
       orchestration: { defaultAgent: "cursor" },
     });
 

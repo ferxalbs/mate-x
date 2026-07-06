@@ -325,6 +325,37 @@ describe("contextual ship status mode", () => {
     );
   });
 
+  it("keeps casual active runs ambient when no risky action is requested", () => {
+    const runningState = deriveTrustGate({
+      changedFiles: [],
+      commands: [],
+      evidencePack: null,
+      health: { gitDirtyState: "clean" } as WorkspaceHealthProfile,
+      isRunning: true,
+      summary: {
+        affectedCount: 0,
+        serviceCount: 0,
+        toolFanoutCount: 0,
+        risk: "None",
+      },
+    });
+
+    assert.equal(runningState.status, "resolving");
+    assert.equal(
+      getShipStatusMode({
+        conversation: {
+          id: "c1",
+          title: "Chat",
+          messages: [{ id: "m1", role: "user", content: "hello, how are you?", createdAt: new Date().toISOString() }],
+          runs: [],
+          lastUpdatedAt: new Date().toISOString(),
+        },
+        state: runningState,
+      }),
+      "ambient",
+    );
+  });
+
   it("triggers active gate for can I ship prompts", () => {
     assert.equal(detectActiveGateIntent("can I ship?"), true);
     assert.equal(
@@ -376,6 +407,31 @@ describe("contextual ship status mode", () => {
     assert.equal(riskyState.status, "risky");
     assert.equal(getShipStatusMode({ conversation: null, state: riskyState }), "active");
     assert.equal(riskyState.primaryActionLabel, "Inspect risky changes");
+  });
+
+  it("uses active gate after assistant tool events modify files", () => {
+    assert.equal(
+      getShipStatusMode({
+        conversation: {
+          id: "c1",
+          title: "Chat",
+          messages: [
+            { id: "m1", role: "user", content: "fix the issue", createdAt: new Date().toISOString() },
+            {
+              id: "m2",
+              role: "assistant",
+              content: "Updated the file.",
+              createdAt: new Date().toISOString(),
+              events: [{ id: "e1", label: "file_editor", detail: "Edited src/app.ts", status: "done" }],
+            },
+          ],
+          runs: [],
+          lastUpdatedAt: new Date().toISOString(),
+        },
+        state: dirtyState,
+      }),
+      "active",
+    );
   });
 
   it("never labels unvalidated changes as Ready in the topbar", () => {

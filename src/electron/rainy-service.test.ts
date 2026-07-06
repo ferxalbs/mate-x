@@ -1,11 +1,6 @@
-import { assert, describe, it } from "vitest";
-
-import {
-  buildChatCompletionRequest,
-  isOpenAIGpt5OrNewerModel,
-  listRainyModels,
-  resolvePreferredRainyApiMode,
-} from "./rainy-service";
+import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { describe, it, mock } from "bun:test";
 import {
   getAcceptedParameters,
   getReasoningEffortValues,
@@ -22,6 +17,29 @@ import {
   type RainyModelCapabilities,
   type RainyModelCatalogEntry,
 } from "../contracts/rainy";
+
+(mock as any).module("electron", () => ({
+  app: {
+    getPath: () => tmpdir(),
+  },
+  safeStorage: {
+    decryptString: (value: Buffer) => value.toString("utf8"),
+    encryptString: (value: string) => Buffer.from(value, "utf8"),
+    isEncryptionAvailable: () => false,
+  },
+  powerSaveBlocker: {
+    isStarted: () => false,
+    start: () => 1,
+    stop: () => undefined,
+  },
+}));
+
+const {
+  buildChatCompletionRequest,
+  isOpenAIGpt5OrNewerModel,
+  listRainyModels,
+  resolvePreferredRainyApiMode,
+} = await import("./rainy-service");
 
 describe("listRainyModels", () => {
   it("keeps providers returned by /models even when catalog is partial", async () => {

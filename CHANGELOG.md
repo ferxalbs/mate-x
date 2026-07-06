@@ -1,17 +1,18 @@
 # CHANGELOG
 
-## Unreleased - 2026.07.05 (5) [Contextual Ship Status]
+## v0.1.1 - 2026.07.05 [Ambient Safety and Active Gate]
 
 - Changed Ship Status from always-on warning into contextual Ambient Safety and Active Gate flows, making MaTE X calm during normal work and strict before commit/push/ship.
-
-## v0.1.1 - 2026.07.05 (4) [Trust Gate]
-
 - Reworked Ship Status from repeated internal readiness cards into a single decision-first cockpit with progressive review/details/advanced views.
 - Added Trust Gate verdicts for AI-made changes, showing whether the current workspace is trusted, needs validation, risky, blocked, or not proven.
 - Added the "Make it trustworthy" flow using existing repo intelligence, validation planning, proof generation, policy stops, Privacy Firewall, Agent Trace, and VTS signals.
 - Reframed Evidence Pack as user-facing Ship Proof and receipts in casual UI while preserving Evidence Pack naming for compliance exports and disk artifacts.
 - Refined Trust Gate UX from internal telemetry into a plain-language ship/readiness verdict with progressive details.
 - Strengthened honest states for missing validation, risky touched surfaces, unresolved policy stops, stale local diffs, weak proof, and unsupported release/readiness claims.
+- Fixed casual active runs so prompts like "hello" stay in Ambient Safety instead of opening the large Active Gate.
+- Unified the topbar safety default with the canonical gate state so it starts at Needs check and never implies Clean before proof arrives.
+- Strengthened commit, push, and Commit & push interception so unvalidated actions fail closed and open the Active Gate before Git writes continue.
+- Restored explicit `sandbox_run` direct mode while preserving the policy stop that requires approval before direct workspace execution.
 - Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and focused Bun tests for the touched Trust Gate/evidence panel logic.
 
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]

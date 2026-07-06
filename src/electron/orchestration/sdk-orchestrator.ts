@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { app } from 'electron';
 
 import { computeVerifiedTaskScore } from "../verified-task-score";
 import type {
@@ -346,9 +345,8 @@ export class SDKOrchestrator {
 export function computeVTS(events: ToolExecutionEvent[], workspacePath?: string): number {
   const toolExecutions = events.map(toToolExecutionRecord);
   const failed = events.some((event) => event.status === "failed" || event.status === "error");
-  // Use provided workspacePath (from snapshot/context in caller) or safe app-scoped default.
-  // Hardcoded process.cwd() here was a source of wrong-tree evidence scoring and potential
-  // path pollution / fs checks against the MaTE X source instead of the target repo.
+  // Use the provided workspacePath from the caller. If absent, keep VTS best-effort
+  // without falling back to the launch directory or importing Electron in pure tests.
   // Derive a best-effort filesModified for VTS from the SDK tool events (any arg that looks
   // like a touched path). Combined with generalized extractInspectedPaths in verified-task-score,
   // this helps the SDK/critic path escape the old 0.16-0.18 VTS floor for real audit work.
@@ -359,7 +357,7 @@ export function computeVTS(events: ToolExecutionEvent[], workspacePath?: string)
     .map((p) => ({ path: p.replace(/^\.?\//, ''), action: 'touched' as const }));
 
   const score = computeVerifiedTaskScore({
-    workspacePath: workspacePath ?? app.getPath('userData'),
+    workspacePath: workspacePath ?? "",
     evidenceStatus: failed ? "failed" : "complete",
     filesModified: derivedFilesModified,
     toolExecutions,

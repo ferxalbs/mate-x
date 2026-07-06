@@ -10,10 +10,18 @@ let activeWorkspaceId: string | null = null;
 let latestValidationPlan: any = null;
 
 (mock as any).module("electron", () => ({
+  app: {
+    getPath: (name: string) => (name === "userData" ? join(tmpdir(), "matex-user-data") : tmpdir()),
+  },
   powerSaveBlocker: {
     isStarted: () => false,
     start: () => 1,
     stop: () => undefined,
+  },
+  safeStorage: {
+    decryptString: (value: Buffer) => value.toString("utf8"),
+    encryptString: (value: string) => Buffer.from(value, "utf8"),
+    isEncryptionAvailable: () => false,
   },
 }));
 
