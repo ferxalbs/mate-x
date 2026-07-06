@@ -22,6 +22,8 @@ import {
   getEvidenceCommands,
   getEvidenceFiles,
   getShipStatusHeaderLabel,
+  getShipStatusMode,
+  getTopbarRepoSafetyLabel,
   getPanelRuntimeSnapshot,
   getRepoHealthSignals,
   getVerifiedEvidenceScore,
@@ -67,6 +69,7 @@ export function EnhancementPanel({
   const [tests, setTests] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scanPhase, setScanPhase] = useState<string | null>(null);
+  const [activeGateRequested, setActiveGateRequested] = useState(false);
 
   const runtime = getPanelRuntimeSnapshot(conversation, runStatus);
   const health = workspace?.health ?? null;
@@ -90,13 +93,19 @@ export function EnhancementPanel({
     isRunning: runtime.isRunning,
     summary,
   });
-  const topbarShipStatus = getShipStatusHeaderLabel(trustGate);
+  const shipStatusMode = getShipStatusMode({
+    activeGateRequested,
+    conversation,
+    state: trustGate,
+  });
+  const topbarShipStatus = getTopbarRepoSafetyLabel(trustGate);
   const panelState = error
     ? "Needs attention"
     : loading || runtime.isRunning
       ? scanPhase ?? "Processing"
       : topbarShipStatus;
   const activeGroup = normalizeEnhancementView(activeView);
+  const showActiveGate = shipStatusMode === "active" && activeGroup === "status";
 
   useEffect(() => {
     setChangedFiles([]);
@@ -104,6 +113,7 @@ export function EnhancementPanel({
     setTests([]);
     setError(null);
     setScanPhase(null);
+    setActiveGateRequested(false);
     setActiveView("status");
   }, [workspaceId]);
 
@@ -179,6 +189,35 @@ export function EnhancementPanel({
     };
   }, [runEnhancementScan]);
 
+  useEffect(() => {
+    const handleGateRequest = () => {
+      setActiveGateRequested(true);
+      setActiveView("status");
+      setCollapsed(false);
+    };
+    window.addEventListener("mate:ship-gate-request", handleGateRequest);
+    return () => {
+      window.removeEventListener("mate:ship-gate-request", handleGateRequest);
+    };
+  }, []);
+
+  useEffect(() => {
+    (window as any).__mateShipGateState = {
+      label: getShipStatusHeaderLabel(trustGate),
+      status: trustGate.status,
+      validated: trustGate.status === "trusted",
+    };
+    window.dispatchEvent(
+      new CustomEvent("mate:repo-safety-state", {
+        detail: {
+          label: topbarShipStatus,
+          status: trustGate.status,
+          validated: trustGate.status === "trusted",
+        },
+      }),
+    );
+  }, [topbarShipStatus, trustGate]);
+
   if (!workspaceId) {
     return null;
   }
@@ -214,13 +253,20 @@ export function EnhancementPanel({
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-4 py-4">
           {activeGroup === "status" ? (
-            <TrustGateCard
-              onMakeTrustworthy={onMakeTrustworthy}
-              state={trustGate}
-            />
-          ) : (
-            <ShipStatusStrip state={trustGate} />
-          )}
+            showActiveGate ? (
+              <TrustGateCard
+                onMakeTrustworthy={onMakeTrustworthy}
+                onReviewChanges={() => setActiveView("review")}
+                state={trustGate}
+              />
+            ) : (
+              <ShipStatusStrip
+                onMakeTrustworthy={onMakeTrustworthy}
+                onReviewLater={() => setCollapsed(true)}
+                state={trustGate}
+              />
+            )
+          ) : null}
           {activeGroup === "review" ? (
             <ReviewQueueSection
               changedFiles={changedFiles}
