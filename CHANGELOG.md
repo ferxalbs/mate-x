@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.06 (1) [Contextual Actions and Badge Rename]
+
+- Appended contextual action buttons ("Run safety check", "Review changes") directly in the message stream below ambient repo safety notes for a lightweight inline experience without triggering a large warning card.
+- Renamed the ambiguous "Low" badge in Review Queue to "Low risk" to prevent conflict with the "Needs check" state.
+
 ## v0.1.1 - 2026.07.05 [Ambient Safety and Active Gate]
 
 - Changed Ship Status from always-on warning into contextual Ambient Safety and Active Gate flows, making MaTE X calm during normal work and strict before commit/push/ship.

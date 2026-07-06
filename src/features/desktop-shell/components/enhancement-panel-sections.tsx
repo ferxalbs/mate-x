@@ -778,7 +778,7 @@ function RiskPill({ risk }: { risk: string }) {
       ? "bad"
       : risk === "Medium"
         ? "warn"
-        : risk === "Low"
+        : risk === "Low risk"
           ? "good"
           : "muted";
 
@@ -1003,7 +1003,7 @@ function getConfidenceLabel(score: number | null, verdict: string) {
     return "Pending";
   }
   if (score < 50) {
-    return "Low";
+    return "Low risk";
   }
   if (score < 75) {
     return "Partial";
@@ -1059,7 +1059,7 @@ function impactTone(risk: string): SignalTone {
   if (risk === "Medium") {
     return "warn";
   }
-  if (risk === "Low") {
+  if (risk === "Low risk") {
     return "good";
   }
   if (risk === "Unknown") {

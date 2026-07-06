@@ -55,7 +55,7 @@ describe("trust gate derivation", () => {
     affectedCount: 1,
     serviceCount: 0,
     toolFanoutCount: 0,
-    risk: "Low",
+    risk: "Low risk",
   };
   const verifiedPack = {
     status: "complete",
@@ -304,7 +304,7 @@ describe("contextual ship status mode", () => {
       affectedCount: 1,
       serviceCount: 0,
       toolFanoutCount: 0,
-      risk: "Low",
+      risk: "Low risk",
     },
   });
 
@@ -403,7 +403,7 @@ describe("contextual ship status mode", () => {
         affectedCount: 1,
         serviceCount: 1,
         toolFanoutCount: 0,
-        risk: "Low",
+        risk: "Low risk",
       },
     });
 
