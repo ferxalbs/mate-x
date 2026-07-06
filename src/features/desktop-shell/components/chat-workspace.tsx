@@ -16,6 +16,7 @@ interface ChatWorkspaceProps {
   lastError: string | null;
   messages: ChatMessage[];
   onSelectPrompt: (prompt: string) => void;
+  onSubmitPrompt?: (prompt: string) => void;
   onUndoLastTurn: () => Promise<string | null>;
   workspace: WorkspaceSummary | null;
 }
@@ -30,6 +31,7 @@ export function ChatWorkspace({
   lastError,
   messages,
   onSelectPrompt,
+  onSubmitPrompt,
   onUndoLastTurn,
   workspace,
 }: ChatWorkspaceProps) {
@@ -45,6 +47,7 @@ export function ChatWorkspace({
             isRunning={isRunning}
             messages={messages}
             onSelectPrompt={onSelectPrompt}
+            onSubmitPrompt={onSubmitPrompt}
             onUndoLastTurn={onUndoLastTurn}
           />
         ) : (
@@ -52,7 +55,7 @@ export function ChatWorkspace({
             composer={composer}
             isBootstrapped={isBootstrapped}
             lastError={lastError}
-            onSelectPrompt={onSelectPrompt}
+            onSelectPrompt={onSubmitPrompt ?? onSelectPrompt}
             workspace={workspace}
           />
         )}
