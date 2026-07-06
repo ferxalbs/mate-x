@@ -33,13 +33,13 @@ export const validationPlanTool: Tool = {
         description: "Detected framework or test runner.",
       },
     },
-    required: ["objective", "changedFiles", "impactedFiles", "packageScripts"],
+    required: ["objective"],
   },
   execute: async (args: {
     objective: string;
-    changedFiles: string[];
-    impactedFiles: string[];
-    packageScripts: Record<string, string>;
+    changedFiles?: string[];
+    impactedFiles?: string[];
+    packageScripts?: Record<string, string>;
     detectedFramework?: string;
   }) => {
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();

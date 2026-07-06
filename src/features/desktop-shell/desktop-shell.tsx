@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
@@ -10,8 +10,13 @@ import {
 import { useChatStore } from "../../store/chat-store";
 import { cn } from "../../lib/utils";
 import { EnhancementPanel } from "./components/enhancement-panel";
+import {
+  ambientSafetyActions,
+  defaultAmbientSafetyRunOptions,
+} from "./components/ambient-safety-actions";
 import { AppSidebar } from "./components/app-sidebar";
 import { SearchModal } from "./components/search-modal";
+import { toastManager } from "../../components/ui/toast";
 
 
 export function DesktopShell() {
@@ -23,6 +28,7 @@ export function DesktopShell() {
   const activeThreadIds = useChatStore((state) => state.activeThreadIds);
   const runStatus = useChatStore((state) => state.runStatus);
   const settings = useChatStore((state) => state.settings);
+  const isSubmittingContextualAction = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const bootstrap = useChatStore((state) => state.bootstrap);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
@@ -40,6 +46,30 @@ export function DesktopShell() {
     : "";
   const { theme, resolvedTheme, setTheme } = useTheme();
   const shellStyle: React.CSSProperties = {};
+
+  const submitContextualAction = async (
+    prompt: string,
+    overrides = ambientSafetyActions.runSafetyCheck.overrides,
+  ) => {
+    if (isSubmittingContextualAction.current || runStatus === "running") return;
+    isSubmittingContextualAction.current = true;
+
+    try {
+      await submitPrompt(prompt, {
+        ...defaultAmbientSafetyRunOptions,
+        ...overrides,
+      });
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Submission failed",
+        description:
+          error instanceof Error ? error.message : "An error occurred.",
+      });
+    } finally {
+      isSubmittingContextualAction.current = false;
+    }
+  };
 
   useEffect(() => {
     void bootstrap();
@@ -141,20 +171,9 @@ export function DesktopShell() {
             <EnhancementPanel
               conversation={threads.find((thread) => thread.id === activeThreadId) ?? null}
               onMakeTrustworthy={() => {
-                void submitPrompt(
-                  [
-                    "Make this workspace trustworthy for the current changes.",
-                    "Use the existing MaTE X runtime systems: RepoGraph semantic memory, Validation Planner, sandbox/test tools, Evidence Pack, VTS, Agent Trace, Agent Firewall, and Privacy Firewall.",
-                    "Scope first with semantic memory and git status. Inspect changed files and impacted risky surfaces only. Run focused validation where safe. Use approval-required policy stops for risky operations.",
-                    "Do not claim a fix or release readiness unless validation and proof actually exist. If proof is missing or validation cannot run, explicitly downgrade the Trust Gate result and name the missing proof.",
-                  ].join("\n"),
-                  {
-                    reasoningEnabled: true,
-                    reasoning: "high",
-                    mode: "build",
-                    access: "approval",
-                    runbookId: "patch_test_verify",
-                  },
+                void submitContextualAction(
+                  ambientSafetyActions.runSafetyCheck.prompt,
+                  ambientSafetyActions.runSafetyCheck.overrides,
                 );
               }}
               runStatus={runStatus}

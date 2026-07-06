@@ -9,8 +9,12 @@ import { getAppSettings } from '../services/settings-client';
 import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
 import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
+import type { AssistantRunOptions } from '../contracts/chat';
+import { toastManager } from '../components/ui/toast';
+import { defaultAmbientSafetyRunOptions } from '../features/desktop-shell/components/ambient-safety-actions';
 
 export function HomePage() {
+  const isSubmitting = useRef(false);
   const [traceV2InlineEvents, setTraceV2InlineEvents] = useState(false);
   const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
   const [composerPrompt, setComposerPrompt] = useState('');
@@ -41,22 +45,30 @@ export function HomePage() {
     setPendingPolicyStop(null);
   }
 
-  const handleSubmitPrompt = (prompt: string) => {
-    setComposerPrompt(prompt);
-    void submitPrompt(prompt, {
-      mode: 'build',
-      reasoningEnabled: true,
-      reasoning: 'high',
-      serviceTier: 'standard',
-      access: 'approval',
-    });
+  const handleSubmitPrompt = async (prompt: string, overrides?: Partial<AssistantRunOptions>) => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+    
+    try {
+      await submitPrompt(prompt, {
+        ...buildHomePageSubmitOptions(overrides),
+      });
+    } catch (err) {
+      toastManager.add({
+        type: "error",
+        title: "Submission failed",
+        description: err instanceof Error ? err.message : "An error occurred.",
+      });
+    } finally {
+      isSubmitting.current = false;
+    }
   };
 
   const composer = (
     <ComposerPanel
       canUndoLastTurn={canUndoLastTurn}
       isRunning={runStatus === 'running'}
-      onSubmit={submitPrompt}
+      onSubmit={handleSubmitPrompt}
       onResolvePolicyStop={handleResolvePolicyStop}
       onUndoLastTurn={undoLastTurn}
       pendingPolicyStop={pendingPolicyStop}
@@ -152,4 +164,13 @@ export function HomePage() {
       />
     </section>
   );
+}
+
+export function buildHomePageSubmitOptions(
+  overrides?: Partial<AssistantRunOptions>,
+): AssistantRunOptions {
+  return {
+    ...defaultAmbientSafetyRunOptions,
+    ...overrides,
+  };
 }

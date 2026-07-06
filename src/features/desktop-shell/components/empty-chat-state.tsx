@@ -4,9 +4,11 @@ import {
   FileTextIcon,
   ShieldCheckIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { WorkspaceSummary } from "../../../contracts/workspace";
+import type { AssistantRunOptions } from "../../../contracts/chat";
+import { ambientSafetyActions } from "./ambient-safety-actions";
 import {
   Tooltip,
   TooltipContent,
@@ -17,7 +19,11 @@ import {
 interface EmptyChatStateProps {
   isBootstrapped: boolean;
   lastError: string | null;
-  onSelectPrompt: (prompt: string) => void;
+  isRunning: boolean;
+  onSelectPrompt: (
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) => Promise<void> | void;
   workspace: WorkspaceSummary | null;
   composer?: ReactNode;
 }
@@ -31,9 +37,9 @@ const quickPrompts = [
   },
   {
     icon: <BrainIcon className="size-3.5 text-purple-500" />,
-    label: "Explain changes",
-    prompt:
-      "Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.",
+    label: ambientSafetyActions.reviewChanges.label,
+    prompt: ambientSafetyActions.reviewChanges.prompt,
+    overrides: ambientSafetyActions.reviewChanges.overrides,
   },
   {
     icon: <CheckCircle2Icon className="size-3.5 text-blue-500" />,
@@ -43,9 +49,9 @@ const quickPrompts = [
   },
   {
     icon: <FileTextIcon className="size-3.5 text-amber-500" />,
-    label: "Run safety check",
-    prompt:
-      "Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.",
+    label: ambientSafetyActions.runSafetyCheck.label,
+    prompt: ambientSafetyActions.runSafetyCheck.prompt,
+    overrides: ambientSafetyActions.runSafetyCheck.overrides,
   },
 ];
 
@@ -53,6 +59,7 @@ const quickPrompts = [
 
 export function EmptyChatState({
   isBootstrapped,
+  isRunning,
   lastError,
   onSelectPrompt,
   workspace,
@@ -68,6 +75,22 @@ export function EmptyChatState({
   const statusText =
     lastError ??
     "MaTE X is restoring your previous session and checking local workspace state.";
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const actionsDisabled = isRunning || pendingPrompt !== null;
+
+  async function handlePromptAction(
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) {
+    if (actionsDisabled) return;
+
+    setPendingPrompt(prompt);
+    try {
+      await onSelectPrompt(prompt, overrides);
+    } finally {
+      setPendingPrompt(null);
+    }
+  }
 
   if (lastError || !isBootstrapped) {
     return (
@@ -110,7 +133,9 @@ export function EmptyChatState({
               key={item.label}
               label={item.label}
               prompt={item.prompt}
-              onClick={() => onSelectPrompt(item.prompt)}
+              disabled={actionsDisabled}
+              isPending={pendingPrompt === item.prompt}
+              onClick={() => handlePromptAction(item.prompt, item.overrides)}
             />
           ))}
         </div>
@@ -124,11 +149,15 @@ function FeatureChip({
   label,
   prompt,
   onClick,
+  disabled,
+  isPending,
 }: {
   icon: ReactNode;
   label: string;
   prompt: string;
-  onClick: () => void;
+  onClick: () => Promise<void> | void;
+  disabled?: boolean;
+  isPending?: boolean;
 }) {
   return (
     <TooltipProvider delay={200}>
@@ -137,7 +166,8 @@ function FeatureChip({
           render={
             <button
               type="button"
-              onClick={onClick}
+              disabled={disabled}
+              onClick={() => void onClick()}
               className="group flex h-9 min-w-0 items-center justify-center gap-2 rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--mate-panel-bg)] px-3 text-[12px] font-medium text-muted-foreground/85 backdrop-blur-md transition-colors hover:bg-accent hover:text-foreground sm:justify-start sm:px-3.5"
             />
           }
@@ -146,6 +176,7 @@ function FeatureChip({
             {icon}
           </div>
           <span className="truncate">{label}</span>
+          {isPending ? <span className="sr-only">Starting</span> : null}
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={8} className="max-w-[280px]">
           <p className="text-center leading-relaxed text-muted-foreground">

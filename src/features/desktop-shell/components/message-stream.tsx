@@ -1,29 +1,24 @@
 import {
-  ActivityIcon,
   AlertCircleIcon,
-  CheckCircle2Icon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
   FileTextIcon,
   LoaderCircle,
-  TerminalIcon,
 } from "lucide-react";
 import {
   memo,
   useDeferredValue,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
-  type RefObject,
 } from "react";
 
 import type {
+  AssistantRunOptions,
   ChatMessage,
-  MessageArtifact,
   ToolEvent,
 } from "../../../contracts/chat";
 import { formatTimestamp } from "../../../lib/time";
@@ -31,13 +26,17 @@ import { cn } from "../../../lib/utils";
 import { MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton } from "../../../components/ui/message-scroller";
 import { ChatMarkdown } from "./chat-markdown";
 import { useChatStore } from "../../../store/chat-store";
+import { ambientSafetyActions, type AmbientSafetyAction } from "./ambient-safety-actions";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
   messages: ChatMessage[];
   isRunning: boolean;
   onSelectPrompt: (prompt: string) => void;
-  onSubmitPrompt?: (prompt: string) => void;
+  onSubmitPrompt?: (
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) => Promise<void> | void;
   onUndoLastTurn: () => Promise<string | null>;
 }
 
@@ -80,6 +79,7 @@ export function MessageStream({
                 message.role === "assistant"
               }
               isLast={index === messages.length - 1}
+              isRunning={isRunning}
               message={message}
               onSelectPrompt={onSelectPrompt}
               onSubmitPrompt={onSubmitPrompt}
@@ -103,6 +103,7 @@ const MessageEntry = memo(function MessageEntry({
   message,
   isStreaming,
   isLast,
+  isRunning,
   canUndo,
   onSelectPrompt,
   onSubmitPrompt,
@@ -111,9 +112,13 @@ const MessageEntry = memo(function MessageEntry({
   message: ChatMessage;
   isStreaming: boolean;
   isLast: boolean;
+  isRunning: boolean;
   canUndo: boolean;
   onSelectPrompt: (prompt: string) => void;
-  onSubmitPrompt?: (prompt: string) => void;
+  onSubmitPrompt?: (
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) => Promise<void> | void;
   onUndo: () => Promise<string | null>;
 }) {
   const isUser = message.role === "user";
@@ -124,6 +129,7 @@ const MessageEntry = memo(function MessageEntry({
   const hasTimeline = events.length > 0;
   const hasErrorEvent = events.some((event) => event.status === "error");
   const [copied, setCopied] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   async function handleCopy() {
     try {
@@ -178,6 +184,22 @@ const MessageEntry = memo(function MessageEntry({
 
   const normalizedContent = deferredContent.trim();
   const showAmbientActions = normalizedContent.includes("Repo note: changes need a safety check before commit.");
+  const actionDisabled = isRunning || pendingAction !== null;
+
+  async function submitAmbientAction(action: AmbientSafetyAction) {
+    if (actionDisabled) return;
+
+    setPendingAction(action.id);
+    try {
+      if (onSubmitPrompt) {
+        await onSubmitPrompt(action.prompt, action.overrides);
+      } else {
+        onSelectPrompt(action.prompt);
+      }
+    } finally {
+      setPendingAction(null);
+    }
+  }
 
   return (
     <article className="group animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] pl-6">
@@ -198,21 +220,23 @@ const MessageEntry = memo(function MessageEntry({
         ) : isStreaming ? (
           <AssistantPendingRow events={events} />
         ) : null}
-        {isLast && showAmbientActions && !isStreaming ? (
+        {isLast && showAmbientActions ? (
           <div className="mt-2.5 flex items-center gap-2">
             <button
-              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
-              onClick={() => (onSubmitPrompt ?? onSelectPrompt)("Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.")}
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={actionDisabled}
+              onClick={() => void submitAmbientAction(ambientSafetyActions.runSafetyCheck)}
               type="button"
             >
-              Run safety check
+              {pendingAction === ambientSafetyActions.runSafetyCheck.id ? "Starting..." : ambientSafetyActions.runSafetyCheck.label}
             </button>
             <button
-              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
-              onClick={() => (onSubmitPrompt ?? onSelectPrompt)("Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.")}
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={actionDisabled}
+              onClick={() => void submitAmbientAction(ambientSafetyActions.reviewChanges)}
               type="button"
             >
-              Review changes
+              {pendingAction === ambientSafetyActions.reviewChanges.id ? "Starting..." : ambientSafetyActions.reviewChanges.label}
             </button>
           </div>
         ) : null}

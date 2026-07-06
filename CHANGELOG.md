@@ -1,20 +1,18 @@
 # CHANGELOG
 
-## Unreleased - 2026.07.06 (1) [Contextual Actions and Badge Rename]
-
-- Appended contextual action buttons ("Run safety check", "Review changes") directly in the message stream below ambient repo safety notes for a lightweight inline experience without triggering a large warning card.
-- Renamed the ambiguous "Low" badge in Review Queue to "Low risk" to prevent conflict with the "Needs check" state.
-
 ## v0.1.1 - 2026.07.05 [Ambient Safety and Active Gate]
 
 - Changed Ship Status from always-on warning into contextual Ambient Safety and Active Gate flows, making MaTE X calm during normal work and strict before commit/push/ship.
 - Reworked Ship Status from repeated internal readiness cards into a single decision-first cockpit with progressive review/details/advanced views.
+- Appended contextual action buttons ("Run safety check", "Review changes") directly in the message stream below ambient repo safety notes for a lightweight inline experience without triggering a large warning card.
+- Renamed the ambiguous "Low" badge in Review Queue to "Low risk" to prevent conflict with the "Needs check" state.
 - Added Trust Gate verdicts for AI-made changes, showing whether the current workspace is trusted, needs validation, risky, blocked, or not proven.
 - Added the "Make it trustworthy" flow using existing repo intelligence, validation planning, proof generation, policy stops, Privacy Firewall, Agent Trace, and VTS signals.
 - Reframed Evidence Pack as user-facing Ship Proof and receipts in casual UI while preserving Evidence Pack naming for compliance exports and disk artifacts.
 - Refined Trust Gate UX from internal telemetry into a plain-language ship/readiness verdict with progressive details.
 - Strengthened honest states for missing validation, risky touched surfaces, unresolved policy stops, stale local diffs, weak proof, and unsupported release/readiness claims.
 - Fixed casual active runs so prompts like "hello" stay in Ambient Safety instead of opening the large Active Gate.
+- Hardened Ambient Safety contextual actions so "Run safety check" and "Review changes" submit through the canonical composer path, preserve safety/review runbook intent, create normal chat turns, guard double clicks, disable while runs are active, and surface visible failures.
 - Unified the topbar safety default with the canonical gate state so it starts at Needs check and never implies Clean before proof arrives.
 - Strengthened commit, push, and Commit & push interception so unvalidated actions fail closed and open the Active Gate before Git writes continue.
 - Restored explicit `sandbox_run` direct mode while preserving the policy stop that requires approval before direct workspace execution.
