@@ -12,7 +12,7 @@ import type {
   ToolEvent,
 } from "../../../contracts/chat";
 
-export type ImpactRisk = "High" | "Medium" | "Low" | "None";
+export type ImpactRisk = "High" | "Medium" | "Low risk" | "None";
 export type SignalTone = "good" | "watch" | "warn" | "bad" | "muted";
 export type TrustGateVerdict =
   | "Ready"
@@ -191,7 +191,7 @@ export function summarizeImpact(
       : affectedCount >= 6 || serviceCount >= 3
         ? "Medium"
         : changedFiles.length > 0
-          ? "Low"
+          ? "Low risk"
           : "None";
 
   return {

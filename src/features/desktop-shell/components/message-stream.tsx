@@ -36,6 +36,7 @@ interface MessageStreamProps {
   canUndoLastTurn: boolean;
   messages: ChatMessage[];
   isRunning: boolean;
+  onSelectPrompt: (prompt: string) => void;
   onUndoLastTurn: () => Promise<string | null>;
 }
 
@@ -43,6 +44,7 @@ export function MessageStream({
   canUndoLastTurn,
   messages,
   isRunning,
+  onSelectPrompt,
   onUndoLastTurn,
 }: MessageStreamProps) {
   const settings = useChatStore((state) => state.settings);
@@ -76,6 +78,7 @@ export function MessageStream({
                 message.role === "assistant"
               }
               message={message}
+              onSelectPrompt={onSelectPrompt}
               onUndo={onUndoLastTurn}
             />
           </MessageScrollerItem>
@@ -96,11 +99,13 @@ const MessageEntry = memo(function MessageEntry({
   message,
   isStreaming,
   canUndo,
+  onSelectPrompt,
   onUndo,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
   canUndo: boolean;
+  onSelectPrompt: (prompt: string) => void;
   onUndo: () => Promise<string | null>;
 }) {
   const isUser = message.role === "user";
@@ -183,6 +188,24 @@ const MessageEntry = memo(function MessageEntry({
           />
         ) : isStreaming ? (
           <AssistantPendingRow events={events} />
+        ) : null}
+        {normalizedContent.includes("Repo note: changes need a safety check before commit.") && !isStreaming ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)]"
+              onClick={() => onSelectPrompt("Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.")}
+              type="button"
+            >
+              Run safety check
+            </button>
+            <button
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+              onClick={() => onSelectPrompt("Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.")}
+              type="button"
+            >
+              Review changes
+            </button>
+          </div>
         ) : null}
       </div>
       <div className="mt-2 flex items-center gap-1.5">

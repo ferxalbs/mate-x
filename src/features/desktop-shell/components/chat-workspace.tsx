@@ -44,6 +44,7 @@ export function ChatWorkspace({
             canUndoLastTurn={canUndoLastTurn}
             isRunning={isRunning}
             messages={messages}
+            onSelectPrompt={onSelectPrompt}
             onUndoLastTurn={onUndoLastTurn}
           />
         ) : (
