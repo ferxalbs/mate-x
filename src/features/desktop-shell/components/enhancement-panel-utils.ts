@@ -16,6 +16,8 @@ export type ImpactRisk = "High" | "Medium" | "Low" | "None";
 export type SignalTone = "good" | "watch" | "warn" | "bad" | "muted";
 export type TrustGateVerdict =
   | "Ready"
+  | "Validated"
+  | "Needs check"
   | "Not ready"
   | "Risky"
   | "Blocked"
@@ -78,9 +80,10 @@ export interface TrustGateState {
   sourceSignalsUsed: string[];
 }
 
-export function getShipStatusHeaderLabel(state: TrustGateState) {
+export function getShipStatusHeaderLabel(state: TrustGateState, mode: ShipStatusMode = "active") {
   if (state.status === "resolving") return "Needs check";
   if (state.status === "needs_validation") return "Needs check";
+  if (state.status === "trusted" && mode === "ambient") return "Workspace loaded";
   return state.verdict;
 }
 
@@ -89,7 +92,7 @@ export function getTopbarRepoSafetyLabel(state: TrustGateState) {
   if (state.status === "blocked") return "Blocked";
   if (state.status === "risky") return "Risky";
   if (state.status === "needs_validation" || state.status === "resolving") return "Needs check";
-  return state.verdict === "Ready" ? "Validated" : "Clean";
+  return state.verdict === "Validated" ? "Validated" : "Clean";
 }
 
 export function detectActiveGateIntent(prompt: string) {
@@ -98,7 +101,7 @@ export function detectActiveGateIntent(prompt: string) {
   if (!compact) return false;
 
   const casualOnly =
-    /^(hi|hello|hey|how are you|thanks|thank you|ok|okay|cool|nice|great|explain\b.*|what is\b.*|general chat\b.*)$/i;
+    /^(hi|hello|hey|how are you|thanks|thank you|ok|okay|cool|nice|great|explain\b.*|what is\b.*|casual conversation|general chat\b.*)$/i;
   if (casualOnly.test(compact)) return false;
 
   return /\b(commit|push|merge|ship|release|deploy|safe|verify|validate|audit|proof|evidence|ready)\b/i.test(compact) ||
@@ -369,6 +372,7 @@ export function deriveTrustGate({
     evidencePack?.status === "blocked" ||
     evidencePack?.status === "failed" ||
     /blocked|fail|error/i.test(evidenceVerdict);
+  const isPartial = /partial/i.test(evidenceVerdict) || evidencePack?.status === "partial";
   const hasVerifiedSignals = hasVerifiedEvidenceSignals(evidencePack);
   const score = getVerifiedEvidenceScore(evidencePack);
   const hasPassedValidationSignal =
@@ -490,6 +494,26 @@ export function deriveTrustGate({
       policyStopState: hasPolicyStop ? "unresolved" : "none",
       evidencePackState,
       nextAction: "Resolve policy stop",
+    });
+  }
+
+  if (isPartial) {
+    return buildState({
+      status: "needs_validation",
+      verdict: "Needs check",
+      confidenceLabel: "medium",
+      tone: "watch",
+      proofLabel,
+      why: [
+        "The Work Engine returned a partial verdict.",
+        "Review warnings before merging.",
+      ],
+      missingProof: ["Complete verdict"],
+      touchedRiskSurfaces: riskyFiles,
+      validationState,
+      policyStopState: hasPolicyStop ? "resolved" : "none",
+      evidencePackState,
+      nextAction: "Review warnings",
     });
   }
 
@@ -641,7 +665,7 @@ export function deriveTrustGate({
 
   return buildState({
     status: "trusted",
-    verdict: "Ready",
+    verdict: "Validated",
     confidenceLabel: "verified",
     tone: "good",
     proofLabel,

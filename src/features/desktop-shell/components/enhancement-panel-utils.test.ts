@@ -68,7 +68,7 @@ describe("trust gate derivation", () => {
     },
   } as unknown as EvidencePack;
 
-  it("maps signed evidence and passed validation to Ready", () => {
+  it("maps signed evidence and passed validation to Validated", () => {
     const state = deriveTrustGate({
       changedFiles: [],
       commands: [],
@@ -77,8 +77,8 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Ready");
-    assert.equal(state.headline, "Ready");
+    assert.equal(state.verdict, "Validated");
+    assert.equal(state.headline, "Validated");
     assert.equal(state.nextAction, "Continue");
     assert.equal(state.primaryActionLabel, "View proof");
     assert.equal(getShipStatusHeaderLabel(state), state.headline);
@@ -310,6 +310,9 @@ describe("contextual ship status mode", () => {
 
   it("does not trigger active gate for casual hello prompts", () => {
     assert.equal(detectActiveGateIntent("Hello, how are you?"), false);
+    assert.equal(detectActiveGateIntent("casual conversation"), false);
+    assert.equal(detectActiveGateIntent("general chat about react"), false);
+    assert.equal(detectActiveGateIntent("thanks"), false);
     assert.equal(
       getShipStatusMode({
         conversation: {
@@ -434,7 +437,7 @@ describe("contextual ship status mode", () => {
     );
   });
 
-  it("never labels unvalidated changes as Ready in the topbar", () => {
+  it("never labels unvalidated changes as Validated in the topbar", () => {
     assert.equal(getTopbarRepoSafetyLabel(dirtyState), "Needs check");
   });
 });

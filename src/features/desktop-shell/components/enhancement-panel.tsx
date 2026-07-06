@@ -203,7 +203,7 @@ export function EnhancementPanel({
 
   useEffect(() => {
     (window as any).__mateShipGateState = {
-      label: getShipStatusHeaderLabel(trustGate),
+      label: getShipStatusHeaderLabel(trustGate, shipStatusMode),
       status: trustGate.status,
       validated: trustGate.status === "trusted",
     };
