@@ -4,8 +4,11 @@ import { describe, it } from "node:test";
 import type { EvidencePack } from "../../../contracts/chat";
 import type { WorkspaceHealthProfile } from "../../../contracts/workspace";
 import {
+  detectActiveGateIntent,
   deriveTrustGate,
+  getShipStatusMode,
   getShipStatusHeaderLabel,
+  getTopbarRepoSafetyLabel,
   getRepoHealthVerdict,
   getVerifiedEvidenceScore,
   hasVerifiedEvidenceSignals,
@@ -94,7 +97,7 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Unknown");
     assert.equal(state.headline, "Unknown");
-    assert.equal(state.proofLabel, "No Ship Proof yet");
+    assert.equal(state.proofLabel, "No validation passed yet");
     assert.equal(state.primaryActionLabel, "Show details");
     assert.equal(getShipStatusHeaderLabel(state), "Unknown");
   });
@@ -109,14 +112,14 @@ describe("trust gate derivation", () => {
     });
 
     assert.equal(state.verdict, "Not ready");
-    assert.equal(state.headline, "Needs check");
+    assert.equal(state.headline, "Not ready to push");
     assert.equal(getShipStatusHeaderLabel(state), "Needs check");
-    assert.equal(state.explanation, "MaTE X found changed files, but no passing validation command has been proven yet.");
+    assert.equal(state.explanation, "MaTE X found changed files, but no passing validation has been proven.");
     assert.equal(state.nextAction, "Run safety check");
     assert.deepEqual(state.reasonChips.slice(0, 3), [
       "1 file changed",
       "No validation passed",
-      "Proof missing",
+      "Needs safety check",
     ]);
   });
 
@@ -157,7 +160,7 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Not ready");
     assert.equal(state.validationState, "not_run");
-    assert.equal(state.proofLabel, "Proof incomplete");
+    assert.equal(state.proofLabel, "No validation passed yet");
     assert.match(state.missingProof.join(" "), /Passing validation/);
   });
 
@@ -191,7 +194,7 @@ describe("trust gate derivation", () => {
 
     assert.equal(state.verdict, "Risky");
     assert.equal(state.headline, "Risky");
-    assert.equal(state.primaryActionLabel, "Inspect risk");
+    assert.equal(state.primaryActionLabel, "Inspect risky changes");
     assert.equal(getShipStatusHeaderLabel(state), "Risky");
     assert.equal(state.nextAction, "Run safety check");
     assert.deepEqual(state.touchedRiskSurfaces, ["src/electron/session-service.ts"]);
@@ -287,7 +290,96 @@ describe("trust gate derivation", () => {
 
     assert.notEqual(state.primaryActionLabel, "Export Evidence");
     assert.notEqual(state.primaryActionLabel, "View proof");
-    assert.equal(state.proofLabel, "No Ship Proof yet");
+    assert.equal(state.proofLabel, "No validation passed yet");
+  });
+});
+
+describe("contextual ship status mode", () => {
+  const dirtyState = deriveTrustGate({
+    changedFiles: ["src/features/chat.tsx"],
+    commands: [],
+    evidencePack: null,
+    health: { gitDirtyState: "dirty" } as WorkspaceHealthProfile,
+    summary: {
+      affectedCount: 1,
+      serviceCount: 0,
+      toolFanoutCount: 0,
+      risk: "Low",
+    },
+  });
+
+  it("does not trigger active gate for casual hello prompts", () => {
+    assert.equal(detectActiveGateIntent("Hello, how are you?"), false);
+    assert.equal(
+      getShipStatusMode({
+        conversation: {
+          id: "c1",
+          title: "Chat",
+          messages: [{ id: "m1", role: "user", content: "Hello, how are you?", createdAt: new Date().toISOString() }],
+          runs: [],
+          lastUpdatedAt: new Date().toISOString(),
+        },
+        state: dirtyState,
+      }),
+      "ambient",
+    );
+  });
+
+  it("triggers active gate for can I ship prompts", () => {
+    assert.equal(detectActiveGateIntent("can I ship?"), true);
+    assert.equal(
+      getShipStatusMode({
+        conversation: {
+          id: "c1",
+          title: "Chat",
+          messages: [{ id: "m1", role: "user", content: "can I ship?", createdAt: new Date().toISOString() }],
+          runs: [],
+          lastUpdatedAt: new Date().toISOString(),
+        },
+        state: dirtyState,
+      }),
+      "active",
+    );
+  });
+
+  it("uses ambient safety for unvalidated changed files while idle", () => {
+    assert.equal(getShipStatusMode({ conversation: null, state: dirtyState }), "ambient");
+    assert.equal(getTopbarRepoSafetyLabel(dirtyState), "Needs check");
+  });
+
+  it("uses active gate for commit intent with unvalidated changes", () => {
+    assert.equal(
+      getShipStatusMode({
+        activeGateRequested: true,
+        conversation: null,
+        state: dirtyState,
+      }),
+      "active",
+    );
+    assert.equal(dirtyState.headline, "Not ready to push");
+  });
+
+  it("uses active gate when risky surfaces changed after agent file modifications", () => {
+    const riskyState = deriveTrustGate({
+      changedFiles: ["src/electron/ipc-service.ts"],
+      commands: [],
+      evidencePack: null,
+      health: { gitDirtyState: "dirty" } as WorkspaceHealthProfile,
+      summary: {
+        affectedCount: 1,
+        serviceCount: 1,
+        toolFanoutCount: 0,
+        risk: "Low",
+      },
+    });
+
+    assert.equal(riskyState.status, "risky");
+    assert.equal(getShipStatusMode({ conversation: null, state: riskyState }), "active");
+    assert.equal(riskyState.primaryActionLabel, "Inspect risky changes");
+  });
+
+  it("never labels unvalidated changes as Ready in the topbar", () => {
+    assert.equal(getTopbarRepoSafetyLabel(dirtyState), "Needs check");
   });
 });
 

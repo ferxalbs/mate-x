@@ -10,7 +10,7 @@ import {
   PlusIcon,
   TargetIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "../../../components/ui/button";
 import {
@@ -76,6 +76,7 @@ export function ChatTopbar({
   const platform = usePlatform();
   const [openTarget, setOpenTarget] = useState("folder");
   const [gitAction, setGitAction] = useState("commit-push");
+  const [repoSafetyLabel, setRepoSafetyLabel] = useState("Clean");
   const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
   const userTurns =
@@ -116,6 +117,15 @@ export function ChatTopbar({
     window.dispatchEvent(new Event("mate:toggle-git-panel"));
   };
 
+  useEffect(() => {
+    const handleRepoSafety = (event: Event) => {
+      const label = (event as CustomEvent<{ label?: string }>).detail?.label;
+      if (label) setRepoSafetyLabel(label);
+    };
+    window.addEventListener("mate:repo-safety-state", handleRepoSafety);
+    return () => window.removeEventListener("mate:repo-safety-state", handleRepoSafety);
+  }, []);
+
   return (
     <header
       className={cn(
@@ -152,6 +162,11 @@ export function ChatTopbar({
         {runStatus === "running" ? (
           <span className="rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Running
+          </span>
+        ) : null}
+        {workspace ? (
+          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md sm:inline-flex">
+            {repoSafetyLabel}
           </span>
         ) : null}
       </div>

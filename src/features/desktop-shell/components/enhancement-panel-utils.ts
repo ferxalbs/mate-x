@@ -20,7 +20,7 @@ export type TrustGateVerdict =
   | "Risky"
   | "Blocked"
   | "Unknown";
-export type ShipStatusLabel = TrustGateVerdict | "Needs check";
+export type ShipStatusLabel = TrustGateVerdict | "Needs check" | "Not ready to push";
 export type TrustGateStatus =
   | "trusted"
   | "resolving"
@@ -29,6 +29,7 @@ export type TrustGateStatus =
   | "blocked"
   | "unknown";
 export type TrustGateConfidence = "verified" | "high" | "medium" | "low" | "none";
+export type ShipStatusMode = "ambient" | "active";
 export type TrustGateValidationState =
   | "passed"
   | "failed"
@@ -81,6 +82,57 @@ export function getShipStatusHeaderLabel(state: TrustGateState) {
   if (state.status === "resolving") return "Needs check";
   if (state.status === "needs_validation") return "Needs check";
   return state.verdict;
+}
+
+export function getTopbarRepoSafetyLabel(state: TrustGateState) {
+  if (state.status === "trusted") return "Validated";
+  if (state.status === "blocked") return "Blocked";
+  if (state.status === "risky") return "Risky";
+  if (state.status === "needs_validation" || state.status === "resolving") return "Needs check";
+  return state.verdict === "Ready" ? "Validated" : "Clean";
+}
+
+export function detectActiveGateIntent(prompt: string) {
+  const normalized = prompt.toLowerCase().replace(/[^\w\s?]/g, " ");
+  const compact = normalized.replace(/\s+/g, " ").trim();
+  if (!compact) return false;
+
+  const casualOnly =
+    /^(hi|hello|hey|how are you|thanks|thank you|ok|okay|cool|nice|great|explain\b.*|what is\b.*|general chat\b.*)$/i;
+  if (casualOnly.test(compact)) return false;
+
+  return /\b(commit|push|merge|ship|release|deploy|safe|verify|validate|audit|proof|evidence|ready)\b/i.test(compact) ||
+    /\bcan i ship\b/i.test(compact);
+}
+
+export function getShipStatusMode({
+  activeGateRequested = false,
+  conversation,
+  state,
+}: {
+  activeGateRequested?: boolean;
+  conversation: Conversation | null;
+  state: TrustGateState;
+}): ShipStatusMode {
+  if (activeGateRequested) return "active";
+  if (state.status === "blocked" || state.status === "resolving") return "active";
+  if (state.touchedRiskSurfaces.length > 0 && state.status === "risky") return "active";
+
+  const messages = conversation?.messages ?? [];
+  const latestMessage = messages.at(-1);
+  if (
+    latestMessage?.role === "assistant" &&
+    (latestMessage.evidencePack?.filesModified?.length ?? 0) > 0 &&
+    state.status !== "trusted"
+  ) {
+    return "active";
+  }
+
+  const latestUserPrompt = [...messages]
+    .reverse()
+    .find((message) => message.role === "user")?.content ?? "";
+
+  return detectActiveGateIntent(latestUserPrompt) ? "active" : "ambient";
 }
 
 export function getChangedFiles(status: GitStatus) {
@@ -355,11 +407,11 @@ export function deriveTrustGate({
   ].filter(Boolean);
   const proofLabel = evidencePack
     ? hasVerifiedSignals && validationState === "passed" && score !== null && score >= 85
-      ? "Proof-backed"
+      ? "Proof available"
       : hasVerifiedSignals
-        ? "Proof incomplete"
-        : "Needs proof"
-    : "No Ship Proof yet";
+        ? "No validation passed yet"
+        : "Needs safety check"
+    : "No validation passed yet";
   const evidencePackState: TrustGateEvidenceState = !evidencePack
     ? "missing"
     : !hasVerifiedSignals || score === null
@@ -463,7 +515,7 @@ export function deriveTrustGate({
           : "No evidence has been generated for the current workspace.",
         "MaTE X checks what your AI agent changed before you ship.",
       ],
-      missingProof: ["Proof missing", "No validation passed"],
+      missingProof: ["No validation passed"],
       touchedRiskSurfaces: riskyFiles,
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
@@ -618,7 +670,7 @@ function getHumanTrustGateCopy(
   const proofChip =
     state.evidencePackState === "signed_strong"
       ? "Proof complete"
-      : "Proof missing";
+      : "Needs safety check";
   const changeChip =
     changedFileCount > 0
       ? `${changedFileCount} file${changedFileCount === 1 ? "" : "s"} changed`
@@ -650,15 +702,15 @@ function getHumanTrustGateCopy(
     return {
       ...base,
       primaryActionLabel: "Show details",
-      explanation: "MaTE X found a safety or approval stop that must be resolved first.",
+      explanation: "A safety stop needs attention before you continue.",
     };
   }
 
   if (state.status === "risky") {
     return {
       ...base,
-      primaryActionLabel: "Inspect risk",
-      explanation: "These changes touch sensitive areas and do not yet have enough proof to continue.",
+      primaryActionLabel: "Inspect risky changes",
+      explanation: "Auth/session, env, dependency, payment, network, or IPC surfaces changed without proof.",
     };
   }
 
@@ -672,10 +724,11 @@ function getHumanTrustGateCopy(
 
   return {
     ...base,
+    headline: "Not ready to push",
     explanation:
       changedFileCount > 0
-        ? "MaTE X found changed files, but no passing validation command has been proven yet."
-        : "MaTE X is still waiting for a proven passing validation result.",
+        ? "MaTE X found changed files, but no passing validation has been proven."
+        : "No validation passed yet.",
   };
 }
 

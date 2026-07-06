@@ -39,8 +39,12 @@ export type EnhancementView =
 export function TrustGateCard({
   onMakeTrustworthy,
   state,
+  onReviewChanges,
+  showOverride = false,
 }: {
   onMakeTrustworthy?: () => void;
+  onReviewChanges?: () => void;
+  showOverride?: boolean;
   state: TrustGateState;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -62,7 +66,7 @@ export function TrustGateCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-              Ship Status
+              Active Gate
             </p>
             <p className={cn("mt-1 break-words text-[16px] font-semibold leading-6", toneValueClassName(state.tone))}>
               {state.headline}
@@ -87,7 +91,7 @@ export function TrustGateCard({
           <span className="font-medium text-foreground">Recommended:</span>{" "}
           {state.recommendedAction}
         </div>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
             className="inline-flex flex-1 items-center justify-center rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)] disabled:cursor-default disabled:opacity-60"
             onClick={
@@ -101,6 +105,15 @@ export function TrustGateCard({
           >
             {state.primaryActionLabel}
           </button>
+          {onReviewChanges ? (
+            <button
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+              onClick={onReviewChanges}
+              type="button"
+            >
+              Review changes
+            </button>
+          ) : null}
           <button
             className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
             onClick={() => setDetailsOpen((open) => !open)}
@@ -108,6 +121,14 @@ export function TrustGateCard({
           >
             {detailsOpen ? "Hide details" : "Show details"}
           </button>
+          {showOverride ? (
+            <button
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] font-medium text-amber-300 transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-amber-500/15"
+              type="button"
+            >
+              Push anyway
+            </button>
+          ) : null}
         </div>
         {detailsOpen ? (
           <div className="mt-3 space-y-2 rounded-2xl border border-border/60 bg-transparent p-2.5 text-[10px] leading-4 text-muted-foreground">
@@ -137,23 +158,55 @@ export function TrustGateCard({
   );
 }
 
-export function ShipStatusStrip({ state }: { state: TrustGateState }) {
+export function ShipStatusStrip({
+  onMakeTrustworthy,
+  onReviewLater,
+  state,
+}: {
+  onMakeTrustworthy?: () => void;
+  onReviewLater?: () => void;
+  state: TrustGateState;
+}) {
+  const hasChanges = state.reasonChips.find((chip) => /changed/.test(chip));
+  const message =
+    state.status === "trusted"
+      ? "Safe to continue."
+      : state.status === "unknown"
+        ? "Repo safety check is available when you need it."
+        : `${hasChanges ?? "Repo"} need${hasChanges?.startsWith("1 ") ? "s" : ""} a safety check before commit.`;
+
   return (
     <div
       className={cn(
-        "mb-4 flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 shadow-none",
-        toneSurfaceClassName(state.tone),
+        "mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-[var(--panel)]/55 px-3 py-2 shadow-none backdrop-blur-xl",
       )}
     >
       <div className="min-w-0">
         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-          Ship Status
+          Repo Safety
         </p>
-        <p className="truncate text-[11px] font-medium text-foreground">
-          {state.headline}: {state.recommendedAction}
+        <p className="truncate text-[11px] font-medium text-foreground/85">
+          {message}
         </p>
       </div>
-      <TonePill label={state.headline} tone={state.tone} />
+      <div className="flex shrink-0 items-center gap-1.5">
+        {state.status !== "trusted" ? (
+          <button
+            className="rounded-full border border-border/60 bg-transparent px-2.5 py-1 text-[10px] font-medium text-foreground/80 transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent"
+            onClick={onMakeTrustworthy}
+            type="button"
+          >
+            Run safety check
+          </button>
+        ) : null}
+        <button
+          className="rounded-full border border-transparent bg-transparent px-2 py-1 text-[10px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+          onClick={onReviewLater}
+          type="button"
+        >
+          Review later
+        </button>
+      </div>
     </div>
   );
 }

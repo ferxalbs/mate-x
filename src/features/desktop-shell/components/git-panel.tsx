@@ -30,6 +30,17 @@ function basename(path: string) {
   return path.split('/').pop() ?? path;
 }
 
+function repoNeedsShipGate() {
+  const state = (window as any).__mateShipGateState as
+    | { validated?: boolean; status?: string }
+    | undefined;
+  return !state?.validated;
+}
+
+function requestShipGate() {
+  window.dispatchEvent(new Event('mate:ship-gate-request'));
+}
+
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -142,6 +153,11 @@ export function GitPanel() {
           return;
         }
 
+        if (action === 'commit-push' && repoNeedsShipGate()) {
+          requestShipGate();
+          return;
+        }
+
         void (async () => {
           await commit();
           await refresh();
@@ -153,6 +169,10 @@ export function GitPanel() {
       }
 
       if (action === 'push-pr') {
+        if (repoNeedsShipGate()) {
+          requestShipGate();
+          return;
+        }
         void push();
       }
     };
@@ -194,7 +214,13 @@ export function GitPanel() {
           </button>
           {/* Push */}
           <button
-            onClick={() => void push()}
+            onClick={() => {
+              if (repoNeedsShipGate()) {
+                requestShipGate();
+                return;
+              }
+              void push();
+            }}
             disabled={!canPush}
             title="Push"
             className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.05 (5) [Contextual Ship Status]
+
+- Changed Ship Status from always-on warning into contextual Ambient Safety and Active Gate flows, making MaTE X calm during normal work and strict before commit/push/ship.
+
 ## v0.1.1 - 2026.07.05 (4) [Trust Gate]
 
 - Reworked Ship Status from repeated internal readiness cards into a single decision-first cockpit with progressive review/details/advanced views.
