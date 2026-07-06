@@ -2,6 +2,7 @@
 
 ## v0.1.1 - 2026.07.05 (4) [Trust Gate]
 
+- Reworked Ship Status from repeated internal readiness cards into a single decision-first cockpit with progressive review/details/advanced views.
 - Added Trust Gate verdicts for AI-made changes, showing whether the current workspace is trusted, needs validation, risky, blocked, or not proven.
 - Added the "Make it trustworthy" flow using existing repo intelligence, validation planning, proof generation, policy stops, Privacy Firewall, Agent Trace, and VTS signals.
 - Reframed Evidence Pack as user-facing Ship Proof and receipts in casual UI while preserving Evidence Pack naming for compliance exports and disk artifacts.
