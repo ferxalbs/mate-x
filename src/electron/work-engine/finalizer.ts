@@ -163,7 +163,7 @@ export function finalizeWorkRun(input: {
   });
   const content = rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0);
 
-  return { verdict, content: appendHonestStatus(content, verdict, warnings), warnings };
+  return { verdict, content: appendHonestStatus(content, verdict, warnings, input.workPlan.objective), warnings };
 }
 
 function shouldFailedValidationBlock(input: {
@@ -471,7 +471,13 @@ function rewritePrivacySentinelPlaceholderMisuse(content: string) {
     .replace(/\bDo not rely on text replacement of sensitive identifiers in SQL strings\./gi, "Verify raw local source before concluding that redacted identifiers are literal SQL text.");
 }
 
-function appendHonestStatus(content: string, verdict: FinalRunVerdict, warnings: string[]) {
+function appendHonestStatus(content: string, verdict: FinalRunVerdict, warnings: string[], objective: string = "") {
+  const isCasual = /^(hi|hello|hey|how are you|thanks|thank you|ok|okay|cool|nice|great|casual conversation|general chat\b.*)$/i.test(objective.toLowerCase().replace(/[^\w\s?]/g, " ").replace(/\s+/g, " ").trim());
+
+  if (isCasual) {
+    return content.replace(/\n*Work Engine verdict: (?:success|partial|blocked|failed|needs_validation|needs_evidence)\.[\s\S]*$/i, "").trim();
+  }
+
   const warningBlock = warnings.length > 0 ? `\nWarnings:\n${warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
   const cleanContent = content
     .replace(/\n*Work Engine verdict: (?:success|partial|blocked|failed|needs_validation|needs_evidence)\.[\s\S]*$/i, "")

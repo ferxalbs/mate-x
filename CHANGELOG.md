@@ -13,6 +13,9 @@
 - Unified the topbar safety default with the canonical gate state so it starts at Needs check and never implies Clean before proof arrives.
 - Strengthened commit, push, and Commit & push interception so unvalidated actions fail closed and open the Active Gate before Git writes continue.
 - Restored explicit `sandbox_run` direct mode while preserving the policy stop that requires approval before direct workspace execution.
+- Polished conversational intent so casual prompts stay calm while repo safety gates remain strict for audit, validation, commit, push, and ship intent.
+- Implemented Work Engine verdict cleanup so partial and unvalidated states correctly show 'Needs check' instead of incorrectly surfacing 'Ready'.
+- Removed verbose machine-room output like Work Engine verdicts, primary targets, and validation plans from casual chat responses, preserving them only for full Active Gate audits.
 - Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and focused Bun tests for the touched Trust Gate/evidence panel logic.
 
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]
