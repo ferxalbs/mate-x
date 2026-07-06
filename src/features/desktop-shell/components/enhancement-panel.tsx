@@ -255,12 +255,14 @@ export function EnhancementPanel({
           {activeGroup === "status" ? (
             showActiveGate ? (
               <TrustGateCard
+                isRunning={runtime.isRunning}
                 onMakeTrustworthy={onMakeTrustworthy}
                 onReviewChanges={() => setActiveView("review")}
                 state={trustGate}
               />
             ) : (
               <ShipStatusStrip
+                isRunning={runtime.isRunning}
                 onMakeTrustworthy={onMakeTrustworthy}
                 onReviewLater={() => setCollapsed(true)}
                 state={trustGate}

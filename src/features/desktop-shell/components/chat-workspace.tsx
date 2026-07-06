@@ -1,8 +1,7 @@
-import type { RefObject, ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import type { ChatMessage } from "../../../contracts/chat";
+import type { AssistantRunOptions, ChatMessage } from "../../../contracts/chat";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
-import { useChatStore } from "../../../store/chat-store";
 import { ComposerDock } from "./composer-dock";
 import { EmptyChatState } from "./empty-chat-state";
 import { MessageStream } from "./message-stream";
@@ -15,13 +14,17 @@ interface ChatWorkspaceProps {
   isRunning: boolean;
   lastError: string | null;
   messages: ChatMessage[];
-  onSelectPrompt: (prompt: string) => void;
-  onSubmitPrompt?: (prompt: string) => void;
+  onSelectPrompt: (
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) => Promise<void> | void;
+  onSubmitPrompt?: (
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) => Promise<void> | void;
   onUndoLastTurn: () => Promise<string | null>;
   workspace: WorkspaceSummary | null;
 }
-
-const floatingComposerHeight = 228;
 
 export function ChatWorkspace({
   canUndoLastTurn,
@@ -35,7 +38,6 @@ export function ChatWorkspace({
   onUndoLastTurn,
   workspace,
 }: ChatWorkspaceProps) {
-  const settings = useChatStore((state) => state.settings);
   const hasMessages = messages.length > 0;
 
   return (
@@ -54,6 +56,7 @@ export function ChatWorkspace({
           <EmptyChatState
             composer={composer}
             isBootstrapped={isBootstrapped}
+            isRunning={isRunning}
             lastError={lastError}
             onSelectPrompt={onSubmitPrompt ?? onSelectPrompt}
             workspace={workspace}

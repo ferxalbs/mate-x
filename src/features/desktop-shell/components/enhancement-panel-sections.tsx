@@ -37,11 +37,13 @@ export type EnhancementView =
   | "evidence";
 
 export function TrustGateCard({
+  isRunning = false,
   onMakeTrustworthy,
   state,
   onReviewChanges,
   showOverride = false,
 }: {
+  isRunning?: boolean;
   onMakeTrustworthy?: () => void;
   onReviewChanges?: () => void;
   showOverride?: boolean;
@@ -50,6 +52,7 @@ export function TrustGateCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const canMakeTrustworthy =
     Boolean(onMakeTrustworthy) &&
+    !isRunning &&
     state.status !== "trusted" &&
     state.status !== "resolving";
   const primaryShowsDetails =
@@ -94,6 +97,7 @@ export function TrustGateCard({
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
             className="inline-flex flex-1 items-center justify-center rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)] disabled:cursor-default disabled:opacity-60"
+            disabled={isRunning}
             onClick={
               primaryShowsDetails
                 ? () => setDetailsOpen(true)
@@ -107,7 +111,8 @@ export function TrustGateCard({
           </button>
           {onReviewChanges ? (
             <button
-              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isRunning}
               onClick={onReviewChanges}
               type="button"
             >
@@ -159,10 +164,12 @@ export function TrustGateCard({
 }
 
 export function ShipStatusStrip({
+  isRunning = false,
   onMakeTrustworthy,
   onReviewLater,
   state,
 }: {
+  isRunning?: boolean;
   onMakeTrustworthy?: () => void;
   onReviewLater?: () => void;
   state: TrustGateState;
@@ -198,11 +205,12 @@ export function ShipStatusStrip({
       <div className="flex shrink-0 items-center gap-1.5">
         {state.status !== "trusted" ? (
           <button
-            className="rounded-full border border-border/60 bg-transparent px-2.5 py-1 text-[10px] font-medium text-foreground/80 transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent"
+            className="rounded-full border border-border/60 bg-transparent px-2.5 py-1 text-[10px] font-medium text-foreground/80 transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isRunning}
             onClick={onMakeTrustworthy}
             type="button"
           >
-            Run safety check
+            {isRunning ? "Running..." : "Run safety check"}
           </button>
         ) : null}
         <button
