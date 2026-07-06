@@ -41,6 +41,17 @@ export function HomePage() {
     setPendingPolicyStop(null);
   }
 
+  const handleSubmitPrompt = (prompt: string) => {
+    setComposerPrompt(prompt);
+    void submitPrompt(prompt, {
+      mode: 'build',
+      reasoningEnabled: true,
+      reasoning: 'high',
+      serviceTier: 'standard',
+      access: 'approval',
+    });
+  };
+
   const composer = (
     <ComposerPanel
       canUndoLastTurn={canUndoLastTurn}
@@ -135,6 +146,7 @@ export function HomePage() {
         lastError={lastError}
         messages={messages}
         onSelectPrompt={setComposerPrompt}
+        onSubmitPrompt={handleSubmitPrompt}
         onUndoLastTurn={undoLastTurn}
         workspace={workspace}
       />

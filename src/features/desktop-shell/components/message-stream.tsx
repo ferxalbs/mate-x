@@ -37,6 +37,7 @@ interface MessageStreamProps {
   messages: ChatMessage[];
   isRunning: boolean;
   onSelectPrompt: (prompt: string) => void;
+  onSubmitPrompt?: (prompt: string) => void;
   onUndoLastTurn: () => Promise<string | null>;
 }
 
@@ -45,6 +46,7 @@ export function MessageStream({
   messages,
   isRunning,
   onSelectPrompt,
+  onSubmitPrompt,
   onUndoLastTurn,
 }: MessageStreamProps) {
   const settings = useChatStore((state) => state.settings);
@@ -77,8 +79,10 @@ export function MessageStream({
                 index === messages.length - 1 &&
                 message.role === "assistant"
               }
+              isLast={index === messages.length - 1}
               message={message}
               onSelectPrompt={onSelectPrompt}
+              onSubmitPrompt={onSubmitPrompt}
               onUndo={onUndoLastTurn}
             />
           </MessageScrollerItem>
@@ -98,14 +102,18 @@ export function MessageStream({
 const MessageEntry = memo(function MessageEntry({
   message,
   isStreaming,
+  isLast,
   canUndo,
   onSelectPrompt,
+  onSubmitPrompt,
   onUndo,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
+  isLast: boolean;
   canUndo: boolean;
   onSelectPrompt: (prompt: string) => void;
+  onSubmitPrompt?: (prompt: string) => void;
   onUndo: () => Promise<string | null>;
 }) {
   const isUser = message.role === "user";
@@ -169,6 +177,7 @@ const MessageEntry = memo(function MessageEntry({
   }
 
   const normalizedContent = deferredContent.trim();
+  const showAmbientActions = normalizedContent.includes("Repo note: changes need a safety check before commit.");
 
   return (
     <article className="group animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] pl-6">
@@ -189,18 +198,18 @@ const MessageEntry = memo(function MessageEntry({
         ) : isStreaming ? (
           <AssistantPendingRow events={events} />
         ) : null}
-        {normalizedContent.includes("Repo note: changes need a safety check before commit.") && !isStreaming ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+        {isLast && showAmbientActions && !isStreaming ? (
+          <div className="mt-2.5 flex items-center gap-2">
             <button
-              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)]"
-              onClick={() => onSelectPrompt("Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.")}
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+              onClick={() => (onSubmitPrompt ?? onSelectPrompt)("Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.")}
               type="button"
             >
               Run safety check
             </button>
             <button
               className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
-              onClick={() => onSelectPrompt("Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.")}
+              onClick={() => (onSubmitPrompt ?? onSelectPrompt)("Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.")}
               type="button"
             >
               Review changes
