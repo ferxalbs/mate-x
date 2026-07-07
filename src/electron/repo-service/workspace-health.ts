@@ -86,10 +86,12 @@ export function detectPackageManager(files: string[], packageData: unknown) {
   const declaredManager = readDeclaredPackageManager(packageData);
   if (declaredManager) return declaredManager;
 
-  if (files.includes("bun.lock")) return "bun";
+  if (files.includes("bun.lock") || files.includes("bun.lockb")) return "bun";
   if (files.includes("pnpm-lock.yaml")) return "pnpm";
   if (files.includes("yarn.lock")) return "yarn";
-  if (files.includes("package-lock.json")) return "npm";
+  if (files.includes("package-lock.json") || files.includes("npm-shrinkwrap.json")) {
+    return "npm";
+  }
 
   return "unknown";
 }

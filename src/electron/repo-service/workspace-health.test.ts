@@ -11,6 +11,14 @@ describe('workspace health package manager detection', () => {
     assert.equal(detectPackageManager(['bun.lock'], null), 'bun');
   });
 
+  it('detects bun from binary lockfile', () => {
+    assert.equal(detectPackageManager(['bun.lockb'], null), 'bun');
+  });
+
+  it('detects npm from shrinkwrap lockfile', () => {
+    assert.equal(detectPackageManager(['npm-shrinkwrap.json'], null), 'npm');
+  });
+
   it('detects bun from packageManager field', () => {
     assert.equal(
       detectPackageManager([], { packageManager: 'bun@1.2.0' }),
