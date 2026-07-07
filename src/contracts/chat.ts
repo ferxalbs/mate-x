@@ -9,11 +9,13 @@ export type MessageArtifactTone = "default" | "success" | "warning";
 export type EvidencePackStatus = "complete" | "partial" | "blocked" | "failed";
 export type EvidencePackConfidence = "low" | "medium" | "high";
 export type AssistantReasoningLevel =
+  | "none"
   | "minimal"
   | "low"
   | "medium"
   | "high"
   | "xhigh"
+  | "max"
   | (string & {});
 export type AssistantMode =
   | "chat"

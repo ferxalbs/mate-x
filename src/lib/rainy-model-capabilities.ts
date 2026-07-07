@@ -5,7 +5,15 @@ import type {
 
 type CapabilitySource = RainyModelCatalogEntry | RainyModelCapabilities | null | undefined;
 
-const DEFAULT_REASONING_EFFORTS = ["low", "medium", "high"] as const;
+const DEFAULT_REASONING_EFFORTS = [
+  "max",
+  "xhigh",
+  "high",
+  "medium",
+  "low",
+  "minimal",
+  "none",
+] as const;
 
 export function supportsReasoning(model: CapabilitySource) {
   return getCapabilities(model)?.reasoning?.supported === true;
