@@ -14,7 +14,9 @@ export function buildWorkspaceHealthProfile({
 }): WorkspaceHealthProfile {
   const packageData = parsePackageJson(packageJson);
   const scripts = readPackageScripts(packageData);
-  const packageManager = detectPackageManager(files, packageData);
+  const packageManagerDetails = detectPackageManagerDetails(files, packageData);
+  const packageManager = packageManagerDetails.name;
+  const testRunner = detectTestRunner(files, packageJson, scripts);
   const testCommand = detectScriptCommand(packageManager, scripts, [
     "test",
     "test:unit",
@@ -22,9 +24,15 @@ export function buildWorkspaceHealthProfile({
   ]);
   const lintCommand = detectScriptCommand(packageManager, scripts, ["lint"]);
   const buildCommand = detectScriptCommand(packageManager, scripts, ["build"]);
+  const typecheckCommand = detectScriptCommand(packageManager, scripts, [
+    "typecheck",
+    "check:types",
+    "tsc",
+  ]);
   const secretWarningCount = countSecretRiskSignals(files);
   const dependencyWarningCount =
-    packageManager === "unknown" && packageJson ? 1 : 0;
+    packageManagerDetails.warnings.length +
+    (packageManager === "unknown" && packageJson ? 1 : 0);
   const gitDirtyState = status
     ? status.isClean
       ? "clean"
@@ -34,11 +42,14 @@ export function buildWorkspaceHealthProfile({
   return {
     stack,
     packageManager,
+    packageManagerSource: packageManagerDetails.source,
+    packageManagerWarnings: packageManagerDetails.warnings,
     framework: detectPrimaryFramework(stack),
-    testRunner: detectTestRunner(files, packageJson, scripts),
+    testRunner,
     testCommand,
     lintCommand,
     buildCommand,
+    typecheckCommand,
     gitDirtyState,
     dependencyWarningCount,
     secretWarningCount,
@@ -49,6 +60,7 @@ export function buildWorkspaceHealthProfile({
       lintCommand,
       secretWarningCount,
       testCommand,
+      typecheckCommand,
     }),
     updatedAt: new Date().toISOString(),
   };
@@ -83,17 +95,53 @@ function readPackageScripts(packageData: unknown): Record<string, string> {
 }
 
 export function detectPackageManager(files: string[], packageData: unknown) {
-  const declaredManager = readDeclaredPackageManager(packageData);
-  if (declaredManager) return declaredManager;
+  return detectPackageManagerDetails(files, packageData).name;
+}
 
-  if (files.includes("bun.lock") || files.includes("bun.lockb")) return "bun";
-  if (files.includes("pnpm-lock.yaml")) return "pnpm";
-  if (files.includes("yarn.lock")) return "yarn";
-  if (files.includes("package-lock.json") || files.includes("npm-shrinkwrap.json")) {
-    return "npm";
+export function detectPackageManagerDetails(
+  files: string[],
+  packageData: unknown,
+) {
+  const declaredManager = readDeclaredPackageManager(packageData);
+  const evidence = collectPackageManagerEvidence(files);
+  const warnings = getPackageManagerWarnings(
+    declaredManager ? [declaredManager, ...evidence] : evidence,
+  );
+
+  if (declaredManager) {
+    return {
+      name: declaredManager.name,
+      source: declaredManager.source,
+      warnings,
+    };
   }
 
-  return "unknown";
+  const rootEvidence = evidence.find((entry) => entry.scope === "root");
+  if (rootEvidence) {
+    return {
+      name: rootEvidence.name,
+      source: rootEvidence.source,
+      warnings,
+    };
+  }
+
+  const nestedEvidence = evidence[0];
+  if (nestedEvidence) {
+    return {
+      name: nestedEvidence.name,
+      source: nestedEvidence.source,
+      warnings: [
+        ...warnings,
+        `Package manager inferred from nested ${nestedEvidence.file}; root intent is not explicit.`,
+      ],
+    };
+  }
+
+  return {
+    name: "unknown",
+    source: "none",
+    warnings,
+  };
 }
 
 export function detectScriptCommand(
@@ -109,6 +157,30 @@ export function detectScriptCommand(
 }
 
 function readDeclaredPackageManager(packageData: unknown) {
+  const manager = readPackageManagerField(packageData);
+  if (manager) {
+    return {
+      name: manager,
+      source: "package.json packageManager",
+      scope: "root" as const,
+      file: "package.json",
+    };
+  }
+
+  const devEngineManager = readDevEnginesPackageManager(packageData);
+  if (devEngineManager) {
+    return {
+      name: devEngineManager,
+      source: "package.json devEngines.packageManager",
+      scope: "root" as const,
+      file: "package.json",
+    };
+  }
+
+  return null;
+}
+
+function readPackageManagerField(packageData: unknown) {
   if (
     !packageData ||
     typeof packageData !== "object" ||
@@ -120,6 +192,87 @@ function readDeclaredPackageManager(packageData: unknown) {
 
   const manager = packageData.packageManager.split("@")[0]?.trim();
   return isNodePackageManager(manager) ? manager : null;
+}
+
+function readDevEnginesPackageManager(packageData: unknown) {
+  if (
+    !packageData ||
+    typeof packageData !== "object" ||
+    !("devEngines" in packageData) ||
+    !packageData.devEngines ||
+    typeof packageData.devEngines !== "object" ||
+    !("packageManager" in packageData.devEngines)
+  ) {
+    return null;
+  }
+
+  const value = packageData.devEngines.packageManager;
+  const manager =
+    typeof value === "string"
+      ? value.split("@")[0]?.trim()
+      : value &&
+          typeof value === "object" &&
+          "name" in value &&
+          typeof value.name === "string"
+        ? value.name.trim()
+        : null;
+
+  return isNodePackageManager(manager) ? manager : null;
+}
+
+function collectPackageManagerEvidence(files: string[]) {
+  return files.flatMap((file) => {
+    const normalized = file.replaceAll("\\", "/");
+    const basename = normalized.split("/").pop();
+    const scope = normalized === basename ? ("root" as const) : ("nested" as const);
+    const name = lockfilePackageManager(basename);
+
+    return name
+      ? [
+          {
+            name,
+            source: `${scope} ${basename}`,
+            scope,
+            file: normalized,
+          },
+        ]
+      : [];
+  });
+}
+
+function lockfilePackageManager(file: string | undefined) {
+  switch (file) {
+    case "bun.lock":
+    case "bun.lockb":
+      return "bun";
+    case "pnpm-lock.yaml":
+      return "pnpm";
+    case "yarn.lock":
+      return "yarn";
+    case "package-lock.json":
+    case "npm-shrinkwrap.json":
+      return "npm";
+    default:
+      return null;
+  }
+}
+
+function getPackageManagerWarnings(
+  evidence: Array<{ name: string; source: string }>,
+) {
+  const managers = new Map<string, string[]>();
+
+  for (const entry of evidence) {
+    managers.set(entry.name, [...(managers.get(entry.name) ?? []), entry.source]);
+  }
+
+  if (managers.size <= 1) return [];
+
+  const summary = Array.from(managers.entries())
+    .map(([manager, sources]) => `${manager}: ${sources.join(", ")}`)
+    .join("; ");
+
+  return [`Conflicting package manager evidence found (${summary}).`];
 }
 
 function isNodePackageManager(manager: string | undefined | null) {
@@ -183,11 +336,13 @@ function getRecommendedHealthAction({
   secretWarningCount,
   dependencyWarningCount,
   gitDirtyState,
+  typecheckCommand,
 }: Pick<
   WorkspaceHealthProfile,
   | "testCommand"
   | "lintCommand"
   | "buildCommand"
+  | "typecheckCommand"
   | "secretWarningCount"
   | "dependencyWarningCount"
   | "gitDirtyState"
@@ -196,7 +351,8 @@ function getRecommendedHealthAction({
   if (testCommand === "unknown") return "Add or configure a test script for verified runs.";
   if (lintCommand === "unknown") return "Add or configure a lint script for quality validation.";
   if (buildCommand === "unknown") return "Add or configure a build script for release validation.";
-  if (dependencyWarningCount > 0) return "Confirm package manager before dependency validation.";
+  if (typecheckCommand === "unknown") return "Add or configure a typecheck script for release validation.";
+  if (dependencyWarningCount > 0) return "Resolve package manager evidence before dependency validation.";
   if (gitDirtyState !== "clean" && gitDirtyState !== "not-a-repo") {
     return "Run validation against changed files before committing.";
   }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  detectPackageManagerDetails,
   detectPackageManager,
   detectScriptCommand,
 } from './workspace-health';
@@ -24,6 +25,30 @@ describe('workspace health package manager detection', () => {
       detectPackageManager([], { packageManager: 'bun@1.2.0' }),
       'bun',
     );
+  });
+
+  it('detects package manager from devEngines packageManager object', () => {
+    assert.equal(
+      detectPackageManager([], {
+        devEngines: { packageManager: { name: 'pnpm', version: '>=9' } },
+      }),
+      'pnpm',
+    );
+  });
+
+  it('normalizes nested and windows-style lockfile evidence', () => {
+    assert.equal(detectPackageManager(['apps/web\\yarn.lock'], null), 'yarn');
+  });
+
+  it('reports conflicting package manager evidence without hiding declared intent', () => {
+    const result = detectPackageManagerDetails(
+      ['bun.lock', 'pnpm-lock.yaml'],
+      { packageManager: 'bun@1.2.0' },
+    );
+
+    assert.equal(result.name, 'bun');
+    assert.equal(result.source, 'package.json packageManager');
+    assert.match(result.warnings.join('\n'), /Conflicting package manager evidence/);
   });
 
   it('does not assume npm for package.json without package manager evidence', () => {
