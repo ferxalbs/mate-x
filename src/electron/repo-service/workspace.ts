@@ -273,12 +273,14 @@ async function resolveWorkspace(
 async function buildWorkspaceSummary(
   workspace: WorkspaceEntry,
 ): Promise<WorkspaceSummary> {
-  const [status, files, packageJson] = await Promise.all([
+  const [status, listedFiles, packageJson, qualityFiles] = await Promise.all([
     new GitService(workspace.path).getStatusSafe(),
     listWorkspaceFiles(workspace.path, 180),
     readFileMaybe(workspace.path, "package.json"),
+    detectRootQualityFiles(workspace.path),
   ]);
 
+  const files = [...new Set([...qualityFiles, ...listedFiles])];
   const stack = deriveStack(files, packageJson);
   const dirtyCount = status?.files.length ?? 0;
   const apiKey = await tursoService.getApiKey();
@@ -392,6 +394,38 @@ async function readFileMaybe(workspacePath: string, relativePath: string) {
   } catch {
     return null;
   }
+}
+
+const ROOT_QUALITY_FILES = [
+  "package.json",
+  "bun.lock",
+  "bun.lockb",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "vitest.config.ts",
+  "vitest.config.mts",
+  "vitest.config.js",
+  "jest.config.ts",
+  "jest.config.js",
+  "playwright.config.ts",
+  "playwright.config.js",
+];
+
+async function detectRootQualityFiles(workspacePath: string) {
+  const checks = await Promise.all(
+    ROOT_QUALITY_FILES.map(async (file) => {
+      try {
+        await access(path.join(workspacePath, file));
+        return file;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return checks.filter((file): file is string => file !== null);
 }
 
 const FALLBACK_IGNORED_DIRS = new Set([
