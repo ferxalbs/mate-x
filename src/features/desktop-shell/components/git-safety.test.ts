@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { ambientSafetyActions } from "./ambient-safety-actions";
 import { getGitGateBlockedCopy, shouldGateGitAction } from "./git-safety";
 
 describe("git safety gate", () => {
@@ -34,5 +35,12 @@ describe("git safety gate", () => {
       reason: "Blocked because this change has no proof yet.",
       primaryCta: "Run Factory verification",
     });
+  });
+
+  it("starts Factory verification from the blocked git CTA action", () => {
+    assert.equal(ambientSafetyActions.runSafetyCheck.label, "Run Factory verification");
+    assert.equal(ambientSafetyActions.runSafetyCheck.overrides.mode, "factory");
+    assert.equal(ambientSafetyActions.runSafetyCheck.overrides.access, "approval");
+    assert.equal(ambientSafetyActions.runSafetyCheck.overrides.runbookId, "patch_test_verify");
   });
 });

@@ -20,7 +20,12 @@
 - Implemented Work Engine verdict cleanup so partial and unvalidated states correctly show 'Needs check' instead of incorrectly surfacing 'Ready'.
 - Removed verbose machine-room output like Work Engine verdicts, primary targets, and validation plans from casual chat responses, preserving them only for full Active Gate audits.
 - Hardened Repo Health for v0.1.1 by making package-manager detection evidence-based across `packageManager`, `devEngines.packageManager`, Bun, pnpm, Yarn, and npm lockfiles; surfacing conflicting package-manager evidence; adding Build and Types signals; and replacing vague weak verdict copy with specific missing-signal detail.
-- Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and focused Bun tests for the touched Trust Gate/evidence panel logic.
+- Added Factory Mode Lite as a structured engineering run flow across Chat, Review, Factory, and Ship modes, with Factory/Ship attaching visible Spec, Repo context, Risk surfaces, Validation plan, Agent actions, Verification result, Ratchet suggestions, and Ship Proof stages.
+- Hardened Factory/Ship behavior so approval-required access is enforced in both renderer submission and main-process option normalization, Ship uses the proof-producing verification runbook, and direct renderer or IPC input cannot silently escalate Factory/Ship to full access.
+- Tightened FactoryRun truthfulness so missing validation, missing repo-context evidence, missing risk-surface evidence, and fake proof remain visible as missing or blocked instead of surfacing trusted, ready, or validated states.
+- Updated the blocked Git flow so unproven commit/push attempts show "Blocked because this change has no proof yet." with the "Run Factory verification" CTA, and that CTA now starts a Factory verification run instead of a generic safety check.
+- Added approval-gated ratchet rule suggestions for repeated command/tool/package-manager/workspace failures without auto-writing repo rules.
+- Verified with `~/.bun/bin/bun test src/lib/factory-run.test.ts src/features/desktop-shell/components/git-safety.test.ts src/store/chat-store.test.ts src/electron/assistant-runbooks.test.ts`, `~/.bun/bin/bun run typecheck`, and `~/.bun/bin/bun run lint`.
 
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]
 

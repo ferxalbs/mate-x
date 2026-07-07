@@ -59,6 +59,8 @@ export function completeFactoryRun(
   const plannedValidation = hasEvent(params.events, /plan_validation|validation plan/i);
   const ranValidation = hasEvent(params.events, /run_tests|sandbox_run|validation run/i);
   const failedValidation = hasErrorEvent(params.events, /run_tests|sandbox_run|validation/i);
+  const mappedRepoContext = hasEvent(params.events, /repo(graph)?|semantic memory|workspace health|working set|git status/i);
+  const mappedRiskSurfaces = hasEvent(params.events, /risk surface|trust gate|active gate|privacy firewall|policy stop|security|blast radius/i);
   const ratchetSuggestions = createRatchetSuggestions(params.events);
 
   return {
@@ -68,16 +70,18 @@ export function completeFactoryRun(
       if (stage.id === "repo_context") {
         return {
           ...stage,
-          status: "completed",
-          summary: "RepoGraph, workspace health, git status, and working set context were available before broad reads.",
+          status: mappedRepoContext ? "completed" : "missing",
+          summary: mappedRepoContext
+            ? "Repo context evidence was recorded before broad reads."
+            : "No RepoGraph, workspace health, working set, or git status evidence was recorded.",
         };
       }
       if (stage.id === "risk_surfaces") {
         return {
           ...stage,
-          status: params.events.length > 0 ? "completed" : "missing",
+          status: mappedRiskSurfaces ? "completed" : "missing",
           summary:
-            params.events.length > 0
+            mappedRiskSurfaces
               ? "Risk surfaces were derived from runtime context and tool events."
               : "No tool evidence recorded risk surfaces.",
         };

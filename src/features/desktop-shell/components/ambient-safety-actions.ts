@@ -12,10 +12,10 @@ export interface AmbientSafetyAction {
 export const ambientSafetyActions = {
   runSafetyCheck: {
     id: "runSafetyCheck",
-    label: "Run safety check",
+    label: "Run Factory verification",
     prompt:
-      "Run the smallest useful safety check for the current changes. Do not claim Ready unless validation passes and proof is available.",
-    overrides: { runbookId: "scan_contain_report" },
+      "Run Factory verification for the current changes. Build a validation plan, run the smallest useful proof-producing checks, and do not claim Ready unless validation passes and Ship Proof is available.",
+    overrides: { mode: "factory", runbookId: "patch_test_verify", access: "approval" },
   },
   reviewChanges: {
     id: "reviewChanges",
@@ -27,7 +27,7 @@ export const ambientSafetyActions = {
 } satisfies Record<AmbientSafetyActionId, AmbientSafetyAction>;
 
 export const defaultAmbientSafetyRunOptions = {
-  mode: "build",
+  mode: "review",
   reasoningEnabled: true,
   reasoning: "high",
   serviceTier: "standard",
