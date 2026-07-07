@@ -19,6 +19,7 @@
 - Polished conversational intent so casual prompts stay calm while repo safety gates remain strict for audit, validation, commit, push, and ship intent.
 - Implemented Work Engine verdict cleanup so partial and unvalidated states correctly show 'Needs check' instead of incorrectly surfacing 'Ready'.
 - Removed verbose machine-room output like Work Engine verdicts, primary targets, and validation plans from casual chat responses, preserving them only for full Active Gate audits.
+- Hardened Repo Health for v0.1.1 by making package-manager detection evidence-based across `packageManager`, `devEngines.packageManager`, Bun, pnpm, Yarn, and npm lockfiles; surfacing conflicting package-manager evidence; adding Build and Types signals; and replacing vague weak verdict copy with specific missing-signal detail.
 - Verified with `~/.bun/bin/bun run lint`, `~/.bun/bin/bun run typecheck`, and focused Bun tests for the touched Trust Gate/evidence panel logic.
 
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]

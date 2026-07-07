@@ -29,11 +29,14 @@ export interface WorkspaceSummary {
 export interface WorkspaceHealthProfile {
   stack: string[];
   packageManager: string;
+  packageManagerSource: string;
+  packageManagerWarnings: string[];
   framework: string;
   testRunner: string;
   testCommand: string;
   lintCommand: string;
   buildCommand: string;
+  typecheckCommand: string;
   gitDirtyState: string;
   dependencyWarningCount: number;
   secretWarningCount: number;

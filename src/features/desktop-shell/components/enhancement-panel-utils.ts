@@ -209,6 +209,8 @@ export function getRepoFields(health: WorkspaceHealthProfile | null) {
       ["PM", "Unknown"],
       ["Test", "Map pending"],
       ["Lint", "Map pending"],
+      ["Build", "Map pending"],
+      ["Types", "Map pending"],
       ["Git", "Pending"],
       ["Secrets", "0"],
     ];
@@ -219,6 +221,8 @@ export function getRepoFields(health: WorkspaceHealthProfile | null) {
     ["PM", health.packageManager],
     ["Test", health.testCommand],
     ["Lint", health.lintCommand],
+    ["Build", health.buildCommand],
+    ["Types", health.typecheckCommand],
     ["Git", health.gitDirtyState],
     ["Secrets", String(health.secretWarningCount)],
   ];
@@ -250,7 +254,16 @@ export function getRepoHealthSignals(
     Boolean(health.testCommand) && health.testCommand !== "unknown";
   const hasLintCommand =
     Boolean(health.lintCommand) && health.lintCommand !== "unknown";
+  const hasBuildCommand =
+    Boolean(health.buildCommand) && health.buildCommand !== "unknown";
+  const hasTypecheckCommand =
+    Boolean(health.typecheckCommand) && health.typecheckCommand !== "unknown";
   const secretCount = health.secretWarningCount;
+  const packageManagerWarnings = health.packageManagerWarnings ?? [];
+  const testValue =
+    hasTestCommand || health.testRunner === "unknown"
+      ? health.testCommand
+      : `${health.testRunner} detected`;
 
   return [
     {
@@ -260,18 +273,34 @@ export function getRepoHealthSignals(
     },
     {
       label: "PM",
-      value: health.packageManager,
-      tone: health.packageManager === "unknown" ? "warn" : "good",
+      value: packageManagerWarnings.length > 0
+        ? `${health.packageManager} · check`
+        : health.packageManager,
+      tone: health.packageManager === "unknown"
+        ? "warn"
+        : packageManagerWarnings.length > 0
+          ? "watch"
+          : "good",
     },
     {
       label: "Tests",
-      value: health.testCommand,
-      tone: hasTestCommand ? "good" : "warn",
+      value: testValue,
+      tone: hasTestCommand ? "good" : health.testRunner === "unknown" ? "warn" : "watch",
     },
     {
       label: "Lint",
       value: health.lintCommand,
       tone: hasLintCommand ? "good" : "warn",
+    },
+    {
+      label: "Build",
+      value: health.buildCommand,
+      tone: hasBuildCommand ? "good" : "warn",
+    },
+    {
+      label: "Types",
+      value: health.typecheckCommand,
+      tone: hasTypecheckCommand ? "good" : "watch",
     },
     {
       label: "Git",
@@ -311,9 +340,17 @@ export function getRepoHealthVerdict(
   }
 
   if (signals.some((signal) => signal.tone === "warn")) {
+    const missing = signals
+      .filter((signal) => signal.tone === "warn")
+      .map((signal) => signal.label.toLowerCase())
+      .slice(0, 3)
+      .join(", ");
+
     return {
       label: "Weak",
-      detail: "Repo is missing core quality signals.",
+      detail: missing
+        ? `Repo missing usable ${missing} signal${missing.includes(",") ? "s" : ""}.`
+        : "Repo is missing core quality signals.",
       tone: "warn" as SignalTone,
     };
   }
