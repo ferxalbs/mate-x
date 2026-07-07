@@ -344,9 +344,9 @@ class MobileBridgeService {
       options,
       request.runId
         ? {
-            runId: request.runId,
-            emit: (progress) => this.send(client, { id: commandId, ok: true, payload: { type: "assistant:progress", progress } }),
-          }
+          runId: request.runId,
+          emit: (progress) => this.send(client, { id: commandId, ok: true, payload: { type: "assistant:progress", progress } }),
+        }
         : undefined,
     );
   }
@@ -373,7 +373,16 @@ class MobileBridgeService {
     const input = value as Record<string, unknown>;
     return {
       ...defaults,
-      mode: input.mode === "plan" || input.mode === "critic_loop" || input.mode === "build" ? input.mode : defaults.mode,
+      mode:
+        input.mode === "chat" ||
+          input.mode === "review" ||
+          input.mode === "factory" ||
+          input.mode === "ship" ||
+          input.mode === "plan" ||
+          input.mode === "critic_loop" ||
+          input.mode === "build"
+          ? input.mode
+          : defaults.mode,
       access: "approval",
       reasoningEnabled: typeof input.reasoningEnabled === "boolean" ? input.reasoningEnabled : defaults.reasoningEnabled,
       runbookId: typeof input.runbookId === "string" ? input.runbookId as AssistantRunOptions["runbookId"] : defaults.runbookId,

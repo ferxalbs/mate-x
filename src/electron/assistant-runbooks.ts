@@ -251,7 +251,12 @@ export function resolveAssistantRunOptions(
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     mode:
-      options?.mode === "plan" || options?.mode === "critic_loop"
+      options?.mode === "chat" ||
+        options?.mode === "review" ||
+        options?.mode === "factory" ||
+        options?.mode === "ship" ||
+        options?.mode === "plan" ||
+        options?.mode === "critic_loop"
         ? options.mode
         : DEFAULT_ASSISTANT_OPTIONS.mode,
     access:

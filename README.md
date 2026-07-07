@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Trust Gate for vibe-coded software.</strong><br/>
-  Don't merge vibes. Check AI-made changes before you ship.
+  <strong>Open-source agentic engineering cockpit.</strong><br/>
+  Build with AI, inspect the run, and ship only what has proof.
 </p>
 
 <p align="center">
@@ -13,11 +13,67 @@
   <a href="https://mate-x.xyz"><img alt="Website" src="https://img.shields.io/badge/website-mate--x.xyz-171717?labelColor=171717&color=10b981"></a>
 </p>
 
-MaTE X is an Electron desktop application that acts as a local trust layer for arbitrary repositories. It opens a local codebase, classifies project surfaces, checks what an AI agent changed, surfaces risk, validates when possible, and preserves proof while keeping privileged operations inside the desktop main process.
+MaTE X is an open-source agentic engineering cockpit for developers using AI to build real software, not just vibe-code demos.
+
+It is an Electron desktop application that opens a local codebase, maps repository context, classifies project surfaces, checks what an AI agent changed, surfaces risk, validates when possible, and preserves proof while keeping privileged operations inside the desktop main process.
 
 The product is designed for repository security work, not generic chat over files. Analysis must separate runtime code from tests, docs, examples, generated files, scanner rules, and reference material so findings stay grounded in the code that can actually execute. The goal is to move security into the development loop: vibe code fast, but ship only what is proven.
 
-MaTE X does not guarantee security, prevent every bug, or replace human review. It gives teams a Trust Gate: agent changes are not trusted until validation, policy, and proof signals support the verdict.
+MaTE X does not guarantee security, prevent every bug, or replace human review. It gives developers a cockpit for turning AI work into inspectable engineering runs: understand the task, map the repo, identify risk, validate, verify, and keep proof.
+
+## Why MaTE X Exists
+
+AI coding tools are fast, but real software still needs repo context, validation, reviewable actions, and a record of what happened. MaTE X packages those steps into a local-first workflow so developers can keep using strong agents without treating final prose as proof.
+
+The goal is not another generic chat box over files. The goal is a transparent cockpit where agent work is structured, inspectable, hackable, and grounded in the repository in front of you.
+
+## Factory Mode Lite
+
+Factory Mode Lite converts a user task into a structured engineering run:
+
+```text
+Spec -> Repo Map -> Risk Map -> Validation Plan -> Agent Run -> Verification -> Ratchet Suggestion -> Ship Proof
+```
+
+It does not add a large new autonomous system or DAG UI. It reuses the existing MaTE X runtime: RepoGraph semantic memory, workspace health, validation planner, Trust Gate, Active Gate, Agent Trace, Privacy Firewall, Failure Memory, and evidence generation.
+
+Factory mode starts from repo intelligence before broad file reads, requires validation planning before fix or ship claims, uses approval-required access by default, and shows missing validation honestly.
+
+## Ship Proof
+
+Ship Proof is the casual product name for the local proof receipt generated from a run. When proof exists, MaTE X can show:
+
+- verdict
+- touched files count
+- risk surfaces
+- validation commands
+- passed, failed, and missing evidence
+- privacy status
+- whether commit or push is allowed or blocked
+
+No proof means no green claim. When commit or push is blocked, MaTE X says why and routes back to Factory verification.
+
+## Ratchet Rules
+
+When a run repeatedly fails because of command, tool, package-manager, or workspace behavior, MaTE X can suggest a durable repo rule for:
+
+- `AGENTS.md`
+- `RULES.md`
+- `.mate-x/rules.json`
+
+Rules are suggestions, not automatic writes. The developer chooses whether to add the repo rule, ignore it once, or never suggest it again.
+
+## Local-First Safety
+
+MaTE X keeps the sensitive parts of the workflow local: repository access, shell and Git operations, local state, privacy checks, and proof artifacts stay behind the desktop boundary. Cloud model calls receive deliberately prepared context after local privacy checks.
+
+The project is designed to be inspectable and hackable. Runtime behavior, gates, validation evidence, and proof outputs should be understandable from the local app and repository state.
+
+## Roadmap
+
+- Factory DAG for richer run visualization.
+- OpenAI Agents SDK provider.
+- Temporary preview deploys for validation and review.
 
 ## What MaTE X Does
 
@@ -29,7 +85,7 @@ MaTE X does not guarantee security, prevent every bug, or replace human review. 
 - Keeps file system access, Git operations, local persistence, API key lookup, and other sensitive actions in the Electron main process.
 - Sends only deliberately prepared context to the Rainy API v3 backend after local privacy checks and redaction gates.
 - Stores settings, run state, findings, and compliance artifacts locally.
-- Produces local Ship Proof receipts and compliance Evidence Packs for completed agent runs when proof output is available.
+- Produces local Ship Proof receipts for completed agent runs when proof output is available.
 
 ## Architecture
 

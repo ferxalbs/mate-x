@@ -15,11 +15,14 @@ export function buildAgentRuntimeConfig(
   prompt = "",
 ): AgentRuntimeConfig {
   const executionIntent =
-    (options.mode === "build" || options.mode === "critic_loop") &&
+    (options.mode === "build" ||
+      options.mode === "factory" ||
+      options.mode === "ship" ||
+      options.mode === "critic_loop") &&
     isExecutionIntentPrompt(prompt);
   const requireToolingFirst = executionIntent;
   const minToolRounds = executionIntent ? 1 : 0;
-  const planLikeMode = options.mode === "plan";
+  const planLikeMode = options.mode === "plan" || options.mode === "chat" || options.mode === "review";
 
   switch (options.reasoning) {
     case "low":
