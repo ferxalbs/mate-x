@@ -15,3 +15,10 @@ export function shouldGateGitAction(
 
   return state?.validated !== true;
 }
+
+export function getGitGateBlockedCopy() {
+  return {
+    reason: "Blocked because this change has no proof yet.",
+    primaryCta: "Run Factory verification",
+  };
+}

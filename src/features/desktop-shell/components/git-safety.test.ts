@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { shouldGateGitAction } from "./git-safety";
+import { getGitGateBlockedCopy, shouldGateGitAction } from "./git-safety";
 
 describe("git safety gate", () => {
   it("blocks commit and push actions when safety state is missing", () => {
@@ -27,5 +27,12 @@ describe("git safety gate", () => {
     assert.equal(shouldGateGitAction("commit-push", validated), false);
     assert.equal(shouldGateGitAction("push-pr", validated), false);
     assert.equal(shouldGateGitAction("push", validated), false);
+  });
+
+  it("routes blocked git actions to Factory verification CTA", () => {
+    assert.deepEqual(getGitGateBlockedCopy(), {
+      reason: "Blocked because this change has no proof yet.",
+      primaryCta: "Run Factory verification",
+    });
   });
 });

@@ -26,6 +26,11 @@ import {
   setActiveWorkspace,
 } from "../services/repo-client";
 import { buildThreadTitle } from "../features/desktop-shell/model";
+import {
+  completeFactoryRun,
+  createFactoryRun,
+  normalizeFactoryRunOptions,
+} from "../lib/factory-run";
 import { type AppSettings, DEFAULT_APP_SETTINGS } from "../contracts/settings";
 import { getAppSettings } from "../services/settings-client";
 
@@ -718,8 +723,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
   async submitPrompt(prompt: string, options: AssistantRunOptions) {
+    const runOptions = normalizeFactoryRunOptions(options);
     const trimmedPrompt = prompt.trim();
-    const attachmentNames = options.attachments?.map((attachment) => attachment.name) ?? [];
+    const attachmentNames = runOptions.attachments?.map((attachment) => attachment.name) ?? [];
     const displayedPrompt =
       trimmedPrompt ||
       (attachmentNames.length > 0
@@ -757,6 +763,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: new Date().toISOString(),
       events: [],
       artifacts: [],
+      factoryRun: createFactoryRun({
+        id: createId("factory"),
+        prompt: displayedPrompt,
+        options: runOptions,
+        createdAt: new Date().toISOString(),
+      }),
     };
     const reproducibleRun: ReproducibleRun = redactRun({
       id: runId,
@@ -776,10 +788,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeMessageCount: currentThread.messages.length,
         settings: {
           reasoningEnabled: options.reasoningEnabled,
-          reasoning: options.reasoning,
-          mode: options.mode,
-          access: options.access,
-          runbookId: options.runbookId,
+          reasoning: runOptions.reasoning,
+          mode: runOptions.mode,
+          access: runOptions.access,
+          runbookId: runOptions.runbookId,
         },
         trustAutonomy: get().trustContract?.autonomy,
       },
@@ -871,7 +883,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const assistantExecution = runAssistant(
         displayedPrompt,
         historyBeforePrompt,
-        options,
+        runOptions,
         runId,
       );
       const execution = await Promise.race([
@@ -879,21 +891,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
         noProgressTimeout,
       ]);
 
+      const finalMessage: ChatMessage = {
+        ...execution.message,
+        factoryRun: completeFactoryRun(assistantPlaceholder.factoryRun, {
+          events: execution.message.events ?? [],
+          evidencePack: execution.message.evidencePack,
+          completedAt: execution.message.createdAt,
+        }),
+      };
+
       const finalRun = await sealRunIntegrity({
         ...reproducibleRun,
-        assistantMessageId: execution.message.id,
+        assistantMessageId: finalMessage.id,
         status: "completed",
-        completedAt: execution.message.createdAt,
-        events: execution.message.events ?? [],
-        artifacts: execution.message.artifacts ?? [],
+        completedAt: finalMessage.createdAt,
+        events: finalMessage.events ?? [],
+        artifacts: finalMessage.artifacts ?? [],
         result: {
           status: "completed",
           summary:
-            execution.message.evidencePack?.verdict.summary ??
-            execution.message.content.trim().slice(0, 600) ??
+            finalMessage.evidencePack?.verdict.summary ??
+            finalMessage.content.trim().slice(0, 600) ??
             "Assistant completed without final synthesis text.",
-          evidencePack: execution.message.evidencePack,
-          workingSet: execution.message.workingSet?.metadata,
+          evidencePack: finalMessage.evidencePack,
+          workingSet: finalMessage.workingSet?.metadata,
         },
       });
 
@@ -909,15 +930,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 : {
                     ...thread,
                     title: execution.suggestedTitle ?? thread.title,
-                    lastUpdatedAt: execution.message.createdAt,
+                    lastUpdatedAt: finalMessage.createdAt,
                     messages:
                       activeRun && activeRun.runId === runId
                         ? replaceMessageById(
                             thread.messages,
                             activeRun.messageId,
-                            execution.message,
+                            finalMessage,
                           )
-                        : [...thread.messages, execution.message],
+                        : [...thread.messages, finalMessage],
                     runs: replaceRunById(thread.runs, finalRun),
                   },
             )
@@ -945,6 +966,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: "assistant",
         content: formattedError,
         createdAt: new Date().toISOString(),
+        factoryRun: completeFactoryRun(assistantPlaceholder.factoryRun, {
+          events: [],
+          completedAt: new Date().toISOString(),
+        }),
         artifacts: [
           {
             id: "assistant-error",

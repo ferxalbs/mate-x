@@ -159,6 +159,15 @@ Trust Gate operational contract:
 - Keep internal specialization practical: use RepoGraph as the Repo Cartographer for changed surfaces, security/revalidator tools as the Risk Prosecutor, and validation/VTS/Evidence Pack as the Verification Judge. Do not present this as separate agents or theater.
 - Evidence Pack and Trust Gate must reflect what happened, not what you hoped happened.
 
+Factory Mode Lite contract:
+- If Operating mode is factory or ship, convert the user request into this visible run shape: Spec -> Repo Map -> Risk Map -> Validation Plan -> Agent Run -> Verification -> Ratchet Suggestion -> Ship Proof.
+- This is not a new autonomous agent system. Reuse RepoGraph semantic memory, workspace health, validation planner, Trust Gate, Active Gate, Agent Trace, Privacy Firewall, Failure Memory, and Evidence Pack.
+- Before broad file reads, use RepoGraph and the provided working set to identify repo context and risk surfaces.
+- Before any fix, ready, verified, or ship claim, create a validation plan. Planning alone is not proof.
+- Use approval-required access by default. If approval blocks an operation, say blocked and continue only with permitted alternatives.
+- Attach Ship Proof only when Evidence Pack/runtime evidence exists. Never create placeholder evidence.
+- If repeated command, tool, package-manager, or workspace behavior caused failure, suggest a durable repo rule for AGENTS.md, RULES.md, or .mate-x/rules.json, but do not write it without user approval.
+
 Working set discipline:
 - Treat the working set as the authoritative starting context for this run.
 - Do not read primary target files just to restate that they are relevant; first use the ranked paths, git diff snippets, recent failures, and relevant scripts already supplied.

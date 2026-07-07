@@ -15,7 +15,14 @@ export type AssistantReasoningLevel =
   | "high"
   | "xhigh"
   | (string & {});
-export type AssistantMode = "build" | "plan" | "critic_loop";
+export type AssistantMode =
+  | "chat"
+  | "review"
+  | "factory"
+  | "ship"
+  | "build"
+  | "plan"
+  | "critic_loop";
 export type AssistantAccess = "full" | "approval";
 export type AssistantRunbookId =
   | "patch_test_verify"
@@ -166,17 +173,17 @@ export type VerifiedTaskScoreStatus =
 
 export interface VerifiedTaskScoreSignal {
   id:
-    | "target_files_identified"
-    | "relevant_files_inspected"
-    | "patch_applied"
-    | "validation_command_selected"
-    | "validation_command_executed"
-    | "validation_passed"
-    | "reproduction_exists"
-    | "failure_context_recorded"
-    | "unresolved_risks_absent"
-    | "claimed_files_exist"
-    | "claimed_commands_ran";
+  | "target_files_identified"
+  | "relevant_files_inspected"
+  | "patch_applied"
+  | "validation_command_selected"
+  | "validation_command_executed"
+  | "validation_passed"
+  | "reproduction_exists"
+  | "failure_context_recorded"
+  | "unresolved_risks_absent"
+  | "claimed_files_exist"
+  | "claimed_commands_ran";
   label: string;
   satisfied: boolean;
   weight: number;
@@ -246,6 +253,63 @@ export interface EvidencePack {
   generatedAt: string;
 }
 
+export type FactoryRunStageId =
+  | "spec"
+  | "repo_context"
+  | "risk_surfaces"
+  | "validation_plan"
+  | "agent_actions"
+  | "verification_result"
+  | "ratchet_suggestions"
+  | "ship_proof";
+
+export type FactoryRunStageStatus =
+  | "pending"
+  | "active"
+  | "completed"
+  | "blocked"
+  | "missing";
+
+export interface FactoryRunStage {
+  id: FactoryRunStageId;
+  label: string;
+  status: FactoryRunStageStatus;
+  summary: string;
+}
+
+export interface RatchetSuggestion {
+  id: string;
+  target: "AGENTS.md" | "RULES.md" | ".mate-x/rules.json";
+  reason: string;
+  rule: string;
+  requiresApproval: true;
+  actions: ["Add repo rule", "Ignore once", "Never suggest again"];
+}
+
+export interface ShipProofSummary {
+  verdict: string;
+  touchedFilesCount: number;
+  riskSurfaces: string[];
+  validationCommands: string[];
+  passedEvidence: string[];
+  failedEvidence: string[];
+  missingEvidence: string[];
+  privacyStatus: string;
+  gitStatus: "allowed" | "blocked";
+}
+
+export interface FactoryRun {
+  id: string;
+  mode: Extract<AssistantMode, "factory" | "ship">;
+  prompt: string;
+  access: AssistantAccess;
+  stages: FactoryRunStage[];
+  ratchetSuggestions: RatchetSuggestion[];
+  shipProof?: ShipProofSummary;
+  createdAt: string;
+  completedAt?: string;
+}
+
 export interface ReproducibleRunInitialState {
   workspaceId: string;
   workspacePath: string;
@@ -312,6 +376,7 @@ export interface ChatMessage {
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
   evidencePack?: EvidencePack;
+  factoryRun?: FactoryRun;
   workingSet?: WorkingSet;
 }
 

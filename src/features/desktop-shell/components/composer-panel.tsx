@@ -121,7 +121,7 @@ export function ComposerPanel({
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions["reasoning"]>("high");
   const [modeValue, setModeValue] =
-    useState<AssistantRunOptions["mode"]>("build");
+    useState<AssistantRunOptions["mode"]>("chat");
   const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
   const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
@@ -365,7 +365,7 @@ export function ComposerPanel({
       mode: modeValue,
       access: accessValue as AssistantRunOptions["access"],
       serviceTier,
-      runbookId: "patch_test_verify",
+      runbookId: resolveRunbookForMode(modeValue),
       attachments,
     });
   }
@@ -697,9 +697,10 @@ export function ComposerPanel({
                 label={formatAssistantMode(modeValue)}
                 title={`Execution mode: ${formatAssistantMode(modeValue)}`}
               >
-                <SelectItem value="build">Build</SelectItem>
-                <SelectItem value="plan">Plan</SelectItem>
-                <SelectItem value="critic_loop">Critic Loop</SelectItem>
+                <SelectItem value="chat">Chat</SelectItem>
+                <SelectItem value="review">Review</SelectItem>
+                <SelectItem value="factory">Factory</SelectItem>
+                <SelectItem value="ship">Ship</SelectItem>
               </InlineSelect>
               {showServiceTierSelector ? (
                 <InlineSelect
@@ -1026,6 +1027,14 @@ function formatReasoningEffort(effort: AssistantRunOptions["reasoning"]) {
 
 function formatAssistantMode(mode: AssistantRunOptions["mode"]) {
   switch (mode) {
+    case "chat":
+      return "Chat";
+    case "review":
+      return "Review";
+    case "factory":
+      return "Factory";
+    case "ship":
+      return "Ship";
     case "critic_loop":
       return "Critic Loop";
     case "plan":
@@ -1033,6 +1042,14 @@ function formatAssistantMode(mode: AssistantRunOptions["mode"]) {
     default:
       return "Build";
   }
+}
+
+function resolveRunbookForMode(mode: AssistantRunOptions["mode"]) {
+  if (mode === "review" || mode === "chat") {
+    return "review_classify_summarize";
+  }
+
+  return "patch_test_verify";
 }
 
 function formatServiceTier(tier: RainyServiceTier) {

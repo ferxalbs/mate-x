@@ -758,7 +758,7 @@ function getHumanTrustGateCopy(
   > = {
     headline: state.status === "needs_validation" ? "Needs check" : state.verdict,
     recommendedAction: state.nextAction,
-    primaryActionLabel: state.status === "trusted" ? "View proof" : "Run safety check",
+    primaryActionLabel: state.status === "trusted" ? "View proof" : "Run Factory verification",
     reasonChips: [changeChip, validationChip, proofChip, riskChip].filter(Boolean),
   };
 

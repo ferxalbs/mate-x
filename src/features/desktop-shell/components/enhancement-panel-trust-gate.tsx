@@ -81,7 +81,7 @@ export function ShipStatusStrip({
         : state.status === "unknown"
           ? "Repo safety check is available when you need it."
           : hasChanges
-            ? `${hasChanges} need${hasChanges.startsWith("1 ") ? "s" : ""} a safety check before commit.`
+            ? "Blocked because this change has no proof yet."
             : "Repo needs a safety check before commit.";
 
   return (
@@ -106,7 +106,7 @@ export function ShipStatusStrip({
             onClick={onMakeTrustworthy}
             type="button"
           >
-            {isRunning ? "Running..." : "Run safety check"}
+            {isRunning ? "Running..." : "Run Factory verification"}
           </button>
         ) : null}
         <button
@@ -195,7 +195,7 @@ function TrustGateActions({
         onClick={primaryShowsDetails ? onToggleDetails : canMakeTrustworthy ? onMakeTrustworthy : undefined}
         type="button"
       >
-        {primaryShowsDetails ? "Show details" : isRunning ? "Running..." : "Run safety check"}
+        {primaryShowsDetails ? "Show details" : isRunning ? "Running..." : "Run Factory verification"}
       </button>
       {onReviewChanges ? (
         <button
