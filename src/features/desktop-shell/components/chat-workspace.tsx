@@ -63,7 +63,7 @@ export function ChatWorkspace({
           />
         )}
         {hasMessages ? (
-          <ComposerDock hasMessages={hasMessages}>
+          <ComposerDock>
             {composer}
           </ComposerDock>
         ) : null}

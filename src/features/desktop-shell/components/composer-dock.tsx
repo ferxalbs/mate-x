@@ -5,12 +5,10 @@ import { useChatStore } from "../../../store/chat-store";
 
 interface ComposerDockProps {
   children: ReactNode;
-  hasMessages: boolean;
 }
 
 export function ComposerDock({
   children,
-  hasMessages,
 }: ComposerDockProps) {
   const settings = useChatStore((state) => state.settings);
 

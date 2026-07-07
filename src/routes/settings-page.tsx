@@ -40,7 +40,6 @@ import { Switch } from '../components/ui/switch';
 import type { WorkspaceTrustContract } from '../contracts/workspace';
 import {
   DEFAULT_APP_SETTINGS,
-  type AgentTraceVersion,
   type AgentIntegrationId,
   type AppSettings,
   type PrivacyMode,
