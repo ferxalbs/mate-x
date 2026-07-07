@@ -25,6 +25,7 @@
 - Tightened FactoryRun truthfulness so missing validation, missing repo-context evidence, missing risk-surface evidence, and fake proof remain visible as missing or blocked instead of surfacing trusted, ready, or validated states.
 - Updated the blocked Git flow so unproven commit/push attempts show "Blocked because this change has no proof yet." with the "Run Factory verification" CTA, and that CTA now starts a Factory verification run instead of a generic safety check.
 - Added approval-gated ratchet rule suggestions for repeated command/tool/package-manager/workspace failures without auto-writing repo rules.
+- Cleaned v0.1.1 release lint polish by removing unused Factory-adjacent UI symbols in composer, message stream, home, and settings surfaces, keeping lint at zero warnings without changing Factory/Ship behavior.
 - Verified with `~/.bun/bin/bun test src/lib/factory-run.test.ts src/features/desktop-shell/components/git-safety.test.ts src/store/chat-store.test.ts src/electron/assistant-runbooks.test.ts`, `~/.bun/bin/bun run typecheck`, and `~/.bun/bin/bun run lint`.
 
 ## Unreleased - 2026.07.05 (3) [Efficient Repo Semantic Memory]

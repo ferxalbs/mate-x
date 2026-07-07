@@ -15,7 +15,7 @@ import { defaultAmbientSafetyRunOptions } from '../features/desktop-shell/compon
 
 export function HomePage() {
   const isSubmitting = useRef(false);
-  const [traceV2InlineEvents, setTraceV2InlineEvents] = useState(false);
+  const [, setTraceV2InlineEvents] = useState(false);
   const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
   const [composerPrompt, setComposerPrompt] = useState('');
   const workspace = useChatStore((state) => state.workspace);

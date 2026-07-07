@@ -124,7 +124,6 @@ const MessageEntry = memo(function MessageEntry({
   const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
-  const artifacts = message.artifacts ?? [];
   const thought = message.thought?.trim() ?? "";
   const hasTimeline = events.length > 0;
   const hasErrorEvent = events.some((event) => event.status === "error");
@@ -618,53 +617,6 @@ function tryPrettyJson(raw: string): string | null {
 }
 
 
-function ToolPolicyBadges({ event }: { event: ToolEvent }) {
-  const policy = event.policy;
-  if (!policy) {
-    return null;
-  }
-
-  const riskTone =
-    policy.riskClass === "safe"
-      ? "border-emerald-300/30 bg-emerald-400/8 text-emerald-300"
-      : policy.riskClass === "sensitive"
-        ? "border-sky-300/30 bg-sky-400/8 text-sky-200"
-        : policy.riskClass === "dangerous"
-          ? "border-amber-300/30 bg-amber-400/8 text-amber-200"
-          : "border-red-300/30 bg-red-400/8 text-red-200";
-  const contractLabel = policy.allowedByContract
-    ? "contract allowed"
-    : "contract blocked";
-  const escalationLabel = policy.escalationRequired
-    ? "escalation needed"
-    : "no escalation";
-
-  return (
-    <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] leading-none">
-      <span className={cn("rounded-md border px-2 py-1 capitalize", riskTone)}>
-        {policy.riskClass}
-      </span>
-      {policy.impactTypes.map((impact) => (
-        <span
-          key={impact}
-          className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md"
-        >
-          {impact.replaceAll("_", " ")}
-        </span>
-      ))}
-      <span className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md">
-        {contractLabel}
-      </span>
-      <span className="rounded-md border border-border/55 bg-[var(--mate-control-bg)] px-2 py-1 text-muted-foreground backdrop-blur-md">
-        {escalationLabel}
-      </span>
-      <span className="basis-full text-[10px] leading-4 text-muted-foreground/75">
-        {policy.reason}
-      </span>
-    </div>
-  );
-}
-
 function extractCommandFromEvent(event: ToolEvent) {
   if (!event.label.startsWith("Executing ")) {
     return null;
@@ -678,23 +630,6 @@ function extractCommandFromEvent(event: ToolEvent) {
   }
 
   return `${match[1]} ${match[2]}`;
-}
-
-function describeTraceEvent(event: ToolEvent, command: string | null) {
-  if (command) {
-    return {
-      title: event.status === "active" ? "Running command" : "Ran command",
-      detail: command,
-    };
-  }
-
-  const title = cleanTraceText(event.label);
-  const detail = cleanTraceText(event.detail);
-  if (!detail || detail.toLowerCase() === title.toLowerCase()) {
-    return { title, detail: "" };
-  }
-
-  return { title, detail };
 }
 
 function cleanTraceText(value: string) {
