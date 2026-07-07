@@ -150,6 +150,40 @@ describe("submitPrompt flow", () => {
       thread.messages[1].content,
       "Completed scan_contain_report for Run the smallest useful safety check",
     );
+    assert.equal(thread.messages[1].factoryRun, undefined);
+  });
+
+  it("does not create FactoryRun state for casual Chat mode", async () => {
+    await useChatStore.getState().submitPrompt("What changed?", {
+      access: "approval",
+      mode: "chat",
+      reasoning: "high",
+      reasoningEnabled: true,
+      runbookId: "review_classify_summarize",
+      serviceTier: "standard",
+    });
+
+    assert.equal(runAssistantMock.calls[0][2].mode, "chat");
+    const thread = useChatStore.getState().threadsByWorkspace["workspace-1"][0];
+    assert.equal(thread.messages[1].factoryRun, undefined);
+  });
+
+  it("creates FactoryRun state and overrides renderer full access", async () => {
+    await useChatStore.getState().submitPrompt("Fix and verify", {
+      access: "full",
+      mode: "factory",
+      reasoning: "high",
+      reasoningEnabled: true,
+      runbookId: "scan_contain_report",
+      serviceTier: "standard",
+    });
+
+    assert.equal(runAssistantMock.calls[0][2].mode, "factory");
+    assert.equal(runAssistantMock.calls[0][2].access, "approval");
+    assert.equal(runAssistantMock.calls[0][2].runbookId, "scan_contain_report");
+    const thread = useChatStore.getState().threadsByWorkspace["workspace-1"][0];
+    assert.equal(thread.messages[1].factoryRun?.mode, "factory");
+    assert.equal(thread.messages[1].factoryRun?.access, "approval");
   });
 
   it("failed submit shows a user-visible inline failure state", async () => {

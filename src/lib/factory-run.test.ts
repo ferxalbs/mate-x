@@ -57,6 +57,18 @@ describe("Factory Mode Lite", () => {
     assert.equal(normalizeFactoryRunOptions(factoryOptions).access, "approval");
   });
 
+  it("uses approval-required access and proof runbook for Ship mode", () => {
+    const options = normalizeFactoryRunOptions({
+      ...factoryOptions,
+      access: "full",
+      mode: "ship",
+      runbookId: "review_classify_summarize",
+    });
+
+    assert.equal(options.access, "approval");
+    assert.equal(options.runbookId, "patch_test_verify");
+  });
+
   it("displays missing validation honestly", () => {
     const run = createFactoryRun({
       id: "factory-1",
@@ -72,6 +84,24 @@ describe("Factory Mode Lite", () => {
     const verification = completed?.stages.find((stage) => stage.id === "verification_result");
     assert.equal(verification?.status, "missing");
     assert.match(verification?.summary ?? "", /Missing validation execution/);
+  });
+
+  it("does not complete repo context or risk stages without matching evidence", () => {
+    const run = createFactoryRun({
+      id: "factory-1",
+      prompt: "Fix it",
+      options: normalizeFactoryRunOptions(factoryOptions),
+      createdAt: "2026-07-07T00:00:00.000Z",
+    });
+    const completed = completeFactoryRun(run, {
+      events: [
+        { id: "1", label: "read file", detail: "Opened src/app.ts", status: "done" },
+      ],
+      completedAt: "2026-07-07T00:01:00.000Z",
+    });
+
+    assert.equal(completed?.stages.find((stage) => stage.id === "repo_context")?.status, "missing");
+    assert.equal(completed?.stages.find((stage) => stage.id === "risk_surfaces")?.status, "missing");
   });
 
   it("requires approval for ratchet suggestions", () => {
@@ -110,6 +140,30 @@ describe("Factory Mode Lite", () => {
       status: "partial",
       verdict: { label: "Needs validation", summary: "Missing checks", confidence: "medium" },
       filesModified: [{ path: "src/a.ts" }],
+      commandsExecuted: [],
+      generatedAt: "2026-07-07T00:01:00.000Z",
+    };
+
+    const completed = completeFactoryRun(run, {
+      events: [],
+      evidencePack,
+      completedAt: "2026-07-07T00:01:00.000Z",
+    });
+
+    assert.equal(completed?.shipProof?.gitStatus, "blocked");
+    assert.deepEqual(completed?.shipProof?.missingEvidence, ["Validation command evidence missing."]);
+  });
+
+  it("does not mark fake proof as git-allowed or trusted", () => {
+    const run = createFactoryRun({
+      id: "factory-1",
+      prompt: "Ship",
+      options: { ...normalizeFactoryRunOptions(factoryOptions), mode: "ship" },
+      createdAt: "2026-07-07T00:00:00.000Z",
+    });
+    const evidencePack: EvidencePack = {
+      status: "complete",
+      verdict: { label: "Ready", summary: "Model says ready", confidence: "high" },
       commandsExecuted: [],
       generatedAt: "2026-07-07T00:01:00.000Z",
     };

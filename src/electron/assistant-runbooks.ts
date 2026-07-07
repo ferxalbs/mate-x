@@ -244,27 +244,36 @@ const RUNBOOK_DEFINITIONS: Record<
 export function resolveAssistantRunOptions(
   options?: AssistantRunOptions,
 ): AssistantRunOptions {
+  const mode =
+    options?.mode === "chat" ||
+      options?.mode === "review" ||
+      options?.mode === "factory" ||
+      options?.mode === "ship" ||
+      options?.mode === "plan" ||
+      options?.mode === "critic_loop"
+      ? options.mode
+      : DEFAULT_ASSISTANT_OPTIONS.mode;
+  const factoryLikeMode = mode === "factory" || mode === "ship";
+
   return {
     reasoningEnabled: options?.reasoningEnabled !== false,
     reasoning:
       typeof options?.reasoning === "string" && options.reasoning.trim()
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
-    mode:
-      options?.mode === "chat" ||
-        options?.mode === "review" ||
-        options?.mode === "factory" ||
-        options?.mode === "ship" ||
-        options?.mode === "plan" ||
-        options?.mode === "critic_loop"
-        ? options.mode
-        : DEFAULT_ASSISTANT_OPTIONS.mode,
+    mode,
     access:
+      factoryLikeMode
+        ? "approval"
+        :
       options?.access === "approval" || options?.access === "full"
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
     serviceTier: normalizeRainyServiceTier(options?.serviceTier),
-    runbookId: resolveRunbookId(options?.runbookId),
+    runbookId:
+      factoryLikeMode
+        ? "patch_test_verify"
+        : resolveRunbookId(options?.runbookId),
     attachments: options?.attachments?.map((attachment) => ({ ...attachment })) ?? [],
   };
 }
