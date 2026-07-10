@@ -8,6 +8,9 @@ import {
   ShieldCheckIcon,
   VideoIcon,
   XIcon,
+  FolderIcon,
+  MonitorIcon,
+  GitBranchIcon,
 } from "lucide-react";
 
 import {
@@ -645,7 +648,24 @@ export function ComposerPanel({
             </div>
           ) : null}
 
-          <div className="relative z-10 bg-transparent px-5 py-4">
+          {hasWorkspace && workspace ? (
+            <div className="flex items-center gap-3 border-b border-border/10 bg-[var(--panel)]/40 px-4 py-2.5 text-[11px] font-medium text-muted-foreground/80">
+              <div className="flex items-center gap-1.5 transition-colors hover:text-foreground cursor-pointer">
+                <FolderIcon className="size-3.5" />
+                <span>{workspace.name}</span>
+              </div>
+              <div className="flex items-center gap-1.5 transition-colors hover:text-foreground cursor-pointer">
+                <MonitorIcon className="size-3.5" />
+                <span>Local</span>
+              </div>
+              <div className="flex items-center gap-1.5 transition-colors hover:text-foreground cursor-pointer">
+                <GitBranchIcon className="size-3.5" />
+                <span>main</span>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="relative z-10 bg-transparent px-5 pt-3 pb-2">
             <textarea
               className="min-h-[76px] w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-foreground outline-none placeholder:text-foreground/40 focus:placeholder:text-foreground/60 sm:min-h-[60px]"
               onChange={(event) => handlePromptChange(event.target.value)}

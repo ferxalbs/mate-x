@@ -111,6 +111,28 @@ export interface RainyModelLaunchPricing {
   note: string;
 }
 
+export interface RainyModelLaunchPresentationGradient {
+  colors: string[];
+  angleDegrees: number;
+}
+
+export interface RainyModelLaunchPresentationAnimation {
+  kind: 'aurora';
+  durationMs: number;
+  reducedMotion: 'static';
+}
+
+/** Visual theme from GET /api/v1/models/launches — client must not hardcode launch colors. */
+export interface RainyModelLaunchPresentation {
+  themeId: string;
+  accent: string;
+  gradient: RainyModelLaunchPresentationGradient;
+  surface: string;
+  onSurface: string;
+  muted: string;
+  animation: RainyModelLaunchPresentationAnimation;
+}
+
 export interface RainyModelLaunch {
   id: string;
   status: RainyModelLaunchStatus;
@@ -120,6 +142,7 @@ export interface RainyModelLaunch {
   variants: RainyModelLaunchVariant[];
   appControls: RainyModelLaunchAppControl[];
   pricing: RainyModelLaunchPricing;
+  presentation: RainyModelLaunchPresentation;
 }
 
 export function normalizeRainyServiceTier(

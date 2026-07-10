@@ -347,6 +347,22 @@ describe("listRainyModelLaunches", () => {
                     high_context_threshold: 272001,
                     note: "Pricing changes above 272K input tokens.",
                   },
+                  presentation: {
+                    theme_id: "electric-iris",
+                    accent: "#8B5CF6",
+                    gradient: {
+                      colors: ["#7C3AED", "#6366F1", "#06B6D4"],
+                      angle_degrees: 125,
+                    },
+                    surface: "#111827",
+                    on_surface: "#F8FAFC",
+                    muted: "#CBD5E1",
+                    animation: {
+                      kind: "aurora",
+                      duration_ms: 9000,
+                      reduced_motion: "static",
+                    },
+                  },
                 },
               ],
             },

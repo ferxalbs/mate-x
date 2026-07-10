@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.10 (2) [Rainy Launch Card Presentation]
+
+- Redesigned the Rainy model-launch card around `launch.presentation` (gradient, accent, surface, on_surface, muted, aurora animation) with no hardcoded launch colors.
+- Replaced technical staged/billing chrome with calm title/summary copy, family model chips (availability on interaction), a single availability message, pricing disclosure, and “Not available yet” / “Continue with current model” CTAs.
+- Respects `prefers-reduced-motion` (static gradient), responsive mobile bottom-sheet vs desktop ~480px modal, and keeps catalog-only callable gating.
+- Added presentation helpers and visual/component tests for desktop, mobile, reduced-motion, and staged/callable states.
+- Verified with `bun test src/lib/rainy-model-launches.test.ts src/features/desktop-shell/components/model-launch-card.test.tsx src/electron/rainy-service.test.ts`.
+
 ## Unreleased - 2026.07.10 (1) [Rainy Model Launch Readiness]
 
 - Added non-blocking Rainy model launch feed support for `GET /api/v1/models/launches`, with main-process fetch/cache, IPC/preload/settings-client plumbing, and soft-fail so a missing feed never blocks app startup.
