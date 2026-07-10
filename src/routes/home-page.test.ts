@@ -17,11 +17,11 @@ if (!window.matchMedia) {
 
 describe("HomePage submit options", () => {
   it("uses the same approval-required defaults for composer and contextual submissions", async () => {
-    const { buildHomePageSubmitOptions } = await import("./home-page");
+    const { buildHomePageSubmitOptions } = await import("./home-page-submit-options");
 
     assert.deepEqual(buildHomePageSubmitOptions({ runbookId: "scan_contain_report" }), {
       access: "approval",
-      mode: "build",
+      mode: "review",
       reasoning: "high",
       reasoningEnabled: true,
       runbookId: "scan_contain_report",
@@ -30,7 +30,7 @@ describe("HomePage submit options", () => {
   });
 
   it("preserves review/diff intent overrides", async () => {
-    const { buildHomePageSubmitOptions } = await import("./home-page");
+    const { buildHomePageSubmitOptions } = await import("./home-page-submit-options");
 
     assert.equal(
       buildHomePageSubmitOptions({ runbookId: "review_classify_summarize" })
