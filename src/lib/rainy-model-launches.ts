@@ -1,6 +1,12 @@
 import {
   RAINY_REASONING_REQUEST_FIELDS,
   normalizeRainyServiceTier,
+  type LaunchActionKind,
+  type LaunchPrimaryAction,
+  type LaunchUi,
+  type LaunchVariant,
+  type LaunchUiSelectorMode,
+  type LaunchVariantAvailability,
   type RainyAppControlAvailability,
   type RainyAppControlKind,
   type RainyModelCatalogEntry,
@@ -12,8 +18,8 @@ import {
   type RainyServiceTier,
 } from "../contracts/rainy";
 
-const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:dismissed-model-launches:v2:";
-const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:v2:";
+const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:dismissed-model-launches:v4:";
+const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:v4:";
 const GPT56_HIGH_CONTEXT_NOTICE_TOKENS = 272_000;
 
 export type LaunchDismissalStore = {
@@ -203,6 +209,11 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
 
   const selection = normalizeLaunchSelection(item.selection);
 
+  // Prefer server-resolved ui block; synthesize from legacy fields when absent.
+  const ui =
+    normalizeLaunchUi(item.ui) ??
+    synthesizeLaunchUi(variants, presentation, selection);
+
   return {
     id,
     status: normalizeLaunchStatus(item.status),
@@ -218,6 +229,7 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
     },
     presentation,
     selection,
+    ui,
   };
 }
 
@@ -268,6 +280,132 @@ function normalizeLaunchPresentation(raw: unknown): RainyModelLaunchPresentation
       durationMs: Math.min(30_000, Math.max(1_000, Math.floor(durationMs))),
       reducedMotion: "static",
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// API-resolved UI normalizers
+// ---------------------------------------------------------------------------
+
+function normalizeActionKind(value: unknown): LaunchActionKind {
+  return value === "start_chat" ? "start_chat" : "disabled";
+}
+
+function normalizeVariantAvailability(value: unknown): LaunchVariantAvailability {
+  return value === "callable" ? "callable" : "unavailable";
+}
+
+function normalizeUiSelectorMode(value: unknown): LaunchUiSelectorMode {
+  if (value === "none" || value === "single" || value === "multiple") {
+    return value;
+  }
+  return "multiple";
+}
+
+function normalizeLaunchAction(raw: unknown): LaunchPrimaryAction | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const label = firstString(raw.label);
+  if (!label) {
+    return null;
+  }
+  const kind = normalizeActionKind(raw.kind);
+  const model_id = kind === "start_chat" ? (firstString(raw.model_id, raw.modelId) ?? null) : null;
+  return { kind, label, model_id };
+}
+
+function normalizeLaunchUiVariant(raw: unknown): LaunchVariant | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const id = firstString(raw.id, raw.model_id, raw.modelId);
+  const label = firstString(raw.label);
+  if (!id || !label) {
+    return null;
+  }
+  const presentation = normalizeLaunchPresentation(raw.presentation);
+  if (!presentation) {
+    return null;
+  }
+  const primary_action = normalizeLaunchAction(raw.primary_action ?? raw.primaryAction);
+  if (!primary_action) {
+    return null;
+  }
+  return {
+    id,
+    label,
+    availability: normalizeVariantAvailability(raw.availability),
+    selectable: raw.selectable !== false, // default true
+    presentation,
+    primary_action,
+  };
+}
+
+function normalizeLaunchUi(raw: unknown): LaunchUi | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const variantsRaw = Array.isArray(raw.variants) ? raw.variants : [];
+  const variants = variantsRaw
+    .map(normalizeLaunchUiVariant)
+    .filter((v): v is LaunchVariant => v !== null);
+  if (variants.length === 0) {
+    return null;
+  }
+  const selector = normalizeUiSelectorMode(raw.selector);
+  const initial_model_id =
+    firstString(raw.initial_model_id, raw.initialModelId) ??
+    variants[0].id;
+  const primary_action =
+    normalizeLaunchAction(raw.primary_action ?? raw.primaryAction) ??
+    variants.find((v) => v.id === initial_model_id)?.primary_action ??
+    variants[0].primary_action;
+  return { selector, initial_model_id, primary_action, variants };
+}
+
+/**
+ * Backward-compat synthesizer: builds a `LaunchUi` from the legacy
+ * `variants` + `selection` fields when the server has not yet upgraded
+ * to the new `ui` block.
+ *
+ * All synthesized variants are marked `availability: "unavailable"` so
+ * the CTA stays disabled for old payloads — consistent with the prior
+ * behavior of checking against the model catalog.
+ */
+function synthesizeLaunchUi(
+  variants: RainyModelLaunch["variants"],
+  presentation: RainyModelLaunchPresentation,
+  selection: RainyModelLaunchSelection,
+): LaunchUi {
+  const uiVariants: LaunchVariant[] = variants.map((v) => {
+    const variantPresentation = v.presentation ?? presentation;
+    return {
+      id: v.modelId,
+      label: v.label,
+      availability: "unavailable" as LaunchVariantAvailability,
+      selectable: selection.allowPreviewSelection === true,
+      presentation: variantPresentation,
+      primary_action: {
+        kind: "disabled" as LaunchActionKind,
+        label: selection.stagedCtaLabel,
+        model_id: null,
+      } satisfies LaunchPrimaryAction,
+    };
+  });
+
+  const selector: LaunchUiSelectorMode =
+    uiVariants.length <= 1 ? "none" : "multiple";
+
+  return {
+    selector,
+    initial_model_id: uiVariants[0]?.id ?? "",
+    primary_action: {
+      kind: "disabled",
+      label: selection.stagedCtaLabel,
+      model_id: null,
+    },
+    variants: uiVariants,
   };
 }
 
@@ -332,14 +470,13 @@ export function buildLaunchPresentationCssVars(
   };
 }
 
-export function getLaunchPrimaryCtaLabel(canTry: boolean, isActivating: boolean) {
-  if (!canTry) {
-    return "Not available yet";
-  }
+/** @deprecated API now returns exact CTA labels via launch.ui.primary_action.label.
+ *  This function will be removed in a future cleanup pass. */
+export function getLaunchPrimaryCtaLabel(_canTry: boolean, isActivating: boolean) {
   if (isActivating) {
     return "Activating…";
   }
-  return "Try model";
+  return "";
 }
 
 

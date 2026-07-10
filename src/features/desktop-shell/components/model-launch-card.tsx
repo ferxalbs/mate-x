@@ -16,12 +16,12 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import type {
+  LaunchVariant,
   RainyModelCatalogEntry,
   RainyModelLaunch,
 } from "../../../contracts/rainy";
 import {
   buildLaunchPresentationCssVars,
-  getCallableLaunchVariants,
   getHighContextPricingNotice,
   loadDismissedLaunchIds,
   persistDismissedLaunchId,
@@ -44,7 +44,6 @@ interface ModelLaunchCardProps {
 
 export interface ModelLaunchCardContentProps {
   launch: RainyModelLaunch;
-  catalog: Array<Pick<RainyModelCatalogEntry, "id">>;
   isActivating?: boolean;
   error?: string;
   prefersReducedMotion?: boolean;
@@ -118,11 +117,14 @@ function useIsMobileLayout(layout: "auto" | "mobile" | "desktop") {
 }
 
 /**
- * Presentational launch body. Colors/motion come only from `launch.presentation` or selected variant presentation.
+ * Presentational launch body.
+ *
+ * All selector layout, CTA labels, availability, model IDs, and theme colors
+ * come exclusively from `launch.ui` — the server resolves every decision.
+ * No local catalog cross-checking, no hardcoded model names or color values.
  */
 export function ModelLaunchCardContent({
   launch,
-  catalog,
   isActivating = false,
   error = "",
   prefersReducedMotion: reducedMotionOverride,
@@ -137,84 +139,44 @@ export function ModelLaunchCardContent({
   const reducedMotion = usePrefersReducedMotion(reducedMotionOverride);
   const isMobile = useIsMobileLayout(layout);
 
-  const callableVariants = useMemo(
-    () => getCallableLaunchVariants(launch, catalog),
-    [catalog, launch],
+  const { ui } = launch;
+
+  // Selected variant ID — initialized from API, never guessed locally.
+  const [selectedId, setSelectedId] = useState<string>(ui.initial_model_id);
+
+  const selectedVariant: LaunchVariant | undefined = useMemo(
+    () => ui.variants.find((v) => v.id === selectedId) ?? ui.variants[0],
+    [ui.variants, selectedId],
   );
 
-  const groups = useMemo(() => {
-    if (launch.selection.groupBy === "none") {
-      return launch.variants.map((v) => ({
-        id: v.modelId,
-        label: v.label,
-        presentation: v.presentation,
-        modelId: v.modelId,
-      }));
-    }
-    const map = new Map<string, typeof launch.variants>();
-    for (const v of launch.variants) {
-      const f = v.family || v.modelId;
-      if (!map.has(f)) map.set(f, []);
-      map.get(f)!.push(v);
-    }
-    return Array.from(map.values()).map((group) => {
-      const callableInGroup = group.find((v) =>
-        callableVariants.some((cv) => cv.modelId === v.modelId)
-      );
-      const rep = callableInGroup || group[0];
-      return {
-        id: rep.family || rep.modelId,
-        label: rep.label,
-        presentation: rep.presentation,
-        modelId: rep.modelId,
-      };
-    });
-  }, [launch, callableVariants]);
-
-  // If one family/model exists: Do not show a model picker, automatically use that model as selected.
-  const isSingleGroup = groups.length === 1;
-
-  // Use the first callable group by default, otherwise the first group.
-  const defaultGroupId = useMemo(() => {
-    const callableGroup = groups.find(g => callableVariants.some(cv => cv.modelId === g.modelId));
-    return callableGroup ? callableGroup.id : (groups[0]?.id ?? "");
-  }, [groups, callableVariants]);
-
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(defaultGroupId);
-
-  const selectedGroup = useMemo(
-    () => groups.find((g) => g.id === selectedGroupId) || groups[0],
-    [groups, selectedGroupId]
-  );
-
-  const presentation = selectedGroup?.presentation ?? launch.presentation;
+  // Theme driven entirely by selected variant presentation.
+  const presentation = selectedVariant?.presentation ?? launch.presentation;
   const animate = shouldAnimateLaunchPresentation(presentation, reducedMotion);
   const pricingDetail = getHighContextPricingNotice({ launch });
   const cssVars = buildLaunchPresentationCssVars(presentation) as CSSProperties;
 
-  const isSelectedCallable = selectedGroup
-    ? callableVariants.some((v) => v.modelId === selectedGroup.modelId)
-    : false;
+  // CTA driven by selected variant; fall back to launch-level default.
+  const primaryAction = selectedVariant?.primary_action ?? ui.primary_action;
+  const ctaDisabled = primaryAction.kind === "disabled" || isActivating;
 
-  const getVariantState = (modelId: string) => {
-    if (callableVariants.some((v) => v.modelId === modelId)) return "callable";
-    return "staged";
-  };
-
-  const handleGroupKeyDown = (
+  const handleVariantKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
-    groupId: string,
+    variantId: string,
   ) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setSelectedGroupId(groupId);
+      setSelectedId(variantId);
+    }
+  };
+
+  const handleCtaClick = () => {
+    if (primaryAction.kind === "start_chat" && primaryAction.model_id) {
+      onTry(primaryAction.model_id);
     }
   };
 
   const Title = asDialog ? DialogTitle : "h2";
   const Description = asDialog ? DialogDescription : "p";
-  
-  const ctaLabel = isSelectedCallable ? launch.selection.availableCtaLabel : launch.selection.stagedCtaLabel;
 
   return (
     <div
@@ -237,6 +199,7 @@ export function ModelLaunchCardContent({
       aria-modal={asDialog ? undefined : true}
       aria-labelledby={asDialog ? undefined : "model-launch-title"}
     >
+      {/* Aurora background */}
       <div
         className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-400"
         aria-hidden
@@ -252,7 +215,7 @@ export function ModelLaunchCardContent({
             backgroundSize: animate ? "200% 200%" : "100% 100%",
             filter: "blur(80px) saturate(1.2)",
             transform: "scale(1.5) translateY(-30%)",
-            opacity: 0.6
+            opacity: 0.6,
           }}
         />
         {animate ? (
@@ -267,7 +230,7 @@ export function ModelLaunchCardContent({
             <div
               className="model-launch-aurora-noise pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-overlay"
               style={{
-                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")'
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")',
               }}
             />
           </>
@@ -297,24 +260,25 @@ export function ModelLaunchCardContent({
           </Description>
         </div>
 
-        {!isSingleGroup && groups.length > 0 ? (
+        {/* Variant selector — rendered per api ui.selector value */}
+        {ui.selector === "multiple" && ui.variants.length > 0 ? (
           <div className="flex flex-col w-full items-center">
             <div className="flex flex-wrap justify-center gap-1.5" role="list">
-              {groups.map((group) => {
-                const state = getVariantState(group.modelId);
-                const isSelected = selectedGroupId === group.id;
-                const isDisabled = state === "staged" && !launch.selection.allowPreviewSelection;
-                
+              {ui.variants.map((variant) => {
+                const isSelected = selectedId === variant.id;
+                const isClickable = variant.selectable;
+                const isUnavailable = variant.availability !== "callable";
+
                 return (
                   <button
-                    key={group.id}
+                    key={variant.id}
                     type="button"
                     role="listitem"
-                    disabled={isDisabled}
+                    disabled={!isClickable}
                     className={cn(
                       "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-400",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
-                      isDisabled && "opacity-50 cursor-not-allowed",
+                      !isClickable && "opacity-50 cursor-not-allowed",
                     )}
                     style={{
                       backgroundColor: isSelected
@@ -323,16 +287,16 @@ export function ModelLaunchCardContent({
                       color: isSelected ? "var(--launch-on-surface)" : "var(--launch-muted)",
                     }}
                     aria-pressed={isSelected}
-                    onClick={() => setSelectedGroupId(group.id)}
-                    onKeyDown={(event) => handleGroupKeyDown(event, group.id)}
-                    onFocus={() => setSelectedGroupId(group.id)}
+                    onClick={() => isClickable && setSelectedId(variant.id)}
+                    onKeyDown={(event) => handleVariantKeyDown(event, variant.id)}
+                    onFocus={() => isClickable && setSelectedId(variant.id)}
+                    data-availability={variant.availability}
+                    data-selectable={variant.selectable}
                   >
-                    <span>{group.label}</span>
-                    {state === "staged" ? (
-                      <span
-                        className="opacity-60 text-[10px] font-semibold uppercase tracking-wider transition-colors"
-                      >
-                        {isSelected ? "Previewing · Preparing" : "Preparing"}
+                    <span>{variant.label}</span>
+                    {isUnavailable && isSelected ? (
+                      <span className="opacity-60 text-[10px] font-semibold uppercase tracking-wider transition-colors">
+                        {variant.primary_action.label}
                       </span>
                     ) : null}
                   </button>
@@ -357,10 +321,10 @@ export function ModelLaunchCardContent({
             >
               {pricingOpen ? "Hide pricing details" : "Show pricing details"}
             </button>
-            <div 
+            <div
               className={cn(
                 "grid transition-all duration-300 ease-in-out w-full",
-                pricingOpen ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 mt-0"
+                pricingOpen ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 mt-0",
               )}
             >
               <p
@@ -411,22 +375,21 @@ export function ModelLaunchCardContent({
             className={cn(
               "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-all duration-400",
               "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)] shadow-lg shadow-black/20",
-              (!isSelectedCallable || isActivating) && "opacity-50",
+              ctaDisabled && "opacity-50",
             )}
             style={{
-              backgroundColor: isSelectedCallable ? "var(--launch-on-surface)" : "color-mix(in srgb, var(--launch-muted) 30%, transparent)",
-              color: isSelectedCallable ? "var(--launch-surface)" : "var(--launch-on-surface)",
+              backgroundColor: ctaDisabled
+                ? "color-mix(in srgb, var(--launch-muted) 30%, transparent)"
+                : "var(--launch-on-surface)",
+              color: ctaDisabled ? "var(--launch-on-surface)" : "var(--launch-surface)",
             }}
-            onClick={() => {
-              if (selectedGroup) {
-                onTry(selectedGroup.modelId);
-              }
-            }}
-            disabled={!isSelectedCallable || isActivating}
-            aria-disabled={!isSelectedCallable || isActivating}
+            onClick={handleCtaClick}
+            disabled={ctaDisabled}
+            aria-disabled={ctaDisabled}
             data-testid="model-launch-primary-cta"
+            data-cta-kind={primaryAction.kind}
           >
-            {isActivating ? "Activating…" : ctaLabel}
+            {isActivating ? "Activating…" : primaryAction.label}
           </Button>
         </div>
       </div>
@@ -503,10 +466,11 @@ export function ModelLaunchCardView({
 
 /**
  * Non-blocking "new model" card driven by GET /api/v1/models/launches.
+ * The API response fully controls selector layout, CTA, model IDs, and colors.
+ * No local catalog availability check.
  */
 export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
   const [launch, setLaunch] = useState<RainyModelLaunch | null>(null);
-  const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
   const [userKey, setUserKey] = useState("local");
   const [open, setOpen] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
@@ -517,10 +481,12 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
 
     async function loadLaunches() {
       try {
-        const [apiKeyStatus, launches, nextCatalog] = await Promise.all([
+        const [apiKeyStatus, launches, catalog] = await Promise.all([
           getApiKeyStatus().catch(() => ({ configured: false as const })),
           listModelLaunches(false).catch(() => [] as RainyModelLaunch[]),
-          listModels(false).catch(() => [] as RainyModelCatalogEntry[]),
+          // Catalog is still fetched for selectUnseenLaunches view-count gating,
+          // not for UI availability decisions.
+          listModels(false).catch((): RainyModelCatalogEntry[] => []),
         ]);
 
         if (cancelled) {
@@ -532,11 +498,10 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
             ? apiKeyStatus.prefix
             : "local";
         setUserKey(nextUserKey);
-        setCatalog(nextCatalog);
 
         const dismissed = loadDismissedLaunchIds(nextUserKey);
         const views = loadLaunchViewCounts(nextUserKey);
-        const unseen = selectUnseenLaunches(launches, dismissed, views, nextCatalog);
+        const unseen = selectUnseenLaunches(launches, dismissed, views, catalog);
         const next = unseen[0] ?? null;
         setLaunch(next);
         setOpen(Boolean(next));
@@ -568,7 +533,7 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
     if (!launch || !modelId) {
       return;
     }
-    
+
     setIsActivating(true);
     setError("");
 
@@ -594,7 +559,6 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
   return (
     <ModelLaunchCardView
       launch={launch}
-      catalog={catalog}
       open={open}
       isActivating={isActivating}
       error={error}
