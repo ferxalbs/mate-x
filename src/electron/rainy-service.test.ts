@@ -391,7 +391,7 @@ describe("Rainy model capabilities", () => {
     assert.equal(supportsReasoning(reasoningWithEffort), true);
     assert.equal(supportsReasoningEffort(reasoningWithEffort), true);
     // When controls only flag reasoning_effort without an effort enum, fall back to
-    // the documented OpenRouter/Rainy effort vocabulary (not a short hard-coded trio).
+    // the documented Rainy/provider effort vocabulary (not a short hard-coded trio).
     const efforts = getReasoningEffortValues(reasoningWithEffort);
     assert.ok(efforts.includes("low"));
     assert.ok(efforts.includes("medium"));
@@ -639,7 +639,7 @@ describe("buildChatCompletionRequest", () => {
     assert.equal("reasoning_pro" in reasoningRequest, false);
   });
 
-  it("preserves OpenRouter reasoning details in assistant messages", () => {
+  it("preserves provider reasoning details in assistant messages", () => {
     const assistantMessage = {
       role: "assistant",
       content: "There are three r letters.",

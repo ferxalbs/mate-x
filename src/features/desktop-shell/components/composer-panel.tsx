@@ -295,6 +295,9 @@ export function ComposerPanel({
     : "Reasoning off";
   const proSuffix = reasoningProControl?.variantSuffix ?? "-pro";
   // Pro mapping only via launch-feed variants — never invent `-pro` suffixes.
+  const declaredProPartnerId = resolveProVariantModelId(modelValue, activeLaunch, {
+    suffix: proSuffix,
+  });
   const declaredProModelId = resolveProVariantModelId(modelValue, activeLaunch, {
     suffix: proSuffix,
     catalog,
@@ -311,10 +314,10 @@ export function ComposerPanel({
   );
   const reasoningProComingSoon =
     Boolean(reasoningProControl) && !isAppControlAvailable(reasoningProControl);
-  // Hide control entirely when launch does not declare a Pro partner for this model.
+  // Hide when launch does not declare a Pro partner for this model.
   const showReasoningProControl =
     Boolean(reasoningProControl) &&
-    (proVariantSelected || Boolean(declaredProModelId) || reasoningProComingSoon);
+    (proVariantSelected || Boolean(declaredProPartnerId));
   const pricingNotice = useMemo(
     () =>
       getHighContextPricingNotice({

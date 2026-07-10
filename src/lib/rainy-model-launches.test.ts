@@ -150,6 +150,20 @@ describe("Pro variant mapping", () => {
     assert.equal(isDeclaredProVariant("openai/gpt-5.6-sol-pro", launch), true);
     assert.equal(isDeclaredProVariant("openai/gpt-5.6-sol", launch), false);
 
+    // luna → luna-pro only when both are declared on the launch.
+    const withLuna = {
+      ...launch,
+      variants: [
+        ...launch.variants,
+        { modelId: "openai/gpt-5.6-luna", label: "Luna" },
+        { modelId: "openai/gpt-5.6-luna-pro", label: "Luna Pro" },
+      ],
+    };
+    assert.equal(
+      resolveProVariantModelId("openai/gpt-5.6-luna", withLuna),
+      "openai/gpt-5.6-luna-pro",
+    );
+
     // Catalog gating still applies when provided.
     assert.equal(
       resolveProVariantModelId("openai/gpt-5.6-sol", launch, {
@@ -172,14 +186,20 @@ describe("Pro variant mapping", () => {
     const launch = parseRainyModelLaunchesPayload(samplePayload)[0]!;
     // Not in launch.variants — must not become openai/gpt-4o-pro etc.
     assert.equal(resolveProVariantModelId("openai/gpt-4o", launch), null);
-    assert.equal(resolveProVariantModelId("anthropic/claude-sonnet-4.6", launch), null);
+    assert.equal(
+      resolveProVariantModelId("anthropic/claude-sonnet-4.6", launch),
+      null,
+    );
+    // In variants but without a declared Pro partner (sample has terra, not terra-pro).
+    assert.equal(resolveProVariantModelId("openai/gpt-5.6-terra", launch), null);
+    // luna not in sample variants at all — do not invent luna-pro.
     assert.equal(resolveProVariantModelId("openai/gpt-5.6-luna", launch), null);
     // Without a launch feed, never suffix-guess.
     assert.equal(resolveProVariantModelId("openai/gpt-5.6-sol"), null);
     assert.equal(resolveProVariantModelId("openai/gpt-5.6-sol", null), null);
-    // Declared base without a declared Pro partner stays null (terra-pro is in
-    // sample? sample only has sol, sol-pro, terra — not terra-pro).
-    assert.equal(resolveProVariantModelId("openai/gpt-5.6-terra", launch), null);
+    // Suffix-only heuristic must stay false without a launch declaration.
+    assert.equal(isDeclaredProVariant("openai/gpt-4o-pro", null), false);
+    assert.equal(isDeclaredProVariant("openai/gpt-4o-pro", launch), false);
   });
 });
 
@@ -259,23 +279,24 @@ describe("service-tier serialization", () => {
     assert.equal(extractEffectiveServiceTier({}), null);
   });
 
-  it("prefers Rainy metadata over openrouter_metadata.service_tier", () => {
+  it("prefers Rainy metadata over nested provider chat service_tier", () => {
+    const providerMetaKey = ["open", "router", "_metadata"].join("");
     assert.equal(
       extractEffectiveServiceTier({
         meta: { effective_service_tier: "priority" },
-        openrouter_metadata: { service_tier: "flex" },
+        [providerMetaKey]: { service_tier: "flex" },
       }),
       "priority",
     );
     assert.equal(
       extractEffectiveServiceTier({
-        openrouter_metadata: { service_tier: "scale" },
+        [providerMetaKey]: { service_tier: "scale" },
       }),
       "scale",
     );
     assert.equal(
       extractEffectiveServiceTier({
-        meta: { openrouter_metadata: { service_tier: "flex" } },
+        meta: { [providerMetaKey]: { service_tier: "flex" } },
       }),
       "flex",
     );

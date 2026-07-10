@@ -80,7 +80,7 @@ export interface RainyModelCatalogEntry {
   capabilities?: RainyModelCapabilities;
 }
 
-/** Documented Rainy/OpenRouter reasoning request fields only. */
+/** Documented Rainy/provider reasoning request fields only. */
 export const RAINY_REASONING_REQUEST_FIELDS = [
   'reasoning',
   'reasoning_effort',
@@ -128,7 +128,7 @@ export function normalizeRainyServiceTier(
   if (value === 'flex' || value === 'priority' || value === 'scale') {
     return value;
   }
-  // OpenRouter aliases: default/auto map to our Standard (omit field) path.
+  // Provider aliases: default/auto map to our Standard (omit field) path.
   return 'standard';
 }
 
