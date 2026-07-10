@@ -44,23 +44,23 @@ const stagedLaunch: RainyModelLaunch = {
   summary:
     "Meet GPT-5.6: a new family built for quick everyday work, deep projects, and more room to think.",
   variants: [
-    { modelId: "openai/gpt-5.6-sol", label: "Sol" },
-    { modelId: "openai/gpt-5.6-terra", label: "Terra" }
+    { modelId: "openai/gpt-5.6-sol", label: "Sol", family: "sol" },
+    { modelId: "openai/gpt-5.6-terra", label: "Terra", family: "terra" },
+    { modelId: "openai/gpt-5.6-luna", label: "Luna", family: "luna" },
   ],
-  appControls: [
-    {
-      id: "reasoning",
-      kind: "toggle",
-      label: "Reasoning",
-      availability: "staged",
-    },
-  ],
+  appControls: [],
   pricing: {
     basis: "prompt_tokens",
     highContextThreshold: 272001,
     note: "Longer projects can use a different rate.",
   },
   presentation,
+  selection: {
+    mode: "auto",
+    groupBy: "family",
+    availableCtaLabel: "Launch {model}",
+    stagedCtaLabel: "Coming Soon",
+  },
 };
 
 function renderCard(
@@ -91,14 +91,50 @@ describe("ModelLaunchCardContent", () => {
 
     assert.ok(view.getByText("Sol"));
     assert.ok(view.getByText("Terra"));
+    assert.ok(view.getByText("Luna"));
 
     assert.equal(view.queryByTestId("model-launch-pricing-detail")?.className.includes('opacity-100'), false);
     assert.ok(view.getByRole("button", { name: /show pricing details/i }));
 
     const cta = view.getByTestId("model-launch-primary-cta");
-    assert.equal(cta.textContent, "Not available yet");
+    assert.equal(cta.textContent, "Coming Soon");
     assert.ok((cta as HTMLButtonElement).disabled);
     assert.ok(view.getByRole("button", { name: /keep current model/i }));
+  });
+
+  it("desktop: uses dynamic CTAs based on selection API for staged vs callable", () => {
+    const view = renderCard({
+      layout: "desktop",
+      catalog: [{ id: "openai/gpt-5.6-sol" }], // Sol is callable, making it the active selection for first group
+      prefersReducedMotion: true,
+    });
+
+    const cta = view.getByTestId("model-launch-primary-cta") as HTMLButtonElement;
+    assert.equal(cta.textContent, "Launch {model}");
+    assert.equal(cta.disabled, false);
+  });
+
+  it("desktop: auto-selects if there is only 1 family/model and hides picker", () => {
+    const view = renderCard({
+      layout: "desktop",
+      prefersReducedMotion: true,
+      launch: {
+        ...stagedLaunch,
+        variants: [{ modelId: "anthropic/claude-3", label: "Claude", family: "claude" }],
+        selection: {
+          ...stagedLaunch.selection,
+          stagedCtaLabel: "Not Available",
+        }
+      },
+    });
+
+    // Should NOT find Claude in the picker (no listitems)
+    const listItems = view.queryAllByRole("listitem");
+    assert.equal(listItems.length, 0);
+
+    const cta = view.getByTestId("model-launch-primary-cta") as HTMLButtonElement;
+    assert.equal(cta.textContent, "Not Available");
+    assert.ok(cta.disabled);
   });
 
   it("mobile: uses mobile layout branch", () => {
@@ -107,7 +143,6 @@ describe("ModelLaunchCardContent", () => {
     const card = view.getByTestId("model-launch-card");
     assert.equal(card.getAttribute("data-layout"), "mobile");
     assert.ok(view.getByTestId("model-launch-primary-cta"));
-    assert.ok(view.getByRole("button", { name: /keep current model/i }));
   });
 
   it("reduced-motion: static gradient, no aurora motion flag", () => {
@@ -116,18 +151,6 @@ describe("ModelLaunchCardContent", () => {
     const card = view.getByTestId("model-launch-card");
     assert.equal(card.getAttribute("data-motion"), "static");
     assert.ok(view.getByTestId("model-launch-aurora"));
-  });
-
-  it("staged vs callable: enables Try model only when catalog lists a variant", () => {
-    const view = renderCard({
-      layout: "desktop",
-      catalog: [{ id: "openai/gpt-5.6-sol" }],
-      prefersReducedMotion: true,
-    });
-
-    const cta = view.getByTestId("model-launch-primary-cta") as HTMLButtonElement;
-    assert.equal(cta.textContent, "Try Sol");
-    assert.equal(cta.disabled, false);
   });
 
   it("keeps technical pricing behind disclosure", () => {

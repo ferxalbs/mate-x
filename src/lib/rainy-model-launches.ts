@@ -7,6 +7,7 @@ import {
   type RainyModelLaunch,
   type RainyModelLaunchAppControl,
   type RainyModelLaunchPresentation,
+  type RainyModelLaunchSelection,
   type RainyModelLaunchStatus,
   type RainyServiceTier,
 } from "../contracts/rainy";
@@ -110,7 +111,12 @@ function normalizeLaunchVariant(item: unknown): RainyModelLaunch["variants"][num
   if (!modelId || !label) {
     return null;
   }
-  return { modelId, label };
+  return { 
+    modelId, 
+    label,
+    family: firstString(item.family) ?? undefined,
+    presentation: normalizeLaunchPresentation(item.presentation ?? item.theme) ?? undefined,
+  };
 }
 
 function normalizeAppControl(item: unknown): RainyModelLaunchAppControl | null {
@@ -132,6 +138,17 @@ function normalizeAppControl(item: unknown): RainyModelLaunchAppControl | null {
     requestFields: asStringArray(item.request_fields ?? item.requestFields),
     values: asStringArray(item.values),
     variantSuffix: firstString(item.variant_suffix, item.variantSuffix) ?? undefined,
+  };
+}
+
+function normalizeLaunchSelection(raw: unknown): RainyModelLaunchSelection {
+  const selection = isRecord(raw) ? raw : {};
+  const groupBy = selection.group_by === "none" || selection.groupBy === "none" ? "none" : "family";
+  return {
+    mode: "auto",
+    groupBy,
+    availableCtaLabel: firstString(selection.available_cta_label, selection.availableCtaLabel) ?? "Get Started",
+    stagedCtaLabel: firstString(selection.staged_cta_label, selection.stagedCtaLabel) ?? "Not available yet",
   };
 }
 
@@ -182,6 +199,8 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
     return null;
   }
 
+  const selection = normalizeLaunchSelection(item.selection);
+
   return {
     id,
     status: normalizeLaunchStatus(item.status),
@@ -196,6 +215,7 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
       note: pricingNote,
     },
     presentation,
+    selection,
   };
 }
 

@@ -116,7 +116,7 @@ function useIsMobileLayout(layout: "auto" | "mobile" | "desktop") {
 }
 
 /**
- * Presentational launch body. Colors/motion come only from `launch.presentation`.
+ * Presentational launch body. Colors/motion come only from `launch.presentation` or selected variant presentation.
  */
 export function ModelLaunchCardContent({
   launch,
@@ -140,37 +140,79 @@ export function ModelLaunchCardContent({
     [catalog, launch],
   );
 
-  // Use the first callable variant by default, otherwise the first variant.
-  const [selectedVariantId, setSelectedVariantId] = useState<string>(
-    callableVariants.length > 0 ? callableVariants[0].modelId : launch.variants[0]?.modelId ?? ""
+  const groups = useMemo(() => {
+    if (launch.selection.groupBy === "none") {
+      return launch.variants.map((v) => ({
+        id: v.modelId,
+        label: v.label,
+        presentation: v.presentation,
+        modelId: v.modelId,
+      }));
+    }
+    const map = new Map<string, typeof launch.variants>();
+    for (const v of launch.variants) {
+      const f = v.family || v.modelId;
+      if (!map.has(f)) map.set(f, []);
+      map.get(f)!.push(v);
+    }
+    return Array.from(map.values()).map((group) => {
+      const callableInGroup = group.find((v) =>
+        callableVariants.some((cv) => cv.modelId === v.modelId)
+      );
+      const rep = callableInGroup || group[0];
+      return {
+        id: rep.family || rep.modelId,
+        label: rep.label,
+        presentation: rep.presentation,
+        modelId: rep.modelId,
+      };
+    });
+  }, [launch, callableVariants]);
+
+  // If one family/model exists: Do not show a model picker, automatically use that model as selected.
+  const isSingleGroup = groups.length === 1;
+
+  // Use the first callable group by default, otherwise the first group.
+  const defaultGroupId = useMemo(() => {
+    const callableGroup = groups.find(g => callableVariants.some(cv => cv.modelId === g.modelId));
+    return callableGroup ? callableGroup.id : (groups[0]?.id ?? "");
+  }, [groups, callableVariants]);
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(defaultGroupId);
+
+  const selectedGroup = useMemo(
+    () => groups.find((g) => g.id === selectedGroupId) || groups[0],
+    [groups, selectedGroupId]
   );
 
-  const selectedVariant = useMemo(() => launch.variants.find(v => v.modelId === selectedVariantId), [launch.variants, selectedVariantId]);
-
-  const animate = shouldAnimateLaunchPresentation(launch.presentation, reducedMotion);
+  const presentation = selectedGroup?.presentation ?? launch.presentation;
+  const animate = shouldAnimateLaunchPresentation(presentation, reducedMotion);
   const pricingDetail = getHighContextPricingNotice({ launch });
-  const presentation = launch.presentation;
   const cssVars = buildLaunchPresentationCssVars(presentation) as CSSProperties;
 
-  const isSelectedCallable = callableVariants.some(v => v.modelId === selectedVariantId);
+  const isSelectedCallable = selectedGroup
+    ? callableVariants.some((v) => v.modelId === selectedGroup.modelId)
+    : false;
 
-  const getVariantState = (variantId: string) => {
-    if (callableVariants.some(v => v.modelId === variantId)) return "callable";
+  const getVariantState = (modelId: string) => {
+    if (callableVariants.some((v) => v.modelId === modelId)) return "callable";
     return "staged";
   };
 
-  const handleVariantKeyDown = (
+  const handleGroupKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
-    variantId: string,
+    groupId: string,
   ) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setSelectedVariantId(variantId);
+      setSelectedGroupId(groupId);
     }
   };
 
   const Title = asDialog ? DialogTitle : "h2";
   const Description = asDialog ? DialogDescription : "p";
+  
+  const ctaLabel = isSelectedCallable ? launch.selection.availableCtaLabel : launch.selection.stagedCtaLabel;
 
   return (
     <div
@@ -183,6 +225,7 @@ export function ModelLaunchCardContent({
         ...cssVars,
         backgroundColor: "var(--launch-surface)",
         color: "var(--launch-on-surface)",
+        transition: "background-color 0.4s ease, color 0.4s ease",
       }}
       data-testid="model-launch-card"
       data-layout={isMobile ? "mobile" : "desktop"}
@@ -193,13 +236,13 @@ export function ModelLaunchCardContent({
       aria-labelledby={asDialog ? undefined : "model-launch-title"}
     >
       <div
-        className="absolute inset-0 z-0 pointer-events-none"
+        className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-400"
         aria-hidden
         data-testid="model-launch-aurora"
       >
         <div
           className={cn(
-            "absolute inset-0",
+            "absolute inset-0 transition-all duration-500",
             animate && "model-launch-aurora-layer",
           )}
           style={{
@@ -213,7 +256,7 @@ export function ModelLaunchCardContent({
         {animate ? (
           <>
             <div
-              className="model-launch-aurora-bloom pointer-events-none absolute inset-0 opacity-30 mix-blend-screen"
+              className="model-launch-aurora-bloom pointer-events-none absolute inset-0 opacity-30 mix-blend-screen transition-colors duration-400"
               style={{
                 background: "radial-gradient(circle at 50% 0%, var(--launch-accent) 0%, transparent 50%)",
                 filter: "blur(60px)",
@@ -239,33 +282,33 @@ export function ModelLaunchCardContent({
         <div className="flex flex-col gap-3 items-center text-center">
           <Title
             id={asDialog ? undefined : "model-launch-title"}
-            className="text-[1.5rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem]"
+            className="text-[1.5rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem] transition-colors duration-400"
             style={{ color: "var(--launch-on-surface)" }}
           >
             {launch.title}
           </Title>
           <Description
-            className="text-[0.9375rem] leading-relaxed opacity-90 max-w-[340px]"
+            className="text-[0.9375rem] leading-relaxed opacity-90 max-w-[340px] transition-colors duration-400"
             style={{ color: "var(--launch-muted)" }}
           >
             {launch.summary}
           </Description>
         </div>
 
-        {launch.variants.length > 0 ? (
+        {!isSingleGroup && groups.length > 0 ? (
           <div className="flex flex-col w-full items-center">
             <div className="flex flex-wrap justify-center gap-1.5" role="list">
-              {launch.variants.map((variant) => {
-                const state = getVariantState(variant.modelId);
-                const isSelected = selectedVariantId === variant.modelId;
+              {groups.map((group) => {
+                const state = getVariantState(group.modelId);
+                const isSelected = selectedGroupId === group.id;
                 
                 return (
                   <button
-                    key={variant.modelId}
+                    key={group.id}
                     type="button"
                     role="listitem"
                     className={cn(
-                      "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-200",
+                      "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-400",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
                     )}
                     style={{
@@ -275,10 +318,10 @@ export function ModelLaunchCardContent({
                       color: isSelected ? "var(--launch-on-surface)" : "var(--launch-muted)",
                     }}
                     aria-pressed={isSelected}
-                    onClick={() => setSelectedVariantId(variant.modelId)}
-                    onKeyDown={(event) => handleVariantKeyDown(event, variant.modelId)}
+                    onClick={() => setSelectedGroupId(group.id)}
+                    onKeyDown={(event) => handleGroupKeyDown(event, group.id)}
                   >
-                    <span>{variant.label}</span>
+                    <span>{group.label}</span>
                     {state === "staged" ? (
                       <span
                         className="opacity-60 text-[10px] font-semibold uppercase tracking-wider transition-colors"
@@ -316,7 +359,7 @@ export function ModelLaunchCardContent({
             >
               <p
                 id={pricingId}
-                className="text-[11px] leading-relaxed overflow-hidden text-center"
+                className="text-[11px] leading-relaxed overflow-hidden text-center transition-colors duration-400"
                 style={{ color: "var(--launch-muted)" }}
                 data-testid="model-launch-pricing-detail"
               >
@@ -345,7 +388,7 @@ export function ModelLaunchCardContent({
             variant="ghost"
             size="sm"
             className={cn(
-              "h-11 w-full rounded-full sm:h-[38px] sm:w-[160px] font-medium transition-colors hover:bg-transparent",
+              "h-11 w-full rounded-full sm:h-[38px] sm:w-[160px] font-medium transition-colors hover:bg-transparent duration-400",
               "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)]",
             )}
             style={{
@@ -360,7 +403,7 @@ export function ModelLaunchCardContent({
             type="button"
             size="sm"
             className={cn(
-              "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-all duration-300",
+              "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-all duration-400",
               "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)] shadow-lg shadow-black/20",
               (!isSelectedCallable || isActivating) && "opacity-50",
             )}
@@ -368,12 +411,16 @@ export function ModelLaunchCardContent({
               backgroundColor: isSelectedCallable ? "var(--launch-on-surface)" : "color-mix(in srgb, var(--launch-muted) 30%, transparent)",
               color: isSelectedCallable ? "var(--launch-surface)" : "var(--launch-on-surface)",
             }}
-            onClick={() => onTry(selectedVariantId)}
+            onClick={() => {
+              if (selectedGroup) {
+                onTry(selectedGroup.modelId);
+              }
+            }}
             disabled={!isSelectedCallable || isActivating}
             aria-disabled={!isSelectedCallable || isActivating}
             data-testid="model-launch-primary-cta"
           >
-            {isActivating ? "Activating…" : isSelectedCallable ? `Try ${selectedVariant?.label ?? "model"}` : "Not available yet"}
+            {isActivating ? "Activating…" : ctaLabel}
           </Button>
         </div>
       </div>
@@ -431,7 +478,7 @@ export function ModelLaunchCardView({
       <DialogPopup
         showCloseButton
         className={cn(
-          "overflow-hidden border-0 p-0 shadow-2xl",
+          "overflow-hidden border-0 p-0 shadow-2xl transition-all duration-400",
           isMobile
             ? "max-w-none w-full max-sm:rounded-t-[32px] max-sm:rounded-b-none sm:max-w-[420px]"
             : "w-full max-w-[420px] rounded-[32px]",
