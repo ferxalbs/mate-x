@@ -12,8 +12,8 @@ import {
   type RainyServiceTier,
 } from "../contracts/rainy";
 
-const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:dismissed-model-launches:";
-const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:";
+const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:dismissed-model-launches:v2:";
+const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:v2:";
 const GPT56_HIGH_CONTEXT_NOTICE_TOKENS = 272_000;
 
 export type LaunchDismissalStore = {
