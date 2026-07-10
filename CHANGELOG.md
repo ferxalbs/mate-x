@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.10 (1) [Rainy Model Launch Readiness]
+
+- Added non-blocking Rainy model launch feed support for `GET /api/v1/models/launches`, with main-process fetch/cache, IPC/preload/settings-client plumbing, and soft-fail so a missing feed never blocks app startup.
+- Added a “new model” launch card (title, summary, variants, staged/available status, pricing note) that shows only unseen launch IDs and persists dismissal per user key (API key prefix or local) and launch ID.
+- Gated “Try model” strictly on `/models/catalog`: launch-feed listing alone never makes staged models callable; catalog remains the cloud allowlist client consumers trust.
+- Wired launch `app_controls` in the composer: `reasoning` (toggle; request fields only `reasoning`, `reasoning_effort`, `include_reasoning`), `reasoning_pro` (UI-only model-variant selection via declared launch `variants`, never a `reasoning_pro` request param and never blind `-pro` suffix guessing), and `service_tier` (listed values only, including `scale`; Standard omits the field).
+- Rendered staged controls as disabled “Coming soon” even when the launch feed is cached; availability stays `staged` vs `available` from the feed, not flipped client-side by cache.
+- Surfaced GPT-5.6 high-context pricing notice (base pricing changes above ~272K **input/prompt tokens**); never estimates from message or prompt count.
+- Preserved provider-returned effective service tier for UI/billing display (Rainy response/meta first, then nested provider chat metadata `service_tier`); requested tier remains on run artifacts.
+- Kept existing model selection, aliases, chat/run options, and billing display behavior intact while extending tier/reasoning request serialization safely.
+- Added focused tests for feed parsing, dismissal persistence, staged catalog gating, declared Pro variant mapping (including “no guessed `-pro` for arbitrary model IDs”), reasoning serialization, service-tier serialization, effective-tier preference, and no unknown parameters.
+- Verified with `bun test src/lib/rainy-model-launches.test.ts src/electron/rainy-service.test.ts` (43 pass), `bun run typecheck`, and `bun run lint`.
+
 ## v0.1.1 - 2026.07.05 [Ambient Safety and Active Gate]
 
 - Changed Ship Status from always-on warning into contextual Ambient Safety and Active Gate flows, making MaTE X calm during normal work and strict before commit/push/ship.
