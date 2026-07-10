@@ -303,15 +303,18 @@ export function ModelLaunchCardContent({
               {groups.map((group) => {
                 const state = getVariantState(group.modelId);
                 const isSelected = selectedGroupId === group.id;
+                const isDisabled = state === "staged" && !launch.selection.allowPreviewSelection;
                 
                 return (
                   <button
                     key={group.id}
                     type="button"
                     role="listitem"
+                    disabled={isDisabled}
                     className={cn(
                       "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-400",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
+                      isDisabled && "opacity-50 cursor-not-allowed",
                     )}
                     style={{
                       backgroundColor: isSelected
@@ -322,13 +325,14 @@ export function ModelLaunchCardContent({
                     aria-pressed={isSelected}
                     onClick={() => setSelectedGroupId(group.id)}
                     onKeyDown={(event) => handleGroupKeyDown(event, group.id)}
+                    onFocus={() => setSelectedGroupId(group.id)}
                   >
                     <span>{group.label}</span>
                     {state === "staged" ? (
                       <span
                         className="opacity-60 text-[10px] font-semibold uppercase tracking-wider transition-colors"
                       >
-                        Preparing
+                        {isSelected ? "Previewing · Preparing" : "Preparing"}
                       </span>
                     ) : null}
                   </button>

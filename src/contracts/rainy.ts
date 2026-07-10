@@ -140,6 +140,7 @@ export interface RainyModelLaunchSelection {
   groupBy: "family" | "none";
   availableCtaLabel: string;
   stagedCtaLabel: string;
+  allowPreviewSelection?: boolean;
 }
 
 export interface RainyModelLaunch {
