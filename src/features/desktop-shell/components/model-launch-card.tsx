@@ -27,6 +27,8 @@ import {
   persistDismissedLaunchId,
   selectUnseenLaunches,
   shouldAnimateLaunchPresentation,
+  loadLaunchViewCounts,
+  incrementLaunchViewCount,
 } from "../../../lib/rainy-model-launches";
 import {
   getApiKeyStatus,
@@ -529,10 +531,14 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
         setCatalog(nextCatalog);
 
         const dismissed = loadDismissedLaunchIds(nextUserKey);
-        const unseen = selectUnseenLaunches(launches, dismissed);
+        const views = loadLaunchViewCounts(nextUserKey);
+        const unseen = selectUnseenLaunches(launches, dismissed, views, nextCatalog);
         const next = unseen[0] ?? null;
         setLaunch(next);
         setOpen(Boolean(next));
+        if (next) {
+          incrementLaunchViewCount(nextUserKey, next.id);
+        }
       } catch {
         // Launch cards are non-critical — never block the app.
       }
