@@ -21,12 +21,8 @@ import type {
 } from "../../../contracts/rainy";
 import {
   buildLaunchPresentationCssVars,
-  canTryLaunchModel,
   getCallableLaunchVariants,
   getHighContextPricingNotice,
-  getLaunchFamilyNames,
-  getLaunchPrimaryCtaLabel,
-  LAUNCH_STAGED_AVAILABILITY_MESSAGE,
   loadDismissedLaunchIds,
   persistDismissedLaunchId,
   selectUnseenLaunches,
@@ -53,7 +49,7 @@ export interface ModelLaunchCardContentProps {
   /** Force layout branch for tests: auto uses matchMedia when available. */
   layout?: "auto" | "mobile" | "desktop";
   onDismiss: () => void;
-  onTry: () => void;
+  onTry: (modelId: string) => void;
   /** When false, render as a plain panel (tests) without dialog title hooks. */
   asDialog?: boolean;
   className?: string;
@@ -135,7 +131,6 @@ export function ModelLaunchCardContent({
   className,
 }: ModelLaunchCardContentProps) {
   const [pricingOpen, setPricingOpen] = useState(false);
-  const [expandedFamily, setExpandedFamily] = useState<string | null>(null);
   const pricingId = useId();
   const reducedMotion = usePrefersReducedMotion(reducedMotionOverride);
   const isMobile = useIsMobileLayout(layout);
@@ -144,50 +139,33 @@ export function ModelLaunchCardContent({
     () => getCallableLaunchVariants(launch, catalog),
     [catalog, launch],
   );
-  const canTry = canTryLaunchModel(launch, catalog);
-  const families = useMemo(
-    () => getLaunchFamilyNames(launch.variants),
-    [launch.variants],
+
+  // Use the first callable variant by default, otherwise the first variant.
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(
+    callableVariants.length > 0 ? callableVariants[0].modelId : launch.variants[0]?.modelId ?? ""
   );
-  const animate = shouldAnimateLaunchPresentation(
-    launch.presentation,
-    reducedMotion,
-  );
+
+  const selectedVariant = useMemo(() => launch.variants.find(v => v.modelId === selectedVariantId), [launch.variants, selectedVariantId]);
+
+  const animate = shouldAnimateLaunchPresentation(launch.presentation, reducedMotion);
   const pricingDetail = getHighContextPricingNotice({ launch });
-  const primaryLabel = getLaunchPrimaryCtaLabel(canTry, isActivating);
   const presentation = launch.presentation;
   const cssVars = buildLaunchPresentationCssVars(presentation) as CSSProperties;
-  const stagedRelease =
-    launch.status === "staged" ||
-    launch.appControls.some((control) => control.availability === "staged") ||
-    !canTry;
 
-  const familyAvailability = useCallback(
-    (family: string) => {
-      const members = launch.variants.filter(
-        (variant) =>
-          variant.label.replace(/\s+pro$/i, "").trim().toLowerCase() ===
-          family.toLowerCase(),
-      );
-      const anyCallable = members.some((member) =>
-        callableVariants.some((entry) => entry.modelId === member.modelId),
-      );
-      return {
-        members,
-        anyCallable,
-        label: anyCallable ? "Available to try" : "Preparing",
-      };
-    },
-    [callableVariants, launch.variants],
-  );
+  const isSelectedCallable = callableVariants.some(v => v.modelId === selectedVariantId);
 
-  const handleFamilyKeyDown = (
+  const getVariantState = (variantId: string) => {
+    if (callableVariants.some(v => v.modelId === variantId)) return "callable";
+    return "staged";
+  };
+
+  const handleVariantKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
-    family: string,
+    variantId: string,
   ) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setExpandedFamily((current) => (current === family ? null : family));
+      setSelectedVariantId(variantId);
     }
   };
 
@@ -197,9 +175,8 @@ export function ModelLaunchCardContent({
   return (
     <div
       className={cn(
-        "flex min-h-0 w-full flex-col overflow-hidden outline-none",
+        "relative flex min-h-0 w-full flex-col overflow-hidden outline-none transition-all duration-300",
         "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
-        isMobile ? "max-w-none" : "max-w-[480px]",
         className,
       )}
       style={{
@@ -216,10 +193,7 @@ export function ModelLaunchCardContent({
       aria-labelledby={asDialog ? undefined : "model-launch-title"}
     >
       <div
-        className={cn(
-          "relative w-full overflow-hidden",
-          "h-[clamp(7.5rem,22vh,11rem)] sm:h-[clamp(8rem,18vh,10.5rem)]",
-        )}
+        className="absolute inset-0 z-0 pointer-events-none"
         aria-hidden
         data-testid="model-launch-aurora"
       >
@@ -231,89 +205,85 @@ export function ModelLaunchCardContent({
           style={{
             backgroundImage: "var(--launch-gradient)",
             backgroundSize: animate ? "200% 200%" : "100% 100%",
+            filter: "blur(80px) saturate(1.2)",
+            transform: "scale(1.5) translateY(-30%)",
+            opacity: 0.6
           }}
         />
         {animate ? (
-          <div
-            className="model-launch-aurora-shimmer pointer-events-none absolute inset-0 opacity-50"
-            style={{
-              background:
-                "radial-gradient(ellipse 70% 60% at 30% 20%, color-mix(in srgb, var(--launch-on-surface) 35%, transparent), transparent 60%)",
-            }}
-          />
+          <>
+            <div
+              className="model-launch-aurora-bloom pointer-events-none absolute inset-0 opacity-30 mix-blend-screen"
+              style={{
+                background: "radial-gradient(circle at 50% 0%, var(--launch-accent) 0%, transparent 50%)",
+                filter: "blur(60px)",
+              }}
+            />
+            <div
+              className="model-launch-aurora-noise pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-overlay"
+              style={{
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")'
+              }}
+            />
+          </>
         ) : null}
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-16"
+          className="pointer-events-none absolute inset-0"
           style={{
-            background:
-              "linear-gradient(to top, var(--launch-surface), transparent)",
+            background: "linear-gradient(to bottom, transparent 10%, var(--launch-surface) 100%)",
           }}
         />
       </div>
 
-      <div className="flex flex-col gap-4 px-5 pb-2 pt-1 sm:px-6">
-        <div className="flex flex-col gap-2 pr-8">
+      <div className="flex flex-col gap-8 px-8 sm:px-10 pb-6 pt-16 relative z-10 items-center text-center">
+        <div className="flex flex-col gap-3 items-center text-center">
           <Title
             id={asDialog ? undefined : "model-launch-title"}
-            className="text-left text-[1.25rem] font-semibold leading-snug tracking-tight sm:text-xl"
+            className="text-[1.5rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem]"
             style={{ color: "var(--launch-on-surface)" }}
           >
             {launch.title}
           </Title>
           <Description
-            className="text-left text-[0.9375rem] leading-relaxed"
+            className="text-[0.9375rem] leading-relaxed opacity-90 max-w-[340px]"
             style={{ color: "var(--launch-muted)" }}
           >
             {launch.summary}
           </Description>
         </div>
 
-        {families.length > 0 ? (
-          <div>
-            <p
-              className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em]"
-              style={{ color: "var(--launch-muted)" }}
-            >
-              Models
-            </p>
-            <div className="flex flex-wrap gap-2" role="list">
-              {families.map((family) => {
-                const detail = familyAvailability(family);
-                const expanded = expandedFamily === family;
+        {launch.variants.length > 0 ? (
+          <div className="flex flex-col w-full items-center">
+            <div className="flex flex-wrap justify-center gap-1.5" role="list">
+              {launch.variants.map((variant) => {
+                const state = getVariantState(variant.modelId);
+                const isSelected = selectedVariantId === variant.modelId;
+                
                 return (
                   <button
-                    key={family}
+                    key={variant.modelId}
                     type="button"
                     role="listitem"
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                      "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-200",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
                     )}
                     style={{
-                      borderColor: expanded
-                        ? "var(--launch-accent)"
-                        : "color-mix(in srgb, var(--launch-muted) 35%, transparent)",
-                      backgroundColor: expanded
-                        ? "color-mix(in srgb, var(--launch-accent) 18%, transparent)"
-                        : "color-mix(in srgb, var(--launch-on-surface) 6%, transparent)",
-                      color: "var(--launch-on-surface)",
+                      backgroundColor: isSelected
+                        ? "color-mix(in srgb, var(--launch-on-surface) 12%, transparent)"
+                        : "transparent",
+                      color: isSelected ? "var(--launch-on-surface)" : "var(--launch-muted)",
                     }}
-                    aria-expanded={expanded}
-                    aria-label={`${family}${expanded ? `, ${detail.label}` : ""}`}
-                    onClick={() =>
-                      setExpandedFamily((current) =>
-                        current === family ? null : family,
-                      )
-                    }
-                    onKeyDown={(event) => handleFamilyKeyDown(event, family)}
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedVariantId(variant.modelId)}
+                    onKeyDown={(event) => handleVariantKeyDown(event, variant.modelId)}
                   >
-                    <span>{family}</span>
-                    {expanded ? (
+                    <span>{variant.label}</span>
+                    {state === "staged" ? (
                       <span
-                        className="ml-1.5 text-[10px] font-normal opacity-80"
-                        style={{ color: "var(--launch-muted)" }}
+                        className="opacity-60 text-[10px] font-semibold uppercase tracking-wider transition-colors"
                       >
-                        · {detail.label}
+                        Preparing
                       </span>
                     ) : null}
                   </button>
@@ -323,46 +293,41 @@ export function ModelLaunchCardContent({
           </div>
         ) : null}
 
-        {stagedRelease ? (
-          <p
-            className="text-[13px] leading-relaxed"
-            style={{ color: "var(--launch-muted)" }}
-            data-testid="model-launch-availability"
-          >
-            {LAUNCH_STAGED_AVAILABILITY_MESSAGE}
-          </p>
-        ) : null}
-
         {pricingDetail ? (
-          <div>
+          <div className="w-full flex flex-col items-center mt-[-8px]">
             <button
               type="button"
               className={cn(
-                "rounded-sm text-[12px] font-medium underline-offset-4 transition-opacity hover:opacity-90",
+                "rounded-sm text-[11px] font-medium transition-opacity hover:opacity-90",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
               )}
-              style={{ color: "var(--launch-muted)" }}
+              style={{ color: "var(--launch-muted)", opacity: 0.7 }}
               aria-expanded={pricingOpen}
               aria-controls={pricingId}
               onClick={() => setPricingOpen((value) => !value)}
             >
-              Pricing details
+              {pricingOpen ? "Hide pricing details" : "Show pricing details"}
             </button>
-            {pricingOpen ? (
+            <div 
+              className={cn(
+                "grid transition-all duration-300 ease-in-out w-full",
+                pricingOpen ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 mt-0"
+              )}
+            >
               <p
                 id={pricingId}
-                className="mt-2 text-[12px] leading-relaxed"
+                className="text-[11px] leading-relaxed overflow-hidden text-center"
                 style={{ color: "var(--launch-muted)" }}
                 data-testid="model-launch-pricing-detail"
               >
                 {pricingDetail}
               </p>
-            ) : null}
+            </div>
           </div>
         ) : null}
 
         {error ? (
-          <p className="text-[12px] text-red-300" role="alert">
+          <p className="text-[12px] text-red-400 font-medium text-center" role="alert">
             {error}
           </p>
         ) : null}
@@ -370,74 +335,69 @@ export function ModelLaunchCardContent({
 
       <div
         className={cn(
-          "flex flex-col-reverse gap-2 px-5 pb-5 pt-3 sm:flex-row sm:justify-end sm:px-6",
-          "max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+          "flex flex-col-reverse gap-3 px-8 pb-8 sm:flex-row sm:items-center sm:justify-center w-full relative z-10",
+          "max-sm:pb-[max(2rem,env(safe-area-inset-bottom))]",
         )}
       >
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={cn(
-            "h-10 w-full rounded-full border sm:h-9 sm:w-auto",
-            "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)]",
-          )}
-          style={{
-            borderColor:
-              "color-mix(in srgb, var(--launch-muted) 40%, transparent)",
-            color: "var(--launch-on-surface)",
-            backgroundColor: "transparent",
-          }}
-          onClick={onDismiss}
-          disabled={isActivating}
-        >
-          Continue with current model
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          className={cn(
-            "h-10 w-full rounded-full border-0 sm:h-9 sm:w-auto",
-            "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2",
-            !canTry && "opacity-55",
-          )}
-          style={{
-            backgroundColor: "var(--launch-accent)",
-            color: "var(--launch-on-surface)",
-          }}
-          onClick={onTry}
-          disabled={!canTry || isActivating}
-          aria-disabled={!canTry || isActivating}
-          title={
-            canTry
-              ? `Try ${callableVariants[0]?.label ?? "model"}`
-              : "Not available in your workspace catalog yet"
-          }
-          data-testid="model-launch-primary-cta"
-        >
-          {primaryLabel}
-        </Button>
+        <div className="flex flex-col-reverse sm:flex-row w-full gap-3 justify-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-11 w-full rounded-full sm:h-[38px] sm:w-[160px] font-medium transition-colors hover:bg-transparent",
+              "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)]",
+            )}
+            style={{
+              color: "var(--launch-muted)",
+            }}
+            onClick={onDismiss}
+            disabled={isActivating}
+          >
+            Keep current model
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className={cn(
+              "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-all duration-300",
+              "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)] shadow-lg shadow-black/20",
+              (!isSelectedCallable || isActivating) && "opacity-50",
+            )}
+            style={{
+              backgroundColor: isSelectedCallable ? "var(--launch-on-surface)" : "color-mix(in srgb, var(--launch-muted) 30%, transparent)",
+              color: isSelectedCallable ? "var(--launch-surface)" : "var(--launch-on-surface)",
+            }}
+            onClick={() => onTry(selectedVariantId)}
+            disabled={!isSelectedCallable || isActivating}
+            aria-disabled={!isSelectedCallable || isActivating}
+            data-testid="model-launch-primary-cta"
+          >
+            {isActivating ? "Activating…" : isSelectedCallable ? `Try ${selectedVariant?.label ?? "model"}` : "Not available yet"}
+          </Button>
+        </div>
       </div>
 
       <style>{`
         @keyframes model-launch-aurora-shift {
-          0% { background-position: 0% 40%; }
-          50% { background-position: 100% 60%; }
-          100% { background-position: 0% 40%; }
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
-        @keyframes model-launch-aurora-pulse {
-          0%, 100% { opacity: 0.35; transform: translate3d(0, 0, 0) scale(1); }
-          50% { opacity: 0.55; transform: translate3d(2%, -2%, 0) scale(1.04); }
+        @keyframes model-launch-aurora-bloom {
+          0%, 100% { transform: scale(1) translate(0, 0); opacity: 0.3; }
+          33% { transform: scale(1.1) translate(3%, -2%); opacity: 0.4; }
+          66% { transform: scale(0.95) translate(-2%, 3%); opacity: 0.25; }
         }
         .model-launch-aurora-layer {
-          animation: model-launch-aurora-shift var(--launch-aurora-duration, 9s) ease-in-out infinite;
+          animation: model-launch-aurora-shift var(--launch-aurora-duration, 15s) ease-in-out infinite alternate;
         }
-        .model-launch-aurora-shimmer {
-          animation: model-launch-aurora-pulse calc(var(--launch-aurora-duration, 9s) * 0.55) ease-in-out infinite;
+        .model-launch-aurora-bloom {
+          animation: model-launch-aurora-bloom calc(var(--launch-aurora-duration, 15s) * 0.8) ease-in-out infinite;
         }
         @media (prefers-reduced-motion: reduce) {
           .model-launch-aurora-layer,
-          .model-launch-aurora-shimmer {
+          .model-launch-aurora-bloom {
             animation: none !important;
           }
         }
@@ -473,8 +433,8 @@ export function ModelLaunchCardView({
         className={cn(
           "overflow-hidden border-0 p-0 shadow-2xl",
           isMobile
-            ? "max-w-none w-full max-sm:rounded-t-3xl max-sm:rounded-b-none sm:max-w-[480px]"
-            : "w-full max-w-[480px] rounded-3xl",
+            ? "max-w-none w-full max-sm:rounded-t-[32px] max-sm:rounded-b-none sm:max-w-[420px]"
+            : "w-full max-w-[420px] rounded-[32px]",
         )}
       >
         <ModelLaunchCardContent
@@ -547,22 +507,17 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
     setLaunch(null);
   }, [launch, userKey]);
 
-  const handleTry = useCallback(async () => {
-    if (!launch) {
+  const handleTry = useCallback(async (modelId: string) => {
+    if (!launch || !modelId) {
       return;
     }
-    const callable = getCallableLaunchVariants(launch, catalog);
-    if (!canTryLaunchModel(launch, catalog) || callable.length === 0) {
-      return;
-    }
-
-    const target = callable[0]!;
+    
     setIsActivating(true);
     setError("");
 
     try {
-      await setModel(target.modelId);
-      onModelActivated?.(target.modelId);
+      await setModel(modelId);
+      onModelActivated?.(modelId);
       persistDismissedLaunchId(userKey, launch.id);
       setOpen(false);
       setLaunch(null);
@@ -573,7 +528,7 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
     } finally {
       setIsActivating(false);
     }
-  }, [catalog, launch, onModelActivated, userKey]);
+  }, [launch, onModelActivated, userKey]);
 
   if (!launch) {
     return null;
@@ -587,7 +542,7 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
       isActivating={isActivating}
       error={error}
       onDismiss={dismiss}
-      onTry={() => void handleTry()}
+      onTry={handleTry}
     />
   );
 }

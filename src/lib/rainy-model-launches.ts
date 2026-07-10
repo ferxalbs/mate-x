@@ -320,8 +320,6 @@ export function getLaunchPrimaryCtaLabel(canTry: boolean, isActivating: boolean)
   return "Try model";
 }
 
-export const LAUNCH_STAGED_AVAILABILITY_MESSAGE =
-  "This release is being prepared for your workspace.";
 
 /** Parse `/api/v1/models/launches` envelope or raw array into normalized launches. */
 export function parseRainyModelLaunchesPayload(payload: unknown): RainyModelLaunch[] {
@@ -789,33 +787,7 @@ export function getHighContextPricingNotice(params: {
   measuredInputTokens?: number | null;
 }): string | null {
   const launch = params.launch ?? null;
-  const modelId = params.modelId?.trim() ?? "";
-  const isGpt56 =
-    /gpt-5\.6/i.test(modelId) ||
-    launch?.variants.some((variant) => /gpt-5\.6/i.test(variant.modelId)) === true;
-
-  if (!isGpt56 && !launch?.pricing.highContextThreshold) {
-    return null;
-  }
-
-  const threshold =
-    launch?.pricing.highContextThreshold ?? GPT56_HIGH_CONTEXT_NOTICE_TOKENS + 1;
-  // Provider switches above 272_000 input tokens (threshold often 272001).
-  const displayThreshold = Math.max(GPT56_HIGH_CONTEXT_NOTICE_TOKENS, threshold - 1);
-
-  const base =
-    launch?.pricing.note ??
-    `Base pricing changes above ${displayThreshold.toLocaleString()} input tokens.`;
-
-  // Never estimate from prompt message count — only surface measured tokens if provided.
-  if (
-    typeof params.measuredInputTokens === "number" &&
-    Number.isFinite(params.measuredInputTokens)
-  ) {
-    return `${base} Measured input tokens: ${Math.floor(params.measuredInputTokens).toLocaleString()} (provider billing uses prompt tokens, not message count).`;
-  }
-
-  return `${base} Do not estimate from message count; provider billing uses measured prompt tokens.`;
+  return launch?.pricing?.note ?? null;
 }
 
 export function formatLaunchStatus(status: RainyModelLaunchStatus) {
