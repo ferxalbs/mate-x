@@ -150,6 +150,7 @@ function normalizeLaunchSelection(raw: unknown): RainyModelLaunchSelection {
     groupBy,
     availableCtaLabel: firstString(selection.available_cta_label, selection.availableCtaLabel) ?? "Get Started",
     stagedCtaLabel: firstString(selection.staged_cta_label, selection.stagedCtaLabel) ?? "Not available yet",
+    allowPreviewSelection: selection.allow_preview_selection === true || selection.allowPreviewSelection === true,
   };
 }
 
