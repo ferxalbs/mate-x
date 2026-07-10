@@ -39,6 +39,7 @@ import {
   getRainyServiceTierOptions,
   modelSupportsServiceTiers,
   type RainyModelCatalogEntry,
+  type RainyModelLaunch,
   type RainyServiceTier,
 } from "../../../contracts/rainy";
 import type { RepoGraphEmbeddingProgress } from "../../../contracts/repo-graph";
@@ -53,8 +54,26 @@ import {
   supportsReasoning as modelSupportsReasoning,
   supportsVideoInput as modelSupportsVideoInput,
 } from "../../../lib/rainy-model-capabilities";
+import {
+  controlComingSoonLabel,
+  findLaunchForModel,
+  getAppControl,
+  getHighContextPricingNotice,
+  isAppControlAvailable,
+  isDeclaredProVariant,
+  resolveBaseVariantModelId,
+  resolveProVariantModelId,
+} from "../../../lib/rainy-model-launches";
 import { appleCornerPath, cn } from "../../../lib/utils";
-import { getEmbeddingModel, getModel, listEmbeddingModels, listModels, setEmbeddingModel, setModel } from "../../../services/settings-client";
+import {
+  getEmbeddingModel,
+  getModel,
+  listEmbeddingModels,
+  listModelLaunches,
+  listModels,
+  setEmbeddingModel,
+  setModel,
+} from "../../../services/settings-client";
 import { useChatStore } from "../../../store/chat-store";
 import { useResizeObserver } from "../../../hooks/use-resize-observer";
 
@@ -114,6 +133,7 @@ export function ComposerPanel({
   const [embeddingProgress, setEmbeddingProgress] =
     useState<RepoGraphEmbeddingProgress | null>(null);
   const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
+  const [launches, setLaunches] = useState<RainyModelLaunch[]>([]);
   const [catalogError, setCatalogError] = useState("");
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [isModelSaving, setIsModelSaving] = useState(false);
@@ -123,6 +143,9 @@ export function ComposerPanel({
   const [modeValue, setModeValue] =
     useState<AssistantRunOptions["mode"]>("chat");
   const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
+  /** Provider-returned effective tier (billing authority) when known. */
+  const [effectiveServiceTier, setEffectiveServiceTier] =
+    useState<RainyServiceTier | null>(null);
   const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -143,9 +166,11 @@ export function ComposerPanel({
       setCatalogError("");
 
       try {
-        const [storedModel, nextCatalog] = await Promise.all([
+        const [storedModel, nextCatalog, nextLaunches] = await Promise.all([
           getModel(),
           listModels(forceRefresh),
+          // Launch feed is non-blocking; empty on failure keeps composer usable.
+          listModelLaunches(forceRefresh).catch(() => [] as RainyModelLaunch[]),
         ]);
         const [storedEmbeddingModel, nextEmbeddingCatalog] = await Promise.all([
           getEmbeddingModel(),
@@ -158,6 +183,7 @@ export function ComposerPanel({
 
         startTransition(() => {
           setCatalog(nextCatalog);
+          setLaunches(nextLaunches);
           setModelValue(resolveModelValue(storedModel, nextCatalog));
           setEmbeddingCatalog(nextEmbeddingCatalog);
           setEmbeddingModelValue(
@@ -206,6 +232,22 @@ export function ComposerPanel({
     () => catalog.find((entry) => entry.id === modelValue) ?? null,
     [catalog, modelValue],
   );
+  const activeLaunch = useMemo(
+    () => findLaunchForModel(launches, modelValue),
+    [launches, modelValue],
+  );
+  const reasoningControl = useMemo(
+    () => getAppControl(activeLaunch, "reasoning"),
+    [activeLaunch],
+  );
+  const reasoningProControl = useMemo(
+    () => getAppControl(activeLaunch, "reasoning_pro"),
+    [activeLaunch],
+  );
+  const serviceTierControl = useMemo(
+    () => getAppControl(activeLaunch, "service_tier"),
+    [activeLaunch],
+  );
   const modelLabel =
     selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
   const selectedEmbeddingModel =
@@ -217,12 +259,29 @@ export function ComposerPanel({
   const supportsImageInput = modelSupportsImageInput(selectedModel);
   const supportsVideoInput = modelSupportsVideoInput(selectedModel);
   const supportsFileInput = modelSupportsFileInput(selectedModel);
-  const reasoningSupported = modelSupportsReasoning(selectedModel);
+  // Catalog capabilities remain source of truth for callable reasoning.
+  // Launch app_controls only stage UI; staged never forces enablement.
+  const reasoningSupported =
+    modelSupportsReasoning(selectedModel) &&
+    (!reasoningControl || isAppControlAvailable(reasoningControl));
+  const reasoningComingSoon =
+    Boolean(reasoningControl) && !isAppControlAvailable(reasoningControl);
   const serviceTierOptions = useMemo(
-    () => getRainyServiceTierOptions(selectedModel),
-    [selectedModel],
+    () =>
+      getRainyServiceTierOptions(
+        selectedModel,
+        serviceTierControl?.values ?? null,
+      ),
+    [selectedModel, serviceTierControl],
   );
-  const showServiceTierSelector = modelSupportsServiceTiers(selectedModel);
+  const serviceTierControlAvailable =
+    !serviceTierControl || isAppControlAvailable(serviceTierControl);
+  const showServiceTierSelector =
+    serviceTierControlAvailable &&
+    (modelSupportsServiceTiers(selectedModel, serviceTierControl?.values) ||
+      (serviceTierControl?.values?.length ?? 0) > 0);
+  const serviceTierComingSoon =
+    Boolean(serviceTierControl) && !isAppControlAvailable(serviceTierControl);
   const effortOptions = useMemo(
     () => getReasoningEffortValues(selectedModel),
     [selectedModel],
@@ -234,6 +293,36 @@ export function ComposerPanel({
       ? "Reasoning"
       : "Reasoning on"
     : "Reasoning off";
+  const proSuffix = reasoningProControl?.variantSuffix ?? "-pro";
+  // Pro mapping only via launch-feed variants — never invent `-pro` suffixes.
+  const declaredProModelId = resolveProVariantModelId(modelValue, activeLaunch, {
+    suffix: proSuffix,
+    catalog,
+  });
+  const proVariantSelected = isDeclaredProVariant(
+    modelValue,
+    activeLaunch,
+    proSuffix,
+  );
+  const proVariantCallable = Boolean(
+    declaredProModelId ||
+      (proVariantSelected &&
+        catalog.some((entry) => entry.id === modelValue)),
+  );
+  const reasoningProComingSoon =
+    Boolean(reasoningProControl) && !isAppControlAvailable(reasoningProControl);
+  // Hide control entirely when launch does not declare a Pro partner for this model.
+  const showReasoningProControl =
+    Boolean(reasoningProControl) &&
+    (proVariantSelected || Boolean(declaredProModelId) || reasoningProComingSoon);
+  const pricingNotice = useMemo(
+    () =>
+      getHighContextPricingNotice({
+        launch: activeLaunch,
+        modelId: modelValue,
+      }),
+    [activeLaunch, modelValue],
+  );
   const isModelDisabled =
     isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue = "approval";
@@ -397,8 +486,16 @@ export function ComposerPanel({
     try {
       await setModel(nextModel);
       setModelValue(nextModel);
+      setEffectiveServiceTier(null);
       const nextEntry = catalog.find((entry) => entry.id === nextModel);
-      if (!getRainyServiceTierOptions(nextEntry).includes(serviceTier)) {
+      const nextLaunch = findLaunchForModel(launches, nextModel);
+      const nextTierControl = getAppControl(nextLaunch, "service_tier");
+      if (
+        !getRainyServiceTierOptions(
+          nextEntry,
+          nextTierControl?.values ?? null,
+        ).includes(serviceTier)
+      ) {
         setServiceTier("standard");
       }
     } catch (error) {
@@ -410,6 +507,27 @@ export function ComposerPanel({
     } finally {
       setIsModelSaving(false);
     }
+  }
+
+  async function handleReasoningProToggle() {
+    if (reasoningProComingSoon || !reasoningProControl || !activeLaunch) {
+      return;
+    }
+
+    // Model-variant control only changes model id via declared launch variants.
+    // Never appends `-pro` and never sends a reasoning_pro request parameter.
+    const nextModel = proVariantSelected
+      ? resolveBaseVariantModelId(modelValue, activeLaunch, proSuffix)
+      : resolveProVariantModelId(modelValue, activeLaunch, {
+          suffix: proSuffix,
+          catalog,
+        });
+
+    if (!nextModel || nextModel === modelValue) {
+      return;
+    }
+
+    await handleModelChange(nextModel);
   }
 
   async function handleEmbeddingModelChange(nextModel: string) {
@@ -516,6 +634,11 @@ export function ComposerPanel({
           {capabilityNotice ? (
             <div className="relative z-10 border-b border-border/20 bg-amber-500/5 px-5 py-2 text-[11px] leading-5 text-amber-600/90 dark:text-amber-300/80">
               {capabilityNotice}
+            </div>
+          ) : null}
+          {pricingNotice ? (
+            <div className="relative z-10 border-b border-border/20 bg-sky-500/5 px-5 py-2 text-[11px] leading-5 text-sky-700/90 dark:text-sky-300/85">
+              {pricingNotice}
             </div>
           ) : null}
 
@@ -661,6 +784,47 @@ export function ComposerPanel({
                 >
                   <BrainIcon className="size-3.5" />
                 </button>
+              ) : reasoningComingSoon ? (
+                <button
+                  type="button"
+                  disabled
+                  className="flex size-7 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-foreground/5 text-foreground/25 sm:size-7"
+                  title={`${reasoningControl?.label ?? "Reasoning"} — Coming soon`}
+                >
+                  <BrainIcon className="size-3.5" />
+                </button>
+              ) : null}
+              {showReasoningProControl ? (
+                <button
+                  type="button"
+                  disabled={
+                    reasoningProComingSoon ||
+                    isModelSaving ||
+                    (!proVariantSelected && !proVariantCallable)
+                  }
+                  className={cn(
+                    "flex h-6 shrink-0 items-center rounded-full px-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all",
+                    reasoningProComingSoon
+                      ? "cursor-not-allowed bg-foreground/5 text-foreground/30"
+                      : proVariantSelected
+                        ? "bg-primary/15 text-primary hover:bg-primary/20"
+                        : "bg-foreground/5 text-foreground/60 hover:bg-foreground/10 hover:text-foreground",
+                  )}
+                  onClick={() => void handleReasoningProToggle()}
+                  title={
+                    reasoningProComingSoon
+                      ? `${reasoningProControl?.label ?? "Reasoning Pro"} — Coming soon`
+                      : proVariantSelected
+                        ? "Using Pro variant (model id)"
+                        : "Switch to Pro model variant"
+                  }
+                >
+                  {reasoningProComingSoon
+                    ? "Pro · soon"
+                    : proVariantSelected
+                      ? "Pro"
+                      : "Pro"}
+                </button>
               ) : null}
               <div
                 className={cn(
@@ -705,9 +869,21 @@ export function ComposerPanel({
               {showServiceTierSelector ? (
                 <InlineSelect
                   value={serviceTier}
-                  onValueChange={(value) => setServiceTier(value as RainyServiceTier)}
-                  label={formatServiceTier(serviceTier)}
-                  title={`Service tier: ${formatServiceTier(serviceTier)}`}
+                  onValueChange={(value) => {
+                    setServiceTier(value as RainyServiceTier);
+                    // Clear stale provider tier until next response metadata arrives.
+                    setEffectiveServiceTier(null);
+                  }}
+                  label={
+                    effectiveServiceTier && effectiveServiceTier !== serviceTier
+                      ? `${formatServiceTier(serviceTier)} → ${formatServiceTier(effectiveServiceTier)}`
+                      : formatServiceTier(serviceTier)
+                  }
+                  title={
+                    effectiveServiceTier
+                      ? `Requested ${formatServiceTier(serviceTier)}; provider effective tier ${formatServiceTier(effectiveServiceTier)} (billing authority)`
+                      : `Service tier: ${formatServiceTier(serviceTier)}`
+                  }
                 >
                   {serviceTierOptions.map((tier) => (
                     <SelectItem key={tier} value={tier}>
@@ -720,6 +896,13 @@ export function ComposerPanel({
                     </SelectItem>
                   ))}
                 </InlineSelect>
+              ) : serviceTierComingSoon ? (
+                <span
+                  className="flex h-6 shrink-0 cursor-not-allowed items-center rounded-full bg-foreground/5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/30"
+                  title={`${serviceTierControl?.label ?? "Service tier"} — ${controlComingSoonLabel(serviceTierControl!) ?? "Coming soon"}`}
+                >
+                  Tier · soon
+                </span>
               ) : null}
 
               <div
@@ -1058,6 +1241,8 @@ function formatServiceTier(tier: RainyServiceTier) {
       return "Flex";
     case "priority":
       return "Priority";
+    case "scale":
+      return "Scale";
     default:
       return "Standard";
   }
@@ -1084,7 +1269,9 @@ function formatServiceTierDescription(
       ? "Cheaper, may be slower/queued"
       : tier === "priority"
         ? "Higher cost, faster capacity"
-        : "Default";
+        : tier === "scale"
+          ? "Scale capacity tier"
+          : "Default";
 
   return priceSummary ? `${description} · ${priceSummary}` : description;
 }

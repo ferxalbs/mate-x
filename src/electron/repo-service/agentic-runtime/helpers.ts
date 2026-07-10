@@ -463,6 +463,13 @@ export function buildArtifacts(
       value: options.reasoning,
     },
     {
+      id: "artifact-service-tier",
+      label: "Service tier",
+      // Requested tier only. Provider-returned effective tier is preserved
+      // separately when response metadata is available (billing authority).
+      value: options.serviceTier ?? "standard",
+    },
+    {
       id: "artifact-runbook",
       label: "Runbook",
       value: options.runbookId ?? "patch_test_verify",

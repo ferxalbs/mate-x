@@ -24,7 +24,7 @@ import type {
   PolicyStop,
   ResolvePolicyStopRequest,
 } from "./policy";
-import type { RainyModelCatalogEntry } from "./rainy";
+import type { RainyModelCatalogEntry, RainyModelLaunch } from "./rainy";
 import type { PrivacyApi } from "./privacy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
@@ -147,12 +147,12 @@ export interface GitApi {
 }
 
 export interface GitHubIntegrationApi {
-  detectGitHubRemote: (workspacePath: string) => Promise<GitHubIntegrationResult<GitHubRepositoryRef>>;
-  getCurrentBranch: (workspacePath: string) => Promise<GitHubIntegrationResult<string>>;
-  getLocalDiff: (workspacePath: string) => Promise<GitHubIntegrationResult<string>>;
-  getChangedFiles: (workspacePath: string) => Promise<GitHubIntegrationResult<GitHubChangedFile[]>>;
-  collectLocalEvidence: (workspacePath: string) => Promise<GitHubIntegrationResult<GitHubLocalEvidence>>;
-  getIntegrationStatus: (workspacePath: string) => Promise<GitHubIntegrationStatus>;
+  detectGitHubRemote: (workspacePath?: string) => Promise<GitHubIntegrationResult<GitHubRepositoryRef>>;
+  getCurrentBranch: (workspacePath?: string) => Promise<GitHubIntegrationResult<string>>;
+  getLocalDiff: (workspacePath?: string) => Promise<GitHubIntegrationResult<string>>;
+  getChangedFiles: (workspacePath?: string) => Promise<GitHubIntegrationResult<GitHubChangedFile[]>>;
+  collectLocalEvidence: (workspacePath?: string) => Promise<GitHubIntegrationResult<GitHubLocalEvidence>>;
+  getIntegrationStatus: (workspacePath?: string) => Promise<GitHubIntegrationStatus>;
   getPullRequestForBranch: () => Promise<GitHubIntegrationResult<GitHubPullRequestSummary>>;
   getPullRequestFiles: () => Promise<GitHubIntegrationResult<GitHubChangedFile[]>>;
   getPullRequestChecks: () => Promise<GitHubIntegrationResult<GitHubCheckSummary[]>>;
@@ -168,6 +168,7 @@ export interface SettingsApi {
   getApiKeyStatus: () => Promise<ApiKeyStatus>;
   setApiKey: (apiKey: string) => Promise<void>;
   listModels: (forceRefresh?: boolean) => Promise<RainyModelCatalogEntry[]>;
+  listModelLaunches: (forceRefresh?: boolean) => Promise<RainyModelLaunch[]>;
   getModel: () => Promise<string | null>;
   setModel: (model: string) => Promise<void>;
   listEmbeddingModels: () => Promise<

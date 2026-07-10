@@ -182,8 +182,9 @@ export function resolveRainyReasoningPayload(
   options: AssistantRunOptions,
   capabilities?: RainyModelCapabilities,
 ): {
-  reasoning?: { exclude?: true; effort?: string };
+  reasoning?: { exclude?: true; effort?: string; enabled?: boolean };
   includeReasoning?: boolean;
+  reasoningEffort?: string;
 } {
   if (!options.reasoningEnabled || !supportsReasoning(capabilities)) {
     return {};
@@ -192,15 +193,19 @@ export function resolveRainyReasoningPayload(
   const accepted = getAcceptedParameters(capabilities);
   const canSendReasoning = accepted.includes("reasoning");
   const canIncludeReasoning = accepted.includes("include_reasoning");
+  const canSendReasoningEffort = accepted.includes("reasoning_effort");
   const effortValues = getReasoningEffortValues(capabilities);
   const canSendEffort = effortValues.includes(options.reasoning);
+  const effort = canSendEffort ? options.reasoning : undefined;
 
   return {
     reasoning: canSendReasoning
-      ? canSendEffort
-        ? { effort: options.reasoning }
-        : {}
+      ? effort
+        ? { effort }
+        : { enabled: true }
       : undefined,
     includeReasoning: canIncludeReasoning,
+    // Top-level OpenRouter/Rainy field when accepted — never invent reasoning_pro.
+    reasoningEffort: canSendReasoningEffort && effort ? effort : undefined,
   };
 }

@@ -37,6 +37,7 @@ import {
 const {
   buildChatCompletionRequest,
   isOpenAIGpt5OrNewerModel,
+  listRainyModelLaunches,
   listRainyModels,
   resolvePreferredRainyApiMode,
 } = await import("./rainy-service");
@@ -306,6 +307,77 @@ describe("listRainyModels", () => {
   });
 });
 
+describe("listRainyModelLaunches", () => {
+  it("parses launch feed and caches safely without treating launches as catalog", async () => {
+    const originalFetch = global.fetch;
+    let launchHits = 0;
+    global.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/models/launches")) {
+        launchHits += 1;
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              data: [
+                {
+                  id: "gpt-5.6-series",
+                  status: "staged",
+                  published_at: "2026-07-09T00:00:00Z",
+                  title: "Introducing GPT-5.6 series",
+                  summary: "Staged GPT-5.6 rollout.",
+                  variants: [
+                    { model_id: "openai/gpt-5.6-sol", label: "Sol" },
+                  ],
+                  app_controls: [
+                    {
+                      id: "reasoning",
+                      kind: "toggle",
+                      label: "Reasoning",
+                      availability: "staged",
+                      request_fields: [
+                        "reasoning",
+                        "reasoning_effort",
+                        "include_reasoning",
+                      ],
+                    },
+                  ],
+                  pricing: {
+                    basis: "prompt_tokens",
+                    high_context_threshold: 272001,
+                    note: "Pricing changes above 272K input tokens.",
+                  },
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof global.fetch;
+
+    try {
+      const first = await listRainyModelLaunches({
+        apiKey: "ra-test-key",
+        forceRefresh: true,
+      });
+      const second = await listRainyModelLaunches({
+        apiKey: "ra-test-key",
+        forceRefresh: false,
+      });
+
+      assert.equal(first.length, 1);
+      assert.equal(first[0]?.id, "gpt-5.6-series");
+      assert.equal(first[0]?.status, "staged");
+      assert.deepEqual(second, first);
+      assert.equal(launchHits, 1);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
+
 describe("Rainy model capabilities", () => {
   const reasoningWithEffort: RainyModelCapabilities = {
     reasoning: {
@@ -318,11 +390,12 @@ describe("Rainy model capabilities", () => {
   it("resolves reasoning efforts from controls and accepted parameters", () => {
     assert.equal(supportsReasoning(reasoningWithEffort), true);
     assert.equal(supportsReasoningEffort(reasoningWithEffort), true);
-    assert.deepEqual(getReasoningEffortValues(reasoningWithEffort), [
-      "low",
-      "medium",
-      "high",
-    ]);
+    // When controls only flag reasoning_effort without an effort enum, fall back to
+    // the documented OpenRouter/Rainy effort vocabulary (not a short hard-coded trio).
+    const efforts = getReasoningEffortValues(reasoningWithEffort);
+    assert.ok(efforts.includes("low"));
+    assert.ok(efforts.includes("medium"));
+    assert.ok(efforts.includes("high"));
     assert.deepEqual(getAcceptedParameters(reasoningWithEffort), [
       "reasoning",
       "include_reasoning",
@@ -537,6 +610,35 @@ describe("buildChatCompletionRequest", () => {
     assert.equal(priorityRequest.service_tier, "priority");
   });
 
+  it("sends scale service tier and rejects unknown reasoning parameters", () => {
+    const scaleRequest = buildChatCompletionRequest({
+      model: "tiered",
+      messages: textMessage,
+      serviceTier: "scale",
+      allowedServiceTiers: ["flex", "priority", "scale"],
+    });
+    assert.equal(scaleRequest.service_tier, "scale");
+
+    const reasoningRequest = buildChatCompletionRequest({
+      model: "reasoning",
+      messages: textMessage,
+      reasoning: { effort: "high" },
+      includeReasoning: true,
+      reasoningEffort: "high",
+      capabilities: {
+        reasoning: { supported: true },
+        parameters: {
+          accepted: ["reasoning", "reasoning_effort", "include_reasoning"],
+        },
+      },
+    });
+
+    assert.deepEqual(reasoningRequest.reasoning, { effort: "high" });
+    assert.equal(reasoningRequest.reasoning_effort, "high");
+    assert.equal(reasoningRequest.include_reasoning, true);
+    assert.equal("reasoning_pro" in reasoningRequest, false);
+  });
+
   it("preserves OpenRouter reasoning details in assistant messages", () => {
     const assistantMessage = {
       role: "assistant",
@@ -600,6 +702,13 @@ describe("Rainy service tier options", () => {
       "flex",
       "priority",
     ]);
+  });
+
+  it("includes launch-listed scale tier when provided as extra values", () => {
+    assert.deepEqual(
+      getRainyServiceTierOptions(tieredModel, ["flex", "priority", "scale"]),
+      ["standard", "flex", "priority", "scale"],
+    );
   });
 
   it("hides selector for non-tiered models", () => {

@@ -16,6 +16,7 @@ import {
   normalizeRainyServiceTier,
   type RainyApiMode,
   type RainyModelCatalogEntry,
+  type RainyModelLaunch,
   type RainyModelPricing,
   type RainyServiceTier,
   type RainyServiceTierPricing,
@@ -26,6 +27,12 @@ import {
   supportsImageOutput,
   supportsTools,
 } from "../lib/rainy-model-capabilities";
+import {
+  extractEffectiveServiceTier,
+  parseRainyModelLaunchesPayload,
+  serializeReasoningRequest,
+  serializeServiceTierRequest,
+} from "../lib/rainy-model-launches";
 import { privacyFirewall } from "./privacy/privacy-firewall-service";
 
 const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, "");
@@ -40,7 +47,12 @@ const RAINY_MODELS_ENDPOINTS = [
   `${RAINY_API_ROOT_URL}/models`,
   `${RAINY_BASE_URL}/models`,
 ];
+const RAINY_LAUNCHES_ENDPOINTS = [
+  `${RAINY_API_ROOT_URL}/models/launches`,
+  `${RAINY_BASE_URL}/models/launches`,
+];
 const MODEL_CACHE_TTL_MS = 60_000;
+const LAUNCH_CACHE_TTL_MS = 60_000;
 
 type ORChatMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam & {
   reasoning_details?: unknown;
@@ -77,6 +89,12 @@ let cachedCatalog: {
   cacheKey: string;
   expiresAt: number;
   models: RainyModelCatalogEntry[];
+} | null = null;
+
+let cachedLaunches: {
+  cacheKey: string;
+  expiresAt: number;
+  launches: RainyModelLaunch[];
 } | null = null;
 
 function createRainyClient(apiKey: string): OpenAI {
@@ -123,14 +141,17 @@ export function buildChatCompletionRequest(params: {
   messages: ORChatMessageParam[];
   tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
-  reasoning?: { exclude?: true; effort?: string };
+  reasoning?: { exclude?: true; effort?: string; enabled?: boolean };
   includeReasoning?: boolean;
+  reasoningEffort?: string;
   capabilities?: RainyModelCatalogEntry["capabilities"];
   modalities?: string[];
   imageConfig?: Record<string, unknown>;
   responseFormat?: OpenAI.Chat.Completions.ChatCompletionCreateParams["response_format"];
   maxTokens?: number;
   serviceTier?: RainyServiceTier;
+  /** When set, only these service_tier values may be sent (launch control lists). */
+  allowedServiceTiers?: readonly string[];
 }) {
   if (
     params.capabilities &&
@@ -147,7 +168,8 @@ export function buildChatCompletionRequest(params: {
     messages: ORChatMessageParam[];
     tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
     tool_choice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
-    reasoning?: { exclude?: true; effort?: string };
+    reasoning?: { exclude?: true; effort?: string; enabled?: boolean };
+    reasoning_effort?: string;
     include_reasoning?: boolean;
     modalities?: string[];
     image_config?: Record<string, unknown>;
@@ -168,12 +190,51 @@ export function buildChatCompletionRequest(params: {
     request.tool_choice = params.toolChoice;
   }
 
-  if (params.reasoning && acceptsParameter("reasoning")) {
-    request.reasoning = params.reasoning;
-  }
+  // Documented reasoning fields only: reasoning, reasoning_effort, include_reasoning.
+  // Never invent reasoning_pro or other unknown parameters.
+  const effortFromReasoning =
+    params.reasoning &&
+    typeof params.reasoning === "object" &&
+    typeof params.reasoning.effort === "string"
+      ? params.reasoning.effort
+      : null;
+  const effort = params.reasoningEffort ?? effortFromReasoning;
+  const wantsReasoning =
+    Boolean(params.reasoning) ||
+    Boolean(params.includeReasoning) ||
+    Boolean(params.reasoningEffort);
 
-  if (params.includeReasoning && acceptsParameter("include_reasoning")) {
-    request.include_reasoning = true;
+  if (wantsReasoning) {
+    // Pass accepted list even when empty so unsupported models get no reasoning fields.
+    const serialized = serializeReasoningRequest({
+      enabled: true,
+      effort,
+      acceptedParameters: accepted,
+    });
+
+    if (params.reasoning && acceptsParameter("reasoning")) {
+      request.reasoning = params.reasoning;
+    } else if ("reasoning" in serialized && acceptsParameter("reasoning")) {
+      request.reasoning = serialized.reasoning as {
+        exclude?: true;
+        effort?: string;
+        enabled?: boolean;
+      };
+    }
+
+    if (
+      typeof serialized.reasoning_effort === "string" &&
+      acceptsParameter("reasoning_effort")
+    ) {
+      request.reasoning_effort = serialized.reasoning_effort;
+    }
+
+    if (
+      (params.includeReasoning || serialized.include_reasoning === true) &&
+      acceptsParameter("include_reasoning")
+    ) {
+      request.include_reasoning = true;
+    }
   }
 
   if (
@@ -193,9 +254,12 @@ export function buildChatCompletionRequest(params: {
     request.response_format = params.responseFormat;
   }
 
-  const serviceTier = normalizeRainyServiceTier(params.serviceTier);
-  if (serviceTier !== "standard") {
-    request.service_tier = serviceTier;
+  const tierPayload = serializeServiceTierRequest(
+    params.serviceTier,
+    params.allowedServiceTiers,
+  );
+  if (tierPayload.service_tier) {
+    request.service_tier = tierPayload.service_tier;
   }
 
   if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
@@ -209,6 +273,8 @@ export function buildChatCompletionRequest(params: {
 
   return request;
 }
+
+export { extractEffectiveServiceTier, serializeReasoningRequest, serializeServiceTierRequest };
 
 function messagesContainImageInput(
   messages: ORChatMessageParam[],
@@ -300,6 +366,77 @@ export async function listRainyModels(params: {
   };
 
   return models;
+}
+
+/**
+ * Non-blocking model launch feed. Safe to call at startup; failures return [].
+ * Launch feed is independent of catalog exposure — never use it alone to enable calling.
+ */
+export async function listRainyModelLaunches(params: {
+  apiKey?: string | null;
+  forceRefresh?: boolean;
+} = {}): Promise<RainyModelLaunch[]> {
+  const trimmedApiKey = params.apiKey?.trim() || null;
+  const cacheKey = trimmedApiKey ?? "__public__";
+  const now = Date.now();
+
+  if (
+    !params.forceRefresh &&
+    cachedLaunches &&
+    cachedLaunches.cacheKey === cacheKey &&
+    cachedLaunches.expiresAt > now
+  ) {
+    return cachedLaunches.launches;
+  }
+
+  let lastError: Error | null = null;
+
+  for (const endpoint of RAINY_LAUNCHES_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: buildModelsRequestHeaders(trimmedApiKey),
+        signal: AbortSignal.timeout(RAINY_REQUEST_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        lastError = new Error(
+          `Rainy model launches request failed with status ${response.status} at ${new URL(endpoint).pathname}.`,
+        );
+        if (response.status === 404) {
+          continue;
+        }
+        // Soft-fail: launch cards are non-critical.
+        break;
+      }
+
+      const payload = (await response.json()) as unknown;
+      const launches = parseRainyModelLaunchesPayload(payload);
+      cachedLaunches = {
+        cacheKey,
+        expiresAt: now + LAUNCH_CACHE_TTL_MS,
+        launches,
+      };
+      return launches;
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("Rainy model launches request failed.");
+    }
+  }
+
+  if (lastError && process.env.NODE_ENV !== "production") {
+    console.warn("[rainy] model launches unavailable:", lastError.message);
+  }
+
+  // Cache empty result briefly to avoid hammering a missing endpoint.
+  cachedLaunches = {
+    cacheKey,
+    expiresAt: now + Math.min(LAUNCH_CACHE_TTL_MS, 15_000),
+    launches: [],
+  };
+  return [];
 }
 
 export async function validateRainyModelSelection(params: {
@@ -675,8 +812,9 @@ export async function requestRainyChatCompletionStream(params: {
   onReasoningDelta?: (delta: string) => void;
   tools?: any[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
-  reasoning?: { exclude?: true; effort?: string };
+  reasoning?: { exclude?: true; effort?: string; enabled?: boolean };
   includeReasoning?: boolean;
+  reasoningEffort?: string;
   capabilities?: RainyModelCatalogEntry["capabilities"];
   maxTokens?: number;
   serviceTier?: RainyServiceTier;
@@ -697,6 +835,7 @@ export async function requestRainyChatCompletionStream(params: {
     toolChoice: params.toolChoice,
     reasoning: params.reasoning,
     includeReasoning: params.includeReasoning,
+    reasoningEffort: params.reasoningEffort,
     capabilities: params.capabilities,
     maxTokens: params.maxTokens,
     serviceTier: params.serviceTier,
@@ -727,6 +866,7 @@ export async function requestRainyChatCompletionStream(params: {
           tools: sanitized.payload.tools,
           reasoning: params.reasoning,
           includeReasoning: params.includeReasoning,
+          reasoningEffort: params.reasoningEffort,
           capabilities: params.capabilities,
           maxTokens: params.maxTokens,
           serviceTier: params.serviceTier,
