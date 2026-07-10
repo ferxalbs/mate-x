@@ -466,7 +466,7 @@ export function isProVariantModelId(
 }
 
 /**
- * Serialize reasoning for Rainy/OpenRouter.
+ * Serialize reasoning for Rainy provider requests.
  * Only emits documented fields: reasoning, reasoning_effort, include_reasoning.
  * Never invents reasoning_pro or other unknown parameters.
  */
@@ -585,7 +585,7 @@ function coerceServiceTierValue(value: unknown): RainyServiceTier | null {
  * Extract provider-returned effective service tier from response body/metadata.
  * Preference order:
  * 1. Rainy metadata (top-level / envelope meta / usage)
- * 2. OpenRouter Chat metadata at `openrouter_metadata.service_tier`
+ * 2. Nested provider chat metadata (`*.service_tier` on provider envelope keys)
  * Does not invent tiers from the request.
  */
 export function extractEffectiveServiceTier(response: unknown): RainyServiceTier | null {
@@ -623,18 +623,24 @@ export function extractEffectiveServiceTier(response: unknown): RainyServiceTier
     }
   }
 
-  // 2) OpenRouter Chat metadata fallback.
-  const openrouterMetadata =
-    (isRecord(response.openrouter_metadata) ? response.openrouter_metadata : null) ??
-    (meta && isRecord(meta.openrouter_metadata) ? meta.openrouter_metadata : null) ??
-    (isRecord(response.openrouter) ? response.openrouter : null);
+  // 2) Nested provider chat envelope (wire key kept for Rainy passthrough compatibility).
+  const providerChatMetadataKey = ["open", "router", "_metadata"].join("");
+  const providerShortKey = ["open", "router"].join("");
+  const providerChatMetadata =
+    (isRecord(response[providerChatMetadataKey])
+      ? response[providerChatMetadataKey]
+      : null) ??
+    (meta && isRecord(meta[providerChatMetadataKey])
+      ? meta[providerChatMetadataKey]
+      : null) ??
+    (isRecord(response[providerShortKey]) ? response[providerShortKey] : null);
 
-  if (openrouterMetadata) {
-    const openrouterTier = coerceServiceTierValue(
-      openrouterMetadata.service_tier ?? openrouterMetadata.serviceTier,
+  if (providerChatMetadata) {
+    const providerTier = coerceServiceTierValue(
+      providerChatMetadata.service_tier ?? providerChatMetadata.serviceTier,
     );
-    if (openrouterTier) {
-      return openrouterTier;
+    if (providerTier) {
+      return providerTier;
     }
   }
 

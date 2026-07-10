@@ -205,7 +205,7 @@ export function resolveRainyReasoningPayload(
         : { enabled: true }
       : undefined,
     includeReasoning: canIncludeReasoning,
-    // Top-level OpenRouter/Rainy field when accepted — never invent reasoning_pro.
+    // Top-level Rainy/provider field when accepted — never invent reasoning_pro.
     reasoningEffort: canSendReasoningEffort && effort ? effort : undefined,
   };
 }
