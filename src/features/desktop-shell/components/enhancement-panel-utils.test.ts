@@ -86,7 +86,7 @@ describe("trust gate derivation", () => {
     assert.equal(state.evidencePackState, "signed_strong");
   });
 
-  it("maps no evidence and no changes to Unknown", () => {
+  it("maps no evidence and no changes to Not proven", () => {
     const state = deriveTrustGate({
       changedFiles: [],
       commands: [],
@@ -95,14 +95,14 @@ describe("trust gate derivation", () => {
       summary: { ...baseSummary, risk: "None" },
     });
 
-    assert.equal(state.verdict, "Unknown");
-    assert.equal(state.headline, "Unknown");
+    assert.equal(state.verdict, "Not proven");
+    assert.equal(state.headline, "Not proven");
     assert.equal(state.proofLabel, "No validation passed yet");
     assert.equal(state.primaryActionLabel, "Show details");
-    assert.equal(getShipStatusHeaderLabel(state), "Unknown");
+    assert.equal(getShipStatusHeaderLabel(state), "Not proven");
   });
 
-  it("maps no validation and changed files to Not ready", () => {
+  it("maps no validation and changed files to Needs check", () => {
     const state = deriveTrustGate({
       changedFiles: ["src/features/chat.tsx"],
       commands: ["~/.bun/bin/bun run typecheck"],
@@ -111,11 +111,11 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Not ready");
-    assert.equal(state.headline, "Not ready to push");
+    assert.equal(state.verdict, "Needs check");
+    assert.equal(state.headline, "Needs check");
     assert.equal(getShipStatusHeaderLabel(state), "Needs check");
     assert.equal(state.explanation, "MaTE X found changed files, but no passing validation has been proven.");
-    assert.equal(state.nextAction, "Run safety check");
+    assert.equal(state.nextAction, "Run Factory verification");
     assert.deepEqual(state.reasonChips.slice(0, 3), [
       "1 file changed",
       "No validation passed",
@@ -136,8 +136,8 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Not ready");
-    assert.equal(state.nextAction, "Run safety check");
+    assert.equal(state.verdict, "Needs check");
+    assert.equal(state.nextAction, "Run Factory verification");
   });
 
   it("does not trust final claims when no commands ran", () => {
@@ -158,7 +158,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Not ready");
+    assert.equal(state.verdict, "Needs check");
     assert.equal(state.validationState, "not_run");
     assert.equal(state.proofLabel, "No validation passed yet");
     assert.match(state.missingProof.join(" "), /Passing validation/);
@@ -183,7 +183,7 @@ describe("trust gate derivation", () => {
     assert.equal(state.policyStopState, "unresolved");
   });
 
-  it("maps risky surface touched without proof to Risky", () => {
+  it("maps risky surface touched without proof to Risk found", () => {
     const state = deriveTrustGate({
       changedFiles: ["src/electron/session-service.ts"],
       commands: ["~/.bun/bin/bun run typecheck"],
@@ -192,11 +192,11 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Risky");
-    assert.equal(state.headline, "Risky");
+    assert.equal(state.verdict, "Risk found");
+    assert.equal(state.headline, "Risk found");
     assert.equal(state.primaryActionLabel, "Inspect risky changes");
-    assert.equal(getShipStatusHeaderLabel(state), "Risky");
-    assert.equal(state.nextAction, "Run safety check");
+    assert.equal(getShipStatusHeaderLabel(state), "Risk found");
+    assert.equal(state.nextAction, "Run Factory verification");
     assert.deepEqual(state.touchedRiskSurfaces, ["src/electron/session-service.ts"]);
   });
 
@@ -218,7 +218,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Risky");
+    assert.equal(state.verdict, "Risk found");
     assert.equal(state.evidencePackState, "present_weak");
   });
 
@@ -240,7 +240,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Risky");
+    assert.equal(state.verdict, "Risk found");
     assert.match(state.missingProof.join(" "), /Strong proof/);
   });
 
@@ -255,7 +255,7 @@ describe("trust gate derivation", () => {
       summary: baseSummary,
     });
 
-    assert.equal(state.verdict, "Not ready");
+    assert.equal(state.verdict, "Needs check");
     assert.equal(state.status, "resolving");
     assert.equal(getShipStatusHeaderLabel(state), "Needs check");
   });
@@ -390,7 +390,7 @@ describe("contextual ship status mode", () => {
       }),
       "active",
     );
-    assert.equal(dirtyState.headline, "Not ready to push");
+    assert.equal(dirtyState.headline, "Needs check");
   });
 
   it("uses active gate when risky surfaces changed after agent file modifications", () => {

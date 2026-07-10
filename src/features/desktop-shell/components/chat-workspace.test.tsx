@@ -35,7 +35,7 @@ describe("ChatWorkspace contextual actions", () => {
     mockUndo.mockClear();
   });
 
-  it("empty state Run safety check submits immediately instead of only populating input", async () => {
+  it("empty state Review code and suggest changes submits immediately instead of only populating input", async () => {
     const view = render(
       <ChatWorkspace
         canUndoLastTurn={false}
@@ -51,11 +51,11 @@ describe("ChatWorkspace contextual actions", () => {
       />,
     );
 
-    fireEvent.click(view.getByText("Run safety check"));
+    fireEvent.click(view.getByText("Review code and suggest changes"));
 
     await waitFor(() => assert.equal(mockSubmitPrompt.calls.length, 1));
-    assert.match(mockSubmitPrompt.calls[0][0], /smallest useful safety check/);
-    assert.deepEqual(mockSubmitPrompt.calls[0][1], { runbookId: "scan_contain_report" });
+    assert.match(mockSubmitPrompt.calls[0][0], /Review the recent changes/);
+    assert.equal(mockSubmitPrompt.calls[0][1], undefined);
     assert.equal(mockSelectPrompt.calls.length, 0);
   });
 
@@ -75,11 +75,11 @@ describe("ChatWorkspace contextual actions", () => {
       />,
     );
 
-    fireEvent.click(view.getByText("Review changes"));
+    fireEvent.click(view.getByText("Review code and suggest changes"));
 
     await waitFor(() => assert.equal(mockSubmitPrompt.calls.length, 1));
-    assert.match(mockSubmitPrompt.calls[0][0], /Explain the current changes/);
-    assert.deepEqual(mockSubmitPrompt.calls[0][1], { runbookId: "review_classify_summarize" });
+    assert.match(mockSubmitPrompt.calls[0][0], /Review the recent changes/);
+    assert.equal(mockSubmitPrompt.calls[0][1], undefined);
     assert.equal(mockSelectPrompt.calls.length, 0);
   });
 
@@ -99,8 +99,8 @@ describe("ChatWorkspace contextual actions", () => {
       />,
     );
 
-    assert.equal((view.getByText("Run safety check").closest("button") as HTMLButtonElement).disabled, true);
-    assert.equal((view.getByText("Review changes").closest("button") as HTMLButtonElement).disabled, true);
+    assert.equal((view.getByText("Review code and suggest changes").closest("button") as HTMLButtonElement).disabled, true);
+    assert.equal((view.getByText("Review code and suggest changes").closest("button") as HTMLButtonElement).disabled, true);
   });
 });
 

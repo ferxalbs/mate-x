@@ -10,8 +10,8 @@ import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
 import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
+import { buildHomePageSubmitOptions } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
-import { defaultAmbientSafetyRunOptions } from '../features/desktop-shell/components/ambient-safety-actions';
 
 export function HomePage() {
   const isSubmitting = useRef(false);
@@ -164,13 +164,4 @@ export function HomePage() {
       />
     </section>
   );
-}
-
-export function buildHomePageSubmitOptions(
-  overrides?: Partial<AssistantRunOptions>,
-): AssistantRunOptions {
-  return {
-    ...defaultAmbientSafetyRunOptions,
-    ...overrides,
-  };
 }
