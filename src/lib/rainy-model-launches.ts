@@ -6,6 +6,7 @@ import {
   type RainyModelCatalogEntry,
   type RainyModelLaunch,
   type RainyModelLaunchAppControl,
+  type RainyModelLaunchPresentation,
   type RainyModelLaunchStatus,
   type RainyServiceTier,
 } from "../contracts/rainy";
@@ -175,6 +176,12 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
     firstString(pricingRaw?.note) ??
     "Provider base pricing may change above the high-context input-token threshold.";
 
+  const presentation = normalizeLaunchPresentation(item.presentation ?? item.theme);
+  if (!presentation) {
+    // presentation is required for trusted launch cards; drop incomplete feed rows.
+    return null;
+  }
+
   return {
     id,
     status: normalizeLaunchStatus(item.status),
@@ -188,8 +195,133 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
       highContextThreshold,
       note: pricingNote,
     },
+    presentation,
   };
 }
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && HEX_COLOR.test(value.trim());
+}
+
+function normalizeLaunchPresentation(raw: unknown): RainyModelLaunchPresentation | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const themeId = firstString(raw.theme_id, raw.themeId);
+  const accent = isHexColor(raw.accent) ? raw.accent.trim() : null;
+  const surface = isHexColor(raw.surface) ? raw.surface.trim() : null;
+  const onSurface = isHexColor(raw.on_surface ?? raw.onSurface)
+    ? String(raw.on_surface ?? raw.onSurface).trim()
+    : null;
+  const muted = isHexColor(raw.muted) ? raw.muted.trim() : null;
+  const gradientRaw = isRecord(raw.gradient) ? raw.gradient : null;
+  const colors = Array.isArray(gradientRaw?.colors)
+    ? gradientRaw.colors.filter(isHexColor).map((color) => color.trim())
+    : [];
+  const angleDegrees =
+    firstNumber(gradientRaw?.angle_degrees, gradientRaw?.angleDegrees) ?? 135;
+  const animationRaw = isRecord(raw.animation) ? raw.animation : null;
+  const durationMs =
+    firstNumber(animationRaw?.duration_ms, animationRaw?.durationMs) ?? 9000;
+
+  if (!themeId || !accent || !surface || !onSurface || !muted || colors.length < 2) {
+    return null;
+  }
+
+  return {
+    themeId,
+    accent,
+    surface,
+    onSurface,
+    muted,
+    gradient: {
+      colors,
+      angleDegrees: Math.min(360, Math.max(0, angleDegrees)),
+    },
+    animation: {
+      kind: "aurora",
+      durationMs: Math.min(30_000, Math.max(1_000, Math.floor(durationMs))),
+      reducedMotion: "static",
+    },
+  };
+}
+
+/** Collapse Sol / Sol Pro → family label "Sol" for clean chip UI. */
+export function getLaunchFamilyNames(
+  variants: Array<{ label: string; modelId?: string }>,
+): string[] {
+  const families: string[] = [];
+  const seen = new Set<string>();
+  for (const variant of variants) {
+    const family = variant.label
+      .replace(/\s+pro$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!family) {
+      continue;
+    }
+    const key = family.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    families.push(family);
+  }
+  return families;
+}
+
+export function buildLaunchGradientCss(
+  presentation: RainyModelLaunchPresentation,
+): string {
+  const { colors, angleDegrees } = presentation.gradient;
+  const stops = colors.join(", ");
+  return `linear-gradient(${angleDegrees}deg, ${stops})`;
+}
+
+/**
+ * Animate only when user has not requested reduced motion and presentation
+ * allows aurora motion. Reduced-motion clients always get a static gradient.
+ */
+export function shouldAnimateLaunchPresentation(
+  presentation: RainyModelLaunchPresentation,
+  prefersReducedMotion: boolean,
+): boolean {
+  // Prefer user reduced-motion setting. Presentation.animation.reducedMotion: "static"
+  // documents the fallback mode; we never animate when the user requests less motion.
+  if (prefersReducedMotion) {
+    return false;
+  }
+  return presentation.animation.kind === "aurora";
+}
+
+export function buildLaunchPresentationCssVars(
+  presentation: RainyModelLaunchPresentation,
+): Record<string, string> {
+  return {
+    "--launch-accent": presentation.accent,
+    "--launch-surface": presentation.surface,
+    "--launch-on-surface": presentation.onSurface,
+    "--launch-muted": presentation.muted,
+    "--launch-gradient": buildLaunchGradientCss(presentation),
+    "--launch-aurora-duration": `${presentation.animation.durationMs}ms`,
+  };
+}
+
+export function getLaunchPrimaryCtaLabel(canTry: boolean, isActivating: boolean) {
+  if (!canTry) {
+    return "Not available yet";
+  }
+  if (isActivating) {
+    return "Activating…";
+  }
+  return "Try model";
+}
+
+export const LAUNCH_STAGED_AVAILABILITY_MESSAGE =
+  "This release is being prepared for your workspace.";
 
 /** Parse `/api/v1/models/launches` envelope or raw array into normalized launches. */
 export function parseRainyModelLaunchesPayload(payload: unknown): RainyModelLaunch[] {

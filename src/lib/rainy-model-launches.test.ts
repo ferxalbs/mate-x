@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "bun:test";
 
 import {
+  buildLaunchGradientCss,
+  buildLaunchPresentationCssVars,
   canTryLaunchModel,
   extractEffectiveServiceTier,
   getHighContextPricingNotice,
+  getLaunchFamilyNames,
+  getLaunchPrimaryCtaLabel,
   isModelCallableInCatalog,
   loadDismissedLaunchIds,
   parseRainyModelLaunchesPayload,
@@ -15,6 +19,7 @@ import {
   selectUnseenLaunches,
   serializeReasoningRequest,
   serializeServiceTierRequest,
+  shouldAnimateLaunchPresentation,
   type LaunchDismissalStore,
 } from "./rainy-model-launches";
 
@@ -72,6 +77,22 @@ const samplePayload = {
           high_context_threshold: 272001,
           note: "Provider base pricing changes when input tokens exceed 272K.",
         },
+        presentation: {
+          theme_id: "electric-iris",
+          accent: "#8B5CF6",
+          gradient: {
+            colors: ["#7C3AED", "#6366F1", "#06B6D4"],
+            angle_degrees: 125,
+          },
+          surface: "#111827",
+          on_surface: "#F8FAFC",
+          muted: "#CBD5E1",
+          animation: {
+            kind: "aurora",
+            duration_ms: 9000,
+            reduced_motion: "static",
+          },
+        },
       },
     ],
   },
@@ -93,14 +114,72 @@ describe("parseRainyModelLaunchesPayload", () => {
     );
     assert.equal(launch.pricing.highContextThreshold, 272001);
     assert.deepEqual(launch.appControls[2]?.values, ["flex", "priority", "scale"]);
+    assert.equal(launch.presentation.themeId, "electric-iris");
+    assert.equal(launch.presentation.accent, "#8B5CF6");
+    assert.deepEqual(launch.presentation.gradient.colors, [
+      "#7C3AED",
+      "#6366F1",
+      "#06B6D4",
+    ]);
+    assert.equal(launch.presentation.gradient.angleDegrees, 125);
   });
 
-  it("drops malformed entries", () => {
+  it("drops malformed entries and rows without presentation", () => {
     const launches = parseRainyModelLaunchesPayload({
-      data: [{ id: "broken" }, samplePayload.data.data[0]],
+      data: [
+        { id: "broken" },
+        { ...samplePayload.data.data[0], presentation: undefined },
+        samplePayload.data.data[0],
+      ],
     });
     assert.equal(launches.length, 1);
     assert.equal(launches[0]?.id, "gpt-5.6-series");
+  });
+});
+
+describe("launch presentation helpers", () => {
+  it("collapses Pro labels into clean family names", () => {
+    assert.deepEqual(
+      getLaunchFamilyNames([
+        { label: "Sol" },
+        { label: "Sol Pro" },
+        { label: "Terra" },
+        { label: "Terra Pro" },
+        { label: "Luna" },
+        { label: "Luna Pro" },
+      ]),
+      ["Sol", "Terra", "Luna"],
+    );
+  });
+
+  it("builds gradient and CSS vars from presentation only", () => {
+    const launch = parseRainyModelLaunchesPayload(samplePayload)[0]!;
+    assert.equal(
+      buildLaunchGradientCss(launch.presentation),
+      "linear-gradient(125deg, #7C3AED, #6366F1, #06B6D4)",
+    );
+    const vars = buildLaunchPresentationCssVars(launch.presentation);
+    assert.equal(vars["--launch-accent"], "#8B5CF6");
+    assert.equal(vars["--launch-surface"], "#111827");
+    assert.match(vars["--launch-gradient"] ?? "", /125deg/);
+  });
+
+  it("disables aurora animation when prefers-reduced-motion is set", () => {
+    const launch = parseRainyModelLaunchesPayload(samplePayload)[0]!;
+    assert.equal(
+      shouldAnimateLaunchPresentation(launch.presentation, true),
+      false,
+    );
+    assert.equal(
+      shouldAnimateLaunchPresentation(launch.presentation, false),
+      true,
+    );
+  });
+
+  it("labels primary CTA for staged vs callable", () => {
+    assert.equal(getLaunchPrimaryCtaLabel(false, false), "Not available yet");
+    assert.equal(getLaunchPrimaryCtaLabel(true, false), "Try model");
+    assert.equal(getLaunchPrimaryCtaLabel(true, true), "Activating…");
   });
 });
 
