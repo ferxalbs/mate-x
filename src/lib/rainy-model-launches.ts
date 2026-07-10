@@ -13,6 +13,7 @@ import {
 } from "../contracts/rainy";
 
 const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:dismissed-model-launches:";
+const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:";
 const GPT56_HIGH_CONTEXT_NOTICE_TOKENS = 272_000;
 
 export type LaunchDismissalStore = {
@@ -409,6 +410,48 @@ export function isLaunchDismissed(
   return loadDismissedLaunchIds(userKey, store).includes(launchId.trim());
 }
 
+export function loadLaunchViewCounts(
+  userKey: string,
+  store: LaunchDismissalStore = defaultBrowserStore(),
+): Record<string, number> {
+  const normalized = userKey.trim() || "local";
+  const key = `${LAUNCH_VIEW_COUNT_PREFIX}${normalized}`;
+  try {
+    const raw = store.getItem(key);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (isRecord(parsed)) {
+      const counts: Record<string, number> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === "number") {
+          counts[k] = v;
+        }
+      }
+      return counts;
+    }
+  } catch {
+    // Return empty on failure
+  }
+  return {};
+}
+
+export function incrementLaunchViewCount(
+  userKey: string,
+  launchId: string,
+  store: LaunchDismissalStore = defaultBrowserStore(),
+): number {
+  const normalized = userKey.trim() || "local";
+  const key = `${LAUNCH_VIEW_COUNT_PREFIX}${normalized}`;
+  const counts = loadLaunchViewCounts(userKey, store);
+  const current = counts[launchId] || 0;
+  const next = current + 1;
+  counts[launchId] = next;
+  store.setItem(key, JSON.stringify(counts));
+  return next;
+}
+
 function defaultBrowserStore(): LaunchDismissalStore {
   if (typeof window !== "undefined" && window.localStorage) {
     return window.localStorage;
@@ -457,10 +500,25 @@ export function canTryLaunchModel(
 export function selectUnseenLaunches(
   launches: RainyModelLaunch[],
   dismissedIds: readonly string[],
+  viewCounts?: Record<string, number>,
+  catalog?: Array<Pick<RainyModelCatalogEntry, "id">>
 ) {
   const dismissed = new Set(dismissedIds);
   return launches.filter(
-    (launch) => launch.status !== "retired" && !dismissed.has(launch.id),
+    (launch) => {
+      if (launch.status === "retired" || dismissed.has(launch.id)) {
+        return false;
+      }
+      if (!viewCounts || !catalog) {
+        return true;
+      }
+      const views = viewCounts[launch.id] || 0;
+      const isAvailable = canTryLaunchModel(launch, catalog);
+      if (isAvailable) {
+        return views < 1;
+      }
+      return views < 4;
+    }
   );
 }
 
