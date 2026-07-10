@@ -93,6 +93,8 @@ export type RainyReasoningRequestField =
 export interface RainyModelLaunchVariant {
   modelId: string;
   label: string;
+  family?: string;
+  presentation?: RainyModelLaunchPresentation;
 }
 
 export interface RainyModelLaunchAppControl {
@@ -133,6 +135,13 @@ export interface RainyModelLaunchPresentation {
   animation: RainyModelLaunchPresentationAnimation;
 }
 
+export interface RainyModelLaunchSelection {
+  mode: "auto";
+  groupBy: "family" | "none";
+  availableCtaLabel: string;
+  stagedCtaLabel: string;
+}
+
 export interface RainyModelLaunch {
   id: string;
   status: RainyModelLaunchStatus;
@@ -143,6 +152,7 @@ export interface RainyModelLaunch {
   appControls: RainyModelLaunchAppControl[];
   pricing: RainyModelLaunchPricing;
   presentation: RainyModelLaunchPresentation;
+  selection: RainyModelLaunchSelection;
 }
 
 export function normalizeRainyServiceTier(
