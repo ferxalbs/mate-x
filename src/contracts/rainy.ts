@@ -1,5 +1,9 @@
 export type RainyApiMode = 'chat_completions' | 'responses';
-export type RainyServiceTier = 'standard' | 'flex' | 'priority';
+export type RainyServiceTier = 'standard' | 'flex' | 'priority' | 'scale';
+
+export type RainyModelLaunchStatus = 'staged' | 'available' | 'retired';
+export type RainyAppControlAvailability = 'staged' | 'available';
+export type RainyAppControlKind = 'toggle' | 'select' | 'model_variant';
 
 export interface RainyServiceTierPricing {
   tier: RainyServiceTier;
@@ -76,32 +80,92 @@ export interface RainyModelCatalogEntry {
   capabilities?: RainyModelCapabilities;
 }
 
+/** Documented Rainy/OpenRouter reasoning request fields only. */
+export const RAINY_REASONING_REQUEST_FIELDS = [
+  'reasoning',
+  'reasoning_effort',
+  'include_reasoning',
+] as const;
+
+export type RainyReasoningRequestField =
+  (typeof RAINY_REASONING_REQUEST_FIELDS)[number];
+
+export interface RainyModelLaunchVariant {
+  modelId: string;
+  label: string;
+}
+
+export interface RainyModelLaunchAppControl {
+  id: string;
+  kind: RainyAppControlKind;
+  label: string;
+  availability: RainyAppControlAvailability;
+  requestFields?: string[];
+  values?: string[];
+  variantSuffix?: string;
+}
+
+export interface RainyModelLaunchPricing {
+  basis: 'prompt_tokens';
+  highContextThreshold: number;
+  note: string;
+}
+
+export interface RainyModelLaunch {
+  id: string;
+  status: RainyModelLaunchStatus;
+  publishedAt: string;
+  title: string;
+  summary: string;
+  variants: RainyModelLaunchVariant[];
+  appControls: RainyModelLaunchAppControl[];
+  pricing: RainyModelLaunchPricing;
+}
+
 export function normalizeRainyServiceTier(
   value: unknown,
 ): RainyServiceTier {
-  return value === 'flex' || value === 'priority' ? value : 'standard';
+  if (value === 'flex' || value === 'priority' || value === 'scale') {
+    return value;
+  }
+  // OpenRouter aliases: default/auto map to our Standard (omit field) path.
+  return 'standard';
 }
 
 export function getRainyServiceTierOptions(
   entry?: RainyModelCatalogEntry | null,
+  extraValues?: readonly string[] | null,
 ): RainyServiceTier[] {
   const tiers = entry?.pricing?.service_tiers ?? entry?.pricing?.serviceTier;
-  if (!tiers || tiers.length === 0) {
-    return ['standard'];
-  }
-
   const supported = new Set<RainyServiceTier>(['standard']);
-  for (const tier of tiers) {
-    supported.add(normalizeRainyServiceTier(tier.tier));
+
+  if (tiers && tiers.length > 0) {
+    for (const tier of tiers) {
+      supported.add(normalizeRainyServiceTier(tier.tier));
+    }
   }
 
-  return (['standard', 'flex', 'priority'] as RainyServiceTier[]).filter(
+  if (extraValues) {
+    for (const value of extraValues) {
+      const normalized = normalizeRainyServiceTier(value);
+      if (normalized !== 'standard' || value === 'standard' || value === 'default') {
+        supported.add(normalized);
+      }
+      // Listed non-standard values from launch controls.
+      if (value === 'flex' || value === 'priority' || value === 'scale') {
+        supported.add(value);
+      }
+    }
+  }
+
+  return (['standard', 'flex', 'priority', 'scale'] as RainyServiceTier[]).filter(
     (tier) => supported.has(tier),
   );
 }
 
 export function modelSupportsServiceTiers(
   entry?: RainyModelCatalogEntry | null,
+  extraValues?: readonly string[] | null,
 ) {
-  return getRainyServiceTierOptions(entry).length > 1;
+  return getRainyServiceTierOptions(entry, extraValues).length > 1;
 }

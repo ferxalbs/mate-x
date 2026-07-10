@@ -1,5 +1,5 @@
 import type { SettingsApi } from '../contracts/ipc';
-import type { RainyModelCatalogEntry } from '../contracts/rainy';
+import type { RainyModelCatalogEntry, RainyModelLaunch } from '../contracts/rainy';
 import type { AppSettings, TimeFormat } from '../contracts/settings';
 
 function getSettingsApi(): SettingsApi {
@@ -24,6 +24,10 @@ export function setApiKey(apiKey: string) {
 
 export function listModels(forceRefresh?: boolean): Promise<RainyModelCatalogEntry[]> {
   return getSettingsApi().listModels(forceRefresh);
+}
+
+export function listModelLaunches(forceRefresh?: boolean): Promise<RainyModelLaunch[]> {
+  return getSettingsApi().listModelLaunches(forceRefresh);
 }
 
 export function getModel() {

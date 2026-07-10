@@ -15,6 +15,7 @@ import {
   defaultAmbientSafetyRunOptions,
 } from "./components/ambient-safety-actions";
 import { AppSidebar } from "./components/app-sidebar";
+import { ModelLaunchCard } from "./components/model-launch-card";
 import { SearchModal } from "./components/search-modal";
 import { toastManager } from "../../components/ui/toast";
 
@@ -162,6 +163,8 @@ export function DesktopShell() {
             threads={threads}
             workspaceName={workspace?.name ?? "Current project"}
           />
+          {/* Non-blocking Rainy model launch card — never gates app startup. */}
+          <ModelLaunchCard />
 
           <div className="relative isolate flex min-w-0 flex-1 overflow-hidden">
 

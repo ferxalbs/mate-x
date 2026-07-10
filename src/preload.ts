@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from "electron";
-import "./electron/preload/index";
 
 import type {
   GitApi,
@@ -176,6 +175,8 @@ const settingsApi: SettingsApi = {
   setApiKey: (apiKey) => ipcRenderer.invoke("settings:set-api-key", apiKey),
   listModels: (forceRefresh) =>
     ipcRenderer.invoke("settings:list-models", forceRefresh),
+  listModelLaunches: (forceRefresh) =>
+    ipcRenderer.invoke("settings:list-model-launches", forceRefresh),
   getModel: () => ipcRenderer.invoke("settings:get-model"),
   setModel: (model) => ipcRenderer.invoke("settings:set-model", model),
   listEmbeddingModels: () => ipcRenderer.invoke("settings:list-embedding-models"),
@@ -188,12 +189,12 @@ const settingsApi: SettingsApi = {
 };
 
 const githubApi: GitHubIntegrationApi = {
-  detectGitHubRemote: (workspacePath) => ipcRenderer.invoke("github:detect-remote", workspacePath),
-  getCurrentBranch: (workspacePath) => ipcRenderer.invoke("github:get-current-branch", workspacePath),
-  getLocalDiff: (workspacePath) => ipcRenderer.invoke("github:get-local-diff", workspacePath),
-  getChangedFiles: (workspacePath) => ipcRenderer.invoke("github:get-changed-files", workspacePath),
-  collectLocalEvidence: (workspacePath) => ipcRenderer.invoke("github:collect-local-evidence", workspacePath),
-  getIntegrationStatus: (workspacePath) => ipcRenderer.invoke("github:get-status", workspacePath),
+  detectGitHubRemote: () => ipcRenderer.invoke("github:detect-remote"),
+  getCurrentBranch: () => ipcRenderer.invoke("github:get-current-branch"),
+  getLocalDiff: () => ipcRenderer.invoke("github:get-local-diff"),
+  getChangedFiles: () => ipcRenderer.invoke("github:get-changed-files"),
+  collectLocalEvidence: () => ipcRenderer.invoke("github:collect-local-evidence"),
+  getIntegrationStatus: () => ipcRenderer.invoke("github:get-status"),
   getPullRequestForBranch: () => ipcRenderer.invoke("github:get-pr-for-branch"),
   getPullRequestFiles: () => ipcRenderer.invoke("github:get-pr-files"),
   getPullRequestChecks: () => ipcRenderer.invoke("github:get-pr-checks"),

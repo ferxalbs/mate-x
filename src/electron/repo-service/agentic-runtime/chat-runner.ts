@@ -172,6 +172,7 @@ export async function requestRainyChatAgenticResponse({
             : undefined,
         reasoning: rainyReasoning.reasoning,
         includeReasoning: rainyReasoning.includeReasoning,
+        reasoningEffort: rainyReasoning.reasoningEffort,
         capabilities,
         maxTokens,
         serviceTier,
