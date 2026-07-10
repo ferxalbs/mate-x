@@ -4,13 +4,6 @@ import { useState, type ReactNode } from "react";
 
 import type { WorkspaceSummary } from "../../../contracts/workspace";
 import type { AssistantRunOptions } from "../../../contracts/chat";
-import { ambientSafetyActions } from "./ambient-safety-actions";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../../../components/ui/tooltip";
 
 interface EmptyChatStateProps {
   isBootstrapped: boolean;
