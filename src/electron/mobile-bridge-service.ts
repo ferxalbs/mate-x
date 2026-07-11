@@ -366,23 +366,25 @@ class MobileBridgeService {
     const defaults: AssistantRunOptions = {
       reasoningEnabled: true,
       reasoning: "medium",
-      mode: "build",
+      pathKind: "full",
       access: "approval",
     };
     if (!value || typeof value !== "object" || Array.isArray(value)) return defaults;
     const input = value as Record<string, unknown>;
+    const residualMode = typeof input.mode === "string" ? input.mode : null;
+    const pathKind =
+      input.pathKind === "full" ||
+      input.pathKind === "verify_only" ||
+      input.pathKind === "chat_help"
+        ? input.pathKind
+        : residualMode === "ship" || residualMode === "review"
+          ? "verify_only"
+          : residualMode === "chat" || residualMode === "plan"
+            ? "chat_help"
+            : defaults.pathKind;
     return {
       ...defaults,
-      mode:
-        input.mode === "chat" ||
-          input.mode === "review" ||
-          input.mode === "factory" ||
-          input.mode === "ship" ||
-          input.mode === "plan" ||
-          input.mode === "critic_loop" ||
-          input.mode === "build"
-          ? input.mode
-          : defaults.mode,
+      pathKind,
       access: "approval",
       reasoningEnabled: typeof input.reasoningEnabled === "boolean" ? input.reasoningEnabled : defaults.reasoningEnabled,
       runbookId: typeof input.runbookId === "string" ? input.runbookId as AssistantRunOptions["runbookId"] : defaults.runbookId,

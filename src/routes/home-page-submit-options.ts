@@ -5,7 +5,11 @@ export function buildHomePageSubmitOptions(
   overrides?: Partial<AssistantRunOptions>,
 ): AssistantRunOptions {
   return {
-    ...defaultAmbientSafetyRunOptions,
+    reasoningEnabled: defaultAmbientSafetyRunOptions.reasoningEnabled ?? true,
+    reasoning: defaultAmbientSafetyRunOptions.reasoning ?? 'high',
+    pathKind: defaultAmbientSafetyRunOptions.pathKind ?? 'verify_only',
+    access: defaultAmbientSafetyRunOptions.access ?? 'approval',
+    serviceTier: defaultAmbientSafetyRunOptions.serviceTier ?? 'standard',
     ...overrides,
   };
 }

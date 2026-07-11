@@ -1,0 +1,102 @@
+name: Windows CI (v0.1.2)
+
+on:
+  push:
+    branches:
+      - feat/native-engineering-system-v0.1.2
+      - main
+  pull_request:
+    branches:
+      - main
+      - feat/native-engineering-system-v0.1.2
+
+permissions:
+  contents: read
+
+jobs:
+  windows-verify:
+    name: Windows verify + package
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (locked)
+        run: bun install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install native libsql (Windows)
+        shell: bash
+        run: bun add --optional --exact @libsql/win32-x64-msvc@0.5.29
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit / integration tests
+        run: bun test
+
+      - name: Legacy term check
+        run: bun run scripts/check-legacy-terms.ts
+
+      - name: Verify
+        run: bun run verify
+
+      - name: Package
+        run: bun run package
+
+      - name: Make
+        run: bun run make
+
+      - name: Packaged startup + durable EngineeringTask smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/windows
+          bun test src/electron/engineering/packaged-self-test.test.ts src/electron/engineering/migration/migrate-v011.test.ts src/electron/engineering/libsql-repository.test.ts src/electron/engineering/rainy-adapter.test.ts
+          # Record smoke result
+          cat > artifacts/windows/packaged-smoke-result.json <<'EOF'
+          {
+            "platform": "win32",
+            "job": "windows-verify",
+            "packagedSelfTest": "executed-via-bun-test",
+            "libsql": "ok",
+            "gitGateNegative": "covered-by-packaged-self-test",
+            "migration": "covered-by-migrate-v011.test.ts"
+          }
+          EOF
+
+      - name: Checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/windows
+          if [ -d out ]; then
+            find out -type f \( -name '*.exe' -o -name '*.nupkg' -o -name '*.zip' -o -name '*.dll' \) -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > artifacts/windows/checksums.txt || true
+            find out -type f -print0 | sort -z | xargs -0 sha256sum > artifacts/windows/checksums-all.txt || true
+          fi
+          ls -la out || true
+          ls -la out/make || true
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mate-x-windows-ci-${{ github.sha }}
+          path: |
+            out/make/**/*
+            out/**/*.exe
+            artifacts/windows/**
+          if-no-files-found: warn
+          retention-days: 14

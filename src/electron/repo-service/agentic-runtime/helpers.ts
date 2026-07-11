@@ -455,7 +455,7 @@ export function buildArtifacts(
     {
       id: "artifact-mode",
       label: "Mode",
-      value: options.mode,
+      value: options.pathKind ?? "full",
     },
     {
       id: "artifact-reasoning",

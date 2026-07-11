@@ -18,7 +18,10 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "verify:package-config": "bun test forge.config.test.ts",
-    "verify": "bun run lint && bun run typecheck && bun test && bun run verify:package-config"
+    "verify:legacy-terms": "bun run scripts/check-legacy-terms.ts",
+    "verify": "bun run lint && bun run typecheck && bun test && bun run verify:package-config && bun run verify:legacy-terms",
+    "smoke:live-rainy": "MATE_X_LIVE_RAINY=1 bun run scripts/live-rainy-smoke.ts",
+    "test:packaged-self": "bun test src/electron/engineering/packaged-self-test.test.ts"
   },
   "keywords": [],
   "author": {

@@ -27,7 +27,7 @@ export const ambientSafetyActions = {
 } satisfies Record<AmbientSafetyActionId, AmbientSafetyAction>;
 
 export const defaultAmbientSafetyRunOptions = {
-  mode: "review",
+  pathKind: "verify_only",
   reasoningEnabled: true,
   reasoning: "high",
   serviceTier: "standard",

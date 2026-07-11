@@ -114,7 +114,7 @@ Workspace: ${snapshot.workspace.name}
 Path: ${snapshot.workspace.path}
 Branch: ${snapshot.workspace.branch}
 Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
-Operating mode: ${options.mode}
+Path kind: ${options.pathKind ?? "full"}
 Reasoning level: ${options.reasoning}
 Reasoning enabled: ${options.reasoningEnabled ? "yes" : "no"}
 Filesystem access policy: ${options.access}

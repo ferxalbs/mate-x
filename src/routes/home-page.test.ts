@@ -16,12 +16,12 @@ if (!window.matchMedia) {
 }
 
 describe("HomePage submit options", () => {
-  it("uses the same approval-required defaults for composer and contextual submissions", async () => {
+  it("uses approval-required defaults without product mode selectors", async () => {
     const { buildHomePageSubmitOptions } = await import("./home-page-submit-options");
 
     assert.deepEqual(buildHomePageSubmitOptions({ runbookId: "scan_contain_report" }), {
       access: "approval",
-      mode: "review",
+      pathKind: "verify_only",
       reasoning: "high",
       reasoningEnabled: true,
       runbookId: "scan_contain_report",

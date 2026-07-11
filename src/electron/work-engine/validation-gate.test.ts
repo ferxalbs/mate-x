@@ -13,7 +13,7 @@ function plan(required = true): WorkPlan {
     id: 'wp1',
     objective: 'test',
     risk: 'medium',
-    mode: 'build',
+    mode: 'execute',
     validationPlan: {
       required,
       primaryCommand: 'bun test',

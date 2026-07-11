@@ -28,7 +28,8 @@ export async function finalizeCriticLoop({
   emitProgress: (content?: string, thought?: string) => void;
   serviceTier?: AssistantRunOptions["serviceTier"];
 }): Promise<string> {
-  if (options.mode !== "critic_loop") {
+  // Critic loop is no longer a user-facing mode; quality pass is opt-in via runbook only.
+  if (options.runbookId !== "audit_reproduce_remediate") {
     return finalContent;
   }
 

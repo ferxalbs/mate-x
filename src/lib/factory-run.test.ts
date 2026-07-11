@@ -1,12 +1,13 @@
 /**
- * NES-8.1 / R4 — Factory write authority is deleted.
+ * NES-8.1 / R4 / CLOSURE 2 — Factory write authority is deleted.
  * Regex stage completion is not product truth.
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { AssistantRunOptions, FactoryRun, ToolEvent } from "../contracts/chat";
+import type { AssistantRunOptions, ToolEvent } from "../contracts/chat";
+import type { LegacyFactoryRun } from "../electron/engineering/migration/legacy-factory-types";
 import {
   completeFactoryRun,
   createFactoryRun,
@@ -15,9 +16,9 @@ import {
   projectLegacyFactoryStagesFromEvents,
 } from "./factory-run";
 
-const factoryOptions: AssistantRunOptions = {
+const fullOptions: AssistantRunOptions = {
   access: "full",
-  mode: "factory",
+  pathKind: "full",
   reasoning: "high",
   reasoningEnabled: true,
   runbookId: "patch_test_verify",
@@ -30,43 +31,47 @@ describe("Factory write authority deleted [NES-8.1][R4]", () => {
       createFactoryRun({
         id: "factory-1",
         prompt: "Fix the failing validation",
-        options: factoryOptions,
+        options: fullOptions,
         createdAt: "2026-07-07T00:00:00.000Z",
       }),
       undefined,
     );
   });
 
-  it("does not create runs for chat either", () => {
+  it("does not create runs for chat_help either", () => {
     assert.equal(
       createFactoryRun({
         id: "factory-1",
         prompt: "hello",
-        options: { ...factoryOptions, mode: "chat", access: "approval" },
+        options: { ...fullOptions, pathKind: "chat_help", access: "approval" },
         createdAt: "2026-07-07T00:00:00.000Z",
       }),
       undefined,
     );
   });
 
-  it("normalizes factory/ship product modes away from write path", () => {
-    const factory = normalizeFactoryRunOptions(factoryOptions);
+  it("normalizes residual legacy mode fields away from write path", () => {
+    const factory = normalizeFactoryRunOptions({
+      ...fullOptions,
+      mode: "factory",
+    } as AssistantRunOptions & { mode: string });
     assert.equal(factory.access, "approval");
-    assert.equal(factory.mode, "chat");
+    assert.equal(factory.pathKind, "full");
+    assert.equal("mode" in factory, false);
 
     const ship = normalizeFactoryRunOptions({
-      ...factoryOptions,
+      ...fullOptions,
       access: "full",
       mode: "ship",
       runbookId: "review_classify_summarize",
-    });
+    } as AssistantRunOptions & { mode: string });
     assert.equal(ship.access, "approval");
-    assert.equal(ship.mode, "chat");
+    assert.equal(ship.pathKind, "verify_only");
     assert.equal(ship.runbookId, "patch_test_verify");
   });
 
   it("completeFactoryRun does not advance stages via regex authority", () => {
-    const historical: FactoryRun = {
+    const historical: LegacyFactoryRun = {
       id: "legacy-1",
       mode: "factory",
       prompt: "old",
@@ -88,7 +93,6 @@ describe("Factory write authority deleted [NES-8.1][R4]", () => {
       completedAt: "2026-07-07T00:01:00.000Z",
     });
     assert.equal(completed?.completedAt, "2026-07-07T00:01:00.000Z");
-    // Stages remain pending — regex cannot mark complete as product truth
     for (const stage of completed?.stages ?? []) {
       assert.equal(stage.status, "pending");
     }
@@ -106,12 +110,11 @@ describe("Factory write authority deleted [NES-8.1][R4]", () => {
     ]);
     const verification = projected.find((s) => s.id === "verification_result");
     assert.equal(verification?.status, "completed");
-    // Document that this is projection only — not used by create/complete write path
     assert.equal(
       createFactoryRun({
         id: "x",
         prompt: "y",
-        options: factoryOptions,
+        options: fullOptions,
         createdAt: "t",
       }),
       undefined,

@@ -121,7 +121,7 @@ export function ComposerPanel({
   const [reasoningEnabled, setReasoningEnabled] = useState(true);
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions["reasoning"]>("high");
-  const modeValue: AssistantRunOptions["mode"] = "chat";
+  const pathKind: NonNullable<AssistantRunOptions["pathKind"]> = "full";
   const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
   const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
@@ -346,10 +346,10 @@ export function ComposerPanel({
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
-      mode: modeValue,
+      pathKind,
       access: accessValue as AssistantRunOptions["access"],
       serviceTier,
-      runbookId: resolveRunbookForMode(modeValue),
+      runbookId: resolveRunbookForPathKind(pathKind),
       attachments,
     });
   }
@@ -1093,8 +1093,8 @@ function formatReasoningEffort(effort: AssistantRunOptions["reasoning"]) {
     .join(" ");
 }
 
-function resolveRunbookForMode(mode: AssistantRunOptions["mode"]) {
-  if (mode === "review" || mode === "chat") {
+function resolveRunbookForPathKind(pathKind: NonNullable<AssistantRunOptions["pathKind"]>) {
+  if (pathKind === "chat_help") {
     return "review_classify_summarize";
   }
 

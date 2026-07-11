@@ -1,7 +1,8 @@
 /**
  * Rainy agent adapter — canonical scoped execution binding.
  * Agent cannot approve, freeze, accept convergence, or issue ship proof.
- * NES-4 / R6
+ * Production path requires real Rainy runner — no silent scaffold success.
+ * NES-4 / CLOSURE 1
  */
 
 import type {
@@ -14,6 +15,13 @@ import type {
 } from '../../contracts/engineering-task';
 import { ERR_CODES } from '../../contracts/engineering-task';
 import { nowIso } from './ids';
+import type {
+  ProductionRainyRunner,
+  RainyErrorClass,
+  RainyExecutionStatus,
+  RainyScopedResponse,
+} from './rainy-production-runner';
+import { rainyResponseToAdapterFields } from './rainy-production-runner';
 
 export type AgentFailureClass =
   | 'timeout'
@@ -45,6 +53,8 @@ export interface CanonicalAgentScope {
   workspaceId: string;
   repositorySnapshotHash: string;
   headSha: string;
+  baseSha: string;
+  diffHash: string;
   approvedSpecificationVersion: number;
   approvedPlanVersion: number;
   taskGraphVersion: number;
@@ -72,15 +82,38 @@ export interface StructuredExecutionEvent {
 
 export interface StructuredExecutionResult {
   ok: boolean;
+  status: RainyExecutionStatus | 'failed' | 'completed' | 'cancelled' | 'blocked';
   engineeringTaskId: string;
+  graphTaskId: string;
   leaseId: string;
   taskId: string;
+  workspaceId: string;
+  baseSha: string;
+  headSha: string;
+  diffHash: string;
+  specificationVersion: number;
+  planVersion: number;
+  taskGraphVersion: number;
   touchedPaths: string[];
+  toolsInvoked: Array<{ toolName: string; summary: string; at: string }>;
+  commandsRequested: string[];
+  commandResults: Array<{ command: string; exitCode: number | null; at: string }>;
   toolActivity: Array<{ toolName: string; summary: string; at: string }>;
   commandActivity: Array<{ command: string; exitCode: number | null; at: string }>;
   events: StructuredExecutionEvent[];
   failureClass?: AgentFailureClass;
   failureMessage?: string;
+  errorClass?: RainyErrorClass;
+  provider?: string | null;
+  model?: string | null;
+  tokenUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  costUsd?: number | null;
+  cancelled: boolean;
+  repositoryMutationRecord?: RainyScopedResponse['repositoryMutationRecord'];
   /** Explicitly not evidence */
   modelProse?: string;
 }
@@ -179,6 +212,7 @@ export function validateLeaseBinding(input: {
 
 /**
  * Deterministic fake adapter for integration tests (no network).
+ * Must never be selected as the production default.
  */
 export class FakeAgentAdapter implements AgentAdapter {
   constructor(
@@ -186,6 +220,8 @@ export class FakeAgentAdapter implements AgentAdapter {
       touchedPaths?: string[];
       fail?: AgentFailureClass;
       delayMs?: number;
+      status?: RainyExecutionStatus;
+      partial?: boolean;
     } = {},
   ) {}
 
@@ -212,76 +248,58 @@ export class FakeAgentAdapter implements AgentAdapter {
       scope: input.scope,
     });
     if (!leaseCheck.ok) {
-      return {
-        ok: false,
-        engineeringTaskId: input.scope.engineeringTaskId,
-        leaseId: input.scope.leaseId,
-        taskId: input.scope.taskId,
-        touchedPaths: [],
-        toolActivity: [],
-        commandActivity: [],
-        events: [
-          {
-            eventType: 'failed',
-            at: nowIso(),
-            summary: leaseCheck.message,
-          },
-        ],
-        failureClass: 'stale_lease',
-        failureMessage: leaseCheck.message,
-      };
+      return baseFail(input, 'stale_lease', leaseCheck.message, 'failed');
     }
 
     if (input.signal?.aborted) {
-      return {
-        ok: false,
-        engineeringTaskId: input.scope.engineeringTaskId,
-        leaseId: input.scope.leaseId,
-        taskId: input.scope.taskId,
-        touchedPaths: [],
-        toolActivity: [],
-        commandActivity: [],
-        events: [
-          { eventType: 'cancelled', at: nowIso(), summary: 'cancelled' },
-        ],
-        failureClass: 'cancelled',
-        failureMessage: 'cancelled',
-      };
+      return baseFail(input, 'cancelled', 'cancelled', 'cancelled');
     }
 
     if (this.behavior.delayMs) {
       await new Promise((r) => setTimeout(r, this.behavior.delayMs));
+      if (input.signal?.aborted) {
+        return baseFail(input, 'cancelled', 'cancelled', 'cancelled');
+      }
+      if (input.timeoutMs && this.behavior.delayMs >= input.timeoutMs) {
+        return baseFail(input, 'timeout', 'timeout', 'timeout');
+      }
     }
 
     if (this.behavior.fail) {
-      return {
-        ok: false,
-        engineeringTaskId: input.scope.engineeringTaskId,
-        leaseId: input.scope.leaseId,
-        taskId: input.scope.taskId,
-        touchedPaths: [],
-        toolActivity: [],
-        commandActivity: [],
-        events: [
-          {
-            eventType: 'failed',
-            at: nowIso(),
-            summary: this.behavior.fail,
-          },
-        ],
-        failureClass: this.behavior.fail,
-        failureMessage: this.behavior.fail,
-      };
+      const status =
+        this.behavior.fail === 'timeout'
+          ? 'timeout'
+          : this.behavior.fail === 'cancelled'
+            ? 'cancelled'
+            : 'failed';
+      return baseFail(input, this.behavior.fail, this.behavior.fail, status);
     }
 
     const touched = this.behavior.touchedPaths ?? input.graphTask.fileScopes.write;
     const at = nowIso();
+    const status: RainyExecutionStatus = this.behavior.partial
+      ? 'partial'
+      : this.behavior.status ?? 'completed';
     return {
-      ok: true,
+      ok: status === 'completed' || status === 'partial',
+      status,
       engineeringTaskId: input.scope.engineeringTaskId,
+      graphTaskId: input.scope.taskId,
       leaseId: input.scope.leaseId,
       taskId: input.scope.taskId,
+      workspaceId: input.scope.workspaceId,
+      baseSha: input.scope.baseSha,
+      headSha: input.scope.headSha,
+      diffHash: input.scope.diffHash,
+      specificationVersion: input.scope.approvedSpecificationVersion,
+      planVersion: input.scope.approvedPlanVersion,
+      taskGraphVersion: input.scope.taskGraphVersion,
       touchedPaths: touched,
+      toolsInvoked: [
+        { toolName: 'file_editor', summary: 'applied scoped edits', at },
+      ],
+      commandsRequested: [],
+      commandResults: [],
       toolActivity: [
         { toolName: 'file_editor', summary: 'applied scoped edits', at },
       ],
@@ -295,31 +313,86 @@ export class FakeAgentAdapter implements AgentAdapter {
           toolName: 'file_editor',
           paths: touched,
         },
-        { eventType: 'completed', at, summary: 'execution completed' },
+        {
+          eventType: status === 'partial' ? 'progress' : 'completed',
+          at,
+          summary: status === 'partial' ? 'partial execution' : 'execution completed',
+        },
       ],
+      cancelled: false,
+      provider: null,
+      model: null,
       // Free-form prose must not be treated as evidence by callers
       modelProse: 'I think this is done and ready to ship.',
+      repositoryMutationRecord: {
+        baseSha: input.scope.baseSha,
+        headShaBefore: input.scope.headSha,
+        headShaAfter: input.scope.headSha,
+        diffHashBefore: input.scope.diffHash,
+        mutated: touched.length > 0,
+      },
     };
   }
 }
 
+export type RainyAgentAdapterConfig =
+  | {
+      kind: 'production';
+      rainyRunner: ProductionRainyRunner;
+    }
+  | {
+      kind: 'injected';
+      /** Test-only injected low-level runner — not the production scaffold */
+      runner: (input: {
+        scope: CanonicalAgentScope;
+        graphTask: TaskNode;
+        signal?: AbortSignal;
+      }) => Promise<{
+        touchedPaths: string[];
+        toolActivity: StructuredExecutionResult['toolActivity'];
+        commandActivity: StructuredExecutionResult['commandActivity'];
+        events: StructuredExecutionEvent[];
+        status?: RainyExecutionStatus;
+        errorClass?: RainyErrorClass;
+        errorMessage?: string;
+        provider?: string;
+        model?: string;
+        tokenUsage?: StructuredExecutionResult['tokenUsage'];
+        costUsd?: number | null;
+        cancelled?: boolean;
+        commandsRequested?: string[];
+        toolsInvoked?: StructuredExecutionResult['toolsInvoked'];
+        commandResults?: StructuredExecutionResult['commandResults'];
+      }>;
+    };
+
 /**
  * Rainy-bound adapter: validates scope, rejects stale leases, returns structured results.
- * Does not call remote network in unit tests — inject runner for live path.
+ * Production requires rainyRunner. No default scaffold success path.
  */
 export class RainyAgentAdapter implements AgentAdapter {
-  constructor(
-    private readonly runner?: (input: {
-      scope: CanonicalAgentScope;
-      graphTask: TaskNode;
-      signal?: AbortSignal;
-    }) => Promise<{
-      touchedPaths: string[];
-      toolActivity: StructuredExecutionResult['toolActivity'];
-      commandActivity: StructuredExecutionResult['commandActivity'];
-      events: StructuredExecutionEvent[];
-    }>,
-  ) {}
+  private readonly config: RainyAgentAdapterConfig | null;
+
+  constructor(config?: RainyAgentAdapterConfig | ProductionRainyRunner | ((input: {
+    scope: CanonicalAgentScope;
+    graphTask: TaskNode;
+    signal?: AbortSignal;
+  }) => Promise<{
+    touchedPaths: string[];
+    toolActivity: StructuredExecutionResult['toolActivity'];
+    commandActivity: StructuredExecutionResult['commandActivity'];
+    events: StructuredExecutionEvent[];
+  }>)) {
+    if (!config) {
+      this.config = null;
+    } else if (typeof config === 'function') {
+      this.config = { kind: 'injected', runner: config };
+    } else if ('execute' in config && typeof config.execute === 'function') {
+      this.config = { kind: 'production', rainyRunner: config as ProductionRainyRunner };
+    } else {
+      this.config = config as RainyAgentAdapterConfig;
+    }
+  }
 
   declareCapabilities(): AgentCapabilityDeclaration {
     return rainyCapabilities();
@@ -336,17 +409,29 @@ export class RainyAgentAdapter implements AgentAdapter {
     timeoutMs?: number;
   }): Promise<StructuredExecutionResult> {
     // Bind every execution to task + lease + repository snapshot
-    if (!input.scope.repositorySnapshotHash || !input.scope.headSha) {
-      return failResult(input, 'internal', 'missing repository snapshot binding');
+    if (
+      !input.scope.repositorySnapshotHash ||
+      !input.scope.headSha ||
+      !input.scope.baseSha ||
+      !input.scope.diffHash
+    ) {
+      return baseFail(input, 'internal', 'missing repository snapshot binding', 'failed');
     }
     if (
       input.task.activeSpecificationVersion !==
       input.scope.approvedSpecificationVersion
     ) {
-      return failResult(input, 'stale_lease', 'specification version mismatch');
+      return baseFail(input, 'stale_lease', 'specification version mismatch', 'failed');
     }
     if (input.task.activePlanVersion !== input.scope.approvedPlanVersion) {
-      return failResult(input, 'stale_lease', 'plan version mismatch');
+      return baseFail(input, 'stale_lease', 'plan version mismatch', 'failed');
+    }
+    if (
+      input.task.activeTaskGraphVersion !== undefined &&
+      input.task.activeTaskGraphVersion !== null &&
+      input.task.activeTaskGraphVersion !== input.scope.taskGraphVersion
+    ) {
+      return baseFail(input, 'stale_lease', 'task graph version mismatch', 'failed');
     }
 
     const leaseCheck = validateLeaseBinding({
@@ -354,81 +439,125 @@ export class RainyAgentAdapter implements AgentAdapter {
       scope: input.scope,
     });
     if (!leaseCheck.ok) {
-      return failResult(input, 'stale_lease', leaseCheck.message);
+      return baseFail(input, 'stale_lease', leaseCheck.message, 'failed');
     }
 
     // Agent must receive approved docs only
     if (!input.specification.frozenAt) {
-      return failResult(input, 'policy', 'specification not frozen');
+      return baseFail(input, 'policy', 'specification not frozen', 'blocked');
     }
 
     const controller = new AbortController();
     const onAbort = () => controller.abort();
-    input.signal?.addEventListener('abort', onAbort);
+    if (input.signal?.aborted) {
+      controller.abort();
+    } else {
+      input.signal?.addEventListener('abort', onAbort);
+    }
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
     if (input.timeoutMs && input.timeoutMs > 0) {
-      timer = setTimeout(() => controller.abort(), input.timeoutMs);
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, input.timeoutMs);
     }
 
     try {
-      if (controller.signal.aborted) {
-        return failResult(input, 'cancelled', 'cancelled before start');
+      if (controller.signal.aborted || input.signal?.aborted) {
+        return baseFail(
+          input,
+          timedOut ? 'timeout' : 'cancelled',
+          timedOut ? 'timeout before start' : 'cancelled before start',
+          timedOut ? 'timeout' : 'cancelled',
+        );
       }
 
-      if (this.runner) {
-        const out = await this.runner({
+      if (!this.config) {
+        // CRITICAL: no scaffold success — fail closed without production runner
+        return baseFail(
+          input,
+          'capability',
+          'production Rainy runner not configured — refusing scaffold success path',
+          'blocked',
+        );
+      }
+
+      if (this.config.kind === 'production') {
+        const response = await this.config.rainyRunner.execute({
           scope: input.scope,
           graphTask: input.graphTask,
+          objective: input.specification.objective || input.task.objectiveSeed,
+          baseSha: input.scope.baseSha,
+          diffHash: input.scope.diffHash,
           signal: controller.signal,
+          timeoutMs: input.timeoutMs,
         });
-        return {
-          ok: true,
-          engineeringTaskId: input.scope.engineeringTaskId,
-          leaseId: input.scope.leaseId,
-          taskId: input.scope.taskId,
-          touchedPaths: out.touchedPaths,
-          toolActivity: out.toolActivity,
-          commandActivity: out.commandActivity,
-          events: out.events,
-        };
+        return mapProductionResponse(input, response);
       }
 
-      // Default: structured no-op scaffold (live Work Engine bridge later)
-      const at = nowIso();
+      const out = await this.config.runner({
+        scope: input.scope,
+        graphTask: input.graphTask,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) {
+        return baseFail(
+          input,
+          timedOut ? 'timeout' : 'cancelled',
+          timedOut ? 'timeout' : 'cancelled',
+          timedOut ? 'timeout' : 'cancelled',
+        );
+      }
+      const status = out.status ?? (out.errorClass ? 'failed' : 'completed');
+      const ok =
+        (status === 'completed' || status === 'partial') &&
+        !out.cancelled &&
+        !out.errorClass;
       return {
-        ok: true,
+        ok,
+        status,
         engineeringTaskId: input.scope.engineeringTaskId,
+        graphTaskId: input.scope.taskId,
         leaseId: input.scope.leaseId,
         taskId: input.scope.taskId,
-        touchedPaths: [],
-        toolActivity: [],
-        commandActivity: [],
-        events: [
-          {
-            eventType: 'started',
-            at,
-            summary: 'rainy adapter bound',
-            structuredPayload: {
-              engineeringTaskId: input.scope.engineeringTaskId,
-              leaseId: input.scope.leaseId,
-              taskId: input.scope.taskId,
-            },
-          },
-          {
-            eventType: 'completed',
-            at,
-            summary: 'rainy adapter completed structured binding',
-          },
-        ],
+        workspaceId: input.scope.workspaceId,
+        baseSha: input.scope.baseSha,
+        headSha: input.scope.headSha,
+        diffHash: input.scope.diffHash,
+        specificationVersion: input.scope.approvedSpecificationVersion,
+        planVersion: input.scope.approvedPlanVersion,
+        taskGraphVersion: input.scope.taskGraphVersion,
+        touchedPaths: out.touchedPaths,
+        toolsInvoked: out.toolsInvoked ?? out.toolActivity,
+        commandsRequested: out.commandsRequested ?? out.commandActivity.map((c) => c.command),
+        commandResults: out.commandResults ?? out.commandActivity,
+        toolActivity: out.toolActivity,
+        commandActivity: out.commandActivity,
+        events: out.events,
+        failureClass: ok ? undefined : mapInjectedFailure(out.errorClass),
+        failureMessage: out.errorMessage,
+        errorClass: out.errorClass,
+        provider: out.provider ?? 'rainy',
+        model: out.model ?? null,
+        tokenUsage: out.tokenUsage,
+        costUsd: out.costUsd ?? null,
+        cancelled: Boolean(out.cancelled),
       };
     } catch (error) {
       if (controller.signal.aborted) {
-        return failResult(input, 'timeout', 'timeout or cancelled');
+        return baseFail(
+          input,
+          timedOut ? 'timeout' : 'cancelled',
+          timedOut ? 'timeout or cancelled' : 'cancelled',
+          timedOut ? 'timeout' : 'cancelled',
+        );
       }
-      return failResult(
+      return baseFail(
         input,
         'internal',
         error instanceof Error ? error.message : String(error),
+        'failed',
       );
     } finally {
       if (timer) clearTimeout(timer);
@@ -437,30 +566,133 @@ export class RainyAgentAdapter implements AgentAdapter {
   }
 }
 
-function failResult(
+function mapProductionResponse(
+  input: {
+    scope: CanonicalAgentScope;
+  },
+  response: RainyScopedResponse,
+): StructuredExecutionResult {
+  const fields = rainyResponseToAdapterFields(response);
+  const authoritativeOk =
+    (fields.status === 'completed' || fields.status === 'partial') &&
+    !fields.cancelled;
+
+  return {
+    ok: authoritativeOk,
+    status: fields.status,
+    engineeringTaskId: input.scope.engineeringTaskId,
+    graphTaskId: input.scope.taskId,
+    leaseId: input.scope.leaseId,
+    taskId: input.scope.taskId,
+    workspaceId: input.scope.workspaceId,
+    baseSha: input.scope.baseSha,
+    headSha: input.scope.headSha,
+    diffHash: input.scope.diffHash,
+    specificationVersion: input.scope.approvedSpecificationVersion,
+    planVersion: input.scope.approvedPlanVersion,
+    taskGraphVersion: input.scope.taskGraphVersion,
+    touchedPaths: fields.touchedPaths,
+    toolsInvoked: fields.toolsInvoked,
+    commandsRequested: fields.commandsRequested,
+    commandResults: fields.commandResults,
+    toolActivity: fields.toolActivity,
+    commandActivity: fields.commandActivity,
+    events: fields.events,
+    failureClass: fields.failureClass,
+    failureMessage: fields.failureMessage,
+    errorClass: fields.errorClass,
+    provider: fields.provider ?? 'rainy',
+    model: fields.model ?? null,
+    tokenUsage: fields.tokenUsage,
+    costUsd: fields.costUsd ?? null,
+    cancelled: fields.cancelled,
+    repositoryMutationRecord: fields.repositoryMutationRecord,
+    modelProse: fields.modelProse,
+  };
+}
+
+function mapInjectedFailure(
+  errorClass?: RainyErrorClass,
+): AgentFailureClass {
+  switch (errorClass) {
+    case 'timeout':
+      return 'timeout';
+    case 'cancelled':
+      return 'cancelled';
+    case 'missing_credentials':
+    case 'policy':
+      return 'policy';
+    case 'stale_lease':
+    case 'stale_head':
+      return 'stale_lease';
+    case 'provider_failure':
+    case 'network':
+      return 'tool_error';
+    case 'internal':
+      return 'internal';
+    default:
+      return 'unknown';
+  }
+}
+
+function baseFail(
   input: {
     scope: CanonicalAgentScope;
   },
   failureClass: AgentFailureClass,
   message: string,
+  status: StructuredExecutionResult['status'],
 ): StructuredExecutionResult {
   return {
     ok: false,
+    status,
     engineeringTaskId: input.scope.engineeringTaskId,
+    graphTaskId: input.scope.taskId,
     leaseId: input.scope.leaseId,
     taskId: input.scope.taskId,
+    workspaceId: input.scope.workspaceId,
+    baseSha: input.scope.baseSha,
+    headSha: input.scope.headSha,
+    diffHash: input.scope.diffHash,
+    specificationVersion: input.scope.approvedSpecificationVersion,
+    planVersion: input.scope.approvedPlanVersion,
+    taskGraphVersion: input.scope.taskGraphVersion,
     touchedPaths: [],
+    toolsInvoked: [],
+    commandsRequested: [],
+    commandResults: [],
     toolActivity: [],
     commandActivity: [],
     events: [
       {
-        eventType: 'failed',
+        eventType: status === 'cancelled' || status === 'timeout' ? 'cancelled' : 'failed',
         at: nowIso(),
         summary: message,
+        structuredPayload: {
+          engineeringTaskId: input.scope.engineeringTaskId,
+          leaseId: input.scope.leaseId,
+          graphTaskId: input.scope.taskId,
+          failureClass,
+        },
       },
     ],
     failureClass,
     failureMessage: message,
+    errorClass:
+      failureClass === 'timeout'
+        ? 'timeout'
+        : failureClass === 'cancelled'
+          ? 'cancelled'
+          : failureClass === 'policy'
+            ? 'policy'
+            : failureClass === 'stale_lease'
+              ? 'stale_lease'
+              : failureClass === 'capability'
+                ? 'missing_credentials'
+                : 'internal',
+    cancelled: status === 'cancelled' || status === 'timeout',
+    provider: 'rainy',
+    model: null,
   };
 }
 
@@ -472,12 +704,38 @@ export function stripModelProseFromEvidence(
   return rest;
 }
 
+/**
+ * True when a result may complete a graph task.
+ * Partial / blocked / failed / cancelled / empty-evidence policy:
+ * - cancelled/timeout/failed/blocked → never complete
+ * - completed with zero touched paths → allowed only if commands ran or tools recorded
+ * Model prose never authorizes completion.
+ */
+export function mayMarkTaskCompleted(result: StructuredExecutionResult): boolean {
+  if (!result.ok) return false;
+  if (result.cancelled) return false;
+  if (result.status !== 'completed' && result.status !== 'partial') return false;
+  if (result.status === 'partial') return false;
+  if (result.failureClass || result.errorClass) return false;
+  // Free-form prose is never sufficient
+  if (
+    result.touchedPaths.length === 0 &&
+    result.commandResults.length === 0 &&
+    result.toolsInvoked.length === 0
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function buildCanonicalScope(input: {
   task: EngineeringTask;
   lease: TaskLease;
   graphTask: TaskNode;
   repositorySnapshotHash: string;
   headSha: string;
+  baseSha?: string;
+  diffHash?: string;
 }): CanonicalAgentScope {
   return {
     engineeringTaskId: input.task.engineeringTaskId,
@@ -486,6 +744,8 @@ export function buildCanonicalScope(input: {
     workspaceId: input.task.workspaceId,
     repositorySnapshotHash: input.repositorySnapshotHash,
     headSha: input.headSha,
+    baseSha: input.baseSha ?? input.headSha,
+    diffHash: input.diffHash ?? input.repositorySnapshotHash,
     approvedSpecificationVersion: input.task.activeSpecificationVersion ?? 0,
     approvedPlanVersion: input.task.activePlanVersion ?? 0,
     taskGraphVersion: input.task.activeTaskGraphVersion ?? 0,
