@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.10 (3) [Public Release Hardening]
+
+- Repositioned public copy around “The trust layer for AI-written code,” removed open-source/IDE/chatbot/factory ambiguity, and aligned README, package metadata, security language, licence terminology, supported platforms, runtime versions, Rainy requirements, and release commands.
+- Added the canonical `bun run verify` release contract covering lint, typecheck, Bun tests, and packaging configuration validation.
+- Documented and tested public packaging targets as macOS and Windows only; Linux makers remain intentionally omitted until Linux is supported.
+- Added provider-neutral verification model profiles (Fast, Balanced, Deep, Critical) with Luna/Terra/Sol routing, declared-only Pro selection, reasoning effort/mode separation, requested vs effective tier tracking, high-context pricing disclosure, and explainable escalation reasons.
+- Added privacy-safe local product metrics primitives that drop paths, prompts, code, commands, evidence, secrets, API keys, and raw repository identifiers while preserving value metrics such as validation counts, latency, costs, model profile, escalation, blocks, remediations, cancellations, and failure categories.
+- Tightened Ship Proof unlock logic so Git is allowed only when a complete proof includes executed validation command evidence with no failed or missing evidence; model prose alone remains blocked.
+- Standardized user-facing decision language toward Ready, Needs check, Risk found, Blocked, and Not proven.
+
 ## Unreleased - 2026.07.10 (2) [Rainy Launch Card Presentation]
 
 - Redesigned the Rainy model-launch card around `launch.presentation` (gradient, accent, surface, on_surface, muted, aurora animation) with no hardcoded launch colors.

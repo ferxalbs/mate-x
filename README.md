@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Open-source agentic engineering cockpit.</strong><br/>
-  Build with AI, inspect the run, and ship only what has proof.
+  <strong>The trust layer for AI-written code.</strong><br/>
+  Keep your coding agent. MaTE X verifies what it changed and blocks unproven changes before they reach production.
 </p>
 
 <p align="center">
@@ -13,79 +13,78 @@
   <a href="https://mate-x.xyz"><img alt="Website" src="https://img.shields.io/badge/website-mate--x.xyz-171717?labelColor=171717&color=10b981"></a>
 </p>
 
-MaTE X is an open-source agentic engineering cockpit for developers using AI to build real software, not just vibe-code demos.
+MaTE X is a source-available/OpenCore desktop application for developers who use AI coding agents. It opens a local repository, maps the real repository state, identifies changed and risky surfaces, plans proportional validation, records what actually ran, and produces a reproducible Ship Proof before commit, push, or release intent.
 
-It is an Electron desktop application that opens a local codebase, maps repository context, classifies project surfaces, checks what an AI agent changed, surfaces risk, validates when possible, and preserves proof while keeping privileged operations inside the desktop main process.
+MaTE X is not another IDE, a generic chatbot, a model marketplace, a scanner-only dashboard, or a fully autonomous software factory. It is the verification and proof layer between AI-generated code and production.
 
-The product is designed for repository security work, not generic chat over files. Analysis must separate runtime code from tests, docs, examples, generated files, scanner rules, and reference material so findings stay grounded in the code that can actually execute. The goal is to move security into the development loop: vibe code fast, but ship only what is proven.
+## Product Promise
 
-MaTE X does not guarantee security, prevent every bug, or replace human review. It gives developers a cockpit for turning AI work into inspectable engineering runs: understand the task, map the repo, identify risk, validate, verify, and keep proof.
+AI coding tools are fast, but model prose is not proof. MaTE X keeps the developer's existing agent while enforcing deterministic evidence:
 
-## Why MaTE X Exists
+- **Repository state**: current branch, dirty files, package manager, scripts, runtime surfaces, and trust state.
+- **Changed surfaces**: touched files, runtime entry points, secrets-risk files, infrastructure, auth, billing, crypto, migrations, IPC, shell, and Git-sensitive areas.
+- **Required validation**: the smallest useful plan backed by detected package manager and available scripts. MaTE X does not invent `npm run` commands.
+- **Executed evidence**: commands and tools that actually ran, with passed, failed, skipped, unavailable, missing, partial, cancelled, and stale states kept visible.
+- **Ship decision**: `Ready`, `Needs check`, `Risk found`, `Blocked`, or `Not proven`.
 
-AI coding tools are fast, but real software still needs repo context, validation, reviewable actions, and a record of what happened. MaTE X packages those steps into a local-first workflow so developers can keep using strong agents without treating final prose as proof.
-
-The goal is not another generic chat box over files. The goal is a transparent cockpit where agent work is structured, inspectable, hackable, and grounded in the repository in front of you.
+A clean working tree is not the same as a trusted repository. A model saying "ready" cannot unlock Git. Commit and push fail closed when policy requires proof.
 
 ## Factory Mode Lite
 
-Factory Mode Lite converts a user task into a structured engineering run:
+Factory Mode is a structured verification workflow, not a large autonomous DAG product:
 
 ```text
-Spec -> Repo Map -> Risk Map -> Validation Plan -> Agent Run -> Verification -> Ratchet Suggestion -> Ship Proof
+Spec -> Repo Context -> Risk Surfaces -> Validation Plan -> Agent Actions -> Verification -> Ratchet Suggestions -> Ship Proof
 ```
 
-It does not add a large new autonomous system or DAG UI. It reuses the existing MaTE X runtime: RepoGraph semantic memory, workspace health, validation planner, Trust Gate, Active Gate, Agent Trace, Privacy Firewall, Failure Memory, and evidence generation.
+Factory and Ship mode always use approval-required access and the proof-producing verification runbook. RepoGraph semantic memory and workspace health are used before broad file reads. Ratchet rules remain suggestions and require explicit approval.
 
-Factory mode starts from repo intelligence before broad file reads, requires validation planning before fix or ship claims, uses approval-required access by default, and shows missing validation honestly.
+Review mode stays useful for lighter analysis without forcing the full Factory experience.
 
 ## Ship Proof
 
-Ship Proof is the casual product name for the local proof receipt generated from a run. When proof exists, MaTE X can show:
+Ship Proof is the user-facing release receipt generated from deterministic run evidence. It is decision-first and includes, where available:
 
-- verdict
-- touched files count
-- risk surfaces
-- validation commands
-- passed, failed, and missing evidence
-- privacy status
-- whether commit or push is allowed or blocked
+- final verdict;
+- repository and branch;
+- base commit and HEAD;
+- diff identity or hash;
+- changed file count;
+- runtime and risk surfaces;
+- validation plan;
+- commands and tools actually executed;
+- passed, failed, skipped, unavailable, and missing checks;
+- Privacy Firewall status;
+- policy stops;
+- model/provider metadata;
+- requested and effective service tier;
+- whether commit/push is allowed;
+- timestamp and proof freshness.
 
-No proof means no green claim. When commit or push is blocked, MaTE X says why and routes back to Factory verification.
+Evidence Pack remains the richer artifact name for compliance exports and disk bundles under `.mate-x/evidence/<taskId>/`.
 
-## Ratchet Rules
+## First Run
 
-When a run repeatedly fails because of command, tool, package-manager, or workspace behavior, MaTE X can suggest a durable repo rule for:
+On first launch, MaTE X should be understandable without founder assistance:
 
-- `AGENTS.md`
-- `RULES.md`
-- `.mate-x/rules.json`
+1. Configure or validate a Rainy API v3 key in Settings.
+2. Open a local repository.
+3. Let MaTE X map repository context.
+4. Review the current trust state.
+5. Run the primary action: **Run Factory verification**.
+6. Read the Ship Proof and any block remediation steps.
 
-Rules are suggestions, not automatic writes. The developer chooses whether to add the repo rule, ignore it once, or never suggest it again.
+If Rainy is unavailable or credentials are missing, local repository state remains visible and cloud-backed review/verification is clearly unavailable rather than silently trusted.
 
-## Local-First Safety
+## Security Model
 
-MaTE X keeps the sensitive parts of the workflow local: repository access, shell and Git operations, local state, privacy checks, and proof artifacts stay behind the desktop boundary. Cloud model calls receive deliberately prepared context after local privacy checks.
+MaTE X assumes the opened repository is hostile.
 
-The project is designed to be inspectable and hackable. Runtime behavior, gates, validation evidence, and proof outputs should be understandable from the local app and repository state.
-
-## Roadmap
-
-- Factory DAG for richer run visualization.
-- OpenAI Agents SDK provider.
-- Temporary preview deploys for validation and review.
-
-## What MaTE X Does
-
-- Shows a Trust Gate verdict for the opened repo so users can see whether AI-made changes are trusted, need validation, risky, blocked, or not proven.
-- Provides a "Make it trustworthy" flow that uses existing repo intelligence, validation tools, policy stops, Agent Trace, VTS, and proof artifacts instead of inventing green status.
-- Reviews local repositories for security-relevant behavior, configuration risk, dependency risk, unsafe data flow, and trust-boundary violations before they become release blockers.
-- Uses semantic classification before reporting findings: framework, runtime surface, source role, environment, entry points, sinks, and evidence confidence.
-- Prioritizes high-impact issues, supports scoped remediation guidance, and validates fixes with tests, traces, or evidence where available.
-- Keeps file system access, Git operations, local persistence, API key lookup, and other sensitive actions in the Electron main process.
-- Sends only deliberately prepared context to the Rainy API v3 backend after local privacy checks and redaction gates.
-- Stores settings, run state, findings, and compliance artifacts locally.
-- Produces local Ship Proof receipts for completed agent runs when proof output is available.
+- Renderer code has no direct filesystem, shell, Git, database, or credential access.
+- Privileged operations cross typed IPC channels and are validated in the main process.
+- Repository content cannot override system policy, escalate permissions, execute without approval, mark itself trusted, modify evidence, bypass the Privacy Firewall, change the active workspace silently, enable Git writes, or inject arbitrary IPC messages.
+- Rainy credentials are user-provided in Settings, resolved in the main process, and must not be hardcoded, logged, or exposed to the renderer.
+- Raw secret payloads must not be signed or exported as trusted evidence.
 
 ## Architecture
 
@@ -100,7 +99,7 @@ Preload boundary
         v
 Electron main process
   IPC handlers, validation, repository access, Git, Rainy orchestration,
-  local database, privacy gates, evidence generation
+  local database, Privacy Firewall, evidence generation
         |
         +--> Local repository
         +--> libSQL / Turso local state
@@ -118,67 +117,28 @@ Electron main process
 | UI primitives | `src/components/ui/` | Reusable UI components and colocated tests |
 | Entry points | `src/main.ts`, `src/preload.ts`, `src/renderer.tsx` | Electron main, preload, renderer bootstrap |
 
-## Security Model
-
-MaTE X assumes the opened repository may be untrusted.
-
-- Renderer code never receives direct file system, shell, Git, database, or secret access.
-- All privileged operations cross typed IPC channels and are validated in the main process.
-- Rainy API credentials are configured by the user in Settings, resolved in the main process, and must not be hardcoded, logged, or exposed to the renderer.
-- Security-sensitive logic belongs in `src/electron/`.
-- IPC channels follow `<domain>:<action>`, for example `repo:run-assistant`.
-- Settings schema changes must update both shared contracts and database normalization.
-
-## Privacy And Evidence
-
-Before repository context, tool output, workspace memory, or prompts leave the machine, MaTE X applies local privacy controls. Sensitive spans should be redacted or replaced with typed placeholders before cloud model calls. Raw secret payloads must not be signed, exported, or treated as trusted evidence.
-
-Completed agent runs may create compliance artifacts under:
-
-```text
-.mate-x/evidence/<taskId>/
-```
-
-Evidence Pack output is local-first and may include:
-
-- `evidence-pack.json`
-- `attestation.intoto.json`
-- `compliance-report.pdf`
-- `audit-log.json`
-- `policy-applied.md`
-- `agent-runbook.json`
-- `agent-runbook.md`
-- `manifest.json`
-
-Agent Run Identity is persisted locally at:
-
-```text
-.mate-x/config/agent-identity.json
-```
-
-It must not be sent to Rainy API or report sinks without explicit user consent.
-
 ## Tech Stack
 
 | Layer | Technology |
 | --- | --- |
-| Desktop runtime | Electron 42 |
+| Desktop runtime | Electron 43 |
 | Renderer | React 19 |
+| Language | TypeScript 6 |
 | Styling | Tailwind CSS v4 |
 | Routing | TanStack Router |
 | Data fetching | TanStack Query |
 | State | Zustand |
 | Local database | libSQL / Turso |
-| Toolchain | Bun |
+| Toolchain | Bun 1.3+ |
 | AI backend | Rainy API v3+ |
 
 ## Requirements
 
-- Bun
-- macOS 12+ on Intel or Apple Silicon, or Windows 10+
-- Rainy API v3+ key configured in app Settings
+- Bun 1.3+ for development.
+- macOS 12+ on Intel or Apple Silicon, or Windows 10/11.
+- Rainy API v3+ key configured in app Settings for cloud-backed verification.
 
-Linux is not a supported target.
+Linux is not a supported public release target.
 
 ## Development
 
@@ -187,14 +147,13 @@ bun install
 bun run start
 ```
 
-Quality gates:
+Release verification contract:
 
 ```bash
-bun run lint
-bun run typecheck
+bun run verify
 ```
 
-Packaging:
+`bun run verify` runs lint, typecheck, all Bun tests, and packaging configuration validation. Packaging commands are:
 
 ```bash
 bun run package
@@ -203,7 +162,7 @@ bun run make
 
 ## License
 
-MaTE X is source-available under the [MaTE X Licence](LICENSE). Commercial use by companies or teams requires a separate commercial licence from Enosis Labs.
+MaTE X is source-available/OpenCore under the [MaTE X Licence](LICENSE). Commercial use by companies, organizations, or teams requires a separate commercial licence from Enosis Labs, Inc.
 
 ## Links
 

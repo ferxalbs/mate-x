@@ -162,9 +162,10 @@ export function createShipProofSummary(evidencePack: EvidencePack): ShipProofSum
       .filter((check) => check.status === "passed")
       .map((check) => check.name),
   ];
+  const hasExecutedValidation = validationCommands.length > 0;
   const missingEvidence = [
     ...(evidencePack.verifiedTaskScore?.missingEvidence ?? []),
-    ...(validationCommands.length === 0 ? ["Validation command evidence missing."] : []),
+    ...(hasExecutedValidation ? [] : ["Validation command evidence missing."]),
   ];
   const privacyStatus =
     evidencePack.attestation?.status === "blocked"
@@ -184,6 +185,7 @@ export function createShipProofSummary(evidencePack: EvidencePack): ShipProofSum
     privacyStatus,
     gitStatus:
       evidencePack.status === "complete" &&
+      hasExecutedValidation &&
       failedEvidence.length === 0 &&
       missingEvidence.length === 0
         ? "allowed"

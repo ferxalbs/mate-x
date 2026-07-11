@@ -3,7 +3,7 @@
 Copyright (c) 2026 Enosis Labs, Inc. All rights reserved.
 
 Licensor:       Enosis Labs, Inc.
-Licensed Work:  MaTE X — Secure Development Agent for Local Repositories
+Licensed Work:  MaTE X — Trust Layer for AI-Written Code
 Website:        <https://mate-x.xyz>
 Contact:        <legal@enosislabs.com>
 
@@ -11,7 +11,7 @@ Contact:        <legal@enosislabs.com>
 
 OPEN CORE — PERMITTED PERSONAL & COMMUNITY USE
 
-The MaTE X core engine, agent orchestration framework, and base tooling (the
+The MaTE X core trust engine, verification workflow, and base tooling (the
 "Licensed Work") may be used, inspected, modified, and distributed for
 personal, non-commercial purposes only, subject to the following conditions:
 
@@ -52,8 +52,8 @@ The following components are exclusively proprietary to Enosis Labs, Inc. and
 are NOT licensed under the MaTE X Licence. All rights are reserved:
 
 - MaTE X Privacy Sentinel (local privacy filter model and weights)
-- AETHER model weights and inference engine
-- AETHER DARE reasoning engine and chain-of-thought architecture
+- MaTE X private model weights and inference engine
+- MaTE X private reasoning engine architecture
 - Rainy API (gateway protocol, infrastructure, and operational systems)
 
 Reverse engineering, redistribution, or reproduction of these components is

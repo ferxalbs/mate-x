@@ -37,7 +37,7 @@ We will acknowledge your report within **48 hours** and provide a resolution tim
 
 - Vulnerabilities in the main process that allow renderer-side code to execute arbitrary system commands or read arbitrary files outside the intended IPC surface.
 - Vulnerabilities in IPC input validation that could lead to path traversal, command injection, or privilege escalation.
-- Vulnerabilities in the MaTE X Privacy layer that result in raw secrets being transmitted to cloud endpoints.
+- Vulnerabilities in the MaTE X Privacy Firewall that result in raw secrets being transmitted to cloud endpoints.
 - Vulnerabilities in local database access or key storage that expose user credentials.
 
 **Out of scope:**
@@ -56,7 +56,7 @@ MaTE X enforces a strict process boundary:
 
 - All file system access, Git commands, and API key resolution occur in the Electron **main process**.
 - The renderer has no direct access to system resources and must communicate through **validated IPC channels**.
-- The **MaTE X Privacy** subsystem scans all outbound payloads locally before transmission — secrets are replaced with typed placeholders and stored in an encrypted local vault.
+- The **MaTE X Privacy Firewall** scans outbound payloads locally before transmission. Secrets are replaced with typed placeholders and raw secret payloads must not be signed, exported, logged, or treated as trusted evidence.
 
 ---
 

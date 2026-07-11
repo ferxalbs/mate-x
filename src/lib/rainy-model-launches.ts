@@ -472,11 +472,11 @@ export function buildLaunchPresentationCssVars(
 
 /** @deprecated API now returns exact CTA labels via launch.ui.primary_action.label.
  *  This function will be removed in a future cleanup pass. */
-export function getLaunchPrimaryCtaLabel(_canTry: boolean, isActivating: boolean) {
+export function getLaunchPrimaryCtaLabel(canTry: boolean, isActivating: boolean) {
   if (isActivating) {
     return "Activating…";
   }
-  return "";
+  return canTry ? "Try model" : "Not available yet";
 }
 
 
@@ -1003,7 +1003,14 @@ export function getHighContextPricingNotice(params: {
   measuredInputTokens?: number | null;
 }): string | null {
   const launch = params.launch ?? null;
-  return launch?.pricing?.note ?? null;
+  const note = launch?.pricing?.note ?? null;
+  if (!note) return null;
+  const measured = typeof params.measuredInputTokens === "number" && Number.isFinite(params.measuredInputTokens)
+    ? ` Measured prompt tokens/input tokens: ${Math.floor(params.measuredInputTokens).toLocaleString("en-US")}.`
+    : "";
+  return /message count/i.test(note)
+    ? `${note}${measured}`
+    : `${note}${measured} Do not estimate from message count; use provider input-token accounting.`;
 }
 
 export function formatLaunchStatus(status: RainyModelLaunchStatus) {

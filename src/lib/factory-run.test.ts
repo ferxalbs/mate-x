@@ -177,4 +177,29 @@ describe("Factory Mode Lite", () => {
     assert.equal(completed?.shipProof?.gitStatus, "blocked");
     assert.deepEqual(completed?.shipProof?.missingEvidence, ["Validation command evidence missing."]);
   });
+  it("allows Git only when validation command evidence executed and passed", () => {
+    const evidencePack: EvidencePack = {
+      status: "complete",
+      verdict: { label: "Ready", summary: "Checks passed", confidence: "high" },
+      commandsExecuted: [{ command: "bun run typecheck", exitCode: 0 }],
+      generatedAt: "2026-07-07T00:01:00.000Z",
+    };
+
+    const summary = completeFactoryRun(
+      createFactoryRun({
+        id: "factory-allow",
+        prompt: "Ship",
+        options: { ...normalizeFactoryRunOptions(factoryOptions), mode: "ship" },
+        createdAt: "2026-07-07T00:00:00.000Z",
+      }),
+      {
+        events: [{ id: "1", label: "sandbox_run", detail: "bun run typecheck", status: "done" }],
+        evidencePack,
+        completedAt: "2026-07-07T00:01:00.000Z",
+      },
+    )?.shipProof;
+
+    assert.equal(summary?.gitStatus, "allowed");
+  });
+
 });
