@@ -5,6 +5,7 @@ import { initializeUpdater } from './updater';
 
 import { registerIpcHandlers } from './ipc-handlers';
 import { initStack, teardownStack } from './main-stack';
+import { setSDKOrchestratorInitializationError } from './repo-service';
 
 // Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
 // Ignore that single deprecation noise so actual app warnings stay visible.
@@ -136,6 +137,7 @@ app.on('ready', async () => {
   try {
     await initStack();
   } catch (error) {
+    setSDKOrchestratorInitializationError(error);
     console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
   }
   registerIpcHandlers();
