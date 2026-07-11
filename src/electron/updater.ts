@@ -90,8 +90,8 @@ export async function checkForUpdates(showUpToDateDialog = true) {
       });
     }
   } catch (error) {
-    console.error('Failed to check for updates:', error);
     if (showUpToDateDialog) {
+      console.error('Failed to check for updates:', error);
       dialog.showErrorBox('Error de Actualización', 'No se pudo comprobar si hay actualizaciones. Revisa tu conexión a internet.');
     }
   }
