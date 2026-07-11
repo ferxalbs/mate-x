@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.11 (1) [Model Power Selector and Agent Runtime Readiness]
+
+- Rebuilt the composer model-power selector around explicit GPT-5.6 and Claude family modes instead of an unstable keyword score across the entire model catalog.
+- Added deterministic Faster-to-Smartest ordering for available family variants, covering Luna Light/Haiku, Luna, Terra/Sonnet, Sol/Opus, and declared Pro/Max/Ultra variants, with provider pricing used to order models within the same capability tier.
+- Extracted model-family filtering, power classification, pricing comparison, and mode labels into a focused `model-power-selector` module with unit coverage, keeping unrelated models out of the power slider without inventing unavailable catalog entries.
+- Fixed slider dragging and track selection by removing parent pointer-event interception and using Base UI's controlled numeric `onValueChange` contract directly.
+- Redesigned Advanced as two mutually exclusive menu views: the normal view shows Model, Effort, and Speed, while slider mode hides those controls and shows only Advanced, Faster/Smartest, the power slider, the selected mode, and the exact selected model.
+- Improved selector responsiveness with a compact flat panel, theme-aware border, no heavy shadow, reduced backdrop blur, a 150 ms snappy transition, functional disclosure state updates, and no drag-time mounting or unmounting of menu sections.
+- Added a configurable accessible thumb label to the shared Slider primitive and disabled model-power interaction cleanly when fewer than two matching catalog models are available.
+- Hardened agent startup diagnostics by retaining the original SDK orchestrator initialization failure when the Electron shell continues in core-settings mode, replacing the late generic error with an actionable runtime-readiness message.
+- Extracted SDK orchestrator readiness and initialization-error state into a dependency-free `AgentRuntimeReadiness` module so startup recovery clears stale errors atomically and the behavior can be tested without loading Electron.
+- Added focused regression coverage for GPT-5.6/Claude filtering and ordering, endpoint and intermediate mode labels, pricing tie-breaking, preserved startup failures, not-ready fallback guidance, and readiness recovery.
+- Verified the focused selector and runtime-readiness tests (6 passing), `bun run typecheck`, lint with zero errors, and `git diff --check`. The full Bun suite reached 297 passing tests with one unrelated pre-existing GPT-5.6 pricing-notice assertion failure.
+
 ## Unreleased - 2026.07.10 (3) [Public Release Hardening]
 
 - Repositioned public copy around “The trust layer for AI-written code,” removed open-source/IDE/chatbot/factory ambiguity, and aligned README, package metadata, security language, licence terminology, supported platforms, runtime versions, Rainy requirements, and release commands.
