@@ -19,15 +19,17 @@ let stack: MaTeXStack | null = null;
 let configSnapshot: MaTeXConfig | null = null;
 
 export async function initStack(): Promise<void> {
-  configSnapshot = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
-  configSnapshot = {
-    ...configSnapshot,
+  await teardownStack();
+
+  const nextConfig = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
+  const resolvedConfig = {
+    ...nextConfig,
     storage: {
-      ...configSnapshot.storage,
-      credentials: await resolveStorageCredentials(configSnapshot),
+      ...nextConfig.storage,
+      credentials: await resolveStorageCredentials(nextConfig),
     },
   };
-  stack = await createMaTeXStack(configSnapshot, {
+  const nextStack = await createMaTeXStack(resolvedConfig, {
     workspaceId: 'default',
     storage: {
       // Use app-scoped userData for the internal MaTeX SDK storage bucket / EvidencePackStorage
@@ -37,7 +39,7 @@ export async function initStack(): Promise<void> {
       // isolated to the app and the *target* workspace's .mate-x/evidence for compliance packs.
       // The portable per-workspace evidence still lives under the user-selected workspacePath
       // (see attestation, complianceExport, evidence-pack build paths using snapshot.workspace.path).
-      files: createLocalFilesClient(join(app.getPath('userData'), 'matex-storage', configSnapshot.storage.bucket ?? 'evidence')),
+      files: createLocalFilesClient(join(app.getPath('userData'), 'matex-storage', resolvedConfig.storage.bucket ?? 'evidence')),
       privacySentinel: {
         scan: async (content) => {
           const scan = await privacyFirewall.scanTextSafe(
@@ -111,7 +113,9 @@ export async function initStack(): Promise<void> {
       confirmHighImpact: (action) => requestPolicyApproval(`sdk:${action.agentId}`, action.actionType, action),
     },
   });
-  setSDKOrchestrator(stack.orchestrator);
+  configSnapshot = resolvedConfig;
+  stack = nextStack;
+  setSDKOrchestrator(nextStack.orchestrator);
 }
 
 async function resolveStorageCredentials(config: MaTeXConfig): Promise<Record<string, unknown>> {
@@ -144,6 +148,8 @@ export function getConfigSnapshot(): MaTeXConfig {
 
 export async function teardownStack(): Promise<void> {
   if (!stack) {
+    setSDKOrchestrator(null);
+    configSnapshot = null;
     return;
   }
 
