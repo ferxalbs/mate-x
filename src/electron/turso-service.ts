@@ -34,6 +34,7 @@ import {
   createDefaultWorkspaceTrustContract,
   normalizeWorkspaceTrustContract,
 } from './workspace-trust';
+import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -248,6 +249,8 @@ export class TursoService {
           ON privacy_secret_vault(workspace_id, hash)`,
         `CREATE INDEX IF NOT EXISTS idx_privacy_scan_events_workspace
           ON privacy_scan_events(workspace_id, created_at)`,
+        // NES-1.2 EngineeringTask control-plane tables (idempotent)
+        ...ENGINEERING_SCHEMA_SQL,
       ],
       'write',
     );
