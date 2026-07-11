@@ -1,0 +1,32 @@
+{
+  "platform": "darwin",
+  "arch": "x64",
+  "timestamp": "2026-07-11T23:53:59.144Z",
+  "binaryPath": "/Users/fer/Projects/mate-x/out/MaTE X-darwin-x64/MaTE X.app/Contents/MacOS/mate-x",
+  "binaryHash": "2c50ce097f5b1a244295e69449a6d37ef427d53d51a647f947ea27dc195eced4",
+  "releaseSelfTestDisabled": true,
+  "functionalSelfTest": {
+    "ok": true,
+    "phase": "complete",
+    "exitCode": 0,
+    "engineeringTaskId": "etask_01JT9PKA3091F3CC604B9D875B",
+    "aggregateVersion": 4,
+    "workspaceId": "ws_36d9d2714486582b",
+    "branch": "main",
+    "headSha": "7b560f915e54a1acd7c1f55105d92ebbc0de0827",
+    "policyHash": "be041e4fe2cd0bee99047fdc1bc1cc832eb5df3f8a08b947fbcece2208d06a57",
+    "eventCount": 4,
+    "readiness": "Not proven",
+    "gitGateAllowed": false,
+    "gitGateAfterMutationAllowed": false,
+    "proofStaleAfterMutation": true,
+    "artifactHashes": {
+      "result": "c4a7e563360591af5a718ad6b346d8903cd6b05f2fd66fb60f4b3993013448cd",
+      "db": "e3ba06536f7dbba337dee3c1c5f01b43660ce276abb54c5cee2d5defc5b970aa"
+    }
+  },
+  "functionalExitCode": 0,
+  "asarPath": "/Users/fer/Projects/mate-x/out/MaTE X-darwin-x64/MaTE X.app/Contents/Resources/app.asar",
+  "asarHash": "39f38bac0383f3d22d8d5bf3d89f12e72901fa4282f64930588e694158b4841d",
+  "asarContainsSelfTest": true
+}

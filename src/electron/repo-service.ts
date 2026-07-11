@@ -75,7 +75,7 @@ export async function runAssistant(
     workspace: snapshot.workspace,
     gitState: snapshot.statusLines,
     selectedFiles: [],
-    runMode: resolvedOptions.mode,
+    runMode: resolvedOptions.pathKind ?? 'full',
     promptMatches: snapshot.promptMatches,
     memoryContext: snapshot.memoryContext,
   });

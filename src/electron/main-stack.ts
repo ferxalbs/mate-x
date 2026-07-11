@@ -32,6 +32,35 @@ export async function initStack(): Promise<void> {
   }
   initDurableEngineeringRepository(dbPath);
 
+  // Production Rainy agent adapter — never scaffold success (CLOSURE 1)
+  const {
+    initProductionAgentAdapter,
+    resolveRainyApiKeyFromEnv,
+  } = await import('./engineering/agent-runtime');
+  initProductionAgentAdapter({
+    getApiKey: () => resolveRainyApiKeyFromEnv(process.env),
+  });
+
+  // Optional v0.1.1 migration fixture path for upgrade installs
+  try {
+    const { runV011Migration, loadV011Fixture } = await import(
+      './engineering/migration/migrate-v011'
+    );
+    const { getEngineeringRepository } = await import('./engineering/repository');
+    const fixturePath = join(app.getPath('userData'), 'legacy', 'v0.1.1-fixture.json');
+    const { existsSync } = await import('node:fs');
+    if (existsSync(fixturePath)) {
+      const fixture = loadV011Fixture(fixturePath);
+      runV011Migration({
+        repo: getEngineeringRepository(),
+        fixture,
+        userDataDir: app.getPath('userData'),
+      });
+    }
+  } catch (error) {
+    console.warn('Legacy migration skipped or failed safely', error);
+  }
+
   const nextConfig = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
   const resolvedConfig = {
     ...nextConfig,

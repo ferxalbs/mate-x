@@ -1,48 +1,48 @@
 /**
- * Legacy FactoryRun projection helpers.
- * Write authority deleted (NES-8.1 / R4). New Factory runs are never created.
- * completeFactoryRun does not advance stages via regex as product truth.
- * Historical messages may still embed FactoryRun for read-only display.
+ * Dead Factory write path stubs + migration projection helpers.
+ * Write authority deleted (NES-8.1 / CLOSURE 2).
+ * Historical Factory decode lives under engineering/migration only.
+ * This module must not restore Factory authority through configuration.
  */
 
 import type {
   AssistantRunOptions,
   EvidencePack,
-  FactoryRun,
-  FactoryRunStage,
-  RatchetSuggestion,
   ShipProofSummary,
   ToolEvent,
 } from "../contracts/chat";
+import type {
+  LegacyFactoryRun,
+  LegacyFactoryRunStage,
+} from "../electron/engineering/migration/legacy-factory-types";
 
 /**
  * Factory write authority is dead. Always returns undefined.
- * Legacy messages may still carry historical FactoryRun records (read-only).
  */
 export function createFactoryRun(_params: {
   id: string;
   prompt: string;
   options: AssistantRunOptions;
   createdAt: string;
-}): FactoryRun | undefined {
+}): undefined {
   return undefined;
 }
 
 /**
- * Does not advance stage status from tool-event regex.
- * Preserves historical run as-is; only stamps completedAt when provided.
+ * Does not advance stage status. Preserves historical run timestamps only.
  * Product readiness is EngineeringTask + GitGate only.
  */
 export function completeFactoryRun(
-  run: FactoryRun | undefined,
+  run: LegacyFactoryRun | undefined,
   params: {
     events: ToolEvent[];
     evidencePack?: EvidencePack;
     completedAt: string;
   },
-): FactoryRun | undefined {
+): LegacyFactoryRun | undefined {
   if (!run) return undefined;
-  // Read-only: never rewrite stage truth from events
+  void params.events;
+  void params.evidencePack;
   return {
     ...run,
     completedAt: params.completedAt ?? run.completedAt,
@@ -51,12 +51,11 @@ export function completeFactoryRun(
 
 /**
  * @deprecated Projection helper for migration fixtures only — not product authority.
- * Regex stage inference retained solely for testing historical message rendering.
  */
 export function projectLegacyFactoryStagesFromEvents(
-  stages: FactoryRunStage[],
+  stages: LegacyFactoryRunStage[],
   events: ToolEvent[],
-): FactoryRunStage[] {
+): LegacyFactoryRunStage[] {
   const plannedValidation = hasEvent(events, /plan_validation|validation plan/i);
   const ranValidation = hasEvent(events, /run_tests|sandbox_run|validation run/i);
   const failedValidation = hasErrorEvent(events, /run_tests|sandbox_run|validation/i);
@@ -127,26 +126,52 @@ export function projectLegacyFactoryStagesFromEvents(
   });
 }
 
+/**
+ * Normalize run options: strip any residual legacy mode fields if present
+ * on untyped payloads; prefer pathKind.
+ */
 export function normalizeFactoryRunOptions(
-  options: AssistantRunOptions,
+  options: AssistantRunOptions & { mode?: string },
 ): AssistantRunOptions {
-  // Strip factory/ship product modes — pathKind is internal only
-  if (options.mode === "factory" || options.mode === "ship") {
-    return {
-      ...options,
-      mode: "chat",
-      access: "approval",
-      runbookId:
-        options.mode === "ship"
-          ? "patch_test_verify"
-          : options.runbookId ?? "patch_test_verify",
-    };
+  const residualMode = options.mode;
+  // Residual legacy mode aliases map to pathKind (overrides when present)
+  let pathKind = options.pathKind;
+  if (residualMode) {
+    if (residualMode === "ship" || residualMode === "review") {
+      pathKind = "verify_only";
+    } else if (residualMode === "chat" || residualMode === "plan") {
+      pathKind = "chat_help";
+    } else if (
+      residualMode === "factory" ||
+      residualMode === "build" ||
+      residualMode === "critic_loop"
+    ) {
+      pathKind = "full";
+    }
   }
-  return options;
+  const { mode: _drop, ...rest } = options as AssistantRunOptions & {
+    mode?: string;
+  };
+  void _drop;
+  const resolvedPath = pathKind ?? "full";
+  return {
+    ...rest,
+    pathKind: resolvedPath,
+    access:
+      residualMode === "factory" || residualMode === "ship"
+        ? "approval"
+        : options.access,
+    runbookId:
+      residualMode === "ship"
+        ? "patch_test_verify"
+        : options.runbookId ??
+          (resolvedPath === "chat_help"
+            ? "review_classify_summarize"
+            : "patch_test_verify"),
+  };
 }
 
-export function createInitialFactoryStages(prompt: string): FactoryRunStage[] {
-  // Migration/fixture helper only — prompt is never a completed specification.
+export function createInitialFactoryStages(prompt: string): LegacyFactoryRunStage[] {
   void prompt;
   return [
     {
@@ -184,9 +209,8 @@ export function createInitialFactoryStages(prompt: string): FactoryRunStage[] {
 
 export function createRatchetSuggestions(
   events: ToolEvent[],
-): RatchetSuggestion[] {
+): never[] {
   void events;
-  // No hard-coded package-manager ratchet as product truth (deletion map).
   return [];
 }
 

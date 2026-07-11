@@ -55,6 +55,15 @@ if (started) {
 app.commandLine.appendSwitch('enable-features', 'CanvasDrawElement');
 app.commandLine.appendSwitch('enable-blink-features', 'CanvasDrawElement');
 
+// Packaged self-test: isolate userData BEFORE ready (required by Electron)
+if (process.env.MATE_X_PACKAGED_SELF_TEST === '1' && process.env.MATE_X_RELEASE_BUILD !== '1') {
+  const userDataDir =
+    process.env.MATE_X_TEST_USER_DATA ??
+    path.join(app.getPath('temp'), `mate-x-selftest-${Date.now()}`);
+  app.setPath('userData', userDataDir);
+  process.env.MATE_X_TEST_USER_DATA = userDataDir;
+}
+
 
 const isTrustedAppUrl = (url: string) => {
   let parsedUrl: URL;
@@ -137,6 +146,44 @@ const createWindow = () => {
 };
 
 app.on('ready', async () => {
+  // Packaged self-test driver (test builds only — impossible in release)
+  if (process.env.MATE_X_PACKAGED_SELF_TEST === '1') {
+    try {
+      const { isPackagedSelfTestEnabled, runPackagedSelfTest } = await import(
+        './engineering/packaged-self-test'
+      );
+      if (process.env.MATE_X_RELEASE_BUILD === '0') {
+        process.env.MATE_X_ALLOW_PACKAGED_SELF_TEST = '1';
+      }
+      if (!isPackagedSelfTestEnabled(process.env)) {
+        console.error('Packaged self-test refused (release build or not enabled)');
+        app.exit(3);
+        return;
+      }
+      const userDataDir =
+        process.env.MATE_X_TEST_USER_DATA ?? app.getPath('userData');
+      const fixtureRepoDir =
+        process.env.MATE_X_TEST_FIXTURE_REPO ??
+        path.join(userDataDir, 'fixture-repo');
+      const resultPath =
+        process.env.MATE_X_TEST_RESULT_PATH ??
+        path.join(userDataDir, 'self-test-result.json');
+      // Self-test owns durable DB + GitGate — skip full product stack hang risk
+      const result = await runPackagedSelfTest({
+        userDataDir,
+        fixtureRepoDir,
+        resultPath,
+      });
+      console.log('PACKAGED_SELF_TEST_RESULT', JSON.stringify(result));
+      app.exit(result.exitCode);
+      return;
+    } catch (error) {
+      console.error('Packaged self-test crashed', error);
+      app.exit(1);
+      return;
+    }
+  }
+
   try {
     await initStack();
   } catch (error) {

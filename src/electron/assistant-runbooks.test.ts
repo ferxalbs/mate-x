@@ -9,28 +9,42 @@ describe('resolveAssistantRunOptions', () => {
   });
 
   it('preserves explicit full access for trusted callers', () => {
-    assert.equal(resolveAssistantRunOptions({ access: 'full' } as Parameters<typeof resolveAssistantRunOptions>[0]).access, 'full');
+    assert.equal(
+      resolveAssistantRunOptions({
+        access: 'full',
+      } as Parameters<typeof resolveAssistantRunOptions>[0]).access,
+      'full',
+    );
   });
 
-  it('forces Factory mode to approval access and verification runbook', () => {
+  it('maps verify_only pathKind to verification runbook', () => {
     const options = resolveAssistantRunOptions({
       access: 'full',
-      mode: 'factory',
+      pathKind: 'verify_only',
       runbookId: 'review_classify_summarize',
     } as Parameters<typeof resolveAssistantRunOptions>[0]);
 
-    assert.equal(options.access, 'approval');
+    assert.equal(options.pathKind, 'verify_only');
     assert.equal(options.runbookId, 'patch_test_verify');
   });
 
-  it('forces Ship mode to approval access and verification runbook', () => {
+  it('maps chat_help pathKind to review runbook', () => {
     const options = resolveAssistantRunOptions({
-      access: 'full',
-      mode: 'ship',
-      runbookId: 'review_classify_summarize',
+      access: 'approval',
+      pathKind: 'chat_help',
+      runbookId: 'patch_test_verify',
     } as Parameters<typeof resolveAssistantRunOptions>[0]);
 
-    assert.equal(options.access, 'approval');
-    assert.equal(options.runbookId, 'patch_test_verify');
+    assert.equal(options.pathKind, 'chat_help');
+    assert.equal(options.runbookId, 'review_classify_summarize');
+  });
+
+  it('does not accept AssistantMode product modes on the public contract', () => {
+    const options = resolveAssistantRunOptions({
+      access: 'full',
+      pathKind: 'full',
+    } as Parameters<typeof resolveAssistantRunOptions>[0]);
+    assert.equal(options.pathKind, 'full');
+    assert.equal('mode' in options, false);
   });
 });

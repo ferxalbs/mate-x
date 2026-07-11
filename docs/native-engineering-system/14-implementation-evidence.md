@@ -158,3 +158,100 @@ bun run make        → PASS (dmg + zip)
 3. Factory write path is deleted; regex projection is non-authoritative.
 4. Do not tag/publish until packaged interactive recovery checklist is signed and Windows package is green on CI.
 5. Agent 4 cannot authorize merge to main or release.
+
+---
+
+## R-CLOSURE — Final implementation-closure pass (Agent 4)
+
+**Starting remote SHA:** `ca9485ab8f5add74964bc704018d00304e5e217c`  
+**Branch:** `feat/native-engineering-system-v0.1.2`  
+**Remote:** `origin` → `https://github.com/ferxalbs/mate-x.git`
+
+### CLOSURE 1 — Production Rainy execution
+
+| Item | Evidence |
+|------|----------|
+| Production runner | `src/electron/engineering/rainy-production-runner.ts` |
+| Adapter | `src/electron/engineering/rainy-adapter.ts` — no scaffold success path |
+| Production init | `initProductionAgentAdapter` in `main-stack.ts` |
+| Fake adapter | `FakeAgentAdapter` test-only |
+| Missing credentials | structured `blocked` + `missing_credentials` |
+| Failure cannot complete | `mayMarkTaskCompleted` false on fail/timeout/cancel/partial/empty |
+| Cancellation | AbortSignal propagates |
+| Timeout | explicit timeout outcome |
+| Binding | engineeringTaskId, graphTaskId, leaseId, workspaceId, baseSha, headSha, diffHash, versions |
+| Tests | rainy-adapter.test.ts cases 1–11 |
+| Live smoke | `scripts/live-rainy-smoke.ts` (opt-in `MATE_X_LIVE_RAINY=1`) |
+
+### CLOSURE 2 — Legacy removal
+
+| Item | Evidence |
+|------|----------|
+| `AssistantMode` removed from canonical contract | `src/contracts/chat.ts` uses `pathKind` only |
+| FactoryRun not current model | types under `engineering/migration/` only |
+| Migration decoder | `legacy-factory-decoder.ts` — no readiness, no writes |
+| Factory write dead | `createFactoryRun` → undefined |
+| Repo check | `scripts/check-legacy-terms.ts` + `bun run verify:legacy-terms` |
+| UI | message-card no Factory Run card; composer uses pathKind |
+
+### CLOSURE 3 — Packaged restart + GitGate E2E
+
+| Item | Evidence |
+|------|----------|
+| Driver | `packaged-self-test.ts` + main.ts self-test entry |
+| Negative release | `assertSelfTestDisabledInRelease` — PASS |
+| Functional E2E | `bun run scripts/run-packaged-e2e.ts` — ok=true, GitGate blocked, stale after mutation |
+| Binary | `out/MaTE X-darwin-x64/MaTE X.app/Contents/MacOS/mate-x` |
+| ASAR contains self-test | true (hash recorded in artifacts) |
+| Isolated userData + fixture git | temporary dirs only — never MaTE X source repo |
+
+### CLOSURE 4 — Windows CI
+
+| Item | Evidence |
+|------|----------|
+| Workflow | `.github/workflows/windows-ci.yml` |
+| Triggers | push/PR on implementation branch + main |
+| Gates | install, lint, typecheck, test, verify, package, make, smoke tests, artifacts |
+| Run status | See final report — requires Actions permission to execute on GitHub |
+
+### CLOSURE 5 — Packaged application performance
+
+| Metric | p50 (ms) | p95 (ms) | n | budget | result |
+|--------|----------|----------|---|--------|--------|
+| cold_process_start | ~7.6 | ~8.8 | 8 | 5000 | PASS |
+| browser_window_ready_to_show (proxy) | ~11.4 | ~13.2 | 8 | 8000 | PASS |
+| renderer_interactive (proxy) | ~16.7 | ~19.3 | 8 | 10000 | PASS |
+| persisted_workspace_visible | ~0.11 | ~0.17 | 8 | 500 | PASS |
+| persisted_engineering_task_visible | ~0.11 | ~0.17 | 8 | 500 | PASS |
+| workspace_open_small (50 files) | ~120 | ~121 | 8 | 2000 | PASS |
+| workspace_open_large (833 files) | ~134 | ~140 | 8 | 5000 | PASS |
+| engineering_task_cycle | ~2.6 | ~5.6 | 8 | 3000 | PASS |
+
+Host: darwin/x64, Intel i5-10400F 12-thread, 24GB, macOS 24.6.0.  
+No prompts/secrets/source/credentials recorded.  
+Note: BrowserWindow/renderer timings are durable-stack proxies unless `MATE_X_PERF_PROBE_JSON` injects Electron probe samples.
+
+### Migration fixture
+
+| Item | Evidence |
+|------|----------|
+| Fixture | `fixtures/legacy/v0.1.1-fixture.json` |
+| Tests | `migration/migrate-v011.test.ts` — canonical task, idempotent, GitGate blocked, settings preserved, malformed safe |
+
+### Validation commands (this closure)
+
+```text
+bun run lint        → PASS
+bun run typecheck   → PASS
+bun test            → 382 pass / 0 fail / 55 files
+bun run verify      → PASS (includes legacy-terms check)
+bun run package     → PASS (darwin-x64)
+bun run make        → PASS
+  dmg sha256: aa1276740946807ad48c4b4e211e40d614d8895e5252df0487fcd25101b6f9bb
+  zip sha256: 462fa381b12481d0d6183020e3d274611b23716aded54b66a8b0f2eac84483fd
+```
+
+### Prohibited legacy term search
+
+Active runtime: **PASS** via `scripts/check-legacy-terms.ts`.  
+Allowed residual: migration-only modules, fixtures, changelog, residual-mode strip casts in factory-run normalize tests.
