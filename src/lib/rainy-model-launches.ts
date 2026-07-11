@@ -1005,10 +1005,14 @@ export function getHighContextPricingNotice(params: {
   const launch = params.launch ?? null;
   const note = launch?.pricing?.note ?? null;
   if (!note) return null;
-  const measured = typeof params.measuredInputTokens === "number" && Number.isFinite(params.measuredInputTokens)
-    ? ` Measured prompt tokens/input tokens: ${Math.floor(params.measuredInputTokens).toLocaleString("en-US")}.`
-    : "";
-  return `${note}${measured}`;
+  const disclaimer =
+    " MaTE X does not estimate from message count; threshold uses provider prompt/input tokens.";
+  const measured =
+    typeof params.measuredInputTokens === "number" &&
+    Number.isFinite(params.measuredInputTokens)
+      ? ` Measured prompt tokens/input tokens: ${Math.floor(params.measuredInputTokens).toLocaleString("en-US")}.`
+      : "";
+  return `${note}${disclaimer}${measured}`;
 }
 
 export function formatLaunchStatus(status: RainyModelLaunchStatus) {

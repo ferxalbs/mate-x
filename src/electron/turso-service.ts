@@ -47,6 +47,21 @@ export class TursoService {
   private client: Client | null = null;
   private initialized = false;
 
+  /**
+   * Local file path for the app DB (file: URLs only).
+   * Remote Turso URLs return null — durable engineering repo requires local file.
+   */
+  getLocalDatabaseFilePath(): string | null {
+    const configuredUrl = process.env.TURSO_DATABASE_URL?.trim();
+    if (configuredUrl && configuredUrl.length > 0) {
+      if (configuredUrl.startsWith('file:')) {
+        return configuredUrl.slice('file:'.length);
+      }
+      return null;
+    }
+    return path.join(app.getPath('userData'), 'mate-x.db');
+  }
+
   private getClient() {
     if (this.client) {
       return this.client;

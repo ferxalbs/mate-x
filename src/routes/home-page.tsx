@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '../hooks/use-theme';
 import { useChatStore } from '../store/chat-store';
 import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
 import { ChatWorkspace } from '../features/desktop-shell/components/chat-workspace';
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
+import {
+  EngineeringTaskPanel,
+  type EngineeringTaskViewModel,
+} from '../features/engineering/engineering-task-panel';
 import { getAppSettings } from '../services/settings-client';
 import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
+import { listEngineeringTasks } from '../services/engineering-client';
 import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
@@ -18,6 +23,8 @@ export function HomePage() {
   const [, setTraceV2InlineEvents] = useState(false);
   const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
   const [composerPrompt, setComposerPrompt] = useState('');
+  const [activeEngineeringTask, setActiveEngineeringTask] =
+    useState<EngineeringTaskViewModel | null>(null);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -96,6 +103,41 @@ export function HomePage() {
     };
   }, []);
 
+  const refreshEngineeringTasks = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      setActiveEngineeringTask(null);
+      return;
+    }
+    try {
+      const tasks = await listEngineeringTasks(activeWorkspaceId);
+      const latest = Array.isArray(tasks) ? tasks[0] : null;
+      if (
+        latest &&
+        typeof latest === 'object' &&
+        latest !== null &&
+        'engineeringTaskId' in latest
+      ) {
+        const row = latest as Record<string, unknown>;
+        setActiveEngineeringTask({
+          engineeringTaskId: String(row.engineeringTaskId),
+          title: String(row.title ?? 'Engineering task'),
+          status: row.status as EngineeringTaskViewModel['status'],
+          readiness: row.readiness as EngineeringTaskViewModel['readiness'],
+          objectivePreview: String(
+            row.objectivePreview ?? row.title ?? '',
+          ),
+          aggregateVersion: Number(row.aggregateVersion ?? 1),
+        });
+      }
+    } catch {
+      // IPC unavailable in pure renderer unit tests
+    }
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    void refreshEngineeringTasks();
+  }, [refreshEngineeringTasks, runStatus, messages.length]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -150,6 +192,12 @@ export function HomePage() {
         runStatus={runStatus}
         workspace={workspace}
       />
+      <div className="shrink-0 border-b border-border/40 px-4 py-2">
+        <EngineeringTaskPanel
+          task={activeEngineeringTask}
+          busy={runStatus === 'running'}
+        />
+      </div>
       <ChatWorkspace
         canUndoLastTurn={canUndoLastTurn}
         composer={composer}

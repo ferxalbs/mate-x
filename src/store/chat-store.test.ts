@@ -168,7 +168,7 @@ describe("submitPrompt flow", () => {
     assert.equal(thread.messages[1].factoryRun, undefined);
   });
 
-  it("does not write FactoryRun authority when engineering control plane is on [NES-8.1]", async () => {
+  it("does not write FactoryRun authority when engineering control plane is on [NES-8.1][R4]", async () => {
     const { setEngineeringFeatureFlags, resetEngineeringFeatureFlagsForTests } =
       await import("../lib/engineering-flags");
     setEngineeringFeatureFlags({ engineeringControlPlane: true });
@@ -182,7 +182,8 @@ describe("submitPrompt flow", () => {
       serviceTier: "standard",
     });
 
-    assert.equal(runAssistantMock.calls[0][2].mode, "factory");
+    // Factory product mode is stripped — no dual workflow write path
+    assert.equal(runAssistantMock.calls[0][2].mode, "chat");
     assert.equal(runAssistantMock.calls[0][2].access, "approval");
     assert.equal(runAssistantMock.calls[0][2].runbookId, "scan_contain_report");
     const thread = useChatStore.getState().threadsByWorkspace["workspace-1"][0];

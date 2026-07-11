@@ -1285,46 +1285,16 @@ export function registerIpcHandlers() {
         20_000,
       );
       await requireSensitiveIpcApproval({ action: "git:commit" });
-      const { evaluateGitGate } = await import("./engineering/git-gate");
-      const {
-        getEngineeringRepository,
-      } = await import("./engineering/repository");
-      const {
-        isMainProcessGitGateEnabled,
-      } = await import("./engineering/flags");
-      if (isMainProcessGitGateEnabled()) {
-        const repo = getEngineeringRepository();
-        // Freshness anchors: HEAD/diff/policy from workspace git when available
-        let headSha = "unknown";
-        let diffHash = "unknown";
-        try {
-          const git = await resolveGitService();
-          const log = await git.getLog(1);
-          headSha = log[0]?.hash ?? "unknown";
-          const diff = await git.getDiff();
-          const { createHash } = await import("node:crypto");
-          diffHash = createHash("sha256")
-            .update(JSON.stringify(diff))
-            .digest("hex");
-        } catch {
-          // fail closed with unknown anchors → stale unless proof matches unknown
-        }
-        const evaluation = evaluateGitGate({
-          repo,
-          proofHandle: payload.proofHandle,
-          current: {
-            workspaceId: "active",
-            headSha,
-            diffHash,
-            policyHash: "unknown",
-          },
-        });
-        if (!evaluation.allowed) {
-          throw new Error(
-            `${evaluation.code ?? "ERR_PROOF_REQUIRED"}: ${evaluation.message ?? "Git commit denied"}`,
-          );
-        }
-      }
+      // R3: GitGate always active in release; no emergency bypass
+      const { assertMainProcessGitWrite } = await import(
+        "./engineering/git-gate-ipc"
+      );
+      await assertMainProcessGitWrite({
+        op: "commit",
+        proofHandle: payload.proofHandle,
+        resolveWorkspace: resolveActiveWorkspace,
+        resolveGitService,
+      });
       return (await resolveGitService()).commit(normalizedMessage);
     },
   );
@@ -1332,45 +1302,15 @@ export function registerIpcHandlers() {
     "git:push",
     async (_event, payload?: { proofHandle?: string | null }) => {
       await requireSensitiveIpcApproval({ action: "git:push" });
-      const { evaluateGitGate } = await import("./engineering/git-gate");
-      const {
-        getEngineeringRepository,
-      } = await import("./engineering/repository");
-      const {
-        isMainProcessGitGateEnabled,
-      } = await import("./engineering/flags");
-      if (isMainProcessGitGateEnabled()) {
-        const repo = getEngineeringRepository();
-        let headSha = "unknown";
-        let diffHash = "unknown";
-        try {
-          const git = await resolveGitService();
-          const log = await git.getLog(1);
-          headSha = log[0]?.hash ?? "unknown";
-          const diff = await git.getDiff();
-          const { createHash } = await import("node:crypto");
-          diffHash = createHash("sha256")
-            .update(JSON.stringify(diff))
-            .digest("hex");
-        } catch {
-          // anchors unknown
-        }
-        const evaluation = evaluateGitGate({
-          repo,
-          proofHandle: payload?.proofHandle ?? null,
-          current: {
-            workspaceId: "active",
-            headSha,
-            diffHash,
-            policyHash: "unknown",
-          },
-        });
-        if (!evaluation.allowed) {
-          throw new Error(
-            `${evaluation.code ?? "ERR_PROOF_REQUIRED"}: ${evaluation.message ?? "Git push denied"}`,
-          );
-        }
-      }
+      const { assertMainProcessGitWrite } = await import(
+        "./engineering/git-gate-ipc"
+      );
+      await assertMainProcessGitWrite({
+        op: "push",
+        proofHandle: payload?.proofHandle ?? null,
+        resolveWorkspace: resolveActiveWorkspace,
+        resolveGitService,
+      });
       return (await resolveGitService()).push();
     },
   );

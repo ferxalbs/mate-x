@@ -1,24 +1,19 @@
-import assert from "node:assert/strict";
-import { after, before, describe, it } from "node:test";
+/**
+ * NES-8.1 / R4 — Factory write authority is deleted.
+ * Regex stage completion is not product truth.
+ */
 
-import type { AssistantRunOptions, EvidencePack, ToolEvent } from "../contracts/chat";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import type { AssistantRunOptions, FactoryRun, ToolEvent } from "../contracts/chat";
 import {
   completeFactoryRun,
   createFactoryRun,
+  createInitialFactoryStages,
   normalizeFactoryRunOptions,
+  projectLegacyFactoryStagesFromEvents,
 } from "./factory-run";
-import {
-  resetEngineeringFeatureFlagsForTests,
-  setEngineeringFeatureFlags,
-} from "./engineering-flags";
-
-// Legacy Factory authority tests run with control plane off, then restore defaults.
-before(() => {
-  setEngineeringFeatureFlags({ engineeringControlPlane: false });
-});
-after(() => {
-  resetEngineeringFeatureFlagsForTests();
-});
 
 const factoryOptions: AssistantRunOptions = {
   access: "full",
@@ -29,31 +24,20 @@ const factoryOptions: AssistantRunOptions = {
   serviceTier: "standard",
 };
 
-describe("Factory Mode Lite", () => {
-  it("creates the Factory mode stages", () => {
-    const run = createFactoryRun({
-      id: "factory-1",
-      prompt: "Fix the failing validation",
-      options: factoryOptions,
-      createdAt: "2026-07-07T00:00:00.000Z",
-    });
-
-    assert.deepEqual(
-      run?.stages.map((stage) => stage.label),
-      [
-        "Spec",
-        "Repo context",
-        "Risk surfaces",
-        "Validation plan",
-        "Agent actions",
-        "Verification result",
-        "Ratchet suggestions",
-        "Ship Proof status",
-      ],
+describe("Factory write authority deleted [NES-8.1][R4]", () => {
+  it("never creates new Factory runs (write authority dead)", () => {
+    assert.equal(
+      createFactoryRun({
+        id: "factory-1",
+        prompt: "Fix the failing validation",
+        options: factoryOptions,
+        createdAt: "2026-07-07T00:00:00.000Z",
+      }),
+      undefined,
     );
   });
 
-  it("does not trigger for casual Chat mode", () => {
+  it("does not create runs for chat either", () => {
     assert.equal(
       createFactoryRun({
         id: "factory-1",
@@ -65,153 +49,80 @@ describe("Factory Mode Lite", () => {
     );
   });
 
-  it("uses approval-required access for Factory mode", () => {
-    assert.equal(normalizeFactoryRunOptions(factoryOptions).access, "approval");
-  });
+  it("normalizes factory/ship product modes away from write path", () => {
+    const factory = normalizeFactoryRunOptions(factoryOptions);
+    assert.equal(factory.access, "approval");
+    assert.equal(factory.mode, "chat");
 
-  it("uses approval-required access and proof runbook for Ship mode", () => {
-    const options = normalizeFactoryRunOptions({
+    const ship = normalizeFactoryRunOptions({
       ...factoryOptions,
       access: "full",
       mode: "ship",
       runbookId: "review_classify_summarize",
     });
-
-    assert.equal(options.access, "approval");
-    assert.equal(options.runbookId, "patch_test_verify");
+    assert.equal(ship.access, "approval");
+    assert.equal(ship.mode, "chat");
+    assert.equal(ship.runbookId, "patch_test_verify");
   });
 
-  it("displays missing validation honestly", () => {
-    const run = createFactoryRun({
-      id: "factory-1",
-      prompt: "Fix it",
-      options: normalizeFactoryRunOptions(factoryOptions),
+  it("completeFactoryRun does not advance stages via regex authority", () => {
+    const historical: FactoryRun = {
+      id: "legacy-1",
+      mode: "factory",
+      prompt: "old",
+      access: "approval",
+      stages: createInitialFactoryStages("old"),
+      ratchetSuggestions: [],
       createdAt: "2026-07-07T00:00:00.000Z",
-    });
-    const completed = completeFactoryRun(run, {
-      events: [],
-      completedAt: "2026-07-07T00:01:00.000Z",
-    });
-
-    const verification = completed?.stages.find((stage) => stage.id === "verification_result");
-    assert.equal(verification?.status, "missing");
-    assert.match(verification?.summary ?? "", /Missing validation execution/);
-  });
-
-  it("does not complete repo context or risk stages without matching evidence", () => {
-    const run = createFactoryRun({
-      id: "factory-1",
-      prompt: "Fix it",
-      options: normalizeFactoryRunOptions(factoryOptions),
-      createdAt: "2026-07-07T00:00:00.000Z",
-    });
-    const completed = completeFactoryRun(run, {
-      events: [
-        { id: "1", label: "read file", detail: "Opened src/app.ts", status: "done" },
-      ],
-      completedAt: "2026-07-07T00:01:00.000Z",
-    });
-
-    assert.equal(completed?.stages.find((stage) => stage.id === "repo_context")?.status, "missing");
-    assert.equal(completed?.stages.find((stage) => stage.id === "risk_surfaces")?.status, "missing");
-  });
-
-  it("requires approval for ratchet suggestions", () => {
-    const run = createFactoryRun({
-      id: "factory-1",
-      prompt: "Validate",
-      options: normalizeFactoryRunOptions(factoryOptions),
-      createdAt: "2026-07-07T00:00:00.000Z",
-    });
+    };
     const events: ToolEvent[] = [
-      { id: "1", label: "npm failed", detail: "Detected Bun but npm command was suggested.", status: "error" },
-      { id: "2", label: "npm failed", detail: "Detected Bun but npm command was suggested.", status: "error" },
+      {
+        id: "1",
+        label: "sandbox_run",
+        detail: "bun run typecheck",
+        status: "done",
+      },
     ];
-
-    const completed = completeFactoryRun(run, {
+    const completed = completeFactoryRun(historical, {
       events,
       completedAt: "2026-07-07T00:01:00.000Z",
     });
-
-    assert.equal(completed?.ratchetSuggestions[0]?.requiresApproval, true);
-    assert.deepEqual(completed?.ratchetSuggestions[0]?.actions, [
-      "Add repo rule",
-      "Ignore once",
-      "Never suggest again",
-    ]);
+    assert.equal(completed?.completedAt, "2026-07-07T00:01:00.000Z");
+    // Stages remain pending — regex cannot mark complete as product truth
+    for (const stage of completed?.stages ?? []) {
+      assert.equal(stage.status, "pending");
+    }
   });
 
-  it("summarizes Ship Proof without inventing validation", () => {
-    const run = createFactoryRun({
-      id: "factory-1",
-      prompt: "Ship",
-      options: { ...normalizeFactoryRunOptions(factoryOptions), mode: "ship" },
-      createdAt: "2026-07-07T00:00:00.000Z",
-    });
-    const evidencePack: EvidencePack = {
-      status: "partial",
-      verdict: { label: "Needs validation", summary: "Missing checks", confidence: "medium" },
-      filesModified: [{ path: "src/a.ts" }],
-      commandsExecuted: [],
-      generatedAt: "2026-07-07T00:01:00.000Z",
-    };
-
-    const completed = completeFactoryRun(run, {
-      events: [],
-      evidencePack,
-      completedAt: "2026-07-07T00:01:00.000Z",
-    });
-
-    assert.equal(completed?.shipProof?.gitStatus, "blocked");
-    assert.deepEqual(completed?.shipProof?.missingEvidence, ["Validation command evidence missing."]);
-  });
-
-  it("does not mark fake proof as git-allowed or trusted", () => {
-    const run = createFactoryRun({
-      id: "factory-1",
-      prompt: "Ship",
-      options: { ...normalizeFactoryRunOptions(factoryOptions), mode: "ship" },
-      createdAt: "2026-07-07T00:00:00.000Z",
-    });
-    const evidencePack: EvidencePack = {
-      status: "complete",
-      verdict: { label: "Ready", summary: "Model says ready", confidence: "high" },
-      commandsExecuted: [],
-      generatedAt: "2026-07-07T00:01:00.000Z",
-    };
-
-    const completed = completeFactoryRun(run, {
-      events: [],
-      evidencePack,
-      completedAt: "2026-07-07T00:01:00.000Z",
-    });
-
-    assert.equal(completed?.shipProof?.gitStatus, "blocked");
-    assert.deepEqual(completed?.shipProof?.missingEvidence, ["Validation command evidence missing."]);
-  });
-  it("allows Git only when validation command evidence executed and passed", () => {
-    const evidencePack: EvidencePack = {
-      status: "complete",
-      verdict: { label: "Ready", summary: "Checks passed", confidence: "high" },
-      commandsExecuted: [{ command: "bun run typecheck", exitCode: 0 }],
-      generatedAt: "2026-07-07T00:01:00.000Z",
-    };
-
-    const summary = completeFactoryRun(
-      createFactoryRun({
-        id: "factory-allow",
-        prompt: "Ship",
-        options: { ...normalizeFactoryRunOptions(factoryOptions), mode: "ship" },
-        createdAt: "2026-07-07T00:00:00.000Z",
-      }),
+  it("legacy projection helper is explicit and non-authoritative", () => {
+    const stages = createInitialFactoryStages("fixture");
+    const projected = projectLegacyFactoryStagesFromEvents(stages, [
       {
-        events: [{ id: "1", label: "sandbox_run", detail: "bun run typecheck", status: "done" }],
-        evidencePack,
-        completedAt: "2026-07-07T00:01:00.000Z",
+        id: "1",
+        label: "sandbox_run validation run",
+        detail: "ok",
+        status: "done",
       },
-    )?.shipProof;
-
-    assert.equal(summary?.gitStatus, "allowed");
+    ]);
+    const verification = projected.find((s) => s.id === "verification_result");
+    assert.equal(verification?.status, "completed");
+    // Document that this is projection only — not used by create/complete write path
+    assert.equal(
+      createFactoryRun({
+        id: "x",
+        prompt: "y",
+        options: factoryOptions,
+        createdAt: "t",
+      }),
+      undefined,
+    );
   });
 
+  it("initial factory stages never mark prompt as completed Spec", () => {
+    const stages = createInitialFactoryStages(
+      "This prompt must not become a frozen specification",
+    );
+    assert.ok(!stages.some((s) => s.id === "spec" && s.status === "completed"));
+    assert.ok(stages.every((s) => s.status === "pending"));
+  });
 });

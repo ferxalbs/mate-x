@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { ERR_CODES } from '../../contracts/engineering-task';
 import { EngineeringCommandBus } from './command-bus';
-import { EngineeringRepository } from './repository';
+import { InMemoryEngineeringRepository as EngineeringRepository } from './repository';
 
 function bus() {
   const repo = new EngineeringRepository();

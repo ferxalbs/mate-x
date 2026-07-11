@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import type { DomainEvent, EngineeringTask } from '../../contracts/engineering-task';
 import { ENGINEERING_SCHEMA_SQL, ENGINEERING_SCHEMA_VERSION } from './schema';
-import { EngineeringRepository } from './repository';
+import { InMemoryEngineeringRepository as EngineeringRepository } from './repository';
 import { newEngineeringTaskId, nowIso, sha256Hex } from './ids';
 
 function makeTask(over: Partial<EngineeringTask> = {}): EngineeringTask {

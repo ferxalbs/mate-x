@@ -96,6 +96,7 @@ export function ComposerPanel({
   workspace,
   onSubmit,
   pendingPolicyStop,
+  trustContract,
   prompt: externalPrompt,
   onPromptChange,
 }: ComposerPanelProps) {
@@ -480,7 +481,9 @@ export function ComposerPanel({
             </div>
             <div className="flex items-center gap-1.5 transition-colors cursor-pointer hover:text-foreground">
               <GitBranchIcon className="size-3.5" />
-              <span>main</span>
+              <span data-testid="composer-branch">
+                {workspace.branch?.trim() || "detached"}
+              </span>
             </div>
           </div>
         ) : null}
@@ -497,8 +500,8 @@ export function ComposerPanel({
             }}
             placeholder={
               hasWorkspace
-                ? "Do anything"
-                : "Import a folder to start a repository review"
+                ? "Describe an engineering objective…"
+                : "Import a repository to start"
             }
             value={prompt}
           />
@@ -561,9 +564,20 @@ export function ComposerPanel({
             >
               <span className="text-xl font-light leading-none">+</span>
             </button>
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-orange-500/90 transition-colors cursor-pointer hover:bg-orange-500/10">
+            <div
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors"
+              title="Access follows workspace trust and policy — not unrestricted"
+            >
               <ShieldCheckIcon className="size-3.5" />
-              <span>Full access</span>
+              <span>
+                {trustContract?.autonomy === "unrestricted"
+                  ? "Trust: unrestricted"
+                  : trustContract?.autonomy === "trusted-patch"
+                    ? "Trust: trusted patch"
+                    : trustContract?.autonomy === "plan-only"
+                      ? "Trust: plan only"
+                      : "Trust: approval required"}
+              </span>
             </div>
           </div>
 
