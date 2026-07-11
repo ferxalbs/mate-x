@@ -9,7 +9,7 @@ import { draftSpecificationFromSeed, freezeSpecification } from './intent-compil
 import { acquireLease, completeTaskWithEvidence } from './orchestrator';
 import { createPhaseHandler } from './phase-handler';
 import { ensureDefaultPolicyPack, importPolicyProposalFromMarkdown } from './policy-pack';
-import { EngineeringRepository } from './repository';
+import { InMemoryEngineeringRepository as EngineeringRepository } from './repository';
 import { issueShipProof } from './ship-proof';
 import { analyzeConsistency } from './consistency';
 import { compileTechnicalApproach } from './plan-compiler';

@@ -231,7 +231,12 @@ export class EngineeringCommandBus {
       1,
     );
 
-    this.repo.applyTransaction({ task, events: [event] });
+    this.repo.applyTransaction({
+      task,
+      events: [event],
+      commandId,
+      expectedAggregateVersion: undefined,
+    });
 
     return {
       ok: true,
@@ -360,6 +365,8 @@ export class EngineeringCommandBus {
     this.repo.applyTransaction({
       task: next,
       events: [event, ...applied.extraEvents],
+      commandId,
+      expectedAggregateVersion: task.aggregateVersion,
       specification: applied.specification,
       approach: applied.approach,
       taskGraph: applied.taskGraph,

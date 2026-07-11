@@ -1,3 +1,10 @@
+/**
+ * Legacy FactoryRun projection helpers.
+ * Write authority deleted (NES-8.1 / R4). New Factory runs are never created.
+ * completeFactoryRun does not advance stages via regex as product truth.
+ * Historical messages may still embed FactoryRun for read-only display.
+ */
+
 import type {
   AssistantRunOptions,
   EvidencePack,
@@ -7,53 +14,25 @@ import type {
   ShipProofSummary,
   ToolEvent,
 } from "../contracts/chat";
-import { isEngineeringControlPlaneEnabled } from "./engineering-flags";
-
-export function normalizeFactoryRunOptions(
-  options: AssistantRunOptions,
-): AssistantRunOptions {
-  if (options.mode !== "factory" && options.mode !== "ship") {
-    return options;
-  }
-
-  return {
-    ...options,
-    access: "approval",
-    runbookId:
-      options.mode === "ship"
-        ? "patch_test_verify"
-        : options.runbookId ?? "patch_test_verify",
-  };
-}
 
 /**
- * Factory write authority is dead when the native control plane is on (NES-8.1).
- * Legacy messages may still project historical FactoryRun records read-only.
+ * Factory write authority is dead. Always returns undefined.
+ * Legacy messages may still carry historical FactoryRun records (read-only).
  */
-export function createFactoryRun(params: {
+export function createFactoryRun(_params: {
   id: string;
   prompt: string;
   options: AssistantRunOptions;
   createdAt: string;
 }): FactoryRun | undefined {
-  if (isEngineeringControlPlaneEnabled()) {
-    return undefined;
-  }
-  if (params.options.mode !== "factory" && params.options.mode !== "ship") {
-    return undefined;
-  }
-
-  return {
-    id: params.id,
-    mode: params.options.mode,
-    prompt: params.prompt,
-    access: "approval",
-    stages: createInitialFactoryStages(params.prompt),
-    ratchetSuggestions: [],
-    createdAt: params.createdAt,
-  };
+  return undefined;
 }
 
+/**
+ * Does not advance stage status from tool-event regex.
+ * Preserves historical run as-is; only stamps completedAt when provided.
+ * Product readiness is EngineeringTask + GitGate only.
+ */
 export function completeFactoryRun(
   run: FactoryRun | undefined,
   params: {
@@ -63,213 +42,190 @@ export function completeFactoryRun(
   },
 ): FactoryRun | undefined {
   if (!run) return undefined;
-  // When control plane is on, do not advance FactoryRun as product truth.
-  if (isEngineeringControlPlaneEnabled()) {
-    return run;
-  }
-
-  const plannedValidation = hasEvent(params.events, /plan_validation|validation plan/i);
-  const ranValidation = hasEvent(params.events, /run_tests|sandbox_run|validation run/i);
-  const failedValidation = hasErrorEvent(params.events, /run_tests|sandbox_run|validation/i);
-  const mappedRepoContext = hasEvent(params.events, /repo(graph)?|semantic memory|workspace health|working set|git status/i);
-  const mappedRiskSurfaces = hasEvent(params.events, /risk surface|trust gate|active gate|privacy firewall|policy stop|security|blast radius/i);
-  const ratchetSuggestions = createRatchetSuggestions(params.events);
-
+  // Read-only: never rewrite stage truth from events
   return {
     ...run,
-    completedAt: params.completedAt,
-    stages: run.stages.map((stage) => {
-      if (stage.id === "repo_context") {
-        return {
-          ...stage,
-          status: mappedRepoContext ? "completed" : "missing",
-          summary: mappedRepoContext
-            ? "Repo context evidence was recorded before broad reads."
-            : "No RepoGraph, workspace health, working set, or git status evidence was recorded.",
-        };
-      }
-      if (stage.id === "risk_surfaces") {
-        return {
-          ...stage,
-          status: mappedRiskSurfaces ? "completed" : "missing",
-          summary:
-            mappedRiskSurfaces
-              ? "Risk surfaces were derived from runtime context and tool events."
-              : "No tool evidence recorded risk surfaces.",
-        };
-      }
-      if (stage.id === "validation_plan") {
-        return {
-          ...stage,
-          status: plannedValidation ? "completed" : "missing",
-          summary: plannedValidation
-            ? "Validation was planned before any fix or ship claim."
-            : "Missing validation plan. Do not treat the run as ready to ship.",
-        };
-      }
-      if (stage.id === "agent_actions") {
-        return {
-          ...stage,
-          status: params.events.length > 0 ? "completed" : "missing",
-          summary:
-            params.events.length > 0
-              ? `${params.events.length} tool event(s) recorded.`
-              : "No agent tool actions were recorded.",
-        };
-      }
-      if (stage.id === "verification_result") {
-        return {
-          ...stage,
-          status: ranValidation ? (failedValidation ? "blocked" : "completed") : "missing",
-          summary: ranValidation
-            ? failedValidation
-              ? "Validation ran and reported a blocking failure."
-              : "Validation evidence was recorded."
-            : "Missing validation execution. Any fix or ship claim remains unproven.",
-        };
-      }
-      if (stage.id === "ratchet_suggestions") {
-        return {
-          ...stage,
-          status: ratchetSuggestions.length > 0 ? "active" : "completed",
-          summary:
-            ratchetSuggestions.length > 0
-              ? `${ratchetSuggestions.length} durable repo rule suggestion(s) require approval.`
-              : "No repeated workspace behavior needed a durable rule.",
-        };
-      }
-      if (stage.id === "ship_proof") {
-        return {
-          ...stage,
-          status: params.evidencePack ? "completed" : "missing",
-          summary: params.evidencePack
-            ? "Ship Proof is attached from the run evidence."
-            : "No Ship Proof was generated.",
-        };
-      }
-      return stage;
-    }),
-    ratchetSuggestions,
-    shipProof: params.evidencePack ? createShipProofSummary(params.evidencePack) : undefined,
+    completedAt: params.completedAt ?? run.completedAt,
   };
 }
 
-export function createShipProofSummary(evidencePack: EvidencePack): ShipProofSummary {
-  const validationCommands = (evidencePack.commandsExecuted ?? [])
-    .map((command) => command.command)
-    .filter((command) => /\b(test|typecheck|lint|build|package|make|bun run)\b/i.test(command));
-  const failedEvidence = [
-    ...(evidencePack.commandsExecuted ?? [])
-      .filter((command) => typeof command.exitCode === "number" && command.exitCode !== 0)
-      .map((command) => command.command),
-    ...(evidencePack.checks ?? [])
-      .filter((check) => check.status === "failed")
-      .map((check) => check.name),
-  ];
-  const passedEvidence = [
-    ...(evidencePack.commandsExecuted ?? [])
-      .filter((command) => command.exitCode === 0)
-      .map((command) => command.command),
-    ...(evidencePack.checks ?? [])
-      .filter((check) => check.status === "passed")
-      .map((check) => check.name),
-  ];
-  const hasExecutedValidation = validationCommands.length > 0;
-  const missingEvidence = [
-    ...(evidencePack.verifiedTaskScore?.missingEvidence ?? []),
-    ...(hasExecutedValidation ? [] : ["Validation command evidence missing."]),
-  ];
-  const privacyStatus =
-    evidencePack.attestation?.status === "blocked"
-      ? "blocked"
-      : evidencePack.attestation?.status === "signed"
-        ? "signed"
-        : "not signed";
+/**
+ * @deprecated Projection helper for migration fixtures only — not product authority.
+ * Regex stage inference retained solely for testing historical message rendering.
+ */
+export function projectLegacyFactoryStagesFromEvents(
+  stages: FactoryRunStage[],
+  events: ToolEvent[],
+): FactoryRunStage[] {
+  const plannedValidation = hasEvent(events, /plan_validation|validation plan/i);
+  const ranValidation = hasEvent(events, /run_tests|sandbox_run|validation run/i);
+  const failedValidation = hasErrorEvent(events, /run_tests|sandbox_run|validation/i);
+  const mappedRepoContext = hasEvent(
+    events,
+    /repo(graph)?|semantic memory|workspace health|working set|git status/i,
+  );
+  const mappedRiskSurfaces = hasEvent(
+    events,
+    /risk surface|trust gate|active gate|privacy firewall|policy stop|security|blast radius/i,
+  );
 
-  return {
-    verdict: evidencePack.verdict.label,
-    touchedFilesCount: evidencePack.filesModified?.length ?? evidencePack.touchedPaths?.length ?? 0,
-    riskSurfaces: evidencePack.unresolvedRisks?.slice(0, 4) ?? [],
-    validationCommands,
-    passedEvidence,
-    failedEvidence,
-    missingEvidence,
-    privacyStatus,
-    gitStatus:
-      evidencePack.status === "complete" &&
-      hasExecutedValidation &&
-      failedEvidence.length === 0 &&
-      missingEvidence.length === 0
-        ? "allowed"
-        : "blocked",
-  };
+  return stages.map((stage) => {
+    if (stage.id === "repo_context") {
+      return {
+        ...stage,
+        status: mappedRepoContext ? "completed" : "missing",
+        summary: mappedRepoContext
+          ? "Repo context evidence was recorded before broad reads."
+          : "No RepoGraph, workspace health, working set, or git status evidence was recorded.",
+      };
+    }
+    if (stage.id === "risk_surfaces") {
+      return {
+        ...stage,
+        status: mappedRiskSurfaces ? "completed" : "missing",
+        summary: mappedRiskSurfaces
+          ? "Risk surfaces were derived from runtime context and tool events."
+          : "No tool evidence recorded risk surfaces.",
+      };
+    }
+    if (stage.id === "validation_plan") {
+      return {
+        ...stage,
+        status: plannedValidation ? "completed" : "missing",
+        summary: plannedValidation
+          ? "Validation was planned before any fix or ship claim."
+          : "Missing validation plan. Do not treat the run as ready to ship.",
+      };
+    }
+    if (stage.id === "agent_actions") {
+      return {
+        ...stage,
+        status: events.length > 0 ? "completed" : "missing",
+        summary:
+          events.length > 0
+            ? `${events.length} tool event(s) recorded.`
+            : "No agent tool actions were recorded.",
+      };
+    }
+    if (stage.id === "verification_result") {
+      if (failedValidation) {
+        return {
+          ...stage,
+          status: "blocked",
+          summary: "Validation command evidence recorded a failure.",
+        };
+      }
+      return {
+        ...stage,
+        status: ranValidation ? "completed" : "missing",
+        summary: ranValidation
+          ? "Validation command evidence executed."
+          : "No validation command evidence executed.",
+      };
+    }
+    return stage;
+  });
 }
 
-export function createRatchetSuggestions(events: ToolEvent[]): RatchetSuggestion[] {
-  const repeatedFailure = findRepeatedFailure(events);
-  if (!repeatedFailure) return [];
-
-  return [
-    {
-      id: `ratchet-${slug(repeatedFailure)}`,
-      target: "AGENTS.md",
-      reason: `Repeated workspace behavior detected: ${repeatedFailure}.`,
-      rule:
-        "Use `bun run` commands for validation in this workspace. Do not suggest npm commands unless package.json explicitly requires npm.",
-      requiresApproval: true,
-      actions: ["Add repo rule", "Ignore once", "Never suggest again"],
-    },
-  ];
+export function normalizeFactoryRunOptions(
+  options: AssistantRunOptions,
+): AssistantRunOptions {
+  // Strip factory/ship product modes — pathKind is internal only
+  if (options.mode === "factory" || options.mode === "ship") {
+    return {
+      ...options,
+      mode: "chat",
+      access: "approval",
+      runbookId:
+        options.mode === "ship"
+          ? "patch_test_verify"
+          : options.runbookId ?? "patch_test_verify",
+    };
+  }
+  return options;
 }
 
-function createInitialFactoryStages(prompt: string): FactoryRunStage[] {
+export function createInitialFactoryStages(prompt: string): FactoryRunStage[] {
+  // Migration/fixture helper only — prompt is never a completed specification.
+  void prompt;
   return [
-    { id: "spec", label: "Spec", status: "completed", summary: prompt },
     {
       id: "repo_context",
       label: "Repo context",
-      status: "active",
-      summary: "Use RepoGraph semantic memory and workspace health before broad file reads.",
+      status: "pending",
+      summary: "Awaiting evidence.",
     },
-    { id: "risk_surfaces", label: "Risk surfaces", status: "pending", summary: "Map touched runtime, config, data, and trust-boundary surfaces." },
-    { id: "validation_plan", label: "Validation plan", status: "pending", summary: "Required before any fix or ship claim." },
-    { id: "agent_actions", label: "Agent actions", status: "pending", summary: "No actions recorded yet." },
-    { id: "verification_result", label: "Verification result", status: "missing", summary: "Validation has not run yet." },
-    { id: "ratchet_suggestions", label: "Ratchet suggestions", status: "pending", summary: "Durable rule suggestions require approval." },
-    { id: "ship_proof", label: "Ship Proof status", status: "missing", summary: "No Ship Proof attached yet." },
+    {
+      id: "risk_surfaces",
+      label: "Risk surfaces",
+      status: "pending",
+      summary: "Awaiting evidence.",
+    },
+    {
+      id: "validation_plan",
+      label: "Validation plan",
+      status: "pending",
+      summary: "Awaiting evidence.",
+    },
+    {
+      id: "agent_actions",
+      label: "Agent actions",
+      status: "pending",
+      summary: "Awaiting evidence.",
+    },
+    {
+      id: "verification_result",
+      label: "Verification",
+      status: "pending",
+      summary: "Awaiting evidence.",
+    },
   ];
 }
 
-function hasEvent(events: ToolEvent[], pattern: RegExp) {
-  return events.some((event) => pattern.test(`${event.label} ${event.detail}`));
+export function createRatchetSuggestions(
+  events: ToolEvent[],
+): RatchetSuggestion[] {
+  void events;
+  // No hard-coded package-manager ratchet as product truth (deletion map).
+  return [];
 }
 
-function hasErrorEvent(events: ToolEvent[], pattern: RegExp) {
-  return events.some(
-    (event) =>
-      event.status === "error" && pattern.test(`${event.label} ${event.detail}`),
+export function createShipProofSummary(params: {
+  events: ToolEvent[];
+  evidencePack?: EvidencePack;
+}): ShipProofSummary {
+  const ranValidation = hasEvent(
+    params.events,
+    /run_tests|sandbox_run|validation run/i,
   );
+  // Decorative only — GitGate is main-process authority
+  return {
+    verdict: ranValidation ? "partial" : "missing",
+    touchedFilesCount: params.evidencePack?.filesModified?.length ?? 0,
+    riskSurfaces: [],
+    validationCommands:
+      params.evidencePack?.commandsExecuted?.map((c) => c.command) ?? [],
+    passedEvidence: [],
+    failedEvidence: [],
+    missingEvidence: ranValidation
+      ? []
+      : ["Validation command evidence missing."],
+    privacyStatus: "unknown",
+    gitStatus: "blocked",
+  };
 }
 
-function findRepeatedFailure(events: ToolEvent[]) {
-  const counts = new Map<string, number>();
-  for (const event of events) {
-    if (event.status !== "error") continue;
-    const key = normalizeFailure(`${event.label} ${event.detail}`);
-    if (!key) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-    if ((counts.get(key) ?? 0) >= 2) return key;
-  }
-  return "";
+function hasEvent(events: ToolEvent[], pattern: RegExp): boolean {
+  return events.some((event) => {
+    const hay = `${event.label ?? ""} ${event.detail ?? ""} ${event.status ?? ""}`;
+    return pattern.test(hay);
+  });
 }
 
-function normalizeFailure(value: string) {
-  const lower = value.toLowerCase();
-  if (/\bnpm\b/.test(lower) && /\bbun\b/.test(lower)) return "package manager mismatch";
-  if (/command|tool|workspace|package manager|npm|bun/.test(lower)) return value.slice(0, 120);
-  return "";
-}
-
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace-rule";
+function hasErrorEvent(events: ToolEvent[], pattern: RegExp): boolean {
+  return events.some((event) => {
+    const hay = `${event.label ?? ""} ${event.detail ?? ""} ${event.status ?? ""}`;
+    const isError = event.status === "error";
+    return isError && pattern.test(hay);
+  });
 }

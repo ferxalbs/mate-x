@@ -21,6 +21,17 @@ let configSnapshot: MaTeXConfig | null = null;
 export async function initStack(): Promise<void> {
   await teardownStack();
 
+  // Durable EngineeringRepository (R1) — fail closed, no in-memory fallback
+  await tursoService.initialize();
+  const { initDurableEngineeringRepository } = await import('./engineering/repository');
+  const dbPath = tursoService.getLocalDatabaseFilePath();
+  if (!dbPath) {
+    throw new Error(
+      'EngineeringRepository requires a local libSQL file path; remote-only TURSO_DATABASE_URL is not supported for v0.1.2 control-plane authority',
+    );
+  }
+  initDurableEngineeringRepository(dbPath);
+
   const nextConfig = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
   const resolvedConfig = {
     ...nextConfig,

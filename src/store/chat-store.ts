@@ -745,6 +745,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!currentThread) {
       return;
     }
+
+    // R5: primary submit invokes CaptureTask through typed IPC (fail soft if unavailable in tests)
+    try {
+      const { captureEngineeringTask } = await import(
+        "../services/engineering-client"
+      );
+      await captureEngineeringTask({
+        workspaceId,
+        objectiveSeed: displayedPrompt,
+        conversationId: activeThreadId,
+      });
+    } catch {
+      // Unit tests without IPC still exercise chat path; packaged app has engineering IPC.
+    }
     const historyBeforePrompt = currentThread.messages.map(
       (message) => `${message.role}: ${message.content}`,
     );
