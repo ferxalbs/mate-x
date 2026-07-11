@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
 import { useTheme } from "../../hooks/use-theme";
+import { usePlatform } from "../../hooks/use-platform";
 import {
   applyRendererSettings,
   getAppSettings,
@@ -46,6 +47,7 @@ export function DesktopShell() {
     ? (activeThreadIds[activeWorkspaceId] ?? "")
     : "";
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const platform = usePlatform();
   const shellStyle: React.CSSProperties = {};
 
   const submitContextualAction = async (
@@ -122,13 +124,16 @@ export function DesktopShell() {
   return (
     <SidebarProvider defaultOpen>
       <main
-        className="relative flex h-screen w-full overflow-hidden bg-background text-foreground"
+        className={cn(
+          "relative flex h-screen w-full overflow-hidden bg-transparent text-foreground",
+          platform === "mac" ? "platform-mac" : platform === "windows" ? "platform-windows" : ""
+        )}
         style={shellStyle}
       >
 
         <div
           className={cn(
-            "relative flex h-full w-full overflow-hidden bg-background",
+            "relative flex h-full w-full overflow-hidden bg-transparent",
           )}
         >
           <AppSidebar
