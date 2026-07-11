@@ -12,10 +12,10 @@ export interface AmbientSafetyAction {
 export const ambientSafetyActions = {
   runSafetyCheck: {
     id: "runSafetyCheck",
-    label: "Run Factory verification",
+    label: "Run verification",
     prompt:
-      "Run Factory verification for the current changes. Build a validation plan, run the smallest useful proof-producing checks, and do not claim Ready unless validation passes and Ship Proof is available.",
-    overrides: { mode: "factory", runbookId: "patch_test_verify", access: "approval" },
+      "Run verification for the current changes. Build a validation plan, run the smallest useful proof-producing checks, and do not claim Ready unless validation passes and Ship Proof is available.",
+    overrides: { runbookId: "patch_test_verify", access: "approval" },
   },
   reviewChanges: {
     id: "reviewChanges",

@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 0.1.2 - 2026.07.11 [Native Engineering Control System]
+
+- Introduced the canonical `EngineeringTask` aggregate with typed status transitions, immutable ledger events, and optimistic concurrency (`aggregateVersion`).
+- Added main-process control plane: intent freeze, clarification decisions, plan/task-graph compilers, ID-only consistency, serial leases, coverage convergence, Ship Proof registry, and GitGate.
+- Git commit/push now fail closed without a fresh `ProofHandle` (`mainProcessGitGate`); stale HEAD/diff/policy hashes deny writes. Renderer window globals are not enforcement.
+- Hardened validation gate so mutation ledger entries cannot be waived by model prose (“no changes” text).
+- Evidence status no longer treats “Response complete” alone as complete; validation tool evidence is required.
+- Disabled FactoryRun write authority when `engineeringControlPlane` is on; legacy Factory stages are not product truth for new work.
+- Removed user-facing “Factory verification” product CTA language in favor of “Run verification”; `pathKind` remains internal routing only.
+- Trust defaults use detect-or-deny: non-JS workspaces no longer receive a universal bun command allowlist.
+- libSQL schema extended with EngineeringTask tables (idempotent migrations).
+- Preload exposes `mate.engineering` for command dispatch and gate evaluation.
+
 ## Unreleased - 2026.07.11 (1) [Model Power Selector and Agent Runtime Readiness]
 
 - Rebuilt the composer model-power selector around explicit GPT-5.6 and Claude family modes instead of an unstable keyword score across the entire model catalog.

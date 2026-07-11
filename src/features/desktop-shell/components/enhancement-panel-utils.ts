@@ -569,7 +569,7 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run Factory verification",
+      nextAction: "Run verification",
     });
   }
 
@@ -591,7 +591,7 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: changedFiles.length > 0 ? "Run Factory verification" : "Open details",
+      nextAction: changedFiles.length > 0 ? "Run verification" : "Open details",
     });
   }
 
@@ -611,7 +611,7 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run Factory verification",
+      nextAction: "Run verification",
     });
   }
 
@@ -633,7 +633,7 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run Factory verification",
+      nextAction: "Run verification",
     });
   }
 
@@ -673,7 +673,7 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run Factory verification",
+      nextAction: "Run verification",
     });
   }
 
@@ -757,7 +757,7 @@ function getHumanTrustGateCopy(
   > = {
     headline: state.status === "needs_validation" ? "Needs check" : state.verdict,
     recommendedAction: state.nextAction,
-    primaryActionLabel: state.status === "trusted" ? "View proof" : "Run Factory verification",
+    primaryActionLabel: state.status === "trusted" ? "View proof" : "Run verification",
     reasonChips: [changeChip, validationChip, proofChip, riskChip].filter(Boolean),
   };
 
