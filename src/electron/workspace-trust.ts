@@ -11,17 +11,58 @@ const LEGACY_RAINY_API_HOSTNAMES = [
   "rainy-api-v3-us-179843975974.us-east4.run.app",
 ];
 
+/**
+ * Detect-or-deny defaults (NES-2.4).
+ * Non-JS / unknown package managers get empty command allowlists + safe reads only.
+ * Never hardcode MaTE monorepo bun-centric law as universal trust.
+ */
 export function createDefaultWorkspaceTrustContract(
   workspaceId: string,
   workspaceName: string,
+  hints?: {
+    packageManager?: "bun" | "npm" | "pnpm" | "yarn" | "unknown" | null;
+    hasPackageJson?: boolean;
+    detectedScripts?: string[];
+  },
 ): WorkspaceTrustContract {
+  const hasPackageJson = hints?.hasPackageJson ?? true;
+  const packageManager = hints?.packageManager ?? (hasPackageJson ? "unknown" : null);
+
+  const allowedCommands: string[] = [];
+  if (hasPackageJson && packageManager) {
+    // Detect scripts when provided; otherwise deny-by-default for commands
+    // until workspace profile fills allowlists.
+    const scripts = hints?.detectedScripts ?? [];
+    for (const script of scripts) {
+      if (packageManager === "bun") allowedCommands.push(`bun run ${script}`);
+      else if (packageManager === "npm") allowedCommands.push(`npm run ${script}`);
+      else if (packageManager === "pnpm") allowedCommands.push(`pnpm run ${script}`);
+      else if (packageManager === "yarn") allowedCommands.push(`yarn ${script}`);
+    }
+    // Safe common verification only when package.json exists and PM known
+    if (packageManager === "bun") {
+      allowedCommands.push("bun test", "bun run lint", "bun run typecheck");
+    } else if (packageManager === "npm") {
+      allowedCommands.push("npm test", "npm run lint", "npm run typecheck");
+    } else if (packageManager === "pnpm") {
+      allowedCommands.push("pnpm test", "pnpm run lint", "pnpm run typecheck");
+    } else if (packageManager === "yarn") {
+      allowedCommands.push("yarn test", "yarn lint", "yarn typecheck");
+    }
+    // packageManager unknown with package.json: empty command allowlist (deny)
+  }
+
+  const allowedPaths = hasPackageJson
+    ? ["src", "package.json", "README.md", "AGENTS.md", ...INTERNAL_READ_PATHS]
+    : [".", "README.md", ...INTERNAL_READ_PATHS];
+
   return {
     id: createId("trust"),
     workspaceId,
     name: `${workspaceName} governed review`,
     version: TRUST_CONTRACT_SCHEMA_VERSION,
     autonomy: "approval-required",
-    allowedPaths: ["src", "package.json", "README.md", "AGENTS.md", ...INTERNAL_READ_PATHS],
+    allowedPaths,
     forbiddenPaths: [
       ".env",
       ".env.*",
@@ -32,13 +73,7 @@ export function createDefaultWorkspaceTrustContract(
       "infra/prod",
       ".env.production",
     ],
-    allowedCommands: [
-      "bun run lint",
-      "bun run typecheck",
-      "bun test",
-      "npm test",
-      "pnpm test",
-    ],
+    allowedCommands,
     allowedDomains: [
       "api.github.com",
       "docs.github.com",

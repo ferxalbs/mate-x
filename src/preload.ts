@@ -4,6 +4,7 @@ import type {
   GitApi,
   GitHubIntegrationApi,
   AgentFirewallApi,
+  EngineeringApi,
   PerformanceApi,
   PolicyApi,
   PrivacyApi,
@@ -165,9 +166,19 @@ const gitApi: GitApi = {
   stageFiles: (files) => ipcRenderer.invoke("git:stage-files", files),
   unstageFiles: (files) => ipcRenderer.invoke("git:unstage", files),
   commit: (message) => ipcRenderer.invoke("git:commit", message),
-  push: () => ipcRenderer.invoke("git:push"),
+  push: (payload) => ipcRenderer.invoke("git:push", payload),
   pull: () => ipcRenderer.invoke("git:pull"),
   getDiff: () => ipcRenderer.invoke("git:diff"),
+};
+
+const engineeringApi: EngineeringApi = {
+  dispatch: (command) => ipcRenderer.invoke("engineering:dispatch", command),
+  listTasks: (workspaceId) =>
+    ipcRenderer.invoke("engineering:list-tasks", workspaceId),
+  getTask: (engineeringTaskId) =>
+    ipcRenderer.invoke("engineering:get-task", engineeringTaskId),
+  evaluateGitGate: (input) =>
+    ipcRenderer.invoke("engineering:evaluate-git-gate", input),
 };
 
 const settingsApi: SettingsApi = {
@@ -236,6 +247,7 @@ const mobileApi: MobileBridgeApi = {
 contextBridge.exposeInMainWorld("mate", {
   repo: repoApi,
   git: gitApi,
+  engineering: engineeringApi,
   settings: settingsApi,
   github: githubApi,
   performance: performanceApi,

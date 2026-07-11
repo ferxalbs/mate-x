@@ -7,6 +7,7 @@ import type {
   ShipProofSummary,
   ToolEvent,
 } from "../contracts/chat";
+import { isEngineeringControlPlaneEnabled } from "./engineering-flags";
 
 export function normalizeFactoryRunOptions(
   options: AssistantRunOptions,
@@ -25,12 +26,19 @@ export function normalizeFactoryRunOptions(
   };
 }
 
+/**
+ * Factory write authority is dead when the native control plane is on (NES-8.1).
+ * Legacy messages may still project historical FactoryRun records read-only.
+ */
 export function createFactoryRun(params: {
   id: string;
   prompt: string;
   options: AssistantRunOptions;
   createdAt: string;
 }): FactoryRun | undefined {
+  if (isEngineeringControlPlaneEnabled()) {
+    return undefined;
+  }
   if (params.options.mode !== "factory" && params.options.mode !== "ship") {
     return undefined;
   }
@@ -55,6 +63,10 @@ export function completeFactoryRun(
   },
 ): FactoryRun | undefined {
   if (!run) return undefined;
+  // When control plane is on, do not advance FactoryRun as product truth.
+  if (isEngineeringControlPlaneEnabled()) {
+    return run;
+  }
 
   const plannedValidation = hasEvent(params.events, /plan_validation|validation plan/i);
   const ranValidation = hasEvent(params.events, /run_tests|sandbox_run|validation run/i);

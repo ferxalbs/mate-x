@@ -168,7 +168,11 @@ describe("submitPrompt flow", () => {
     assert.equal(thread.messages[1].factoryRun, undefined);
   });
 
-  it("creates FactoryRun state and overrides renderer full access", async () => {
+  it("does not write FactoryRun authority when engineering control plane is on [NES-8.1]", async () => {
+    const { setEngineeringFeatureFlags, resetEngineeringFeatureFlagsForTests } =
+      await import("../lib/engineering-flags");
+    setEngineeringFeatureFlags({ engineeringControlPlane: true });
+    try {
     await useChatStore.getState().submitPrompt("Fix and verify", {
       access: "full",
       mode: "factory",
@@ -182,8 +186,11 @@ describe("submitPrompt flow", () => {
     assert.equal(runAssistantMock.calls[0][2].access, "approval");
     assert.equal(runAssistantMock.calls[0][2].runbookId, "scan_contain_report");
     const thread = useChatStore.getState().threadsByWorkspace["workspace-1"][0];
-    assert.equal(thread.messages[1].factoryRun?.mode, "factory");
-    assert.equal(thread.messages[1].factoryRun?.access, "approval");
+    // Control plane owns truth — FactoryRun must not be written as authority.
+    assert.equal(thread.messages[1].factoryRun, undefined);
+    } finally {
+      resetEngineeringFeatureFlagsForTests();
+    }
   });
 
   it("failed submit shows a user-visible inline failure state", async () => {

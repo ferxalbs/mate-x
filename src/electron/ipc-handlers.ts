@@ -1267,15 +1267,175 @@ export function registerIpcHandlers() {
     });
     return (await resolveGitService()).stageFiles(safeFiles);
   });
-  handle("git:commit", async (_event, message: string) => {
-    const normalizedMessage = requireBoundedString(message, "message", 20_000);
-    await requireSensitiveIpcApproval({ action: "git:commit" });
-    return (await resolveGitService()).commit(normalizedMessage);
+  handle(
+    "git:commit",
+    async (
+      _event,
+      messageOrPayload:
+        | string
+        | { message: string; proofHandle?: string | null },
+    ) => {
+      const payload =
+        typeof messageOrPayload === "string"
+          ? { message: messageOrPayload, proofHandle: null as string | null }
+          : messageOrPayload;
+      const normalizedMessage = requireBoundedString(
+        payload.message,
+        "message",
+        20_000,
+      );
+      await requireSensitiveIpcApproval({ action: "git:commit" });
+      const { evaluateGitGate } = await import("./engineering/git-gate");
+      const {
+        getEngineeringRepository,
+      } = await import("./engineering/repository");
+      const {
+        isMainProcessGitGateEnabled,
+      } = await import("./engineering/flags");
+      if (isMainProcessGitGateEnabled()) {
+        const repo = getEngineeringRepository();
+        // Freshness anchors: HEAD/diff/policy from workspace git when available
+        let headSha = "unknown";
+        let diffHash = "unknown";
+        try {
+          const git = await resolveGitService();
+          const log = await git.getLog(1);
+          headSha = log[0]?.hash ?? "unknown";
+          const diff = await git.getDiff();
+          const { createHash } = await import("node:crypto");
+          diffHash = createHash("sha256")
+            .update(JSON.stringify(diff))
+            .digest("hex");
+        } catch {
+          // fail closed with unknown anchors → stale unless proof matches unknown
+        }
+        const evaluation = evaluateGitGate({
+          repo,
+          proofHandle: payload.proofHandle,
+          current: {
+            workspaceId: "active",
+            headSha,
+            diffHash,
+            policyHash: "unknown",
+          },
+        });
+        if (!evaluation.allowed) {
+          throw new Error(
+            `${evaluation.code ?? "ERR_PROOF_REQUIRED"}: ${evaluation.message ?? "Git commit denied"}`,
+          );
+        }
+      }
+      return (await resolveGitService()).commit(normalizedMessage);
+    },
+  );
+  handle(
+    "git:push",
+    async (_event, payload?: { proofHandle?: string | null }) => {
+      await requireSensitiveIpcApproval({ action: "git:push" });
+      const { evaluateGitGate } = await import("./engineering/git-gate");
+      const {
+        getEngineeringRepository,
+      } = await import("./engineering/repository");
+      const {
+        isMainProcessGitGateEnabled,
+      } = await import("./engineering/flags");
+      if (isMainProcessGitGateEnabled()) {
+        const repo = getEngineeringRepository();
+        let headSha = "unknown";
+        let diffHash = "unknown";
+        try {
+          const git = await resolveGitService();
+          const log = await git.getLog(1);
+          headSha = log[0]?.hash ?? "unknown";
+          const diff = await git.getDiff();
+          const { createHash } = await import("node:crypto");
+          diffHash = createHash("sha256")
+            .update(JSON.stringify(diff))
+            .digest("hex");
+        } catch {
+          // anchors unknown
+        }
+        const evaluation = evaluateGitGate({
+          repo,
+          proofHandle: payload?.proofHandle ?? null,
+          current: {
+            workspaceId: "active",
+            headSha,
+            diffHash,
+            policyHash: "unknown",
+          },
+        });
+        if (!evaluation.allowed) {
+          throw new Error(
+            `${evaluation.code ?? "ERR_PROOF_REQUIRED"}: ${evaluation.message ?? "Git push denied"}`,
+          );
+        }
+      }
+      return (await resolveGitService()).push();
+    },
+  );
+
+  // ── Engineering control plane (NES-1.3) ─────────────────────────────────
+  handle("engineering:dispatch", async (_event, command: unknown) => {
+    const { getEngineeringCommandBus } = await import(
+      "./engineering/command-bus"
+    );
+    const { createPhaseHandler } = await import("./engineering/phase-handler");
+    const { getEngineeringRepository } = await import(
+      "./engineering/repository"
+    );
+    const repo = getEngineeringRepository();
+    const bus = getEngineeringCommandBus();
+    bus.setPhaseHandler(createPhaseHandler(repo));
+    return bus.dispatch(command as never);
   });
-  handle("git:push", async () => {
-    await requireSensitiveIpcApproval({ action: "git:push" });
-    return (await resolveGitService()).push();
+  handle("engineering:list-tasks", async (_event, workspaceId: string) => {
+    const { getEngineeringCommandBus } = await import(
+      "./engineering/command-bus"
+    );
+    return getEngineeringCommandBus().listTasks(
+      requireBoundedString(workspaceId, "workspaceId", 200),
+    );
   });
+  handle("engineering:get-task", async (_event, engineeringTaskId: string) => {
+    const { getEngineeringCommandBus } = await import(
+      "./engineering/command-bus"
+    );
+    return getEngineeringCommandBus().getTask(
+      requireBoundedString(engineeringTaskId, "engineeringTaskId", 200),
+    );
+  });
+  handle(
+    "engineering:evaluate-git-gate",
+    async (
+      _event,
+      input: {
+        proofHandle?: string | null;
+        workspaceId: string;
+        headSha: string;
+        diffHash: string;
+        policyHash: string;
+      },
+    ) => {
+      const { evaluateGitGate, toGitGateMirror } = await import(
+        "./engineering/git-gate"
+      );
+      const { getEngineeringRepository } = await import(
+        "./engineering/repository"
+      );
+      const evaluation = evaluateGitGate({
+        repo: getEngineeringRepository(),
+        proofHandle: input.proofHandle,
+        current: {
+          workspaceId: requireBoundedString(input.workspaceId, "workspaceId", 200),
+          headSha: requireBoundedString(input.headSha, "headSha", 200),
+          diffHash: requireBoundedString(input.diffHash, "diffHash", 200),
+          policyHash: requireBoundedString(input.policyHash, "policyHash", 200),
+        },
+      });
+      return toGitGateMirror(evaluation);
+    },
+  );
   handle("git:pull", async () => {
     await requireSensitiveIpcApproval({ action: "git:pull" });
     return (await resolveGitService()).pull();

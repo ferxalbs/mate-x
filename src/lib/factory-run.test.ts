@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 
 import type { AssistantRunOptions, EvidencePack, ToolEvent } from "../contracts/chat";
 import {
@@ -7,6 +7,18 @@ import {
   createFactoryRun,
   normalizeFactoryRunOptions,
 } from "./factory-run";
+import {
+  resetEngineeringFeatureFlagsForTests,
+  setEngineeringFeatureFlags,
+} from "./engineering-flags";
+
+// Legacy Factory authority tests run with control plane off, then restore defaults.
+before(() => {
+  setEngineeringFeatureFlags({ engineeringControlPlane: false });
+});
+after(() => {
+  resetEngineeringFeatureFlagsForTests();
+});
 
 const factoryOptions: AssistantRunOptions = {
   access: "full",
