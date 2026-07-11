@@ -1,10 +1,7 @@
 import {
   ArrowUpIcon,
-  BrainIcon,
   FileIcon,
   ImageIcon,
-  PaperclipIcon,
-  RotateCcwIcon,
   ShieldCheckIcon,
   VideoIcon,
   XIcon,
@@ -20,22 +17,13 @@ import {
   useRef,
   useState,
   type DragEvent,
-  type ReactNode,
 } from "react";
 
 import { Button } from "../../../components/ui/button";
 import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -43,7 +31,10 @@ import {
   DropdownMenuRadioItem,
 } from "../../../components/ui/menu";
 import { Slider } from "../../../components/ui/slider";
-import { buildModelPowerOptions, getModelPowerLabel } from "./model-power-selector";
+import {
+  buildModelPowerOptions,
+  getModelPowerLabel,
+} from "./model-power-selector";
 
 import type {
   AssistantAttachment,
@@ -58,7 +49,6 @@ import {
   type RainyModelLaunch,
   type RainyServiceTier,
 } from "../../../contracts/rainy";
-import type { RepoGraphEmbeddingProgress } from "../../../contracts/repo-graph";
 import type {
   WorkspaceSummary,
   WorkspaceTrustContract,
@@ -71,27 +61,18 @@ import {
   supportsVideoInput as modelSupportsVideoInput,
 } from "../../../lib/rainy-model-capabilities";
 import {
-  controlComingSoonLabel,
   findLaunchForModel,
   getAppControl,
-  getHighContextPricingNotice,
   isAppControlAvailable,
-  isDeclaredProVariant,
-  resolveBaseVariantModelId,
-  resolveProVariantModelId,
 } from "../../../lib/rainy-model-launches";
-import { appleCornerPath, cn } from "../../../lib/utils";
+import { cn } from "../../../lib/utils";
 import {
-  getEmbeddingModel,
   getModel,
-  listEmbeddingModels,
   listModelLaunches,
   listModels,
-  setEmbeddingModel,
   setModel,
 } from "../../../services/settings-client";
 import { useChatStore } from "../../../store/chat-store";
-import { useResizeObserver } from "../../../hooks/use-resize-observer";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
@@ -109,18 +90,12 @@ interface ComposerPanelProps {
   onPromptChange?: (prompt: string) => void;
 }
 
-
-
-
 export function ComposerPanel({
-  canUndoLastTurn,
   isRunning,
   onResolvePolicyStop,
   workspace,
   onSubmit,
-  onUndoLastTurn,
   pendingPolicyStop,
-  trustContract,
   prompt: externalPrompt,
   onPromptChange,
 }: ComposerPanelProps) {
@@ -137,17 +112,6 @@ export function ComposerPanel({
     onPromptChange?.(value);
   };
   const [modelValue, setModelValue] = useState("");
-  const [embeddingModelValue, setEmbeddingModelValue] = useState("");
-  const [embeddingCatalog, setEmbeddingCatalog] = useState<
-    Array<{
-      id: string;
-      label: string;
-      dimensions: number;
-      contextLength: number;
-    }>
-  >([]);
-  const [embeddingProgress, setEmbeddingProgress] =
-    useState<RepoGraphEmbeddingProgress | null>(null);
   const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
   const [launches, setLaunches] = useState<RainyModelLaunch[]>([]);
   const [catalogError, setCatalogError] = useState("");
@@ -156,12 +120,8 @@ export function ComposerPanel({
   const [reasoningEnabled, setReasoningEnabled] = useState(true);
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions["reasoning"]>("high");
-  const [modeValue, setModeValue] =
-    useState<AssistantRunOptions["mode"]>("chat");
+  const modeValue: AssistantRunOptions["mode"] = "chat";
   const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
-  /** Provider-returned effective tier (billing authority) when known. */
-  const [effectiveServiceTier, setEffectiveServiceTier] =
-    useState<RainyServiceTier | null>(null);
   const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -171,8 +131,6 @@ export function ComposerPanel({
   const cancelActiveRun = useChatStore((state) => state.cancelActiveRun);
   const hasWorkspace = Boolean(workspace);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const containerDimensions = useResizeObserver(containerRef);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,11 +146,6 @@ export function ComposerPanel({
           // Launch feed is non-blocking; empty on failure keeps composer usable.
           listModelLaunches(forceRefresh).catch(() => [] as RainyModelLaunch[]),
         ]);
-        const [storedEmbeddingModel, nextEmbeddingCatalog] = await Promise.all([
-          getEmbeddingModel(),
-          listEmbeddingModels(),
-        ]);
-
         if (cancelled) {
           return;
         }
@@ -201,13 +154,6 @@ export function ComposerPanel({
           setCatalog(nextCatalog);
           setLaunches(nextLaunches);
           setModelValue(resolveModelValue(storedModel, nextCatalog));
-          setEmbeddingCatalog(nextEmbeddingCatalog);
-          setEmbeddingModelValue(
-            resolveEmbeddingModelValue(
-              storedEmbeddingModel,
-              nextEmbeddingCatalog,
-            ),
-          );
         });
       } catch (error) {
         if (cancelled) {
@@ -234,16 +180,6 @@ export function ComposerPanel({
     };
   }, []);
 
-  useEffect(
-    () =>
-      window.mate.repo.graph.onEmbeddingProgress(
-        (progress: RepoGraphEmbeddingProgress) => {
-          setEmbeddingProgress(progress);
-        },
-      ),
-    [],
-  );
-
   const selectedModel = useMemo(
     () => catalog.find((entry) => entry.id === modelValue) ?? null,
     [catalog, modelValue],
@@ -256,22 +192,12 @@ export function ComposerPanel({
     () => getAppControl(activeLaunch, "reasoning"),
     [activeLaunch],
   );
-  const reasoningProControl = useMemo(
-    () => getAppControl(activeLaunch, "reasoning_pro"),
-    [activeLaunch],
-  );
   const serviceTierControl = useMemo(
     () => getAppControl(activeLaunch, "service_tier"),
     [activeLaunch],
   );
   const modelLabel =
     selectedModel?.label ?? (modelValue || `Select model (${catalog.length})`);
-  const selectedEmbeddingModel =
-    embeddingCatalog.find((entry) => entry.id === embeddingModelValue) ?? null;
-  const embeddingModelLabel =
-    selectedEmbeddingModel?.label ??
-    embeddingModelValue ??
-    "Select embedding model";
   const supportsImageInput = modelSupportsImageInput(selectedModel);
   const supportsVideoInput = modelSupportsVideoInput(selectedModel);
   const supportsFileInput = modelSupportsFileInput(selectedModel);
@@ -280,8 +206,6 @@ export function ComposerPanel({
   const reasoningSupported =
     modelSupportsReasoning(selectedModel) &&
     (!reasoningControl || isAppControlAvailable(reasoningControl));
-  const reasoningComingSoon =
-    Boolean(reasoningControl) && !isAppControlAvailable(reasoningControl);
   const serviceTierOptions = useMemo(
     () =>
       getRainyServiceTierOptions(
@@ -296,64 +220,15 @@ export function ComposerPanel({
     serviceTierControlAvailable &&
     (modelSupportsServiceTiers(selectedModel, serviceTierControl?.values) ||
       (serviceTierControl?.values?.length ?? 0) > 0);
-  const serviceTierComingSoon =
-    Boolean(serviceTierControl) && !isAppControlAvailable(serviceTierControl);
   const effortOptions = useMemo(
     () => getReasoningEffortValues(selectedModel),
     [selectedModel],
   );
   const supportsReasoningEffort =
     reasoningSupported && effortOptions.length > 0;
-  const reasoningToggleLabel = reasoningEnabled
-    ? supportsReasoningEffort
-      ? "Reasoning"
-      : "Reasoning on"
-    : "Reasoning off";
-  const proSuffix = reasoningProControl?.variantSuffix ?? "-pro";
-  // Pro mapping only via launch-feed variants — never invent `-pro` suffixes.
-  const declaredProPartnerId = resolveProVariantModelId(modelValue, activeLaunch, {
-    suffix: proSuffix,
-  });
-  const declaredProModelId = resolveProVariantModelId(modelValue, activeLaunch, {
-    suffix: proSuffix,
-    catalog,
-  });
-  const proVariantSelected = isDeclaredProVariant(
-    modelValue,
-    activeLaunch,
-    proSuffix,
-  );
-  const proVariantCallable = Boolean(
-    declaredProModelId ||
-      (proVariantSelected &&
-        catalog.some((entry) => entry.id === modelValue)),
-  );
-  const reasoningProComingSoon =
-    Boolean(reasoningProControl) && !isAppControlAvailable(reasoningProControl);
-  // Hide when launch does not declare a Pro partner for this model.
-  const showReasoningProControl =
-    Boolean(reasoningProControl) &&
-    (proVariantSelected || Boolean(declaredProPartnerId));
-  const pricingNotice = useMemo(
-    () =>
-      getHighContextPricingNotice({
-        launch: activeLaunch,
-        modelId: modelValue,
-      }),
-    [activeLaunch, modelValue],
-  );
   const isModelDisabled =
     isCatalogLoading || isModelSaving || catalog.length === 0;
   const accessValue = "approval";
-  const trustAllowed = trustContract?.allowedActions.slice(0, 4).join(", ") || "pending";
-  const trustBlocked = trustContract?.blockedActions.slice(0, 3).join(", ") || "none";
-  const trustPaths = trustContract?.allowedPaths.slice(0, 3).join(", ") || "pending";
-  const trustLabel =
-    trustContract?.autonomy === "trusted-patch"
-      ? "Safe patch"
-      : trustContract
-        ? "Approval gate"
-        : "Policy pending";
   const unsupportedAttachmentKinds = useMemo(
     () =>
       Array.from(
@@ -505,7 +380,6 @@ export function ComposerPanel({
     try {
       await setModel(nextModel);
       setModelValue(nextModel);
-      setEffectiveServiceTier(null);
       const nextEntry = catalog.find((entry) => entry.id === nextModel);
       const nextLaunch = findLaunchForModel(launches, nextModel);
       const nextTierControl = getAppControl(nextLaunch, "service_tier");
@@ -525,57 +399,6 @@ export function ComposerPanel({
       );
     } finally {
       setIsModelSaving(false);
-    }
-  }
-
-  async function handleReasoningProToggle() {
-    if (reasoningProComingSoon || !reasoningProControl || !activeLaunch) {
-      return;
-    }
-
-    // Model-variant control only changes model id via declared launch variants.
-    // Never appends `-pro` and never sends a reasoning_pro request parameter.
-    const nextModel = proVariantSelected
-      ? resolveBaseVariantModelId(modelValue, activeLaunch, proSuffix)
-      : resolveProVariantModelId(modelValue, activeLaunch, {
-          suffix: proSuffix,
-          catalog,
-        });
-
-    if (!nextModel || nextModel === modelValue) {
-      return;
-    }
-
-    await handleModelChange(nextModel);
-  }
-
-  async function handleEmbeddingModelChange(nextModel: string) {
-    if (!nextModel || nextModel === embeddingModelValue) {
-      return;
-    }
-
-    setCatalogError("");
-    setIsModelSaving(true);
-
-    try {
-      setEmbeddingProgress(null);
-      await setEmbeddingModel(nextModel);
-      setEmbeddingModelValue(nextModel);
-    } catch (error) {
-      setCatalogError(
-        error instanceof Error
-          ? error.message
-          : "Could not update Rainy embedding model.",
-      );
-    } finally {
-      setIsModelSaving(false);
-    }
-  }
-
-  async function handleUndoLastTurn() {
-    const restoredPrompt = await onUndoLastTurn();
-    if (restoredPrompt) {
-      handlePromptChange(restoredPrompt);
     }
   }
 
@@ -613,7 +436,9 @@ export function ComposerPanel({
           settings.blurEnabled
             ? "bg-[var(--panel)]/70 backdrop-blur-2xl border border-[var(--panel-border)]/40 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
             : "bg-[var(--panel)] border border-[var(--panel-border)]/40 shadow-[0_8px_32px_rgba(0,0,0,0.08)]",
-          isDraggingFile ? "ring-2 ring-foreground/20 bg-[var(--panel)]/90" : "",
+          isDraggingFile
+            ? "ring-2 ring-foreground/20 bg-[var(--panel)]/90"
+            : "",
         )}
         onDragEnter={(event) => {
           event.preventDefault();
@@ -625,7 +450,9 @@ export function ComposerPanel({
           event.preventDefault();
         }}
         onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          if (
+            !event.currentTarget.contains(event.relatedTarget as Node | null)
+          ) {
             setIsDraggingFile(false);
           }
         }}
@@ -668,7 +495,11 @@ export function ComposerPanel({
                 void handleSubmit();
               }
             }}
-            placeholder={hasWorkspace ? "Do anything" : "Import a folder to start a repository review"}
+            placeholder={
+              hasWorkspace
+                ? "Do anything"
+                : "Import a folder to start a repository review"
+            }
             value={prompt}
           />
           {attachments.length > 0 ? (
@@ -685,16 +516,25 @@ export function ComposerPanel({
                     })
                   }
                   onRemove={() =>
-                    setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+                    setAttachments((current) =>
+                      current.filter((item) => item.id !== attachment.id),
+                    )
                   }
                 />
               ))}
             </div>
           ) : null}
         </div>
-        
+
         {catalogError ? (
-          <div className="relative z-10 px-6 pb-1 text-[11px] text-amber-300/90">{catalogError}</div>
+          <div className="relative z-10 px-6 pb-1 text-[11px] text-amber-300/90">
+            {catalogError}
+          </div>
+        ) : null}
+        {capabilityNotice ? (
+          <div className="relative z-10 break-words px-6 pb-1 text-[11px] text-amber-600 dark:text-amber-300">
+            {capabilityNotice}
+          </div>
         ) : null}
 
         <div className="relative z-10 flex flex-col gap-3 px-4 pb-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
@@ -748,7 +588,21 @@ export function ComposerPanel({
               type="button"
               className="flex size-8 items-center justify-center rounded-full bg-transparent text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" x2="12" y1="19" y2="22" />
+              </svg>
             </button>
             <button
               aria-label="Send"
@@ -756,11 +610,15 @@ export function ComposerPanel({
                 "flex size-8 items-center justify-center rounded-full transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-sm",
                 isRunning
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  : (!prompt.trim() && attachments.length === 0) || isModelSaving
+                  : (!prompt.trim() && attachments.length === 0) ||
+                      isModelSaving
                     ? "bg-foreground/5 text-foreground/30 shadow-none cursor-not-allowed"
-                    : "bg-foreground text-background hover:scale-105 hover:bg-foreground/90 hover:shadow-md"
+                    : "bg-foreground text-background hover:scale-105 hover:bg-foreground/90 hover:shadow-md",
               )}
-              disabled={(!prompt.trim() && attachments.length === 0 && !isRunning) || isModelSaving}
+              disabled={
+                (!prompt.trim() && attachments.length === 0 && !isRunning) ||
+                isModelSaving
+              }
               onClick={() => {
                 if (isRunning) {
                   void handleCancelRun();
@@ -781,9 +639,7 @@ export function ComposerPanel({
       </div>
     </>
   );
-
 }
-
 
 function AttachmentChip({
   attachment,
@@ -1008,7 +864,9 @@ function ModelConfigurationMenu({
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const powerOptions = buildModelPowerOptions(catalog);
-  const currentIndex = powerOptions.findIndex(({ model }) => model.id === modelValue);
+  const currentIndex = powerOptions.findIndex(
+    ({ model }) => model.id === modelValue,
+  );
   const safeIndex = currentIndex >= 0 ? currentIndex : 0;
   const selectedPowerOption = powerOptions[safeIndex];
 
@@ -1020,11 +878,26 @@ function ModelConfigurationMenu({
       >
         <span>{modelLabel}</span>
         {supportsReasoningEffort && (
-          <span className="text-foreground/50">{formatReasoningEffort(reasoningValue as any)}</span>
+          <span className="text-foreground/50">
+            {formatReasoningEffort(reasoningValue as any)}
+          </span>
         )}
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-0.5 opacity-60"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="ml-0.5 opacity-60"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </DropdownMenuTrigger>
-      
+
       <DropdownMenuContent
         align="end"
         sideOffset={6}
@@ -1037,8 +910,14 @@ function ModelConfigurationMenu({
                 <span className="flex-1">Model</span>
                 <span className="text-muted-foreground">{modelLabel}</span>
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent sideOffset={4} className="w-56 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl">
-                <DropdownMenuRadioGroup value={modelValue} onValueChange={onModelChange}>
+              <DropdownMenuSubContent
+                sideOffset={4}
+                className="w-56 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
+              >
+                <DropdownMenuRadioGroup
+                  value={modelValue}
+                  onValueChange={onModelChange}
+                >
                   {catalog.map((entry) => (
                     <DropdownMenuRadioItem
                       key={entry.id}
@@ -1056,10 +935,18 @@ function ModelConfigurationMenu({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
                   <span className="flex-1">Effort</span>
-                  <span className="text-muted-foreground">{formatReasoningEffort(reasoningValue as any)}</span>
+                  <span className="text-muted-foreground">
+                    {formatReasoningEffort(reasoningValue as any)}
+                  </span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent sideOffset={4} className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl">
-                  <DropdownMenuRadioGroup value={reasoningValue} onValueChange={onReasoningChange}>
+                <DropdownMenuSubContent
+                  sideOffset={4}
+                  className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
+                >
+                  <DropdownMenuRadioGroup
+                    value={reasoningValue}
+                    onValueChange={onReasoningChange}
+                  >
                     {effortOptions.map((opt) => (
                       <DropdownMenuRadioItem
                         key={opt}
@@ -1078,10 +965,20 @@ function ModelConfigurationMenu({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
                   <span className="flex-1">Speed</span>
-                  <span className="text-muted-foreground">{formatServiceTier(serviceTier)}</span>
+                  <span className="text-muted-foreground">
+                    {formatServiceTier(serviceTier)}
+                  </span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent sideOffset={4} className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl">
-                  <DropdownMenuRadioGroup value={serviceTier} onValueChange={(val) => onServiceTierChange(val as RainyServiceTier)}>
+                <DropdownMenuSubContent
+                  sideOffset={4}
+                  className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
+                >
+                  <DropdownMenuRadioGroup
+                    value={serviceTier}
+                    onValueChange={(val) =>
+                      onServiceTierChange(val as RainyServiceTier)
+                    }
+                  >
                     {serviceTierOptions.map((tier) => (
                       <DropdownMenuRadioItem
                         key={tier}
@@ -1100,31 +997,34 @@ function ModelConfigurationMenu({
           </>
         )}
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setAdvancedOpen((open) => !open);
-              }}
-              className="flex h-8 w-full items-center justify-between rounded-[12px] px-3 text-[13px] transition-colors focus:bg-foreground/[0.05] hover:bg-foreground/[0.05]"
-            >
-              <span>Advanced</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={cn("opacity-60 transition-transform duration-[150ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]", advancedOpen && "rotate-180")}
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setAdvancedOpen((open) => !open);
+          }}
+          className="flex h-8 w-full items-center justify-between rounded-[12px] px-3 text-[13px] transition-colors focus:bg-foreground/[0.05] hover:bg-foreground/[0.05]"
+        >
+          <span>Advanced</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn(
+              "opacity-60 transition-transform duration-[150ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+              advancedOpen && "rotate-180",
+            )}
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
         {advancedOpen && (
           <div className="flex flex-col gap-2.5 px-3 pb-3 pt-2 animate-in fade-in duration-150">
             <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground/80">
@@ -1156,7 +1056,8 @@ function ModelConfigurationMenu({
                 {getModelPowerLabel(safeIndex, powerOptions.length)}
               </div>
               <div className="mt-1 break-words text-[12px] font-medium text-foreground">
-                {selectedPowerOption?.model.label ?? "No GPT-5.6 or Claude models available"}
+                {selectedPowerOption?.model.label ??
+                  "No GPT-5.6 or Claude models available"}
               </div>
             </div>
           </div>
@@ -1176,25 +1077,6 @@ function formatReasoningEffort(effort: AssistantRunOptions["reasoning"]) {
     .filter(Boolean)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function formatAssistantMode(mode: AssistantRunOptions["mode"]) {
-  switch (mode) {
-    case "chat":
-      return "Chat";
-    case "review":
-      return "Review";
-    case "factory":
-      return "Factory";
-    case "ship":
-      return "Ship";
-    case "critic_loop":
-      return "Critic Loop";
-    case "plan":
-      return "Plan";
-    default:
-      return "Build";
-  }
 }
 
 function resolveRunbookForMode(mode: AssistantRunOptions["mode"]) {
@@ -1218,48 +1100,9 @@ function formatServiceTier(tier: RainyServiceTier) {
   }
 }
 
-function formatServiceTierDescription(
-  tier: RainyServiceTier,
-  model: RainyModelCatalogEntry | null,
-) {
-  const tierPricing = model?.pricing?.service_tiers?.find(
-    (item) => item.tier === tier,
-  );
-  const inputPrice = tierPricing?.input ?? tierPricing?.prompt;
-  const outputPrice = tierPricing?.output ?? tierPricing?.completion;
-  const priceSummary =
-    inputPrice !== undefined || outputPrice !== undefined
-      ? [inputPrice === undefined ? null : `in ${inputPrice}`, outputPrice === undefined ? null : `out ${outputPrice}`]
-          .filter(Boolean)
-          .join(" · ")
-      : "";
-
-  const description =
-    tier === "flex"
-      ? "Cheaper, may be slower/queued"
-      : tier === "priority"
-        ? "Higher cost, faster capacity"
-        : tier === "scale"
-          ? "Scale capacity tier"
-          : "Default";
-
-  return priceSummary ? `${description} · ${priceSummary}` : description;
-}
-
 function resolveModelValue(
   storedModel: string | null,
   catalog: RainyModelCatalogEntry[],
-) {
-  if (storedModel && catalog.some((entry) => entry.id === storedModel)) {
-    return storedModel;
-  }
-
-  return catalog[0]?.id ?? storedModel ?? "";
-}
-
-function resolveEmbeddingModelValue(
-  storedModel: string | null,
-  catalog: Array<{ id: string }>,
 ) {
   if (storedModel && catalog.some((entry) => entry.id === storedModel)) {
     return storedModel;

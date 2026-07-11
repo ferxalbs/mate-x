@@ -1,16 +1,16 @@
-import { defineConfig } from 'vite';
+import { createLogger, defineConfig } from 'vite';
 
 // https://vitejs.dev/config
-// build.rolldownOptions.output.codeSplitting: false replaces the deprecated
-// rollupOptions.output.inlineDynamicImports: true that Electron Forge's Vite
-// plugin sets internally for preload scripts (single-file output required).
-export default defineConfig({
-  build: {
-    rolldownOptions: {
-      output: {
-        codeSplitting: false,
-      },
-    },
-  },
-});
+// Electron Forge configures preload scripts as single-file bundles internally.
+const logger = createLogger();
+const warn = logger.warn.bind(logger);
 
+logger.warn = (message, options) => {
+  if (message.includes('inlineDynamicImports option is deprecated')) {
+    return;
+  }
+
+  warn(message, options);
+};
+
+export default defineConfig({ customLogger: logger });
