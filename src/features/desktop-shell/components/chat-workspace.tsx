@@ -62,11 +62,7 @@ export function ChatWorkspace({
             workspace={workspace}
           />
         )}
-        {hasMessages ? (
-          <ComposerDock>
-            {composer}
-          </ComposerDock>
-        ) : null}
+        {hasMessages ? <ComposerDock>{composer}</ComposerDock> : null}
       </MessageScroller>
     </MessageScrollerProvider>
   );

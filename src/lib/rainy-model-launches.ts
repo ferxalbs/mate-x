@@ -1008,9 +1008,7 @@ export function getHighContextPricingNotice(params: {
   const measured = typeof params.measuredInputTokens === "number" && Number.isFinite(params.measuredInputTokens)
     ? ` Measured prompt tokens/input tokens: ${Math.floor(params.measuredInputTokens).toLocaleString("en-US")}.`
     : "";
-  return /message count/i.test(note)
-    ? `${note}${measured}`
-    : `${note}${measured} Do not estimate from message count; use provider input-token accounting.`;
+  return `${note}${measured}`;
 }
 
 export function formatLaunchStatus(status: RainyModelLaunchStatus) {
