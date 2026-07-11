@@ -15,21 +15,15 @@ export function ComposerDock({
   return (
     <div
       className={cn(
-        "transition-all duration-300",
-        settings.blurEnabled
-          ? "absolute bottom-0 left-0 right-0 z-10 pointer-events-none"
-          : "bg-transparent",
-        "px-4 pb-6 sm:px-8 pt-4",
+        "fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 pointer-events-none px-4 pb-6 sm:px-8",
       )}
     >
       <div
         className={cn(
-          "relative mx-auto w-full min-w-0 bg-transparent transition-all duration-300",
-          settings.blurEnabled ? "pointer-events-auto" : "",
+          "relative mx-auto w-full min-w-0 bg-transparent transition-all duration-300 pointer-events-auto",
           settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
         )}
       >
-
         {children}
       </div>
     </div>

@@ -31,6 +31,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "../../../components/ui/menu";
 
 import type {
   AssistantAttachment,
@@ -594,390 +605,181 @@ export function ComposerPanel({
 
   return (
     <>
-        <div
-          ref={containerRef}
-          className={cn(
-            "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-            settings.blurEnabled
-              ? "bg-popover/50 backdrop-blur-3xl border border-border/30 shadow-[0_12px_40px_rgba(0,0,0,0.12)]"
-              : "bg-foreground/5 border border-foreground/[0.06] shadow-[0_4px_24px_rgba(0,0,0,0.02)]",
-            isDraggingFile ? "ring-2 ring-foreground/20 bg-foreground/10" : "",
-          )}
-          style={{ 
-            clipPath: containerDimensions.width > 0 
-              ? `path("${appleCornerPath({ width: containerDimensions.width, height: containerDimensions.height, radius: 32, smoothing: 60 })}")` 
-              : "none",
-            borderRadius: containerDimensions.width > 0 ? 0 : 32
+      <div
+        className={cn(
+          "relative mx-auto flex w-full max-w-[820px] flex-col transition-all duration-[300ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] rounded-[32px] overflow-hidden",
+          settings.blurEnabled
+            ? "bg-[var(--panel)]/70 backdrop-blur-2xl border border-[var(--panel-border)]/40 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+            : "bg-[var(--panel)] border border-[var(--panel-border)]/40 shadow-[0_8px_32px_rgba(0,0,0,0.08)]",
+          isDraggingFile ? "ring-2 ring-foreground/20 bg-[var(--panel)]/90" : "",
+        )}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          if (event.dataTransfer.types.includes("Files")) {
+            setIsDraggingFile(true);
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsDraggingFile(false);
+          }
+        }}
+        onDrop={handleDrop}
+      >
+        {pendingPolicyStop ? (
+          <div className="bg-background/40 backdrop-blur-md">
+            <PermissionPrompt
+              disabled={isResolvingPolicyStop}
+              onAction={handlePolicyAction}
+              stop={pendingPolicyStop}
+            />
+          </div>
+        ) : null}
 
-          } as React.CSSProperties}
-          onDragEnter={(event) => {
-            event.preventDefault();
-            if (event.dataTransfer.types.includes("Files")) {
-              setIsDraggingFile(true);
-            }
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-          }}
-          onDragLeave={(event) => {
-            if (
-              !event.currentTarget.contains(event.relatedTarget as Node | null)
-            ) {
-              setIsDraggingFile(false);
-            }
-          }}
-          onDrop={handleDrop}
-        >
-          {pendingPolicyStop ? (
-            <div className="bg-background/40 backdrop-blur-md">
-              <PermissionPrompt
-                disabled={isResolvingPolicyStop}
-                onAction={handlePolicyAction}
-                stop={pendingPolicyStop}
-              />
+        {hasWorkspace && workspace ? (
+          <div className="flex items-center gap-3 px-6 pt-4 pb-1 text-[11px] font-medium text-muted-foreground/50">
+            <div className="flex items-center gap-1.5 transition-colors cursor-pointer hover:text-foreground">
+              <FolderIcon className="size-3.5" />
+              <span>{workspace.name}</span>
             </div>
-          ) : null}
-          {capabilityNotice ? (
-            <div className="relative z-10 border-b border-border/20 bg-amber-500/5 px-5 py-2 text-[11px] leading-5 text-amber-600/90 dark:text-amber-300/80">
-              {capabilityNotice}
+            <div className="flex items-center gap-1.5 transition-colors cursor-pointer hover:text-foreground">
+              <MonitorIcon className="size-3.5" />
+              <span>Local</span>
             </div>
-          ) : null}
-          {pricingNotice ? (
-            <div className="relative z-10 border-b border-border/20 bg-sky-500/5 px-5 py-2 text-[11px] leading-5 text-sky-700/90 dark:text-sky-300/85">
-              {pricingNotice}
+            <div className="flex items-center gap-1.5 transition-colors cursor-pointer hover:text-foreground">
+              <GitBranchIcon className="size-3.5" />
+              <span>main</span>
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          {hasWorkspace && workspace ? (
-            <div className="flex items-center gap-3 border-b border-border/10 bg-[var(--panel)]/40 px-4 py-2.5 text-[11px] font-medium text-muted-foreground/80">
-              <div className="flex items-center gap-1.5 transition-colors hover:text-foreground cursor-pointer">
-                <FolderIcon className="size-3.5" />
-                <span>{workspace.name}</span>
-              </div>
-              <div className="flex items-center gap-1.5 transition-colors hover:text-foreground cursor-pointer">
-                <MonitorIcon className="size-3.5" />
-                <span>Local</span>
-              </div>
-              <div className="flex items-center gap-1.5 transition-colors hover:text-foreground cursor-pointer">
-                <GitBranchIcon className="size-3.5" />
-                <span>main</span>
-              </div>
+        <div className="relative z-10 bg-transparent px-6 py-2">
+          <textarea
+            className="min-h-[44px] w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-foreground outline-none placeholder:text-foreground/30 focus:placeholder:text-foreground/50"
+            onChange={(event) => handlePromptChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault();
+                void handleSubmit();
+              }
+            }}
+            placeholder={hasWorkspace ? "Do anything" : "Import a folder to start a repository review"}
+            value={prompt}
+          />
+          {attachments.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {attachments.map((attachment) => (
+                <AttachmentChip
+                  attachment={attachment}
+                  key={attachment.id}
+                  unsupported={
+                    !isAttachmentSupported(attachment.kind, {
+                      image: supportsImageInput,
+                      video: supportsVideoInput,
+                      file: supportsFileInput,
+                    })
+                  }
+                  onRemove={() =>
+                    setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+                  }
+                />
+              ))}
             </div>
           ) : null}
+        </div>
+        
+        {catalogError ? (
+          <div className="relative z-10 px-6 pb-1 text-[11px] text-amber-300/90">{catalogError}</div>
+        ) : null}
 
-          <div className="relative z-10 bg-transparent px-5 pt-3 pb-2">
-            <textarea
-              className="min-h-[76px] w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-foreground outline-none placeholder:text-foreground/40 focus:placeholder:text-foreground/60 sm:min-h-[60px]"
-              onChange={(event) => handlePromptChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault();
+        <div className="relative z-10 flex flex-col gap-3 px-4 pb-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <input
+              className="hidden"
+              multiple
+              onChange={(event) => {
+                if (event.target.files) {
+                  void addFiles(event.target.files);
+                }
+                event.currentTarget.value = "";
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
+            <button
+              aria-label="Attach files"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-all hover:bg-foreground/15 hover:text-foreground hover:scale-105"
+              disabled={!hasWorkspace}
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach files"
+              type="button"
+            >
+              <span className="text-xl font-light leading-none">+</span>
+            </button>
+            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-orange-500/90 transition-colors cursor-pointer hover:bg-orange-500/10">
+              <ShieldCheckIcon className="size-3.5" />
+              <span>Full access</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <ModelConfigurationMenu
+              catalog={catalog}
+              modelValue={modelValue}
+              onModelChange={handleModelChange}
+              modelLabel={isCatalogLoading ? "Loading..." : modelLabel}
+              isModelDisabled={isModelDisabled}
+              reasoningValue={reasoningValue}
+              onReasoningChange={setReasoningValue}
+              effortOptions={effortOptions}
+              supportsReasoningEffort={supportsReasoningEffort}
+              serviceTier={serviceTier}
+              onServiceTierChange={setServiceTier}
+              serviceTierOptions={serviceTierOptions}
+              showServiceTierSelector={showServiceTierSelector}
+            />
+
+            <button
+              type="button"
+              className="flex size-8 items-center justify-center rounded-full bg-transparent text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+            </button>
+            <button
+              aria-label="Send"
+              className={cn(
+                "flex size-8 items-center justify-center rounded-full transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-sm",
+                isRunning
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : (!prompt.trim() && attachments.length === 0) || isModelSaving
+                    ? "bg-foreground/5 text-foreground/30 shadow-none cursor-not-allowed"
+                    : "bg-foreground text-background hover:scale-105 hover:bg-foreground/90 hover:shadow-md"
+              )}
+              disabled={(!prompt.trim() && attachments.length === 0 && !isRunning) || isModelSaving}
+              onClick={() => {
+                if (isRunning) {
+                  void handleCancelRun();
+                } else {
                   void handleSubmit();
                 }
               }}
-              placeholder={
-                hasWorkspace
-                  ? "Ask anything, @tag files/folders, or use / to show available commands"
-                  : "Import a folder to start a repository review"
-              }
-              value={prompt}
-            />
-            {attachments.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {attachments.map((attachment) => (
-                  <AttachmentChip
-                    attachment={attachment}
-                    key={attachment.id}
-                    unsupported={
-                      !isAttachmentSupported(attachment.kind, {
-                        image: supportsImageInput,
-                        video: supportsVideoInput,
-                        file: supportsFileInput,
-                      })
-                    }
-                    onRemove={() =>
-                      setAttachments((current) =>
-                        current.filter((item) => item.id !== attachment.id),
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-          {catalogError ? (
-            <div className="relative z-10 px-5 pb-1 text-[11px] text-amber-300/90">
-              {catalogError}
-            </div>
-          ) : null}
-
-          <div className="relative z-10 flex flex-col gap-3 px-3 pb-3 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden pb-1 turn-chip-strip sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <input
-                className="hidden"
-                multiple
-                onChange={(event) => {
-                  if (event.target.files) {
-                    void addFiles(event.target.files);
-                  }
-                  event.currentTarget.value = "";
-                }}
-                ref={fileInputRef}
-                type="file"
-              />
-              <button
-                aria-label="Attach files"
-                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-all hover:bg-foreground/15 hover:text-foreground hover:scale-105 sm:size-7"
-                disabled={!hasWorkspace}
-                onClick={() => fileInputRef.current?.click()}
-                title="Attach files"
-                type="button"
-              >
-                <PaperclipIcon className="size-3.5" />
-              </button>
-              <InlineSelect
-                value={modelValue}
-                onValueChange={handleModelChange}
-                disabled={isModelDisabled}
-                label={isCatalogLoading ? "Loading models" : modelLabel}
-              >
-                {catalog.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate">{entry.label}</span>
-                      <span className="truncate text-[10px] text-muted-foreground/75">
-                        {entry.id}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </InlineSelect>
-              {!settings.compactMode && (
-                <InlineSelect
-                  value={embeddingModelValue}
-                  onValueChange={handleEmbeddingModelChange}
-                  disabled={
-                    isCatalogLoading ||
-                    isModelSaving ||
-                    embeddingCatalog.length === 0
-                  }
-                  label={embeddingModelLabel}
-                >
-                  {embeddingCatalog.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate">{entry.label}</span>
-                        <span className="truncate text-[10px] text-muted-foreground/75">
-                          {entry.dimensions}d ·{" "}
-                          {Math.round(entry.contextLength / 1024)}k ctx
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </InlineSelect>
+              type="button"
+            >
+              {isRunning ? (
+                <XIcon className="size-4" strokeWidth={2.5} />
+              ) : (
+                <ArrowUpIcon className="size-4" strokeWidth={2.5} />
               )}
-              {embeddingProgress ? (
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
-                    embeddingProgress.state === "failed"
-                      ? "bg-destructive/15 text-destructive-foreground"
-                      : embeddingProgress.state === "ready"
-                        ? "bg-emerald-500/12 text-emerald-500"
-                        : "bg-primary/12 text-primary",
-                  )}
-                  title={`${embeddingProgress.indexed}/${embeddingProgress.total} repo graph embeddings`}
-                >
-                  {embeddingProgress.state === "ready"
-                    ? "Indexed"
-                    : `Index ${embeddingProgress.percent}%`}
-                </span>
-              ) : null}
-              {reasoningSupported ? (
-                <button
-                  type="button"
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/5 transition-all hover:bg-foreground/15 hover:scale-105 sm:size-7",
-                    reasoningEnabled
-                      ? "text-foreground"
-                      : "text-foreground/40",
-                  )}
-                  onClick={() => setReasoningEnabled((value) => !value)}
-                  title={reasoningToggleLabel}
-                >
-                  <BrainIcon className="size-3.5" />
-                </button>
-              ) : reasoningComingSoon ? (
-                <button
-                  type="button"
-                  disabled
-                  className="flex size-7 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-foreground/5 text-foreground/25 sm:size-7"
-                  title={`${reasoningControl?.label ?? "Reasoning"} — Coming soon`}
-                >
-                  <BrainIcon className="size-3.5" />
-                </button>
-              ) : null}
-              {showReasoningProControl ? (
-                <button
-                  type="button"
-                  disabled={
-                    reasoningProComingSoon ||
-                    isModelSaving ||
-                    (!proVariantSelected && !proVariantCallable)
-                  }
-                  className={cn(
-                    "flex h-6 shrink-0 items-center rounded-full px-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all",
-                    reasoningProComingSoon
-                      ? "cursor-not-allowed bg-foreground/5 text-foreground/30"
-                      : proVariantSelected
-                        ? "bg-primary/15 text-primary hover:bg-primary/20"
-                        : "bg-foreground/5 text-foreground/60 hover:bg-foreground/10 hover:text-foreground",
-                  )}
-                  onClick={() => void handleReasoningProToggle()}
-                  title={
-                    reasoningProComingSoon
-                      ? `${reasoningProControl?.label ?? "Reasoning Pro"} — Coming soon`
-                      : proVariantSelected
-                        ? "Using Pro variant (model id)"
-                        : "Switch to Pro model variant"
-                  }
-                >
-                  {reasoningProComingSoon
-                    ? "Pro · soon"
-                    : proVariantSelected
-                      ? "Pro"
-                      : "Pro"}
-                </button>
-              ) : null}
-              <div
-                className={cn(
-                  "grid shrink-0 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-                  reasoningEnabled && supportsReasoningEffort
-                    ? "grid-cols-[1fr] opacity-100"
-                    : "grid-cols-[0fr] opacity-0",
-                )}
-              >
-                <div className="min-w-0 overflow-hidden">
-                  <InlineSelect
-                    value={reasoningValue}
-                    onValueChange={(value) =>
-                      setReasoningValue(
-                        value as AssistantRunOptions["reasoning"],
-                      )
-                    }
-                    label={formatReasoningEffort(reasoningValue)}
-                    title={`Reasoning effort: ${formatReasoningEffort(reasoningValue)}`}
-                  >
-                    {effortOptions.map((effort) => (
-                      <SelectItem key={effort} value={effort}>
-                        {formatReasoningEffort(effort)}
-                      </SelectItem>
-                    ))}
-                  </InlineSelect>
-                </div>
-              </div>
-              <InlineSelect
-                value={modeValue}
-                onValueChange={(value) =>
-                  setModeValue(value as AssistantRunOptions["mode"])
-                }
-                label={formatAssistantMode(modeValue)}
-                title={`Execution mode: ${formatAssistantMode(modeValue)}`}
-              >
-                <SelectItem value="chat">Chat</SelectItem>
-                <SelectItem value="review">Review</SelectItem>
-                <SelectItem value="factory">Factory</SelectItem>
-                <SelectItem value="ship">Ship</SelectItem>
-              </InlineSelect>
-              {showServiceTierSelector ? (
-                <InlineSelect
-                  value={serviceTier}
-                  onValueChange={(value) => {
-                    setServiceTier(value as RainyServiceTier);
-                    // Clear stale provider tier until next response metadata arrives.
-                    setEffectiveServiceTier(null);
-                  }}
-                  label={
-                    effectiveServiceTier && effectiveServiceTier !== serviceTier
-                      ? `${formatServiceTier(serviceTier)} → ${formatServiceTier(effectiveServiceTier)}`
-                      : formatServiceTier(serviceTier)
-                  }
-                  title={
-                    effectiveServiceTier
-                      ? `Requested ${formatServiceTier(serviceTier)}; provider effective tier ${formatServiceTier(effectiveServiceTier)} (billing authority)`
-                      : `Service tier: ${formatServiceTier(serviceTier)}`
-                  }
-                >
-                  {serviceTierOptions.map((tier) => (
-                    <SelectItem key={tier} value={tier}>
-                      <div className="flex min-w-0 flex-col">
-                        <span>{formatServiceTier(tier)}</span>
-                        <span className="truncate text-[10px] text-muted-foreground/75">
-                          {formatServiceTierDescription(tier, selectedModel)}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </InlineSelect>
-              ) : serviceTierComingSoon ? (
-                <span
-                  className="flex h-6 shrink-0 cursor-not-allowed items-center rounded-full bg-foreground/5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/30"
-                  title={`${serviceTierControl?.label ?? "Service tier"} — ${controlComingSoonLabel(serviceTierControl!) ?? "Coming soon"}`}
-                >
-                  Tier · soon
-                </span>
-              ) : null}
-
-              <div
-                className="flex h-6 shrink-0 cursor-help items-center gap-1 rounded-full bg-success/10 px-2 text-[10px] font-medium text-success transition-colors hover:bg-success/20"
-                title={
-                  trustContract
-                    ? `Contract v${trustContract.version}: ${trustContract.autonomy}.\nAllowed: ${trustAllowed}\nBlocked: ${trustBlocked}\nScope: ${trustPaths}`
-                    : "Contract pending"
-                }
-              >
-                <ShieldCheckIcon className="size-3" />
-                <span>{trustLabel}</span>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center justify-end gap-2 text-[11px] text-muted-foreground/60">
-              {canUndoLastTurn ? (
-                <Button
-                  aria-label="Undo last turn"
-                  className="h-8 rounded-full border-border/40 bg-transparent px-3 text-[11px] text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent hover:text-foreground"
-                  disabled={isRunning || isModelSaving}
-                  onClick={() => void handleUndoLastTurn()}
-                  size="xs"
-                  variant="outline"
-                >
-                  <RotateCcwIcon className="size-3.5" />
-                  Undo
-                </Button>
-              ) : null}
-              <Button
-                aria-label={isRunning ? "Pause API connection" : "Send"}
-                className={cn(
-                  "size-8 rounded-full border-0 bg-foreground text-background shadow-md transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:scale-105 hover:bg-foreground/90 hover:shadow-lg",
-                  isRunning ? "opacity-80 scale-95" : "",
-                )}
-                disabled={isCancellingRun || isModelSaving || !hasWorkspace}
-                onClick={isRunning ? handleCancelRun : handleSubmit}
-                size="icon-sm"
-                title={isRunning ? "Pause API connection" : "Send"}
-                variant="outline"
-              >
-                {isRunning ? (
-                  <XIcon className="size-3.5" />
-                ) : (
-                  <ArrowUpIcon className="size-4" />
-                )}
-              </Button>
-            </div>
+            </button>
           </div>
         </div>
+      </div>
     </>
   );
+
 }
 
 
@@ -1172,50 +974,165 @@ function PermissionPrompt({
   );
 }
 
-function InlineSelect({
-  value,
-  onValueChange,
-  disabled = false,
-  label,
-  title,
-  children,
+function ModelConfigurationMenu({
+  catalog,
+  modelValue,
+  onModelChange,
+  modelLabel,
+  isModelDisabled,
+  reasoningValue,
+  onReasoningChange,
+  effortOptions,
+  supportsReasoningEffort,
+  serviceTier,
+  onServiceTierChange,
+  serviceTierOptions,
+  showServiceTierSelector,
 }: {
-  value: string;
-  onValueChange: (value: string) => void;
-  disabled?: boolean;
-  label?: string;
-  title?: string;
-  children: ReactNode;
+  catalog: RainyModelCatalogEntry[];
+  modelValue: string;
+  onModelChange: (val: string) => void;
+  modelLabel: string;
+  isModelDisabled: boolean;
+  reasoningValue: string;
+  onReasoningChange: (val: any) => void;
+  effortOptions: string[];
+  supportsReasoningEffort: boolean;
+  serviceTier: RainyServiceTier;
+  onServiceTierChange: (val: RainyServiceTier) => void;
+  serviceTierOptions: RainyServiceTier[];
+  showServiceTierSelector: boolean;
 }) {
-  const popup = (
-    <SelectPopup className="max-w-[min(22rem,var(--available-width))] text-popover-foreground">
-      {children}
-    </SelectPopup>
-  );
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   return (
-    <Select
-      disabled={disabled}
-      value={value}
-      onValueChange={(nextValue) => {
-        if (nextValue) {
-          onValueChange(nextValue);
-        }
-      }}
-    >
-      <SelectTrigger
-        size="xs"
-        variant="ghost"
-        className={cn(
-          "h-6 min-w-fit shrink-0 rounded-full border border-transparent px-2.5 text-[11px] shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          "text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground",
-        )}
-        title={title}
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={isModelDisabled}
+        className="flex h-8 items-center gap-1.5 rounded-[12px] bg-foreground/[0.03] px-3 text-[12px] font-medium text-foreground/80 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-foreground/[0.06] hover:text-foreground"
       >
-        <SelectValue>{label}</SelectValue>
-      </SelectTrigger>
-      {popup}
-    </Select>
+        <span>{modelLabel}</span>
+        {supportsReasoningEffort && (
+          <span className="text-foreground/50">{formatReasoningEffort(reasoningValue as any)}</span>
+        )}
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-0.5 opacity-60"><path d="m6 9 6 6 6-6"/></svg>
+      </DropdownMenuTrigger>
+      
+      <DropdownMenuContent
+        align="end"
+        sideOffset={6}
+        className="w-56 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
+      >
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
+            <span className="flex-1">Model</span>
+            <span className="text-muted-foreground">{modelLabel}</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent sideOffset={4} className="w-56 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl">
+            <DropdownMenuRadioGroup value={modelValue} onValueChange={onModelChange}>
+              {catalog.map((entry) => (
+                <DropdownMenuRadioItem
+                  key={entry.id}
+                  value={entry.id}
+                  className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]"
+                >
+                  {entry.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        {supportsReasoningEffort && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
+              <span className="flex-1">Effort</span>
+              <span className="text-muted-foreground">{formatReasoningEffort(reasoningValue as any)}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent sideOffset={4} className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl">
+              <DropdownMenuRadioGroup value={reasoningValue} onValueChange={onReasoningChange}>
+                {effortOptions.map((opt) => (
+                  <DropdownMenuRadioItem
+                    key={opt}
+                    value={opt}
+                    className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]"
+                  >
+                    {formatReasoningEffort(opt as any)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+
+        {showServiceTierSelector && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
+              <span className="flex-1">Speed</span>
+              <span className="text-muted-foreground">{formatServiceTier(serviceTier)}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent sideOffset={4} className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl">
+              <DropdownMenuRadioGroup value={serviceTier} onValueChange={(val) => onServiceTierChange(val as RainyServiceTier)}>
+                {serviceTierOptions.map((tier) => (
+                  <DropdownMenuRadioItem
+                    key={tier}
+                    value={tier}
+                    className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]"
+                  >
+                    {formatServiceTier(tier)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+
+        <div className="my-1.5 border-b border-foreground/[0.05]" />
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setAdvancedOpen(!advancedOpen);
+          }}
+          className="flex h-8 w-full items-center justify-between rounded-[12px] px-3 text-[13px] transition-colors focus:bg-foreground/[0.05] hover:bg-foreground/[0.05]"
+        >
+          <span>Advanced</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn("opacity-60 transition-transform duration-200", advancedOpen && "rotate-180")}
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        {advancedOpen && (
+          <div className="mt-1 flex flex-col gap-3 px-3 py-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Model Power</span>
+              <span>Pro</span>
+            </div>
+            <div className="relative flex items-center">
+              <div className="absolute h-1.5 w-full rounded-full bg-foreground/[0.05]" />
+              <div className="absolute h-1.5 w-[75%] rounded-full bg-blue-500" />
+              <div className="absolute left-[75%] h-4 w-4 -translate-x-1/2 rounded-full border border-border bg-background shadow-sm" />
+            </div>
+            <div className="mt-1 text-[10px] text-muted-foreground/70">
+              Allocates higher effort and reasoning capabilities for complex tasks.
+            </div>
+          </div>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
