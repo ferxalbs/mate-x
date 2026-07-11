@@ -2,7 +2,7 @@
   "name": "mate-x",
   "productName": "MaTE X",
   "version": "0.1.1",
-  "description": "Local Trust Gate for AI-made code changes, fix validation, and proof preservation",
+  "description": "The trust layer for AI-written code.",
   "main": ".vite/build/main.js",
   "repository": {
     "type": "git",
@@ -15,7 +15,10 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "verify:package-config": "bun test forge.config.test.ts",
+    "verify": "bun run lint && bun run typecheck && bun test && bun run verify:package-config"
   },
   "keywords": [],
   "author": {
@@ -25,9 +28,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
-    "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-dmg": "^7.11.2",
-    "@electron-forge/maker-rpm": "^7.11.2",
     "@electron-forge/maker-squirrel": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",

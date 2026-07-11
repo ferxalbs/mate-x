@@ -18,11 +18,10 @@ export type TrustGateVerdict =
   | "Ready"
   | "Validated"
   | "Needs check"
-  | "Not ready"
-  | "Risky"
+  | "Risk found"
   | "Blocked"
-  | "Unknown";
-export type ShipStatusLabel = TrustGateVerdict | "Needs check" | "Not ready to push";
+  | "Not proven";
+export type ShipStatusLabel = TrustGateVerdict | "Needs check";
 export type TrustGateStatus =
   | "trusted"
   | "resolving"
@@ -90,9 +89,9 @@ export function getShipStatusHeaderLabel(state: TrustGateState, mode: ShipStatus
 export function getTopbarRepoSafetyLabel(state: TrustGateState) {
   if (state.status === "trusted") return "Validated";
   if (state.status === "blocked") return "Blocked";
-  if (state.status === "risky") return "Risky";
+  if (state.status === "risky") return "Risk found";
   if (state.status === "needs_validation" || state.status === "resolving") return "Needs check";
-  return state.verdict === "Validated" ? "Validated" : "Clean";
+  return state.verdict === "Validated" ? "Validated" : "Not proven";
 }
 
 export function detectActiveGateIntent(prompt: string) {
@@ -206,7 +205,7 @@ export function getRepoFields(health: WorkspaceHealthProfile | null) {
   if (!health) {
     return [
       ["Stack", "Detecting"],
-      ["PM", "Unknown"],
+      ["PM", "Not proven"],
       ["Test", "Map pending"],
       ["Lint", "Map pending"],
       ["Build", "Map pending"],
@@ -249,7 +248,7 @@ export function getRepoHealthSignals(
       : [];
   }
 
-  const stackValue = health.stack.length > 0 ? health.stack.join(", ") : "Unknown";
+  const stackValue = health.stack.length > 0 ? health.stack.join(", ") : "Not proven";
   const hasTestCommand =
     Boolean(health.testCommand) && health.testCommand !== "unknown";
   const hasLintCommand =
@@ -495,7 +494,7 @@ export function deriveTrustGate({
   if (isRunning) {
     return buildState({
       status: "resolving",
-      verdict: "Not ready",
+      verdict: "Needs check",
       confidenceLabel: "none",
       tone: eventPolicyStop ? "warn" : "watch",
       proofLabel,
@@ -557,7 +556,7 @@ export function deriveTrustGate({
   if (riskyFiles.length > 0 && !hasVerifiedSignals) {
     return buildState({
       status: "risky",
-      verdict: "Risky",
+      verdict: "Risk found",
       confidenceLabel: "low",
       tone: "warn",
       proofLabel,
@@ -570,14 +569,14 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run safety check",
+      nextAction: "Run Factory verification",
     });
   }
 
   if (!evidencePack) {
     return buildState({
       status: changedFiles.length > 0 ? "needs_validation" : "unknown",
-      verdict: changedFiles.length > 0 ? "Not ready" : "Unknown",
+      verdict: changedFiles.length > 0 ? "Needs check" : "Not proven",
       confidenceLabel: "none",
       tone: changedFiles.length > 0 ? "watch" : "muted",
       proofLabel,
@@ -592,14 +591,14 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: changedFiles.length > 0 ? "Run safety check" : "Open details",
+      nextAction: changedFiles.length > 0 ? "Run Factory verification" : "Open details",
     });
   }
 
   if (!hasVerifiedSignals || score === null) {
     return buildState({
       status: "needs_validation",
-      verdict: "Not ready",
+      verdict: "Needs check",
       confidenceLabel: "low",
       tone: "watch",
       proofLabel,
@@ -612,14 +611,14 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run safety check",
+      nextAction: "Run Factory verification",
     });
   }
 
   if (!hasExecutedValidation || validationState !== "passed") {
     return buildState({
       status: "needs_validation",
-      verdict: "Not ready",
+      verdict: "Needs check",
       confidenceLabel: "medium",
       tone: "watch",
       proofLabel,
@@ -634,14 +633,14 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run safety check",
+      nextAction: "Run Factory verification",
     });
   }
 
   if (riskyFiles.length > 0 && evidencePackState !== "signed_strong") {
     return buildState({
       status: "risky",
-      verdict: "Risky",
+      verdict: "Risk found",
       confidenceLabel: score >= 75 ? "medium" : "low",
       tone: "warn",
       proofLabel,
@@ -661,7 +660,7 @@ export function deriveTrustGate({
   if (hasDirtyRepo) {
     return buildState({
       status: "needs_validation",
-      verdict: "Not ready",
+      verdict: "Needs check",
       confidenceLabel: "medium",
       tone: "watch",
       proofLabel,
@@ -674,14 +673,14 @@ export function deriveTrustGate({
       validationState,
       policyStopState: hasPolicyStop ? "resolved" : "none",
       evidencePackState,
-      nextAction: "Run safety check",
+      nextAction: "Run Factory verification",
     });
   }
 
   if (summary.risk === "High" || score < 85) {
     return buildState({
       status: "risky",
-      verdict: "Risky",
+      verdict: "Risk found",
       confidenceLabel: score >= 75 ? "medium" : "low",
       tone: "warn",
       proofLabel,
@@ -796,7 +795,7 @@ function getHumanTrustGateCopy(
 
   return {
     ...base,
-    headline: "Not ready to push",
+    headline: "Needs check",
     explanation:
       changedFileCount > 0
         ? "MaTE X found changed files, but no passing validation has been proven."

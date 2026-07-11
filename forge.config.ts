@@ -86,6 +86,8 @@ const config: ForgeConfig = {
     },
   },
   rebuildConfig: {},
+  // Public release targets are macOS (Intel/Apple Silicon) and Windows 10/11.
+  // Linux makers are intentionally omitted until Linux is a supported product target.
   makers: [
     new MakerSquirrel({
       name: 'mate_x',
