@@ -10,6 +10,7 @@ export class AgentRuntimeReadiness<T> {
   }
 
   setInitializationError(error: unknown) {
+    this.runtime = null;
     this.initializationError = error instanceof Error ? error.message : String(error);
   }
 
