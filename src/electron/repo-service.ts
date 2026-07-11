@@ -24,6 +24,7 @@ import { buildArtifacts, buildFallbackResponse, buildWorkspaceMemoryArtifacts, e
 import { buildWorkEngineArtifactSnapshot, loadCompliancePolicySources } from "./repo-service/work-engine-artifacts";
 import { getRainyServiceTierOptions } from "../contracts/rainy";
 import type { SDKOrchestrator } from "./orchestration/sdk-orchestrator";
+import { AgentRuntimeReadiness } from "./orchestration/agent-runtime-readiness";
 import type { AgentActionEvidenceEvent } from "../contracts/sdk-orchestrator.types";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
@@ -37,10 +38,18 @@ interface AssistantProgressReporter {
 
 const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
 const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
-let sdkOrchestrator: SDKOrchestrator | null = null;
+const sdkOrchestratorReadiness = new AgentRuntimeReadiness<SDKOrchestrator>();
 
 export function setSDKOrchestrator(orchestrator: SDKOrchestrator | null) {
-  sdkOrchestrator = orchestrator;
+  sdkOrchestratorReadiness.setRuntime(orchestrator);
+}
+
+export function setSDKOrchestratorInitializationError(error: unknown) {
+  sdkOrchestratorReadiness.setInitializationError(error);
+}
+
+export function getSDKOrchestratorReadinessError() {
+  return sdkOrchestratorReadiness.getErrorMessage();
 }
 
 function cloneArtifacts(artifacts: MessageArtifact[]) {
@@ -286,8 +295,9 @@ export async function runAssistant(
   }
 
   if (!handledDirectTool && resolvedOptions.sdkAction) {
+    const sdkOrchestrator = sdkOrchestratorReadiness.getRuntime();
     if (!sdkOrchestrator) {
-      throw new Error("SDK orchestrator is not initialized for this agent run.");
+      throw new Error(getSDKOrchestratorReadinessError() ?? "Agent runtime is not ready.");
     }
     const sdkResult = await sdkOrchestrator.execute(resolvedOptions.sdkAction, {
       evidenceRecorder: {

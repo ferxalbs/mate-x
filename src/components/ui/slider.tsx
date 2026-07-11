@@ -2,14 +2,19 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 
 import { cn } from "@/lib/utils"
 
+type SliderProps = SliderPrimitive.Root.Props & {
+  thumbLabel?: string
+}
+
 function Slider({
   className,
   defaultValue,
   value,
   min = 0,
   max = 100,
+  thumbLabel = "Slider value",
   ...props
-}: SliderPrimitive.Root.Props) {
+}: SliderProps) {
   const _values = Array.isArray(value)
     ? value
     : Array.isArray(defaultValue)
@@ -39,6 +44,7 @@ function Slider({
         </SliderPrimitive.Track>
         {Array.from({ length: _values.length }, (_, index) => (
           <SliderPrimitive.Thumb
+            aria-label={thumbLabel}
             data-slot="slider-thumb"
             key={index}
             className="block size-4 shrink-0 rounded-2xl bg-white shadow-md ring-1 ring-black/10 transition-[color,box-shadow] duration-200 select-none not-dark:bg-clip-padding hover:ring-4 hover:ring-ring/30 focus-visible:ring-4 focus-visible:ring-ring/30 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
