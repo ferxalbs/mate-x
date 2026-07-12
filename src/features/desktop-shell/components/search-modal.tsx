@@ -38,7 +38,9 @@ export function SearchModal({
       .filter((thread) => !thread.isArchived)
       .filter((thread) => {
         if (!needle) return true;
-        return `${thread.title} ${workspaceName}`.toLowerCase().includes(needle);
+        return `${thread.title} ${workspaceName}`
+          .toLowerCase()
+          .includes(needle);
       })
       .sort((a, b) => Date.parse(b.lastUpdatedAt) - Date.parse(a.lastUpdatedAt))
       .slice(0, 8);
@@ -77,10 +79,16 @@ export function SearchModal({
                       onOpenChange(false);
                     }}
                   >
-                    <span className="truncate text-foreground/90">{thread.title || "Untitled"}</span>
-                    <span className="truncate text-xs text-muted-foreground/70">{workspaceName}</span>
+                    <span className="truncate text-foreground/90">
+                      {thread.title || "Untitled"}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground/70">
+                      {workspaceName}
+                    </span>
                     <CommandShortcut>⌘{index + 1}</CommandShortcut>
-                    {thread.id === activeThreadId ? <span className="sr-only">Current chat</span> : null}
+                    {thread.id === activeThreadId ? (
+                      <span className="sr-only">Current chat</span>
+                    ) : null}
                   </CommandItem>
                 ))}
               </CommandGroup>
