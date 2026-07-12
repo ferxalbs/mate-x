@@ -2,6 +2,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import { useChatStore } from "../../../store/chat-store";
+import { ComposerScrollButton } from "./composer-scroll-button";
 
 interface ComposerDockProps {
   children: ReactNode;
@@ -61,6 +62,7 @@ export function ComposerDock({
           settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
         )}
       >
+        <ComposerScrollButton />
         {children}
       </div>
     </div>
