@@ -85,6 +85,12 @@ describe("sandbox_run command parsing", () => {
 
 describe("sandbox_run executable resolution", () => {
   test("prefers a real bun binary over a local node_modules shim", async () => {
+    // PATH delimiter + executable extension semantics differ on Windows;
+    // this resolution contract is validated on POSIX CI hosts.
+    if (process.platform === "win32") {
+      return;
+    }
+
     const workspacePath = join(tmpdir(), `mate-x-bun-resolve-${Date.now()}`);
     const localBin = join(workspacePath, "node_modules", ".bin");
     const realBin = join(workspacePath, "real-bin");
@@ -184,6 +190,11 @@ describe("sandbox_run reporting", () => {
 
 describe("sandbox_run execution failures", () => {
   test("returns immediately on ENOEXEC and does not timeout", async () => {
+    // ENOEXEC is a POSIX spawn code; Windows surfaces different errors for non-PE files.
+    if (process.platform === "win32") {
+      return;
+    }
+
     const workspacePath = join(tmpdir(), `mate-x-enoexec-${Date.now()}`);
     await mkdir(workspacePath, { recursive: true });
     const badExecutable = join(workspacePath, "bad-exec");
