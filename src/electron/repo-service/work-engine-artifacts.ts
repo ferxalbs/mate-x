@@ -28,7 +28,7 @@ export function buildWorkEngineArtifactSnapshot(input: {
 }): WorkPlanInputSnapshot {
   return {
     prompt: input.prompt,
-    mode: "build",
+    mode: "execute",
     workspace: {
       root: input.workspace.path,
       name: input.workspace.name,

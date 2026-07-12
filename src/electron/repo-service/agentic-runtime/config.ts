@@ -14,15 +14,13 @@ export function buildAgentRuntimeConfig(
   options: AssistantRunOptions,
   prompt = "",
 ): AgentRuntimeConfig {
+  const pathKind = options.pathKind ?? "full";
   const executionIntent =
-    (options.mode === "build" ||
-      options.mode === "factory" ||
-      options.mode === "ship" ||
-      options.mode === "critic_loop") &&
+    (pathKind === "full" || pathKind === "verify_only") &&
     isExecutionIntentPrompt(prompt);
   const requireToolingFirst = executionIntent;
   const minToolRounds = executionIntent ? 1 : 0;
-  const planLikeMode = options.mode === "plan" || options.mode === "chat" || options.mode === "review";
+  const planLikeMode = pathKind === "chat_help";
 
   switch (options.reasoning) {
     case "low":

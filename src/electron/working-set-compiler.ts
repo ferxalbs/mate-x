@@ -17,7 +17,7 @@ interface WorkingSetCompilerInput {
   workspace: WorkspaceSummary;
   gitState: string[];
   selectedFiles: string[];
-  runMode: AssistantRunOptions["mode"];
+  runMode: NonNullable<AssistantRunOptions["pathKind"]> | string;
   promptMatches: SearchMatch[];
   memoryContext?: WorkspaceMemoryBootstrapContext;
   tokenBudget?: number;
@@ -217,7 +217,11 @@ function isContractOrTypeFile(file: string) {
   return file.includes("/contracts/") || /(^|\/)types?\.tsx?$/.test(file) || /\.d\.ts$/.test(file);
 }
 
-function rankScript(scriptName: string, prompt: string, runMode: AssistantRunOptions["mode"]): WorkingSetScript | null {
+function rankScript(
+  scriptName: string,
+  prompt: string,
+  runMode: NonNullable<AssistantRunOptions["pathKind"]> | string,
+): WorkingSetScript | null {
   if (isRuntimePollutionText(scriptName)) return null;
   const lowerPrompt = prompt.toLowerCase();
   const lowerName = scriptName.toLowerCase();
@@ -229,9 +233,12 @@ function rankScript(scriptName: string, prompt: string, runMode: AssistantRunOpt
       reasons.push(`objective mentions ${term}`);
     }
   }
-  if (runMode === "build" && ["test", "lint", "typecheck"].some((term) => lowerName.includes(term))) {
+  if (
+    (runMode === "full" || runMode === "verify_only") &&
+    ["test", "lint", "typecheck"].some((term) => lowerName.includes(term))
+  ) {
     score += 15;
-    reasons.push("build mode verification");
+    reasons.push("verification scripts for engineering path");
   }
   return score > 0 ? { name: scriptName, command: `bun run ${scriptName}`, score, reasons } : null;
 }

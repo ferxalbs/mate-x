@@ -73,6 +73,7 @@ import {
   setModel,
 } from "../../../services/settings-client";
 import { useChatStore } from "../../../store/chat-store";
+import type { BehaviorPreference, BehaviorMode } from "../../../contracts/behavior-mode";
 
 interface ComposerPanelProps {
   canUndoLastTurn: boolean;
@@ -88,6 +89,8 @@ interface ComposerPanelProps {
   trustContract: WorkspaceTrustContract | null;
   prompt?: string;
   onPromptChange?: (prompt: string) => void;
+  behavior: BehaviorPreference;
+  onBehaviorChange: (value: BehaviorPreference) => void;
 }
 
 export function ComposerPanel({
@@ -96,8 +99,11 @@ export function ComposerPanel({
   workspace,
   onSubmit,
   pendingPolicyStop,
+  trustContract,
   prompt: externalPrompt,
   onPromptChange,
+  behavior,
+  onBehaviorChange,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState(externalPrompt ?? "");
 
@@ -120,7 +126,7 @@ export function ComposerPanel({
   const [reasoningEnabled, setReasoningEnabled] = useState(true);
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions["reasoning"]>("high");
-  const modeValue: AssistantRunOptions["mode"] = "chat";
+  const pathKind: NonNullable<AssistantRunOptions["pathKind"]> = "full";
   const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
   const [capabilityNotice, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
@@ -345,10 +351,10 @@ export function ComposerPanel({
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
-      mode: modeValue,
+      pathKind,
       access: accessValue as AssistantRunOptions["access"],
       serviceTier,
-      runbookId: resolveRunbookForMode(modeValue),
+      runbookId: resolveRunbookForPathKind(pathKind),
       attachments,
     });
   }
@@ -480,7 +486,9 @@ export function ComposerPanel({
             </div>
             <div className="flex items-center gap-1.5 transition-colors cursor-pointer hover:text-foreground">
               <GitBranchIcon className="size-3.5" />
-              <span>main</span>
+              <span data-testid="composer-branch">
+                {workspace.branch?.trim() || "detached"}
+              </span>
             </div>
           </div>
         ) : null}
@@ -497,8 +505,8 @@ export function ComposerPanel({
             }}
             placeholder={
               hasWorkspace
-                ? "Do anything"
-                : "Import a folder to start a repository review"
+                ? "Describe an engineering objective…"
+                : "Import a repository to start"
             }
             value={prompt}
           />
@@ -561,13 +569,25 @@ export function ComposerPanel({
             >
               <span className="text-xl font-light leading-none">+</span>
             </button>
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-orange-500/90 transition-colors cursor-pointer hover:bg-orange-500/10">
+            <div
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors"
+              title="Access follows workspace trust and policy — not unrestricted"
+            >
               <ShieldCheckIcon className="size-3.5" />
-              <span>Full access</span>
+              <span>
+                {trustContract?.autonomy === "unrestricted"
+                  ? "Trust: unrestricted"
+                  : trustContract?.autonomy === "trusted-patch"
+                    ? "Trust: trusted patch"
+                    : trustContract?.autonomy === "plan-only"
+                      ? "Trust: plan only"
+                      : "Trust: approval required"}
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <BehaviorSelector value={behavior} onChange={onBehaviorChange} />
             <ModelConfigurationMenu
               catalog={catalog}
               modelValue={modelValue}
@@ -638,6 +658,66 @@ export function ComposerPanel({
         </div>
       </div>
     </>
+  );
+}
+
+function BehaviorSelector({
+  value,
+  onChange,
+}: {
+  value: BehaviorPreference;
+  onChange: (value: BehaviorPreference) => void;
+}) {
+  const labels: Record<BehaviorMode, string> = {
+    auto: "Auto",
+    guided: "Guided",
+    review: "Review",
+    custom: "Custom",
+  };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="rounded-full border border-border/70 px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-foreground/5"
+        data-testid="behavior-selector"
+      >
+        {labels[value.mode]}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 rounded-2xl border-border/70 bg-[var(--panel)]/92 shadow-none backdrop-blur-xl">
+        <DropdownMenuRadioGroup
+          value={value.mode}
+          onValueChange={(mode) => onChange({ ...value, mode: mode as BehaviorMode })}
+        >
+          {(Object.keys(labels) as BehaviorMode[]).map((mode) => (
+            <DropdownMenuRadioItem key={mode} value={mode}>
+              {labels[mode]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        {value.mode === "custom" ? (
+          <div className="border-t border-border/70 p-2">
+            {([
+              ["askBeforeEdits", "Ask before edits"],
+              ["askBeforeCommands", "Ask before commands"],
+              ["askBeforeNetwork", "Ask before network"],
+              ["askBeforeGit", "Ask before Git"],
+              ["autoValidate", "Automatically validate"],
+            ] as const).map(([key, label]) => (
+              <label className="flex items-center justify-between gap-3 px-2 py-1.5 text-xs" key={key}>
+                <span>{label}</span>
+                <input
+                  checked={value.custom[key]}
+                  onChange={(event) => onChange({
+                    ...value,
+                    custom: { ...value.custom, [key]: event.target.checked },
+                  })}
+                  type="checkbox"
+                />
+              </label>
+            ))}
+          </div>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -790,12 +870,7 @@ function PermissionPrompt({
               {target}
             </span>
           </div>
-          <div className="mt-2 text-[13px] font-medium text-foreground/90">
-            {stop.title}
-          </div>
-          <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground/80">
-            {stop.explanation}
-          </div>
+          <div className="mt-2 text-[13px] font-medium text-foreground/90">{stop.title}</div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {canDecline ? (
@@ -812,7 +887,7 @@ function PermissionPrompt({
               size="xs"
               variant="outline"
             >
-              Skip
+              Review command
             </Button>
           ) : null}
           {canApprove ? (
@@ -823,7 +898,7 @@ function PermissionPrompt({
               size="xs"
               variant="ghost"
             >
-              Approve
+              Approve once
             </Button>
           ) : null}
         </div>
@@ -1079,8 +1154,8 @@ function formatReasoningEffort(effort: AssistantRunOptions["reasoning"]) {
     .join(" ");
 }
 
-function resolveRunbookForMode(mode: AssistantRunOptions["mode"]) {
-  if (mode === "review" || mode === "chat") {
+function resolveRunbookForPathKind(pathKind: NonNullable<AssistantRunOptions["pathKind"]>) {
+  if (pathKind === "chat_help") {
     return "review_classify_summarize";
   }
 

@@ -35,7 +35,7 @@ async function collectWorkPlanSnapshotFromElectronServices(
   ]);
   return {
     prompt: input.prompt,
-    mode: "build",
+    mode: "execute",
     workspace: {
       root: input.workspace.path,
       name: input.workspace.name,

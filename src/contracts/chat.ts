@@ -1,6 +1,7 @@
 import type { ToolPolicyClassification } from "./tool-policy";
 import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
+import type { AutonomyPolicy } from "./behavior-mode";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
@@ -17,15 +18,12 @@ export type AssistantReasoningLevel =
   | "xhigh"
   | "max"
   | (string & {});
-export type AssistantMode =
-  | "chat"
-  | "review"
-  | "factory"
-  | "ship"
-  | "build"
-  | "plan"
-  | "critic_loop";
-export type AssistantAccess = "full" | "approval";
+/**
+ * Internal path routing only — not a user-facing mode picker.
+ * Replaces deleted AssistantMode product identity (NES-8 / CLOSURE 2).
+ */
+export type EngineeringPathKind = "full" | "verify_only" | "chat_help";
+export type AssistantAccess = "scoped" | "full" | "approval";
 export type AssistantRunbookId =
   | "patch_test_verify"
   | "audit_reproduce_remediate"
@@ -53,12 +51,17 @@ export interface AssistantRunbookDefinition {
 export interface AssistantRunOptions {
   reasoningEnabled: boolean;
   reasoning: AssistantReasoningLevel;
-  mode: AssistantMode;
+  /** Internal routing only — never a user mode selector */
+  pathKind?: EngineeringPathKind;
   access: AssistantAccess;
+  /** Canonical tool-autonomy policy. Never maps Auto to unrestricted access. */
+  autonomyPolicy?: AutonomyPolicy;
   serviceTier?: RainyServiceTier;
   runbookId?: AssistantRunbookId;
   attachments?: AssistantAttachment[];
   sdkAction?: import("./sdk-orchestrator.types").AgentActionRequest;
+  /** Link to control-plane task when present */
+  engineeringTaskId?: string | null;
 }
 
 export type AssistantAttachmentKind = "image" | "video" | "file";
@@ -255,30 +258,6 @@ export interface EvidencePack {
   generatedAt: string;
 }
 
-export type FactoryRunStageId =
-  | "spec"
-  | "repo_context"
-  | "risk_surfaces"
-  | "validation_plan"
-  | "agent_actions"
-  | "verification_result"
-  | "ratchet_suggestions"
-  | "ship_proof";
-
-export type FactoryRunStageStatus =
-  | "pending"
-  | "active"
-  | "completed"
-  | "blocked"
-  | "missing";
-
-export interface FactoryRunStage {
-  id: FactoryRunStageId;
-  label: string;
-  status: FactoryRunStageStatus;
-  summary: string;
-}
-
 export interface RatchetSuggestion {
   id: string;
   target: "AGENTS.md" | "RULES.md" | ".mate-x/rules.json";
@@ -300,18 +279,6 @@ export interface ShipProofSummary {
   gitStatus: "allowed" | "blocked";
 }
 
-export interface FactoryRun {
-  id: string;
-  mode: Extract<AssistantMode, "factory" | "ship">;
-  prompt: string;
-  access: AssistantAccess;
-  stages: FactoryRunStage[];
-  ratchetSuggestions: RatchetSuggestion[];
-  shipProof?: ShipProofSummary;
-  createdAt: string;
-  completedAt?: string;
-}
-
 export interface ReproducibleRunInitialState {
   workspaceId: string;
   workspacePath: string;
@@ -322,7 +289,7 @@ export interface ReproducibleRunInitialState {
   settings: {
     reasoningEnabled: boolean;
     reasoning: AssistantReasoningLevel;
-    mode: AssistantMode;
+    pathKind?: EngineeringPathKind;
     access: AssistantAccess;
     runbookId?: AssistantRunbookId;
   };
@@ -378,7 +345,8 @@ export interface ChatMessage {
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
   evidencePack?: EvidencePack;
-  factoryRun?: FactoryRun;
+  /** @deprecated Never written by product path — migration decoder only may attach historical payload */
+  engineeringTaskId?: string | null;
   workingSet?: WorkingSet;
 }
 

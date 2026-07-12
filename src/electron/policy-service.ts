@@ -397,9 +397,9 @@ class PolicyService {
       return {
         severity: "warning",
         policyId: "package.mutation",
-        title: "Run paused: package mutation requires approval.",
+        title: "MaTE X needs approval to install a dependency.",
         explanation:
-          "The agent attempted to run a package-manager mutation. This can modify dependencies, lockfiles, generated artifacts, and installed packages in the real workspace.",
+          "Dependency installation can change packages, lockfiles, generated artifacts, and installed code.",
         kind: "command",
         command,
         recommendation: "approve_once",

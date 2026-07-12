@@ -30,16 +30,15 @@ describe("git safety gate", () => {
     assert.equal(shouldGateGitAction("push", validated), false);
   });
 
-  it("routes blocked git actions to Factory verification CTA", () => {
+  it("routes blocked git actions to verification CTA (no Factory product identity)", () => {
     assert.deepEqual(getGitGateBlockedCopy(), {
       reason: "Blocked because this change has no proof yet.",
-      primaryCta: "Run Factory verification",
+      primaryCta: "Run verification",
     });
   });
 
-  it("starts Factory verification from the blocked git CTA action", () => {
-    assert.equal(ambientSafetyActions.runSafetyCheck.label, "Run Factory verification");
-    assert.equal(ambientSafetyActions.runSafetyCheck.overrides.mode, "factory");
+  it("starts verification from the blocked git CTA action", () => {
+    assert.equal(ambientSafetyActions.runSafetyCheck.label, "Run verification");
     assert.equal(ambientSafetyActions.runSafetyCheck.overrides.access, "approval");
     assert.equal(ambientSafetyActions.runSafetyCheck.overrides.runbookId, "patch_test_verify");
   });

@@ -115,7 +115,7 @@ describe("trust gate derivation", () => {
     assert.equal(state.headline, "Needs check");
     assert.equal(getShipStatusHeaderLabel(state), "Needs check");
     assert.equal(state.explanation, "MaTE X found changed files, but no passing validation has been proven.");
-    assert.equal(state.nextAction, "Run Factory verification");
+    assert.equal(state.nextAction, "Run verification");
     assert.deepEqual(state.reasonChips.slice(0, 3), [
       "1 file changed",
       "No validation passed",
@@ -137,7 +137,7 @@ describe("trust gate derivation", () => {
     });
 
     assert.equal(state.verdict, "Needs check");
-    assert.equal(state.nextAction, "Run Factory verification");
+    assert.equal(state.nextAction, "Run verification");
   });
 
   it("does not trust final claims when no commands ran", () => {
@@ -196,7 +196,7 @@ describe("trust gate derivation", () => {
     assert.equal(state.headline, "Risk found");
     assert.equal(state.primaryActionLabel, "Inspect risky changes");
     assert.equal(getShipStatusHeaderLabel(state), "Risk found");
-    assert.equal(state.nextAction, "Run Factory verification");
+    assert.equal(state.nextAction, "Run verification");
     assert.deepEqual(state.touchedRiskSurfaces, ["src/electron/session-service.ts"]);
   });
 

@@ -141,6 +141,8 @@ function inferValidationStatus(
   const stage = stages.find((item) => item.id === "validation_executed");
   if (!stage) return required ? "missing" : "skipped";
   if (stage.status === "pending") return required ? "missing" : "skipped";
+  // Planning phase: map N/A to skipped for artifact schema (not failed/waived).
+  if (stage.status === "not_applicable_for_phase") return "skipped";
   return stage.status;
 }
 

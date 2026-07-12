@@ -130,15 +130,16 @@ export function ThreadMenuItem({
           e.preventDefault();
           void (window as any).mate.ui.showChatContextMenu(thread.id);
         }}
+        data-active={isActive}
         className={cn(
-          "group relative grid h-7 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-full px-0 text-left text-[12px] outline-none transition-colors",
+          "group relative grid h-[30px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-[12px] outline-none transition-all duration-200",
           isActive
-            ? "bg-accent/70 text-accent-foreground font-medium"
-            : "text-muted-foreground hover:bg-accent/45 hover:text-foreground",
+            ? "bg-foreground/[0.06] text-foreground font-medium"
+            : "text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground",
         )}
         type="button"
       >
-        <div className="flex min-w-0 items-center gap-2 pl-2">
+        <div className="flex min-w-0 items-center gap-2 pl-1">
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full",
@@ -171,8 +172,8 @@ export function ThreadMenuItem({
         </div>
 
         {!isRenaming && (
-          <div className="flex h-full w-[44px] shrink-0 items-center justify-end pr-2">
-            <span className="text-[10px] text-muted-foreground/40">
+          <div className="flex h-full w-[44px] shrink-0 items-center justify-end pr-1">
+            <span className="text-[10px] text-muted-foreground/35">
               {formatRelativeTimestamp(thread.lastUpdatedAt)}
             </span>
           </div>

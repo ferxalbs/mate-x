@@ -56,11 +56,11 @@ describe("Ambient Safety Actions in MessageStream", () => {
       </MessageScrollerProvider>
     );
 
-    assert.ok(view.getByText("Run Factory verification"));
+    assert.ok(view.getByText("Run verification"));
     assert.ok(view.getByText("Review changes"));
   });
 
-  it("clicking Run Factory verification submits immediately and preserves mode/intent", async () => {
+  it("clicking Run verification submits immediately and preserves mode/intent", async () => {
     const view = render(
       <MessageScrollerProvider>
         <ScrollArea.Root>
@@ -76,10 +76,10 @@ describe("Ambient Safety Actions in MessageStream", () => {
       </MessageScrollerProvider>
     );
 
-    fireEvent.click(view.getByText("Run Factory verification"));
+    fireEvent.click(view.getByText("Run verification"));
     await waitFor(() => assert.equal(mockOnSubmit.calls.length, 1));
-    assert.match(mockOnSubmit.calls[0][0], /Factory verification/);
-    assert.deepEqual(mockOnSubmit.calls[0][1], { mode: "factory", runbookId: "patch_test_verify", access: "approval" });
+    assert.match(mockOnSubmit.calls[0][0], /Run verification/);
+    assert.deepEqual(mockOnSubmit.calls[0][1], { runbookId: "patch_test_verify", access: "approval" });
     assert.equal(mockOnSelect.calls.length, 0);
   });
 
@@ -129,7 +129,7 @@ describe("Ambient Safety Actions in MessageStream", () => {
       </MessageScrollerProvider>
     );
 
-    const button = view.getByText("Run Factory verification") as HTMLButtonElement;
+    const button = view.getByText("Run verification") as HTMLButtonElement;
     fireEvent.click(button);
     fireEvent.click(button);
 
@@ -154,7 +154,7 @@ describe("Ambient Safety Actions in MessageStream", () => {
       </MessageScrollerProvider>
     );
 
-    const btn1 = view.getByText("Run Factory verification") as HTMLButtonElement;
+    const btn1 = view.getByText("Run verification") as HTMLButtonElement;
     const btn2 = view.getByText("Review changes") as HTMLButtonElement;
     assert.equal(btn1.disabled, true);
     assert.equal(btn2.disabled, true);

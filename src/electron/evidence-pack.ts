@@ -24,6 +24,10 @@ function summarizeToolOutput(content: string) {
     : `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
+/**
+ * Evidence status from claims + validation/tool ledger — not "Response complete".
+ * NES-5.4
+ */
 function classifyEvidenceStatus(events: ToolEvent[]): EvidencePack["status"] {
   const hasBlockingStep = events.some(
     (event) =>
@@ -40,8 +44,23 @@ function classifyEvidenceStatus(events: ToolEvent[]): EvidencePack["status"] {
     return "partial";
   }
 
-  const finished = events.some((event) => event.label === "Response complete");
-  return finished ? "complete" : "failed";
+  const ranValidation = events.some(
+    (event) =>
+      /run_tests|sandbox_run|validation/i.test(event.label ?? "") ||
+      /run_tests|sandbox_run|validation/i.test(event.id ?? ""),
+  );
+  const responseFinished = events.some(
+    (event) => event.label === "Response complete",
+  );
+
+  // Response complete alone is never complete evidence (NES-5.4 / F-14).
+  if (responseFinished && ranValidation) {
+    return "complete";
+  }
+  if (responseFinished && !ranValidation) {
+    return "partial";
+  }
+  return "failed";
 }
 
 function extractSummaryFromContent(content: string) {

@@ -106,7 +106,7 @@ export function ShipStatusStrip({
             onClick={onMakeTrustworthy}
             type="button"
           >
-            {isRunning ? "Running..." : "Run Factory verification"}
+            {isRunning ? "Running..." : "Run verification"}
           </button>
         ) : null}
         <button
@@ -195,7 +195,7 @@ function TrustGateActions({
         onClick={primaryShowsDetails ? onToggleDetails : canMakeTrustworthy ? onMakeTrustworthy : undefined}
         type="button"
       >
-        {primaryShowsDetails ? "Show details" : isRunning ? "Running..." : "Run Factory verification"}
+        {primaryShowsDetails ? "Show details" : isRunning ? "Running..." : "Run verification"}
       </button>
       {onReviewChanges ? (
         <button

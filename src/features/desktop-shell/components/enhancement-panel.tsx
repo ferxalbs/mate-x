@@ -202,11 +202,14 @@ export function EnhancementPanel({
   }, []);
 
   useEffect(() => {
-    (window as any).__mateShipGateState = {
+    // Mirror only — never authoritative. Main-process GitGate enforces writes (NES-6.3).
+    // Do not write window.__mateShipGateState (deleted as enforcement surface).
+    const mirror = {
       label: getShipStatusHeaderLabel(trustGate, shipStatusMode),
       status: trustGate.status,
       validated: trustGate.status === "trusted",
     };
+    (globalThis as { __mateGitGateMirror?: typeof mirror }).__mateGitGateMirror = mirror;
     window.dispatchEvent(
       new CustomEvent("mate:repo-safety-state", {
         detail: {
@@ -216,7 +219,7 @@ export function EnhancementPanel({
         },
       }),
     );
-  }, [topbarShipStatus, trustGate]);
+  }, [topbarShipStatus, trustGate, shipStatusMode]);
 
   if (!workspaceId) {
     return null;

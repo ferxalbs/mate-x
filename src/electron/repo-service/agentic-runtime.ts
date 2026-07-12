@@ -48,6 +48,8 @@ export async function requestRainyAgenticResponse({
   appSettings,
   runId,
   signal,
+  engineeringTaskStatus,
+  planningPhase,
 }: {
   apiKey: string;
   history: string[];
@@ -66,6 +68,8 @@ export async function requestRainyAgenticResponse({
   appSettings: AppSettings;
   runId: string;
   signal?: AbortSignal;
+  engineeringTaskStatus?: import("../../contracts/engineering-task").EngineeringTaskStatus | null;
+  planningPhase?: boolean;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
@@ -114,7 +118,7 @@ Workspace: ${snapshot.workspace.name}
 Path: ${snapshot.workspace.path}
 Branch: ${snapshot.workspace.branch}
 Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
-Operating mode: ${options.mode}
+Path kind: ${options.pathKind ?? "full"}
 Reasoning level: ${options.reasoning}
 Reasoning enabled: ${options.reasoningEnabled ? "yes" : "no"}
 Filesystem access policy: ${options.access}
@@ -266,6 +270,8 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       runId,
       serviceTier,
       signal,
+      engineeringTaskStatus,
+      planningPhase,
     });
   }
 
@@ -286,5 +292,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     runId,
     serviceTier,
     signal,
+    engineeringTaskStatus,
+    planningPhase,
   });
 }
