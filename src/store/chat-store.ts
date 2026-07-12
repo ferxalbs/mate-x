@@ -746,18 +746,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    // R5: primary submit invokes CaptureTask through typed IPC (fail soft if unavailable in tests)
-    try {
-      const { captureEngineeringTask } = await import(
-        "../services/engineering-client"
-      );
-      await captureEngineeringTask({
-        workspaceId,
-        objectiveSeed: displayedPrompt,
-        conversationId: activeThreadId,
-      });
-    } catch {
-      // Unit tests without IPC still exercise chat path; packaged app has engineering IPC.
+    // R5: CaptureTask is sole authority entry — keep the returned engineeringTaskId
+    // for every planning/execution run. Never Capture again on approve/resume.
+    let engineeringTaskId: string | null =
+      typeof runOptions.engineeringTaskId === "string"
+        ? runOptions.engineeringTaskId
+        : null;
+    if (!engineeringTaskId) {
+      try {
+        const { captureEngineeringTask } = await import(
+          "../services/engineering-client"
+        );
+        const captured = await captureEngineeringTask({
+          workspaceId,
+          objectiveSeed: displayedPrompt,
+          conversationId: activeThreadId,
+        });
+        if (captured.ok && captured.engineeringTaskId) {
+          engineeringTaskId = captured.engineeringTaskId;
+        }
+      } catch {
+        // Unit tests without IPC still exercise chat path; packaged app has engineering IPC.
+      }
     }
     const historyBeforePrompt = currentThread.messages.map(
       (message) => `${message.role}: ${message.content}`,
@@ -900,7 +910,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const assistantExecution = runAssistant(
         displayedPrompt,
         historyBeforePrompt,
-        runOptions,
+        {
+          ...runOptions,
+          engineeringTaskId,
+        },
         runId,
       );
       const execution = await Promise.race([

@@ -75,13 +75,12 @@ export function computeReadiness(input: ReadinessInput): ReadinessLabel {
     return 'Needs check';
   }
 
-  if (
-    input.status === 'captured' ||
-    input.status === 'specified' ||
-    input.status === 'planned' ||
-    input.status === 'failed' ||
-    input.status === 'cancelled'
-  ) {
+  // Early lifecycle: Needs check until proof/validation phases demand Not proven.
+  if (input.status === 'captured' || input.status === 'specified' || input.status === 'planned') {
+    return 'Needs check';
+  }
+
+  if (input.status === 'failed' || input.status === 'cancelled') {
     return 'Not proven';
   }
 

@@ -7,11 +7,15 @@ import { ChatWorkspace } from '../features/desktop-shell/components/chat-workspa
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
 import {
   EngineeringTaskPanel,
+  type EngineeringPrimaryAction,
   type EngineeringTaskViewModel,
 } from '../features/engineering/engineering-task-panel';
 import { getAppSettings } from '../services/settings-client';
 import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
-import { listEngineeringTasks } from '../services/engineering-client';
+import {
+  dispatchPrimaryEngineeringAction,
+  listEngineeringTasks,
+} from '../services/engineering-client';
 import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
@@ -25,6 +29,7 @@ export function HomePage() {
   const [composerPrompt, setComposerPrompt] = useState('');
   const [activeEngineeringTask, setActiveEngineeringTask] =
     useState<EngineeringTaskViewModel | null>(null);
+  const [ctaBusy, setCtaBusy] = useState(false);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -58,7 +63,14 @@ export function HomePage() {
     
     try {
       await submitPrompt(prompt, {
-        ...buildHomePageSubmitOptions(overrides),
+        ...buildHomePageSubmitOptions({
+          ...overrides,
+          // Resume same EngineeringTask when present — never second Capture on approve.
+          engineeringTaskId:
+            overrides?.engineeringTaskId ??
+            activeEngineeringTask?.engineeringTaskId ??
+            null,
+        }),
       });
     } catch (err) {
       toastManager.add({
@@ -138,6 +150,77 @@ export function HomePage() {
     void refreshEngineeringTasks();
   }, [refreshEngineeringTasks, runStatus, messages.length]);
 
+  const handlePrimaryAction = useCallback(
+    async (action: EngineeringPrimaryAction) => {
+      if (!activeWorkspaceId || !activeEngineeringTask) return;
+      setCtaBusy(true);
+      try {
+        const result = (await dispatchPrimaryEngineeringAction({
+          workspaceId: activeWorkspaceId,
+          engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+          action,
+          aggregateVersion: activeEngineeringTask.aggregateVersion,
+        })) as { ok?: boolean; error?: { message?: string }; data?: { status?: string } };
+
+        if (result && result.ok === false) {
+          toastManager.add({
+            type: 'error',
+            title: 'Action failed',
+            description: result.error?.message ?? 'Command rejected',
+          });
+          return;
+        }
+
+        await refreshEngineeringTasks();
+
+        // After approval, start a new execution run ID on the same EngineeringTask.
+        if (
+          action.id === 'approve_plan' &&
+          action.commandType === 'ApprovePlanAndTasks'
+        ) {
+          const executionRunPrompt =
+            `Execute the approved plan for engineering task ${activeEngineeringTask.engineeringTaskId}. ` +
+            `Apply the planned patch, run validation, and produce Ship Proof. Do not recapture the objective.`;
+          await handleSubmitPrompt(executionRunPrompt, {
+            engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+            pathKind: 'full',
+            access: 'approval',
+            runbookId: 'patch_test_verify',
+          });
+        } else if (action.id === 'start_execution') {
+          await handleSubmitPrompt(
+            `Continue execution for ${activeEngineeringTask.engineeringTaskId}`,
+            {
+              engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+              pathKind: 'full',
+              access: 'approval',
+            },
+          );
+        } else if (action.id === 'run_validation') {
+          await handleSubmitPrompt(
+            `Run validation for ${activeEngineeringTask.engineeringTaskId}`,
+            {
+              engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+              pathKind: 'verify_only',
+              access: 'approval',
+              runbookId: 'patch_test_verify',
+            },
+          );
+        }
+      } catch (err) {
+        toastManager.add({
+          type: 'error',
+          title: 'Action failed',
+          description: err instanceof Error ? err.message : 'Unknown error',
+        });
+      } finally {
+        setCtaBusy(false);
+        void refreshEngineeringTasks();
+      }
+    },
+    [activeWorkspaceId, activeEngineeringTask, refreshEngineeringTasks],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -195,7 +278,8 @@ export function HomePage() {
       <div className="shrink-0 border-b border-border/40 px-4 py-2">
         <EngineeringTaskPanel
           task={activeEngineeringTask}
-          busy={runStatus === 'running'}
+          busy={runStatus === 'running' || ctaBusy}
+          onPrimaryAction={handlePrimaryAction}
         />
       </div>
       <ChatWorkspace
@@ -213,3 +297,4 @@ export function HomePage() {
     </section>
   );
 }
+

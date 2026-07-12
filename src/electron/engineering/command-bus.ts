@@ -32,12 +32,24 @@ import {
   EngineeringRepository,
   getEngineeringRepository,
 } from './repository';
+import { applyEngineeringPhaseResult } from './phase-result-apply';
+import type { PhaseResultArtifactBundle } from '../../contracts/engineering-phase-result';
 
 export type DispatchableCommand =
   | ({ type: 'CaptureTask' } & CaptureTaskInput & {
       actor?: ActorRef;
       commandId?: string;
     })
+  | {
+      type: 'ApplyPhaseResult';
+      engineeringTaskId: string;
+      workspaceId: string;
+      phaseResult: unknown;
+      artifacts?: unknown;
+      actor?: ActorRef;
+      commandId?: string;
+      expectedAggregateVersion?: number;
+    }
   | {
       type: EngineeringCommandType;
       engineeringTaskId: string;
@@ -133,6 +145,17 @@ export class EngineeringCommandBus {
   dispatch(command: DispatchableCommand): CommandResponse {
     if (command.type === 'CaptureTask') {
       return this.captureTask(command as Extract<DispatchableCommand, { type: 'CaptureTask' }>);
+    }
+    if (command.type === 'ApplyPhaseResult') {
+      return applyEngineeringPhaseResult({
+        bus: this,
+        repo: this.repo,
+        workspaceId: command.workspaceId,
+        phaseResult: command.phaseResult,
+        artifacts: command.artifacts as PhaseResultArtifactBundle | undefined,
+        actor: command.actor,
+        expectedAggregateVersion: command.expectedAggregateVersion,
+      });
     }
     switch (command.type) {
       case 'StartClarification':
@@ -344,14 +367,18 @@ export class EngineeringCommandBus {
     }
     const applied = phaseResult as PhaseApplyResult;
 
+    const commandRecord = command as {
+      reason?: string;
+      reasonCode?: ErrorCode | string;
+    };
     const event = appendEvent(
       next,
       `${command.type}Applied`,
       {
         from: task.status,
         to: next.status,
-        reason: command.reason,
-        reasonCode: command.reasonCode,
+        reason: commandRecord.reason,
+        reasonCode: commandRecord.reasonCode,
         ...applied.eventPayload,
       },
       actor,

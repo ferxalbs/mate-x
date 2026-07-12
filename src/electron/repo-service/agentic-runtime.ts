@@ -48,6 +48,8 @@ export async function requestRainyAgenticResponse({
   appSettings,
   runId,
   signal,
+  engineeringTaskStatus,
+  planningPhase,
 }: {
   apiKey: string;
   history: string[];
@@ -66,6 +68,8 @@ export async function requestRainyAgenticResponse({
   appSettings: AppSettings;
   runId: string;
   signal?: AbortSignal;
+  engineeringTaskStatus?: import("../../contracts/engineering-task").EngineeringTaskStatus | null;
+  planningPhase?: boolean;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
@@ -266,6 +270,8 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       runId,
       serviceTier,
       signal,
+      engineeringTaskStatus,
+      planningPhase,
     });
   }
 
@@ -286,5 +292,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     runId,
     serviceTier,
     signal,
+    engineeringTaskStatus,
+    planningPhase,
   });
 }

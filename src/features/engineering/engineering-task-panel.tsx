@@ -1,6 +1,7 @@
 /**
  * Engineering Task surface (NES-7.1) — progressive Levels 0–1.
  * Readiness mirrored from main; never invents Ready client-side.
+ * CTAs are explicit and always require a real handler.
  */
 
 import { useCallback, useState } from "react";
@@ -9,6 +10,10 @@ import type {
   EngineeringTaskStatus,
   ReadinessLabel,
 } from "../../contracts/engineering-task";
+import {
+  projectUserFacingStatus,
+  type UserFacingTaskStatus,
+} from "../../contracts/engineering-phase-result";
 
 export interface EngineeringTaskViewModel {
   engineeringTaskId: string;
@@ -19,6 +24,23 @@ export interface EngineeringTaskViewModel {
   aggregateVersion: number;
 }
 
+export type EngineeringPrimaryActionId =
+  | "answer_clarification"
+  | "review_specification"
+  | "approve_plan"
+  | "start_execution"
+  | "run_validation"
+  | "view_ship_proof"
+  | "resolve_blocker"
+  | "retry_failed";
+
+export interface EngineeringPrimaryAction {
+  id: EngineeringPrimaryActionId;
+  label: string;
+  /** Canonical command type(s) this CTA will dispatch — one valid primary command. */
+  commandType: string;
+}
+
 const READINESS_TEXT: Record<ReadinessLabel, string> = {
   Ready: "Ready",
   "Needs check": "Needs check",
@@ -27,37 +49,87 @@ const READINESS_TEXT: Record<ReadinessLabel, string> = {
   "Not proven": "Not proven",
 };
 
-export function primaryCtaForStatus(status: EngineeringTaskStatus): string {
+/**
+ * Explicit CTA matrix derived from canonical (internal) status.
+ * Every non-null action must be wired to a real handler by the parent.
+ */
+export function primaryActionForStatus(
+  status: EngineeringTaskStatus,
+): EngineeringPrimaryAction | null {
   switch (status) {
     case "captured":
-      return "Continue";
+      return {
+        id: "review_specification",
+        label: "Review specification",
+        commandType: "FreezeSpecification",
+      };
     case "clarifying":
-      return "Answer";
+      return {
+        id: "answer_clarification",
+        label: "Answer clarification",
+        commandType: "AnswerDecision",
+      };
     case "specified":
-      return "Build plan";
     case "planning":
-      return "Planning…";
     case "planned":
-      return "Review & approve";
+      return {
+        id: "approve_plan",
+        label: "Approve plan",
+        commandType: "SubmitForApproval",
+      };
     case "awaiting_approval":
-      return "Approve plan";
+      return {
+        id: "approve_plan",
+        label: "Approve plan",
+        commandType: "ApprovePlanAndTasks",
+      };
     case "executing":
-      return "Watch progress";
+      return {
+        id: "start_execution",
+        label: "Start execution",
+        commandType: "BeginVerification",
+      };
     case "verifying":
-      return "Verifying…";
     case "converging":
-      return "Review gaps";
+      return {
+        id: "run_validation",
+        label: "Run validation",
+        commandType: "ExecuteValidation",
+      };
     case "ready":
-      return "Create Ship Proof";
+      return {
+        id: "view_ship_proof",
+        label: "View Ship Proof",
+        commandType: "IssueShipProof",
+      };
     case "blocked":
-      return "Resolve blocker";
+      return {
+        id: "resolve_blocker",
+        label: "Resolve blocker",
+        commandType: "ResumeTask",
+      };
     case "failed":
-      return "Retry";
+      return {
+        id: "retry_failed",
+        label: "Retry",
+        commandType: "ResumeTask",
+      };
     case "cancelled":
-      return "—";
+      return null;
     default:
-      return "Continue";
+      return null;
   }
+}
+
+/** @deprecated use primaryActionForStatus — kept for test migration */
+export function primaryCtaForStatus(status: EngineeringTaskStatus): string {
+  return primaryActionForStatus(status)?.label ?? "—";
+}
+
+export function userFacingStatusLabel(
+  status: EngineeringTaskStatus,
+): UserFacingTaskStatus {
+  return projectUserFacingStatus(status);
 }
 
 export function ReadinessBadge({ readiness }: { readiness: ReadinessLabel }) {
@@ -78,7 +150,8 @@ export function EngineeringTaskPanel({
   busy,
 }: {
   task: EngineeringTaskViewModel | null;
-  onPrimaryAction?: () => void;
+  /** Required whenever a CTA is shown — parent must supply a real handler. */
+  onPrimaryAction?: (action: EngineeringPrimaryAction) => void;
   busy?: boolean;
 }) {
   if (!task) {
@@ -93,10 +166,18 @@ export function EngineeringTaskPanel({
     );
   }
 
-  const cta = primaryCtaForStatus(task.status);
+  const action = primaryActionForStatus(task.status);
+  const facing = userFacingStatusLabel(task.status);
+  // Never render a CTA without a handler (amendment 11).
+  const canRenderCta = Boolean(action && onPrimaryAction);
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border/60 p-4">
+    <div
+      className="flex flex-col gap-3 rounded-lg border border-border/60 p-4"
+      data-engineering-task-id={task.engineeringTaskId}
+      data-engineering-status={task.status}
+      data-user-facing-status={facing}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-foreground">{task.title}</h2>
@@ -108,20 +189,26 @@ export function EngineeringTaskPanel({
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          Status: <span className="text-foreground">{task.status}</span>
+          Status:{" "}
+          <span className="text-foreground" data-testid="engineering-status">
+            {facing}
+          </span>
         </span>
         <span>v{task.aggregateVersion}</span>
       </div>
-      {cta !== "—" && (
+      {canRenderCta && action ? (
         <button
           type="button"
           className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-          disabled={busy || task.status === "planning" || task.status === "verifying"}
-          onClick={onPrimaryAction}
+          disabled={busy}
+          data-testid="engineering-primary-cta"
+          data-cta-id={action.id}
+          data-command-type={action.commandType}
+          onClick={() => onPrimaryAction?.(action)}
         >
-          {cta}
+          {action.label}
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

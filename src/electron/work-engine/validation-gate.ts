@@ -46,8 +46,18 @@ export function evaluateValidationGate(
   workPlan: WorkPlan,
   toolExecutions: ToolExecutionRecord[],
   finalContent: string,
-  options?: { strictNoTextWaive?: boolean },
+  options?: { strictNoTextWaive?: boolean; planningPhase?: boolean },
 ): ValidationGateResult {
+  // Final validation gates run only during validating/completed — not planning.
+  if (options?.planningPhase) {
+    return {
+      allowed: true,
+      warnings: [
+        "Validation evidence is not_applicable_for_phase during planning (pre-approval).",
+      ],
+    };
+  }
+
   if (!workPlan.validationPlan.required) {
     return { allowed: true, warnings: [] };
   }
