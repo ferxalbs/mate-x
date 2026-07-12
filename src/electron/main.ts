@@ -6,6 +6,7 @@ import { initializeUpdater } from './updater';
 import { registerIpcHandlers } from './ipc-handlers';
 import { initStack, teardownStack } from './main-stack';
 import { setSDKOrchestratorInitializationError } from './repo-service';
+import { tursoService } from './turso-service';
 
 // Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
 // Ignore that single deprecation noise so actual app warnings stay visible.
@@ -96,7 +97,8 @@ const hardenWindow = (window: BrowserWindow) => {
 };
 
 
-const createWindow = () => {
+const createWindow = (vibrancyMode: string) => {
+  const isVibrancyEnabled = vibrancyMode === 'sidebar' || vibrancyMode === 'special';
   const mainWindow = new BrowserWindow({
     width: 1275,
     height: 825,
@@ -107,9 +109,9 @@ const createWindow = () => {
     title: 'MaTE X',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
-    vibrancy: 'under-window',
-    backgroundMaterial: 'mica',
-    backgroundColor: '#00000000',
+    vibrancy: isVibrancyEnabled ? 'under-window' : undefined,
+    backgroundMaterial: isVibrancyEnabled ? 'mica' : 'none',
+    backgroundColor: isVibrancyEnabled ? '#00000000' : undefined,
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -146,7 +148,16 @@ app.on('ready', async () => {
     console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
   }
   registerIpcHandlers();
-  createWindow();
+
+  let vibrancyMode = 'solid';
+  try {
+    const settings = await tursoService.getAppSettings();
+    vibrancyMode = settings.vibrancyMode || 'solid';
+  } catch (error) {
+    console.warn('Failed to load settings for vibrancy on startup, using solid default:', error);
+  }
+
+  createWindow(vibrancyMode);
 });
 
 app.on('before-quit', async () => {
@@ -159,9 +170,14 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('activate', () => {
+app.on('activate', async () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    let vibrancyMode = 'solid';
+    try {
+      const settings = await tursoService.getAppSettings();
+      vibrancyMode = settings.vibrancyMode || 'solid';
+    } catch { /* use solid default */ }
+    createWindow(vibrancyMode);
   }
 });
 
