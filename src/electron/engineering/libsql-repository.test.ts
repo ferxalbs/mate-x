@@ -268,9 +268,7 @@ describe('LibSqlEngineeringRepository durable [R1]', () => {
     b.close?.();
   });
 
-  // Windows CI: libsql may hold file locks briefly after close; allow headroom
-  // beyond the default 5s when reopen contends with prior suite DBs.
-  it('restart during task execution recovers status', { timeout: 30_000 }, () => {
+  it('restart during task execution recovers status', () => {
     const dbPath = tempDb();
     const a = LibSqlEngineeringRepository.open(dbPath);
     const task = makeTask({ status: 'executing', aggregateVersion: 5 });
@@ -309,7 +307,7 @@ describe('LibSqlEngineeringRepository durable [R1]', () => {
     b.close?.();
   });
 
-  it('restart during validation recovers validation runs', { timeout: 30_000 }, () => {
+  it('restart during validation recovers validation runs', () => {
     const dbPath = tempDb();
     const a = LibSqlEngineeringRepository.open(dbPath);
     const task = makeTask({ status: 'verifying', aggregateVersion: 3 });
@@ -354,7 +352,7 @@ describe('LibSqlEngineeringRepository durable [R1]', () => {
     b.close?.();
   });
 
-  it('restart after external repository change keeps durable task state', { timeout: 30_000 }, () => {
+  it('restart after external repository change keeps durable task state', () => {
     const dbPath = tempDb();
     const a = LibSqlEngineeringRepository.open(dbPath);
     const task = makeTask({ status: 'ready', aggregateVersion: 8 });
