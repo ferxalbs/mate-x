@@ -19,7 +19,21 @@
 
 ## Project Structure & Module Organization
 
-MaTE X is a desktop security review agent for local repositories. Target platforms: macOS (Intel + Apple Silicon) and Windows 10+. Linux is out of scope.
+MaTE X is a desktop security review agent for local repositories.
+
+### Platform Policy
+
+- **macOS** (Intel + Apple Silicon) is the primary development, founder-testing, optimization, and initial release platform.
+- **Windows** 10+ remains architecturally supported but is qualified in a separate, later compatibility phase and must not block the current macOS workflow.
+- **Linux** is out of scope.
+
+### Code & Directory Structure
+
+- **Production Code**: Belongs only under `src/`. No test harness, fake adapter, fixture, generated evidence, test IPC, or qualification module may ship in the production bundle.
+- **Tests**: Belongs only under `tests/`.
+- **Qualification Layer**: Packaged, platform, migration, and performance qualification belongs under `qa/`.
+- **Release Automation**: Release automation belongs under `scripts/release/`.
+- **Ignored Artifacts**: Generated artifacts and local reports must remain gitignored.
 
 **Directory map — memorize this, do not re-read it:**
 
@@ -31,10 +45,13 @@ MaTE X is a desktop security review agent for local repositories. Target platfor
 | `src/services/` | Service facades |
 | `src/store/` | Zustand stores |
 | `src/lib/` | Helpers and utilities |
-| `src/components/ui/` | UI primitives + colocated tests |
+| `src/components/ui/` | UI primitives |
 | `src/main.ts` | Main-process entry point |
 | `src/preload.ts` | Preload script entry |
 | `src/renderer.tsx` | Renderer entry point |
+| `tests/` | Unit, integration, and contract tests |
+| `qa/` | Packaged, platform, migration, and performance qualification layer |
+| `scripts/release/` | Release automation and package verification |
 
 **Rule:** If you already know where a symbol lives from this map, go directly to that file. Do not scan adjacent directories.
 
@@ -60,9 +77,28 @@ Do not glob-read or stat these paths for any reason.
 
 ***
 
-## Build & Dev Commands (Reference Only — Do Not Run Unless Asked)
+## Build, Verification & Release Commands (Reference Only — Do Not Run Unless Asked)
 
 **Runtime rule:** Use Bun only. Do not use `npm`, `pnpm`, `yarn`, or `npx` for installs, scripts, package execution, dependency changes, or lockfile updates. If `bun` is not on `PATH`, use the local Bun binary (for example `~/.bun/bin/bun`).
+
+### Primary Verification Workflows
+
+- **`bun run test:fast`**
+  - **Purpose**: Runs fast unit tests on core contracts, helpers, and electron business logic.
+  - **Command**: `bun test src/contracts src/lib src/electron/engineering --timeout 60000`
+  - **Audience**: Normal contributors run this locally during rapid feature development iteration.
+
+- **`bun run verify`**
+  - **Purpose**: Comprehensive workspace verification (lint, typecheck, package config check, legacy terms check, bundle purity checks, and running all tests).
+  - **Command**: `bun run lint && bun run typecheck && bun run test:all && bun run verify:package-config && bun run verify:legacy-terms && bun run verify:bundle-purity`
+  - **Audience**: Executed automatically on PR validation / CI, and must be run locally before committing PRs.
+
+- **`bun run verify:release`**
+  - **Purpose**: Full release qualification (runs `verify`, packages the app locally, verifies the packaged bundle's ASAR integrity, and executes packaged E2E test runs).
+  - **Command**: `bun run verify && bun run package && bun run scripts/release/verify-bundle-purity.ts --require-asar && bun run scripts/release/run-packaged-e2e.ts`
+  - **Audience**: Release maintainers before publishing new versions.
+
+### Reference Scripts
 
 ```bash
 bun install          # install deps from bun.lock
@@ -72,15 +108,21 @@ bun run typecheck    # tsc --noEmit
 bun run package      # local packaged build
 bun run make         # distributables via Electron Forge
 bun run publish      # Electron Forge publish; release workflow only
+bun run test         # bun test src
+bun run test:all     # bun test src qa
+bun run test:qa      # bun test qa
 ```
 
-Always run `bun run lint && bun run typecheck` before opening a PR.
+**Quality & CI Rules:**
+
+- Never increase global timeouts or reduce fixtures only to satisfy a slow CI host.
+- Platform-specific accommodations must remain inside that platform’s QA layer.
 
 ***
 
 ## Coding Style & Naming Conventions
 
-- **TypeScript** with React 19, Electron 41, Tailwind CSS v4.
+- **TypeScript** with React 19.2.7, Electron 43.1.0, Tailwind CSS v4 (specifically 4.3.2). All versions must match `package.json` exactly.
 - **Tailwind CSS v4 Themes**: Use pure CSS `@import` to modularize themes in `src/styles/themes/`. Always register custom variants via `@custom-variant` in `index.css` to avoid Vite transformation errors.
 - Renderer files: double quotes, trailing commas.
 - Main-process files: single quotes.
@@ -91,9 +133,9 @@ Always run `bun run lint && bun run typecheck` before opening a PR.
 
 ## Testing Guidelines
 
-- No dedicated `test` script yet.
-- Tests colocated as `*.test.ts` / `*.test.tsx` next to the file they cover.
-- New tests: unit coverage for UI logic, stores, and helpers.
+- Tests belong under `tests/`.
+- Packaged, platform, migration, and performance qualification belongs under `qa/`.
+- New tests: unit coverage for UI logic, stores, and helpers under `tests/`.
 - Minimum: lint + typecheck on every change.
 
 ***
@@ -179,15 +221,28 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - Optimize: security first, then responsiveness and low overhead.
 - Avoid platform regressions on macOS x86/ARM and Windows 10+.
 
+***
+
 ## Compliance & Attestations
 
-- Every completed agent run may create local compliance artifacts under `.matex/evidence/<taskId>/`.
+- Every completed agent run may create local compliance artifacts under `.mate-x/evidence/<taskId>/`.
 - Evidence Pack attestations use in-toto Statement v1 with SLSA provenance predicates and local Ed25519 signing keys.
-- Agent Run Identity is local-first and persisted under `.matex/config/agent-identity.json`; never send it to Rainy API or any report sink without explicit user consent.
+- Agent Run Identity is local-first and persisted under `.mate-x/config/agent-identity.json`; never send it to Rainy API or any report sink without explicit user consent.
 - Evidence Packs, attestations, compliance ZIPs, manifests, and Agent Runbooks must include `agentIdentity` when available.
 - Compliance ZIPs must include `evidence-pack.json`, `attestation.intoto.json`, `compliance-report.pdf`, `audit-log.json`, `policy-applied.md`, `agent-runbook.json`, `agent-runbook.md`, and `manifest.json`.
 - Privacy Firewall gates signing trust. Never sign or export sensitive raw secret payloads as trusted evidence.
 - Policy hashes must derive from relevant local policy sources such as `AGENTS.md` and `RULES.md`; keep hashes stable and deterministic.
+
+***
+
+## Architecture Constraints & Governance
+
+- **System Scope**: MaTE X is not an IDE and must expose no user-facing modes.
+- **Workflow Authority**: `EngineeringTask` is the canonical workflow authority.
+- **Spec & Git Constraints**: No prompt-as-spec, regex stage authority, renderer Git authorization, or model-generated evidence.
+- **Self-Correction Policy**: `AGENTS.md` must be updated whenever architecture, test layout, platform policy, release commands, or canonical namespaces change.
+
+***
 
 ## Skill routing
 
