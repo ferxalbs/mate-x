@@ -50,7 +50,7 @@ export function ComposerDock({
   return (
     <div
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] pointer-events-none px-4 pb-3 sm:px-8",
+        "pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] sm:px-8 md:left-(--sidebar-width)",
       )}
       data-testid="composer-dock"
     >
