@@ -54,8 +54,9 @@ export function MessageStream({
 
   return (
     <MessageScrollerViewport className={cn(
-      "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9",
-      settings.blurEnabled ? "pb-[200px]" : "pb-6"
+      // Bottom inset tracks actual composer dock height (see ComposerDock CSS var).
+      // Never couple scroll padding to blurEnabled — founder incident fix.
+      "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,220px)]",
     )}>
       <MessageScrollerContent
         className={cn(
@@ -453,12 +454,25 @@ function isInlineTraceEvent(event: ToolEvent) {
 
 
 
+function isTechnicalDiagnosticDetail(detail: string | null | undefined): boolean {
+  if (!detail) return false;
+  const trimmed = detail.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return true;
+  if (/WorkPlan|workPlanId|"stages"|"verdict"/i.test(trimmed)) return true;
+  return false;
+}
+
 function CompactInlineTrace({ event }: { event: ToolEvent }) {
-  const [expanded, setExpanded] = useState(
-    event.status === "error" && !isMissingInternalToolEvent(event),
-  );
-  const summary = summarizeInlineTraceEvent(event);
   const rawDetail = getUserFacingTraceDetail(event);
+  const isDiagnostic = isTechnicalDiagnosticDetail(rawDetail);
+  // Diagnostic JSON stays collapsed under Technical details — never dominates UX.
+  const [expanded, setExpanded] = useState(
+    !isDiagnostic &&
+      event.status === "error" &&
+      !isMissingInternalToolEvent(event),
+  );
+  const [techOpen, setTechOpen] = useState(false);
+  const summary = summarizeInlineTraceEvent(event);
   const detail = tryPrettyJson(rawDetail) ?? rawDetail;
 
   return (
@@ -477,9 +491,26 @@ function CompactInlineTrace({ event }: { event: ToolEvent }) {
         <span className="truncate">{summary}</span>
       </button>
       {expanded && detail ? (
-        <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-[var(--mate-control-bg)] px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78 backdrop-blur-md">
-          {detail}
-        </div>
+        isDiagnostic ? (
+          <div className="ml-6 mt-1">
+            <button
+              type="button"
+              className="text-[11px] text-muted-foreground/70 underline-offset-2 hover:underline"
+              onClick={() => setTechOpen((v) => !v)}
+            >
+              {techOpen ? "Hide technical details" : "Technical details"}
+            </button>
+            {techOpen ? (
+              <div className="mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-[var(--mate-control-bg)] px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78 backdrop-blur-md">
+                {detail}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] ml-6 mt-1 max-w-[760px] whitespace-pre-wrap rounded-md border border-border/35 bg-[var(--mate-control-bg)] px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground/78 backdrop-blur-md">
+            {detail}
+          </div>
+        )
       ) : null}
     </div>
   );
@@ -490,7 +521,9 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
   const failed = events.some((event) => event.status === "error");
   const missingInternalOnly =
     failed && events.every((event) => event.status !== "error" || isMissingInternalToolEvent(event));
-  const [expanded, setExpanded] = useState(failed && !missingInternalOnly);
+  // Keep groups collapsed by default so diagnostic noise does not dominate.
+  const [expanded, setExpanded] = useState(false);
+  void missingInternalOnly;
   const label =
     events.length === 1
       ? summarizeInlineTraceEvent(events[0])

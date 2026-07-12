@@ -81,28 +81,41 @@ export function finalizeWorkRun(input: {
   toolExecutions: ToolExecutionRecord[];
   content: string;
   evidenceAttached: boolean;
+  /** Planning / pre-approval: do not apply final-result preparatory rejection or hard validation. */
+  planningPhase?: boolean;
 }): WorkEngineFinalization {
   const warnings: string[] = [];
+  const planningPhase = Boolean(input.planningPhase);
   const securityProofLedger = buildSecurityProofLedger(input.toolExecutions);
   const confirmedSecurityClaims = extractConfirmedSecurityClaims(input.content);
   const unmatchedSecurityClaims = confirmedSecurityClaims.filter(
     (claim) => !claimMatchesSecurityProofLedger(claim, securityProofLedger),
   );
-  const rawMissingRequired = requiredStages(input.workPlan, input.stages)
-    .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
+  const rawMissingRequired = planningPhase
+    ? []
+    : requiredStages(input.workPlan, input.stages)
+        .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
   const missingRequired = rawMissingRequired.filter(
     (stageId) => stageId !== "security_proof_checked" || unmatchedSecurityClaims.length > 0,
   );
   const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
-  const failedValidationHardBlocker = shouldFailedValidationBlock({
-    workPlan: input.workPlan,
-    stages: input.stages,
-    failedValidation,
-  });
-  const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
+  const failedValidationHardBlocker = planningPhase
+    ? false
+    : shouldFailedValidationBlock({
+        workPlan: input.workPlan,
+        stages: input.stages,
+        failedValidation,
+      });
+  const fallbackMissing = planningPhase
+    ? false
+    : fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
   const blocked = input.stages.some((stage) => stage.status === "blocked");
-  const preparatoryOnly = isPreparatoryOnly(input.content);
-  const missingRuntimeEvidence = requiresRuntimeEvidence(input.workPlan) && input.toolExecutions.length === 0;
+  // Preparatory-text rejection only applies to final execution results, never planning phases.
+  const preparatoryOnly = planningPhase ? false : isPreparatoryOnly(input.content);
+  const missingRuntimeEvidence =
+    !planningPhase &&
+    requiresRuntimeEvidence(input.workPlan) &&
+    input.toolExecutions.length === 0;
   const privacyPlaceholderMisuse = misusesPrivacySentinelPlaceholder(input.content);
 
   if (missingRequired.includes("validation_executed")) {
@@ -138,6 +151,9 @@ export function finalizeWorkRun(input: {
   }
   if (preparatoryOnly) {
     warnings.push("Assistant returned a progress plan instead of a final repo-grounded answer.");
+  }
+  if (planningPhase) {
+    warnings.push("Planning phase: patch/test evidence is not_applicable_for_phase until after approval.");
   }
   if (missingRuntimeEvidence) {
     warnings.push("No repository tool evidence was captured for a tool-backed security workflow.");
@@ -346,6 +362,7 @@ function compactStages(stages: Array<WorkStageId | null>): WorkStageId[] {
 function stagePassedOrSkipped(stages: WorkStage[], id: WorkStageId) {
   const stage = stages.find((item) => item.id === id);
   if (!stage) return false;
+  if (stage.status === "not_applicable_for_phase") return true;
   if (stage.status !== "passed" && stage.status !== "skipped") return false;
   if (stage.source === "model_claim" && hardRuntimeStages().has(id)) return false;
   return true;

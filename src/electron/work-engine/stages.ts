@@ -16,8 +16,15 @@ export type WorkStageId =
   | "privacy_preflight_passed"
   | "evidence_attached";
 
-export type WorkStageStatus = "pending" | "passed" | "skipped" | "failed" | "blocked";
-export type WorkStageSource = "runtime" | "deterministic" | "model_claim";
+export type WorkStageStatus =
+  | "pending"
+  | "passed"
+  | "skipped"
+  | "failed"
+  | "blocked"
+  /** Pre-execution: patch/validation evidence is not required for this phase. */
+  | "not_applicable_for_phase";
+export type WorkStageSource = "runtime" | "deterministic" | "model_claim" | "phase";
 
 export interface WorkStage {
   id: WorkStageId;
@@ -67,23 +74,52 @@ export function deriveWorkStages(input: {
   privacyBlocked: boolean;
   evidenceAttached: boolean;
   noPatchNeeded: boolean;
+  /** When true, patch/validation stages are N/A — not skipped/waived/failed. */
+  planningPhase?: boolean;
 }): WorkStage[] {
   const stages = createInitialWorkStages();
   pass(stages, "context_compiled", "deterministic", "WorkPlan and working set compiled.", ["step-work-engine", "step-working-set"]);
 
   const toolNames = new Set(input.toolExecutions.map((execution) => execution.toolName));
   const eventIdsByTool = buildEventIdsByTool(input.events);
+  const planningPhase = Boolean(input.planningPhase);
 
   if (hasAny(toolNames, FILE_INSPECTION_TOOLS) || input.workPlan.workingSet.primaryFiles.length > 0) {
     pass(stages, "files_inspected", "runtime", "Relevant file context exists from working set or inspection tool.", idsFor(eventIdsByTool, FILE_INSPECTION_TOOLS));
   }
 
-  if (hasAny(toolNames, PATCH_TOOLS)) {
+  if (planningPhase) {
+    set(
+      stages,
+      "patch_attempted",
+      "not_applicable_for_phase",
+      "phase",
+      "Patch evidence is not applicable before plan approval.",
+      [],
+    );
+    set(
+      stages,
+      "validation_planned",
+      "not_applicable_for_phase",
+      "phase",
+      "Validation planning is not applicable before execution.",
+      [],
+    );
+    set(
+      stages,
+      "validation_executed",
+      "not_applicable_for_phase",
+      "phase",
+      "Validation execution is not applicable before execution.",
+      [],
+    );
+  } else if (hasAny(toolNames, PATCH_TOOLS)) {
     pass(stages, "patch_attempted", "runtime", "Patch/edit tool ran.", idsFor(eventIdsByTool, PATCH_TOOLS));
   } else if (input.noPatchNeeded) {
     skip(stages, "patch_attempted", "deterministic", "Run explicitly concluded no patch was needed.");
   }
 
+  if (!planningPhase) {
   if (hasAny(toolNames, VALIDATION_PLAN_TOOLS)) {
     pass(stages, "validation_planned", "runtime", "Validation plan tool ran.", idsFor(eventIdsByTool, VALIDATION_PLAN_TOOLS));
   } else if (!input.workPlan.validationPlan.required) {
@@ -99,6 +135,7 @@ export function deriveWorkStages(input: {
     skip(stages, "validation_executed", "deterministic", "Validation not required for this WorkPlan.");
   } else if (input.privacyBlocked) {
     block(stages, "validation_executed", "deterministic", "Cloud context was blocked before validation orchestration.");
+  }
   }
 
   if (hasAny(toolNames, FAILURE_MEMORY_TOOLS) || input.workPlan.workingSet.knownFailures.length > 0) {

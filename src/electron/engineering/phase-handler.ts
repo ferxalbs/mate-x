@@ -114,23 +114,13 @@ export function createPhaseHandler(repo: EngineeringRepository): PhaseHandler {
             ? bundle.specifications.get(task.activeSpecificationVersion)
             : undefined;
         if (!spec) {
+          // Draft from seed only — do not inject meaningless critical questions.
+          // Clarification is conditional: open questions must already exist on the draft
+          // or arrive via ApplyPhaseResult(clarification_required) artifacts.
           spec = draftSpecificationFromSeed({
             objectiveSeed: task.objectiveSeed,
             verifyOnly: task.pathKind === 'verify_only',
           });
-          // seed a critical question so clarification is meaningful when empty
-          if (spec.unresolvedQuestions.length === 0) {
-            spec = {
-              ...spec,
-              unresolvedQuestions: [
-                {
-                  id: 'q1',
-                  question: 'Confirm primary success criterion for this objective',
-                  critical: true,
-                },
-              ],
-            };
-          }
         }
         const decisions = buildInitialDecisionQueue(spec);
         task.activeSpecificationVersion = spec.version;

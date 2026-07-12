@@ -61,6 +61,8 @@ export async function requestRainyChatAgenticResponse({
   runId,
   serviceTier,
   signal,
+  engineeringTaskStatus,
+  planningPhase,
 }: {
   apiKey: string;
   history: string[];
@@ -78,6 +80,8 @@ export async function requestRainyChatAgenticResponse({
   runId: string;
   serviceTier?: AssistantRunOptions["serviceTier"];
   signal?: AbortSignal;
+  engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
+  planningPhase?: boolean;
 }): Promise<{
   toolExecutions: ToolExecutionRecord[];
   content: string;
@@ -258,7 +262,10 @@ export async function requestRainyChatAgenticResponse({
     }
 
     if (!toolCalls || toolCalls.length === 0) {
+      // Planning / pre-approval phases may legitimately return specification and plan text.
+      // Do not reject preparatory prose in those phases (final execution still rejects it).
       if (
+        !planningPhase &&
         isPreparatoryAssistantText(responseText) &&
         iterations < runtime.maxIterations &&
         totalToolCalls < runtime.maxToolCalls
@@ -419,6 +426,7 @@ export async function requestRainyChatAgenticResponse({
           emitProgress,
           appSettings,
           runId,
+          engineeringTaskStatus,
         }),
     );
 

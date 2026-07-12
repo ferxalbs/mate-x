@@ -85,6 +85,29 @@ export async function runAssistant(
     gitStatus: snapshot.statusLines,
     workingSet,
   });
+  // EngineeringTask is sole workflow authority when linked.
+  let engineeringTaskStatus: import("../contracts/engineering-task").EngineeringTaskStatus | null =
+    null;
+  if (resolvedOptions.engineeringTaskId) {
+    try {
+      const { getEngineeringCommandBus } = await import("./engineering/command-bus");
+      const { createPhaseHandler } = await import("./engineering/phase-handler");
+      const { getEngineeringRepository } = await import("./engineering/repository");
+      const repo = getEngineeringRepository();
+      const bus = getEngineeringCommandBus();
+      bus.setPhaseHandler(createPhaseHandler(repo));
+      const task = bus.getTask(resolvedOptions.engineeringTaskId);
+      engineeringTaskStatus = task?.status ?? null;
+      workPlan.engineeringTaskId = resolvedOptions.engineeringTaskId;
+      workPlan.lifecyclePhase = engineeringTaskStatus;
+    } catch {
+      engineeringTaskStatus = null;
+    }
+  }
+  const { isPreApprovalStatus } = await import("../contracts/engineering-phase-result");
+  const planningPhase = Boolean(
+    engineeringTaskStatus && isPreApprovalStatus(engineeringTaskStatus),
+  );
   const runbookDefinition = resolveRunbookDefinition(
     resolvedOptions.runbookId ?? toAssistantRunbookId(workPlan.runbook),
   );
@@ -251,6 +274,7 @@ export async function runAssistant(
       emitProgress,
       appSettings,
       runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+      engineeringTaskStatus,
     });
 
     content = result.content;
@@ -280,6 +304,7 @@ export async function runAssistant(
       emitProgress,
       appSettings,
       runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+      engineeringTaskStatus,
     });
 
     content = result.content;
@@ -355,6 +380,8 @@ export async function runAssistant(
         appSettings,
         runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
         signal: progressReporter?.signal,
+        engineeringTaskStatus,
+        planningPhase,
       });
       thought =
         "thought" in result && typeof result.thought === "string"
@@ -398,9 +425,11 @@ export async function runAssistant(
     emitProgress();
   }
 
-  const validationGate = evaluateValidationGate(workPlan, toolExecutions, content);
+  const validationGate = evaluateValidationGate(workPlan, toolExecutions, content, {
+    planningPhase,
+  });
   content = appendValidationGateWarning(content, validationGate);
-  if (shouldEmitPreventiveWarning(workPlan, toolExecutions)) {
+  if (!planningPhase && shouldEmitPreventiveWarning(workPlan, toolExecutions)) {
     events.push({
       id: "step-preventive-guard-warning",
       label: "Preventive Guard warning",
@@ -416,6 +445,7 @@ export async function runAssistant(
     privacyBlocked: privacyPreflight?.status === "blocked",
     evidenceAttached: false,
     noPatchNeeded,
+    planningPhase,
   });
   const finalWorkPlanMetadata = buildWorkPlanMetadata(
     workPlan,
@@ -425,7 +455,12 @@ export async function runAssistant(
   events.push({
     id: "step-work-engine-final",
     label: "WorkPlan final gate",
-    detail: JSON.stringify({ ...finalWorkPlanMetadata, stages: workStages }),
+    detail: JSON.stringify({
+      ...finalWorkPlanMetadata,
+      stages: workStages,
+      planningPhase,
+      engineeringTaskId: resolvedOptions.engineeringTaskId ?? null,
+    }),
     status: validationGate.allowed ? "done" : "error",
   });
 
@@ -479,6 +514,7 @@ export async function runAssistant(
     privacyBlocked: privacyPreflight?.status === "blocked",
     evidenceAttached: true,
     noPatchNeeded,
+    planningPhase,
   });
   const evidenceFinalization = finalizeWorkRun({
     workPlan,
@@ -486,13 +522,25 @@ export async function runAssistant(
     toolExecutions,
     content,
     evidenceAttached: true,
+    planningPhase,
   });
   content = evidenceFinalization.content;
   events.push({
     id: "step-work-engine-evidence",
     label: "WorkPlan evidence gate",
-    detail: JSON.stringify({ stages: evidenceStages, verdict: evidenceFinalization.verdict }),
-    status: ["blocked", "failed", "needs_validation", "needs_evidence"].includes(evidenceFinalization.verdict) ? "error" : "done",
+    detail: JSON.stringify({
+      stages: evidenceStages,
+      verdict: evidenceFinalization.verdict,
+      planningPhase,
+    }),
+    status:
+      planningPhase
+        ? "done"
+        : ["blocked", "failed", "needs_validation", "needs_evidence"].includes(
+              evidenceFinalization.verdict,
+            )
+          ? "error"
+          : "done",
   });
   const artifactResult = await persistWorkEngineRunArtifactSafely({
     appDataRoot: app.getPath("userData"),

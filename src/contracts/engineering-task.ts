@@ -204,6 +204,8 @@ export const ENGINEERING_COMMAND_TYPES = [
   "FailTask",
   "CancelTask",
   "ResumeTask",
+  /** Typed phase-result apply — artifact-validated; never prose-driven. */
+  "ApplyPhaseResult",
 ] as const;
 
 export type EngineeringCommandType = (typeof ENGINEERING_COMMAND_TYPES)[number];
