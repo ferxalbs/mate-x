@@ -6,9 +6,9 @@ MaTE X v0.1.2 introduces a major redesign of the engineering workflow, focused o
 
 This release establishes **EngineeringTask** as the canonical workflow authority and replaces fragmented internal flows with one unified system for intent, execution, validation, evidence, and Git safety.
 
-## Highlights
+### Highlights
 
-### Native engineering workflow
+#### Native engineering workflow
 
 MaTE X now maintains a persistent engineering task across the complete lifecycle:
 
@@ -16,7 +16,7 @@ MaTE X now maintains a persistent engineering task across the complete lifecycle
 
 Specifications and plans remain available internally without forcing users to manage unnecessary workflow ceremony.
 
-### Behavior modes
+#### Behavior modes
 
 MaTE X now supports four autonomy profiles:
 
@@ -27,7 +27,7 @@ MaTE X now supports four autonomy profiles:
 
 Auto mode uses **scoped autonomy** and never grants unrestricted system access.
 
-### Conversational product experience
+#### Conversational product experience
 
 * Removed the large persistent workflow card.
 * Added compact task details and inline activity.
@@ -36,7 +36,7 @@ Auto mode uses **scoped autonomy** and never grants unrestricted system access.
 * Removed dead and contradictory workflow actions.
 * Technical evidence remains available without dominating the conversation.
 
-### Trust and Git protection
+#### Trust and Git protection
 
 * Git commit and push are protected by the main-process GitGate.
 * Stale repository state invalidates previous proof.
@@ -45,21 +45,21 @@ Auto mode uses **scoped autonomy** and never grants unrestricted system access.
 * Writes outside the active workspace require explicit approval.
 * Dependency installation and destructive actions remain gated.
 
-### Validation and evidence
+#### Validation and evidence
 
 * Typed validation records replace prose-based completion claims.
 * Evidence is linked to the active repository state.
 * Coverage convergence detects incomplete requirements, tasks, and validation.
 * Ship Proof summarizes what changed, what was validated, and what remains unproven.
 
-### Persistence and recovery
+#### Persistence and recovery
 
 * Engineering tasks are stored durably using libSQL.
 * Tasks can be restored after restarting MaTE X.
 * Approvals, workflow state, validation, and evidence remain associated with the same task.
 * Legacy v0.1.1 state is migrated into the new canonical system.
 
-### Production hardening
+#### Production hardening
 
 * Removed embedded self-test and performance harnesses from the production runtime.
 * Moved QA and release qualification tooling outside `src/`.
