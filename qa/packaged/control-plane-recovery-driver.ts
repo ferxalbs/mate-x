@@ -1,15 +1,13 @@
 /**
- * Packaged application self-test driver (CLOSURE 3 / Agent 4 gates).
- * Enabled only when MATE_X_PACKAGED_SELF_TEST=1 AND not a release build.
- * Impossible to enable in release packages (negative test required).
+ * External control-plane recovery driver (QA only — not packaged).
  *
- * Production path: EngineeringCommandBus + LibSQL — same control plane as
- * engineering:dispatch IPC (see ipc-handlers.ts).
+ * Runs against EngineeringCommandBus + LibSQL using the same domain modules as
+ * production, but never loads inside the release main process or app.asar.
  *
- * Phases for real process relaunch (driver launches binary twice):
- * - create: init libSQL, optional BrowserWindow/preload, CaptureTask, exit
- * - recover: reopen same userData, recover task, mutate fixture, GitGate deny
- * - full: in-process create+reopen (unit tests / bun harness without binary)
+ * Phases:
+ * - create: durable CaptureTask into isolated userData/fixture repo
+ * - recover: reopen same DB, assert recovery, GitGate deny without proof
+ * - full: create + recover in-process (CI/unit path)
  */
 
 import { createHash } from 'node:crypto';
@@ -17,18 +15,18 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { resetEngineeringCommandBusForTests } from './command-bus';
-import { createPhaseHandler } from './phase-handler';
-import { evaluateGitGate } from './git-gate';
-import { hashDiffPayload } from './freshness-anchors';
-import { ensureDefaultPolicyPack } from './policy-pack';
+import { resetEngineeringCommandBusForTests } from '../../src/electron/engineering/command-bus';
+import { createPhaseHandler } from '../../src/electron/engineering/phase-handler';
+import { evaluateGitGate } from '../../src/electron/engineering/git-gate';
+import { hashDiffPayload } from '../../src/electron/engineering/freshness-anchors';
+import { ensureDefaultPolicyPack } from '../../src/electron/engineering/policy-pack';
 import {
   initDurableEngineeringRepository,
   getEngineeringRepository,
   LibSqlEngineeringRepository,
   setEngineeringRepository,
   clearEngineeringRepositoryForTests,
-} from './repository';
+} from '../../src/electron/engineering/repository';
 
 export type PackagedSelfTestPhase = 'create' | 'recover' | 'full';
 
