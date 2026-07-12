@@ -74,7 +74,8 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/windows artifacts/packaged-e2e
           # Critical control-plane / migration / adapter coverage
-          bun test \
+          # 60s timeout: Windows libsql file-lock reopen can exceed default 5s
+          bun test --timeout 60000 \
             qa/packaged/control-plane-recovery-driver.test.ts \
             src/electron/engineering/migration/migrate-v011.test.ts \
             src/electron/engineering/libsql-repository.test.ts \
