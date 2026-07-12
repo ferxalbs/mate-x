@@ -73,8 +73,8 @@ export async function initStack(): Promise<void> {
     workspaceId: 'default',
     storage: {
       // Use app-scoped userData for the internal MaTeX SDK storage bucket / EvidencePackStorage
-      // adapter (the '.matex/evidence' tree). This was previously resolve(process.cwd(), ...),
-      // which caused .matex folders (and evidence artifacts) to be created inside the mate-x
+      // adapter (the '.mate-x/evidence' tree). This was previously resolve(process.cwd(), ...),
+      // which caused .mate-x folders (and evidence artifacts) to be created inside the mate-x
       // source repo (dev) or the packaged app launch/install dir (prod) instead of being
       // isolated to the app and the *target* workspace's .mate-x/evidence for compliance packs.
       // The portable per-workspace evidence still lives under the user-selected workspacePath
