@@ -23,10 +23,17 @@ import type {
 } from "../../../contracts/chat";
 import { formatTimestamp } from "../../../lib/time";
 import { cn } from "../../../lib/utils";
-import { MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem } from "../../../components/ui/message-scroller";
+import {
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+} from "../../../components/ui/message-scroller";
 import { ChatMarkdown } from "./chat-markdown";
 import { useChatStore } from "../../../store/chat-store";
-import { ambientSafetyActions, type AmbientSafetyAction } from "./ambient-safety-actions";
+import {
+  ambientSafetyActions,
+  type AmbientSafetyAction,
+} from "./ambient-safety-actions";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -53,11 +60,13 @@ export function MessageStream({
     isRunning && messages.at(-1)?.role === "assistant";
 
   return (
-    <MessageScrollerViewport className={cn(
-      // Bottom inset tracks actual composer dock height (see ComposerDock CSS var).
-      // Never couple scroll padding to blurEnabled — founder incident fix.
-      "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,148px)]",
-    )}>
+    <MessageScrollerViewport
+      className={cn(
+        // Bottom inset tracks actual composer dock height (see ComposerDock CSS var).
+        // Never couple scroll padding to blurEnabled — founder incident fix.
+        "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,148px)]",
+      )}
+    >
       <MessageScrollerContent
         className={cn(
           "mx-auto flex w-full flex-col transition-all duration-300",
@@ -182,7 +191,9 @@ const MessageEntry = memo(function MessageEntry({
   }
 
   const normalizedContent = deferredContent.trim();
-  const showAmbientActions = normalizedContent.includes("Repo note: changes need a safety check before commit.");
+  const showAmbientActions = normalizedContent.includes(
+    "Repo note: changes need a safety check before commit.",
+  );
   const actionDisabled = isRunning || pendingAction !== null;
 
   async function submitAmbientAction(action: AmbientSafetyAction) {
@@ -224,18 +235,26 @@ const MessageEntry = memo(function MessageEntry({
             <button
               className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={actionDisabled}
-              onClick={() => void submitAmbientAction(ambientSafetyActions.runSafetyCheck)}
+              onClick={() =>
+                void submitAmbientAction(ambientSafetyActions.runSafetyCheck)
+              }
               type="button"
             >
-              {pendingAction === ambientSafetyActions.runSafetyCheck.id ? "Starting..." : ambientSafetyActions.runSafetyCheck.label}
+              {pendingAction === ambientSafetyActions.runSafetyCheck.id
+                ? "Starting..."
+                : ambientSafetyActions.runSafetyCheck.label}
             </button>
             <button
               className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={actionDisabled}
-              onClick={() => void submitAmbientAction(ambientSafetyActions.reviewChanges)}
+              onClick={() =>
+                void submitAmbientAction(ambientSafetyActions.reviewChanges)
+              }
               type="button"
             >
-              {pendingAction === ambientSafetyActions.reviewChanges.id ? "Starting..." : ambientSafetyActions.reviewChanges.label}
+              {pendingAction === ambientSafetyActions.reviewChanges.id
+                ? "Starting..."
+                : ambientSafetyActions.reviewChanges.label}
             </button>
           </div>
         ) : null}
@@ -432,7 +451,6 @@ function ResultFallback() {
   );
 }
 
-
 function isInlineTraceEvent(event: ToolEvent) {
   const label = event.label.toLowerCase();
 
@@ -451,9 +469,9 @@ function isInlineTraceEvent(event: ToolEvent) {
   return label.startsWith("executing ") || event.status === "error";
 }
 
-
-
-function isTechnicalDiagnosticDetail(detail: string | null | undefined): boolean {
+function isTechnicalDiagnosticDetail(
+  detail: string | null | undefined,
+): boolean {
   if (!detail) return false;
   const trimmed = detail.trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) return true;
@@ -519,7 +537,10 @@ function InlineTraceGroup({ events }: { events: ToolEvent[] }) {
   const active = events.some((event) => event.status === "active");
   const failed = events.some((event) => event.status === "error");
   const missingInternalOnly =
-    failed && events.every((event) => event.status !== "error" || isMissingInternalToolEvent(event));
+    failed &&
+    events.every(
+      (event) => event.status !== "error" || isMissingInternalToolEvent(event),
+    );
   // Keep groups collapsed by default so diagnostic noise does not dominate.
   const [expanded, setExpanded] = useState(false);
   void missingInternalOnly;
@@ -607,7 +628,9 @@ function getUserFacingTraceDetail(event: ToolEvent) {
 }
 
 function isMissingInternalToolEvent(event: ToolEvent) {
-  return event.status === "error" && /Tool\s+"[^"]+"\s+not found/i.test(event.detail);
+  return (
+    event.status === "error" && /Tool\s+"[^"]+"\s+not found/i.test(event.detail)
+  );
 }
 
 function missingInternalToolName(event: ToolEvent) {
@@ -648,7 +671,6 @@ function tryPrettyJson(raw: string): string | null {
   }
 }
 
-
 function extractCommandFromEvent(event: ToolEvent) {
   if (!event.label.startsWith("Executing ")) {
     return null;
@@ -674,7 +696,6 @@ function cleanTraceText(value: string) {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 
 function MessageActionButton({
   ariaLabel,
@@ -749,7 +770,9 @@ function ThinkingRow({
         ) : (
           <ChevronRightIcon className="size-3.5" />
         )}
-        {isStreaming && hasErrorEvent ? "Recovering after tool error" : "Thinking process"}
+        {isStreaming && hasErrorEvent
+          ? "Recovering after tool error"
+          : "Thinking process"}
       </button>
       {expanded ? (
         <p className="max-w-[820px] whitespace-pre-wrap pl-6 text-[12px] leading-5 text-muted-foreground/80">
