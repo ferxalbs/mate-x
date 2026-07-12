@@ -23,7 +23,7 @@ import type {
 } from "../../../contracts/chat";
 import { formatTimestamp } from "../../../lib/time";
 import { cn } from "../../../lib/utils";
-import { MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton } from "../../../components/ui/message-scroller";
+import { MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem } from "../../../components/ui/message-scroller";
 import { ChatMarkdown } from "./chat-markdown";
 import { useChatStore } from "../../../store/chat-store";
 import { ambientSafetyActions, type AmbientSafetyAction } from "./ambient-safety-actions";
@@ -95,7 +95,6 @@ export function MessageStream({
           </MessageScrollerItem>
         ) : null}
       </MessageScrollerContent>
-      <MessageScrollerButton />
     </MessageScrollerViewport>
   );
 }
