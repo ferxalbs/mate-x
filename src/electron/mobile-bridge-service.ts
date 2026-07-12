@@ -4,6 +4,7 @@ import { networkInterfaces } from "node:os";
 import type { Socket } from "node:net";
 
 import type { AssistantRunOptions } from "../contracts/chat";
+import { validateAssistantRunOptions } from "../contracts/assistant-run-options";
 import {
   MOBILE_BRIDGE_COMMAND_TYPES,
   MOBILE_BRIDGE_PROTOCOL_VERSION,
@@ -369,25 +370,15 @@ class MobileBridgeService {
       pathKind: "full",
       access: "approval",
     };
-    if (!value || typeof value !== "object" || Array.isArray(value)) return defaults;
-    const input = value as Record<string, unknown>;
-    const residualMode = typeof input.mode === "string" ? input.mode : null;
-    const pathKind =
-      input.pathKind === "full" ||
-      input.pathKind === "verify_only" ||
-      input.pathKind === "chat_help"
-        ? input.pathKind
-        : residualMode === "ship" || residualMode === "review"
-          ? "verify_only"
-          : residualMode === "chat" || residualMode === "plan"
-            ? "chat_help"
-            : defaults.pathKind;
+    if (value === undefined || value === null) return defaults;
+    // Canonical IPC contract: fail closed on unknown/legacy fields (including mode).
+    const parsed = validateAssistantRunOptions(value);
+    if (!parsed) return defaults;
     return {
       ...defaults,
-      pathKind,
+      ...parsed,
+      // Mobile companion always runs under approval-required access.
       access: "approval",
-      reasoningEnabled: typeof input.reasoningEnabled === "boolean" ? input.reasoningEnabled : defaults.reasoningEnabled,
-      runbookId: typeof input.runbookId === "string" ? input.runbookId as AssistantRunOptions["runbookId"] : defaults.runbookId,
     };
   }
 

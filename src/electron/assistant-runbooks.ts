@@ -271,6 +271,8 @@ export function resolveAssistantRunOptions(
           : resolveRunbookId(options?.runbookId),
     attachments: options?.attachments?.map((attachment) => ({ ...attachment })) ?? [],
     engineeringTaskId: options?.engineeringTaskId ?? null,
+    // sdkAction is validated at the IPC boundary; preserve for orchestrator execution only.
+    ...(options?.sdkAction ? { sdkAction: options.sdkAction } : {}),
   };
 }
 

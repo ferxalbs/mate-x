@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { AssistantRunOptions, Conversation, EvidencePack } from "../contracts/chat";
+import { validateAssistantRunOptions } from "../contracts/assistant-run-options";
 import type {
   AgentFirewallDecision,
   AgentFirewallMode,
@@ -496,44 +497,6 @@ function validateAppSettings(settings: unknown): AppSettings {
   const record = assertPlainRecord(settings, "App settings");
   assertKnownKeys(record, APP_SETTING_KEYS, "App settings");
   return record as unknown as AppSettings;
-}
-
-function validateAssistantOptions(options: unknown): AssistantRunOptions | undefined {
-  if (options === undefined || options === null) return undefined;
-  const record = assertPlainRecord(options, "Assistant options");
-  assertKnownKeys(record, new Set([
-    "reasoningEnabled",
-    "reasoning",
-    "mode",
-    "access",
-    "serviceTier",
-    "runbookId",
-    "attachments",
-  ]), "Assistant options");
-
-  if (record.attachments !== undefined) {
-    if (!Array.isArray(record.attachments) || record.attachments.length > 12) {
-      throw new Error("Assistant attachments must contain at most 12 items.");
-    }
-    for (const [index, attachment] of record.attachments.entries()) {
-      const item = assertPlainRecord(attachment, `attachments[${index}]`);
-      assertKnownKeys(item, new Set(["id", "name", "mimeType", "size", "kind", "dataUrl", "text"]), `attachments[${index}]`);
-      requireBoundedString(item.id, `attachments[${index}].id`, 200);
-      requireBoundedString(item.name, `attachments[${index}].name`, 500);
-      requireBoundedString(item.mimeType, `attachments[${index}].mimeType`, 200);
-      optionalBoundedString(item.dataUrl, `attachments[${index}].dataUrl`, 10_000_000);
-      optionalBoundedString(item.text, `attachments[${index}].text`, MAX_IPC_TEXT_LENGTH);
-    }
-  }
-  if (
-    record.access !== undefined &&
-    record.access !== "approval" &&
-    record.access !== "full"
-  ) {
-    throw new Error('Assistant options access must be "approval" or "full".');
-  }
-
-  return record as unknown as AssistantRunOptions;
 }
 
 function validateEvidencePack(value: unknown): EvidencePack {
@@ -1112,7 +1075,7 @@ export function registerIpcHandlers() {
         // This + removal of cwd seeding + strict no-[0] fallback in resolveWorkspace ensures
         // evidence artifacts are always scoped to the user-selected target repo.
         optionalWorkspaceId(workspaceId),
-        validateAssistantOptions(options),
+        validateAssistantRunOptions(options),
         normalizedRunId
           ? {
               runId: normalizedRunId,
