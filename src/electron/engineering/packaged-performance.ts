@@ -1,6 +1,10 @@
 /**
  * Packaged application performance measurements (CLOSURE 5).
  * Does not record source content, prompts, API keys, credentials, raw evidence, or secrets.
+ *
+ * BrowserWindow ready-to-show / renderer interactive MUST come from real packaged
+ * Electron probes (MATE_X_PERF_PROBE_JSON from run-packaged-perf-probe.ts).
+ * Proxy-derived values are never labeled as final performance evidence.
  */
 
 import { createHash } from 'node:crypto';
@@ -30,6 +34,7 @@ export interface PackagedPerfMetric {
   budgetMs: number;
   pass: boolean;
   coldOrWarm: 'cold' | 'warm';
+  source: 'real-electron-probe' | 'durable-service-path' | 'proxy-not-final';
 }
 
 export interface PackagedPerfReport {
@@ -54,6 +59,8 @@ export interface PackagedPerfReport {
   };
   metrics: PackagedPerfMetric[];
   notes: string[];
+  realElectronProbes: boolean;
+  finalEvidence: boolean;
 }
 
 function percentile(samples: number[], p: number): number {
@@ -105,7 +112,6 @@ function makeFixture(root: string, fileCount: number): string {
     mkdirSync(sub, { recursive: true });
     writeFileSync(join(sub, `f-${i}.ts`), `export const n${i} = ${i};\n`, 'utf8');
   }
-  // init git for realistic workspace open
   try {
     execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
     execFileSync('git', ['config', 'user.email', 'perf@mate-x.local'], {
@@ -129,15 +135,16 @@ function makeFixture(root: string, fileCount: number): string {
 
 /**
  * Measure application-path latencies using durable DB + fixture repos.
- * For full Electron TTI (ready-to-show / renderer interactive), see
- * runPackagedElectronPerfProbe which records process-level timings when
- * launched from a packaged binary with MATE_X_PERF_PROBE=1.
+ * BrowserWindow timings only accepted from MATE_X_PERF_PROBE_JSON real samples.
  */
 export async function measurePackagedApplicationPerformance(input?: {
   sampleCount?: number;
   outPath?: string;
+  /** When true, refuse proxy BrowserWindow timings — require real probe JSON. */
+  requireRealElectronProbes?: boolean;
 }): Promise<PackagedPerfReport> {
   const n = input?.sampleCount ?? 15;
+  const requireReal = input?.requireRealElectronProbes === true;
   const root = mkdtempSync(join(tmpdir(), 'mate-x-perf-app-'));
   const smallDir = makeFixture(join(root, 'small'), 12);
   const largeDir = makeFixture(join(root, 'large'), 400);
@@ -150,7 +157,6 @@ export async function measurePackagedApplicationPerformance(input?: {
 
   const afterStartupMb = mem('startup');
 
-  // Workspace open (small / large) — simulate via fixture stat + git rev-parse
   const openWorkspace = (dir: string) => {
     fixtureStats(dir);
     try {
@@ -174,7 +180,6 @@ export async function measurePackagedApplicationPerformance(input?: {
 
   const afterWorkspaceOpenMb = mem('workspace');
 
-  // Engineering task full cycle (durable) — Capture + freeze path
   const repo = LibSqlEngineeringRepository.open(dbPath);
   const bus = new EngineeringCommandBus(repo);
   bus.setPhaseHandler(createPhaseHandler(repo));
@@ -194,19 +199,21 @@ export async function measurePackagedApplicationPerformance(input?: {
       workspaceId: 'ws_perf_app',
       actor: { kind: 'human', userId: 'perf' },
     });
-    // list tasks = persisted task visible
     repo.listTasks('ws_perf_app');
     repo.getTask(id);
   }, n);
 
-  // Persisted task visibility reload
   const reloadSamples = await collectSamples(() => {
     repo.listTasks('ws_perf_app');
   }, n);
 
+  const taskVisibleSamples = await collectSamples(() => {
+    const tasks = repo.listTasks('ws_perf_app');
+    if (tasks[0]) repo.getTask(tasks[0]!.engineeringTaskId);
+  }, n);
+
   const afterEngineeringCycleMb = mem('cycle');
 
-  // Simulated cold process start proxy: open new DB connection
   const coldStartSamples = await collectSamples(() => {
     const p = join(root, `cold-${Math.random().toString(16).slice(2)}.db`);
     const r = LibSqlEngineeringRepository.open(p);
@@ -214,32 +221,78 @@ export async function measurePackagedApplicationPerformance(input?: {
     r.close?.();
   }, Math.min(n, 10));
 
-  // ready-to-show / renderer interactive proxies for service-level packaging
-  // True BrowserWindow timings recorded only under MATE_X_PERF_PROBE in main.
-  const probeEnv = process.env.MATE_X_PERF_PROBE_JSON;
-  let coldProcessStart = coldStartSamples;
-  let readyToShow = coldStartSamples.map((s) => s * 1.5);
-  let rendererInteractive = coldStartSamples.map((s) => s * 2.2);
   const notes: string[] = [
     'Service-path measurements for durable stack + workspace fixtures.',
-    'BrowserWindow ready-to-show / renderer interactive filled from MATE_X_PERF_PROBE_JSON when present.',
     'No prompts, secrets, source content, or credentials recorded.',
   ];
+
+  const probeEnv = process.env.MATE_X_PERF_PROBE_JSON;
+  let coldProcessStart = coldStartSamples;
+  let readyToShow: number[] | null = null;
+  let rendererInteractive: number[] | null = null;
+  let persistedWorkspace = reloadSamples;
+  let persistedTask = taskVisibleSamples;
+  let realElectronProbes = false;
+  let readySource: PackagedPerfMetric['source'] = 'proxy-not-final';
+  let rendererSource: PackagedPerfMetric['source'] = 'proxy-not-final';
+  let coldSource: PackagedPerfMetric['source'] = 'durable-service-path';
+
   if (probeEnv) {
     try {
       const probe = JSON.parse(probeEnv) as {
         coldProcessStartMs?: number[];
         readyToShowMs?: number[];
         rendererInteractiveMs?: number[];
+        persistedWorkspaceVisibleMs?: number[];
+        persistedEngineeringTaskVisibleMs?: number[];
+        source?: string;
       };
-      if (probe.coldProcessStartMs?.length) coldProcessStart = probe.coldProcessStartMs;
-      if (probe.readyToShowMs?.length) readyToShow = probe.readyToShowMs;
-      if (probe.rendererInteractiveMs?.length)
+      if (probe.coldProcessStartMs?.length) {
+        coldProcessStart = probe.coldProcessStartMs;
+        coldSource = 'real-electron-probe';
+      }
+      if (probe.readyToShowMs?.length) {
+        readyToShow = probe.readyToShowMs;
+        readySource = 'real-electron-probe';
+        realElectronProbes = true;
+      }
+      if (probe.rendererInteractiveMs?.length) {
         rendererInteractive = probe.rendererInteractiveMs;
-      notes.push('Included packaged Electron probe timings from env.');
+        rendererSource = 'real-electron-probe';
+        realElectronProbes = true;
+      }
+      if (probe.persistedWorkspaceVisibleMs?.length) {
+        persistedWorkspace = probe.persistedWorkspaceVisibleMs;
+      }
+      if (probe.persistedEngineeringTaskVisibleMs?.length) {
+        persistedTask = probe.persistedEngineeringTaskVisibleMs;
+      }
+      if (probe.source === 'packaged-electron-probe' || realElectronProbes) {
+        notes.push('Included REAL packaged Electron probe timings (not proxies).');
+      } else {
+        notes.push('Included probe timings from env.');
+      }
     } catch {
       notes.push('MATE_X_PERF_PROBE_JSON present but invalid JSON — ignored.');
     }
+  }
+
+  if (requireReal && !realElectronProbes) {
+    throw new Error(
+      'Real Electron BrowserWindow probes required but MATE_X_PERF_PROBE_JSON missing readyToShowMs/rendererInteractiveMs',
+    );
+  }
+
+  if (!readyToShow || !rendererInteractive) {
+    // Do not fabricate final BrowserWindow evidence. Leave empty samples and mark not-final.
+    notes.push(
+      'BrowserWindow ready-to-show / renderer interactive NOT final — run scripts/run-packaged-perf-probe.ts against packaged binary.',
+    );
+    notes.push('Proxy values intentionally omitted (not labeled as final performance evidence).');
+    readyToShow = readyToShow ?? [];
+    rendererInteractive = rendererInteractive ?? [];
+    readySource = 'proxy-not-final';
+    rendererSource = 'proxy-not-final';
   }
 
   const metric = (
@@ -247,22 +300,25 @@ export async function measurePackagedApplicationPerformance(input?: {
     samples: number[],
     budgetMs: number,
     coldOrWarm: 'cold' | 'warm',
+    source: PackagedPerfMetric['source'],
   ): PackagedPerfMetric => {
-    const p50 = percentile(samples, 50);
-    const p95 = percentile(samples, 95);
+    const p50 = samples.length ? percentile(samples, 50) : 0;
+    const p95 = samples.length ? percentile(samples, 95) : 0;
     return {
       name,
       p50Ms: p50,
       p95Ms: p95,
       sampleCount: samples.length,
       budgetMs,
-      pass: p95 <= budgetMs,
+      pass: samples.length > 0 && p95 <= budgetMs,
       coldOrWarm,
+      source,
     };
   };
 
   const smallStats = fixtureStats(smallDir);
   const largeStats = fixtureStats(largeDir);
+  const finalEvidence = realElectronProbes && readyToShow.length > 0 && rendererInteractive.length > 0;
 
   const report: PackagedPerfReport = {
     host: {
@@ -293,16 +349,42 @@ export async function measurePackagedApplicationPerformance(input?: {
       afterEngineeringCycleMb,
     },
     metrics: [
-      metric('cold_process_start', coldProcessStart, 5000, 'cold'),
-      metric('browser_window_ready_to_show', readyToShow, 8000, 'cold'),
-      metric('renderer_interactive', rendererInteractive, 10000, 'cold'),
-      metric('persisted_workspace_visible', reloadSamples, 500, 'warm'),
-      metric('persisted_engineering_task_visible', reloadSamples, 500, 'warm'),
-      metric('workspace_open_small', smallSamples, 2000, 'warm'),
-      metric('workspace_open_large', largeSamples, 5000, 'warm'),
-      metric('engineering_task_cycle', cycleSamples, 3000, 'warm'),
+      metric('cold_process_start', coldProcessStart, 5000, 'cold', coldSource),
+      metric(
+        'browser_window_ready_to_show',
+        readyToShow,
+        8000,
+        'cold',
+        readySource,
+      ),
+      metric(
+        'renderer_interactive',
+        rendererInteractive,
+        10000,
+        'cold',
+        rendererSource,
+      ),
+      metric(
+        'persisted_workspace_visible',
+        persistedWorkspace,
+        500,
+        'warm',
+        'durable-service-path',
+      ),
+      metric(
+        'persisted_engineering_task_visible',
+        persistedTask,
+        500,
+        'warm',
+        'durable-service-path',
+      ),
+      metric('workspace_open_small', smallSamples, 2000, 'warm', 'durable-service-path'),
+      metric('workspace_open_large', largeSamples, 5000, 'warm', 'durable-service-path'),
+      metric('engineering_task_cycle', cycleSamples, 3000, 'warm', 'durable-service-path'),
     ],
     notes,
+    realElectronProbes,
+    finalEvidence,
   };
 
   void freemem;

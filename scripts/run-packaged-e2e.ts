@@ -1,11 +1,12 @@
 /**
  * Packaged E2E driver (macOS/Windows).
- * 1) Verifies packaged binary + asar embed the self-test module
- * 2) Executes the same runPackagedSelfTest production function
- * 3) Optionally launches the packaged binary with self-test env
+ * 1) Verifies release self-test negative
+ * 2) When packaged binary exists, runs real process lifecycle (create + relaunch recover)
+ * 3) Always runs in-process functional self-test as additional control-plane proof
  *
  * Usage:
  *   bun run scripts/run-packaged-e2e.ts
+ *   MATE_X_GUI_LIFECYCLE=1 bun run scripts/run-packaged-e2e.ts
  */
 
 import { createHash } from 'node:crypto';
@@ -60,12 +61,12 @@ const evidence: Record<string, unknown> = {
   releaseSelfTestDisabled: assertSelfTestDisabledInRelease(),
 };
 
-// Negative: release cannot enable driver
 if (!assertSelfTestDisabledInRelease()) {
   console.error('FAIL: release self-test negative check');
   process.exit(1);
 }
 
+// In-process functional path (control plane + durable reopen)
 const userData = mkdtempSync(join(tmpdir(), 'mate-x-e2e-'));
 const fixture = join(userData, 'fixture-repo');
 const resultPath = join(userData, 'self-test-result.json');
@@ -81,10 +82,6 @@ evidence.functionalExitCode = functional.exitCode;
 
 // Prove asar contains self-test marker when packaged
 if (binary && process.platform === 'darwin') {
-  const asar = join(
-    binary,
-    '../../Resources/app.asar'.replace(/\//g, process.platform === 'win32' ? '\\' : '/'),
-  );
   const asarPath = join(binary, '..', '..', 'Resources', 'app.asar');
   if (existsSync(asarPath)) {
     const buf = readFileSync(asarPath);
@@ -95,36 +92,46 @@ if (binary && process.platform === 'darwin') {
       buf.includes(Buffer.from('runPackagedSelfTest')) ||
       buf.includes(Buffer.from('packaged-self-test'));
   }
-  void asar;
 }
 
-// Optional: attempt short packaged binary launch (best-effort on headless agents)
-if (binary && process.env.MATE_X_LAUNCH_PACKAGED === '1') {
-  const launchUserData = mkdtempSync(join(tmpdir(), 'mate-x-launch-'));
-  const launchResult = join(launchUserData, 'result.json');
-  const env = {
-    ...process.env,
-    MATE_X_PACKAGED_SELF_TEST: '1',
-    MATE_X_RELEASE_BUILD: '0',
-    MATE_X_TEST_USER_DATA: launchUserData,
-    MATE_X_TEST_FIXTURE_REPO: join(launchUserData, 'repo'),
-    MATE_X_TEST_RESULT_PATH: launchResult,
-  };
-  const launched = spawnSync(binary, [], {
-    env,
-    timeout: 25_000,
-    encoding: 'utf8',
-  });
-  evidence.packagedLaunch = {
-    status: launched.status,
-    signal: launched.signal,
-    stdoutTail: (launched.stdout ?? '').slice(-500),
-    stderrTail: (launched.stderr ?? '').slice(-500),
-    resultExists: existsSync(launchResult),
-    result: existsSync(launchResult)
-      ? JSON.parse(readFileSync(launchResult, 'utf8'))
-      : null,
-  };
+// Real packaged binary lifecycle (required when binary is present)
+if (binary) {
+  const lifecycle = spawnSync(
+    process.execPath.includes('bun') ? process.execPath : 'bun',
+    [join(root, 'scripts/run-packaged-lifecycle.ts')],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        MATE_X_GUI_LIFECYCLE:
+          process.env.MATE_X_GUI_LIFECYCLE ??
+          (process.platform === 'darwin' ? '1' : '0'),
+      },
+      encoding: 'utf8',
+      timeout: 180_000,
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
+  evidence.lifecycleStatus = lifecycle.status;
+  evidence.lifecycleStdoutTail = (lifecycle.stdout ?? '').slice(-2000);
+  evidence.lifecycleStderrTail = (lifecycle.stderr ?? '').slice(-2000);
+
+  const smokePath =
+    process.platform === 'win32'
+      ? join(root, 'artifacts/windows/packaged-smoke-result.json')
+      : join(root, 'artifacts/packaged-e2e/packaged-smoke-result.json');
+  if (existsSync(smokePath)) {
+    evidence.lifecycleSmoke = JSON.parse(readFileSync(smokePath, 'utf8'));
+  }
+
+  if (lifecycle.status !== 0) {
+    const evidencePath = join(outDir, 'packaged-e2e-evidence.json');
+    writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), 'utf8');
+    console.error(JSON.stringify(evidence, null, 2));
+    process.exit(lifecycle.status ?? 1);
+  }
+} else {
+  evidence.lifecycleSkipped = 'no packaged binary under out/';
 }
 
 const evidencePath = join(outDir, 'packaged-e2e-evidence.json');

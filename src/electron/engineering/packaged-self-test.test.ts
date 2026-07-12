@@ -8,6 +8,8 @@ import {
   assertSelfTestDisabledInRelease,
   isPackagedSelfTestEnabled,
   runPackagedSelfTest,
+  runPackagedSelfTestCreate,
+  runPackagedSelfTestRecover,
 } from './packaged-self-test';
 
 const dirs: string[] = [];
@@ -74,10 +76,40 @@ describe('Packaged self-test driver [CLOSURE 3]', () => {
     assert.equal(result.gitGateAllowed, false);
     assert.equal(result.gitGateAfterMutationAllowed, false);
     assert.equal(result.proofStaleAfterMutation, true);
+    assert.equal(result.gitGateCommitBlocked, true);
+    assert.equal(result.gitGatePushBlocked, true);
+    assert.equal(result.taskRecovered, true);
     assert.equal(result.exitCode, 0);
 
     const onDisk = JSON.parse(readFileSync(resultPath, 'utf8')) as typeof result;
     assert.equal(onDisk.ok, true);
     assert.ok(onDisk.artifactHashes?.result);
+  });
+
+  it('create + recover phases share durable EngineeringTask across reopen', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'mate-x-phases-'));
+    dirs.push(root);
+    const userDataDir = path.join(root, 'userData');
+    const fixtureRepoDir = path.join(root, 'fixture-repo');
+
+    const create = await runPackagedSelfTestCreate({
+      userDataDir,
+      fixtureRepoDir,
+      resultPath: path.join(root, 'create.json'),
+    });
+    assert.equal(create.ok, true, create.error ?? create.phase);
+    assert.ok(create.engineeringTaskId);
+    assert.equal(create.libsqlInitialized, true);
+
+    const recover = await runPackagedSelfTestRecover({
+      userDataDir,
+      fixtureRepoDir,
+      resultPath: path.join(root, 'recover.json'),
+      expectedTaskId: create.engineeringTaskId,
+    });
+    assert.equal(recover.ok, true, recover.error ?? recover.phase);
+    assert.equal(recover.engineeringTaskId, create.engineeringTaskId);
+    assert.equal(recover.taskRecovered, true);
+    assert.equal(recover.proofStaleAfterMutation, true);
   });
 });

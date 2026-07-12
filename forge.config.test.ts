@@ -20,4 +20,12 @@ describe("Forge release configuration", () => {
     assert.match(forgeConfig, /EnableEmbeddedAsarIntegrityValidation\]: true/);
     assert.match(forgeConfig, /OnlyLoadAppFromAsar\]: true/);
   });
+
+  it("packages @vscode/ripgrep runtime + platform binaries for macOS and Windows", () => {
+    assert.match(forgeConfig, /@vscode\/ripgrep/);
+    assert.match(forgeConfig, /@vscode\/ripgrep-darwin-x64/);
+    assert.match(forgeConfig, /@vscode\/ripgrep-darwin-arm64/);
+    assert.match(forgeConfig, /@vscode\/ripgrep-win32-x64/);
+    assert.match(forgeConfig, /node_modules\/@vscode\/ripgrep\*/);
+  });
 });

@@ -21,7 +21,10 @@
     "verify:legacy-terms": "bun run scripts/check-legacy-terms.ts",
     "verify": "bun run lint && bun run typecheck && bun test && bun run verify:package-config && bun run verify:legacy-terms",
     "smoke:live-rainy": "MATE_X_LIVE_RAINY=1 bun run scripts/live-rainy-smoke.ts",
-    "test:packaged-self": "bun test src/electron/engineering/packaged-self-test.test.ts"
+    "test:packaged-self": "bun test src/electron/engineering/packaged-self-test.test.ts",
+    "test:packaged-lifecycle": "bun run scripts/run-packaged-lifecycle.ts",
+    "test:packaged-perf": "bun run scripts/run-packaged-perf-probe.ts",
+    "test:packaged-e2e": "bun run scripts/run-packaged-e2e.ts"
   },
   "keywords": [],
   "author": {
