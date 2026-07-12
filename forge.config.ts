@@ -95,8 +95,12 @@ const config: ForgeConfig = {
   packagerConfig: {
     icon: process.platform === 'darwin' ? macIcons : './assets/icon',
     asar: {
-      // Native addons + ripgrep platform binaries must live outside the asar.
-      unpack: '{**/*.node,**/node_modules/@vscode/ripgrep*/**}',
+      // Native addons + spawnable ripgrep binaries must live outside the asar.
+      // Use basename-oriented patterns only: `@electron/asar` matches `unpack`
+      // with `{ matchBase: true }`. Path globs that embed `@` or assume `/`
+      // separators fail on Windows (backslashes), which previously left
+      // `rg.exe` inside the asar while `*.node` still unpacked correctly.
+      unpack: '{*.node,rg,rg.exe}',
     },
     // Using a function suppresses the Forge Vite-plugin warning while letting
     // us keep our custom exclusions on top of its default ".vite-only" logic.
