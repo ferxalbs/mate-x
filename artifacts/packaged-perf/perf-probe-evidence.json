@@ -1,0 +1,285 @@
+{
+  "host": {
+    "hostnameHash": "6aa5c8df9f08",
+    "platform": "darwin",
+    "arch": "x64",
+    "osRelease": "24.6.0",
+    "cpuModel": "Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz",
+    "cpuCount": 12,
+    "totalMemMb": 24576,
+    "freeMemMb": 921
+  },
+  "binaryPath": "/Users/fer/Projects/mate-x/out/MaTE X-darwin-x64/MaTE X.app/Contents/MacOS/mate-x",
+  "binaryHash": "2c50ce097f5b1a244295e69449a6d37ef427d53d51a647f947ea27dc195eced4",
+  "sampleCountRequested": 8,
+  "electronSamplesCollected": 8,
+  "probeSource": "real-packaged-BrowserWindow",
+  "metrics": {
+    "ready_to_show": {
+      "p50Ms": 1121,
+      "p95Ms": 2332,
+      "n": 8,
+      "samples": [
+        2332,
+        1141,
+        1121,
+        1102,
+        1109,
+        1096,
+        1122,
+        1168
+      ]
+    },
+    "renderer_interactive": {
+      "p50Ms": 1135,
+      "p95Ms": 2346,
+      "n": 8,
+      "samples": [
+        2346,
+        1155,
+        1135,
+        1115,
+        1122,
+        1109,
+        1135,
+        1182
+      ]
+    },
+    "persisted_workspace_visible": {
+      "p50Ms": 0.08303999999952794,
+      "p95Ms": 0.280016999999134,
+      "n": 8
+    },
+    "persisted_engineering_task_visible": {
+      "p50Ms": 0.06450199999926554,
+      "p95Ms": 0.07932799999980489,
+      "n": 8
+    }
+  },
+  "launchRecords": [
+    {
+      "index": 0,
+      "status": 0,
+      "wallMs": 2424.298437,
+      "pid": 82664,
+      "resultOk": true,
+      "readyToShowMs": 2332,
+      "rendererInteractiveMs": 2346,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82664:0711/190927.915429:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 1,
+      "status": 0,
+      "wallMs": 1249.819559,
+      "pid": 82687,
+      "resultOk": true,
+      "readyToShowMs": 1141,
+      "rendererInteractiveMs": 1155,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82687:0711/190929.148739:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 2,
+      "status": 0,
+      "wallMs": 1217.4691620000003,
+      "pid": 82702,
+      "resultOk": true,
+      "readyToShowMs": 1121,
+      "rendererInteractiveMs": 1135,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82702:0711/190930.379204:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 3,
+      "status": 0,
+      "wallMs": 1187.8202389999997,
+      "pid": 82723,
+      "resultOk": true,
+      "readyToShowMs": 1102,
+      "rendererInteractiveMs": 1115,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82723:0711/190931.577049:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 4,
+      "status": 0,
+      "wallMs": 1219.191831,
+      "pid": 82743,
+      "resultOk": true,
+      "readyToShowMs": 1109,
+      "rendererInteractiveMs": 1122,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82743:0711/190932.772100:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 5,
+      "status": 0,
+      "wallMs": 1176.3108540000003,
+      "pid": 82759,
+      "resultOk": true,
+      "readyToShowMs": 1096,
+      "rendererInteractiveMs": 1109,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82759:0711/190933.979053:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 6,
+      "status": 0,
+      "wallMs": 1197.316589,
+      "pid": 82776,
+      "resultOk": true,
+      "readyToShowMs": 1122,
+      "rendererInteractiveMs": 1135,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82776:0711/190935.180420:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    },
+    {
+      "index": 7,
+      "status": 0,
+      "wallMs": 1262.5001690000008,
+      "pid": 82790,
+      "resultOk": true,
+      "readyToShowMs": 1168,
+      "rendererInteractiveMs": 1182,
+      "browserWindowOpened": true,
+      "rendererInteractive": true,
+      "preloadInitialized": true,
+      "stderrTail": "r_init:2:115037)\n    at Session.emit (node:events:509:28)\n[82790:0711/190936.425279:INFO:CONSOLE:0] \"Uncaught (in promise) Error: Error invoking remote method 'settings:get-app-settings': Error: No handler registered for 'settings:get-app-settings'\", source: file:///Users/fer/Projects/mate-x/out/MaTE%20X-darwin-x64/MaTE%20X.app/Contents/Resources/app.asar/.vite/renderer/main_window/index.html (0)\n"
+    }
+  ],
+  "report": {
+    "host": {
+      "hostnameHash": "6aa5c8df9f08",
+      "platform": "darwin",
+      "arch": "x64",
+      "osRelease": "24.6.0",
+      "cpuModel": "Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz",
+      "cpuCount": 12,
+      "totalMemMb": 24576
+    },
+    "packagedArchitecture": "darwin-x64",
+    "fixtures": {
+      "small": {
+        "pathHash": "7e8cf7f7a971",
+        "fileCount": 50,
+        "sizeBytes": 28957
+      },
+      "large": {
+        "pathHash": "8b5d91e6e8b1",
+        "fileCount": 833,
+        "sizeBytes": 94969
+      }
+    },
+    "memory": {
+      "afterStartupMb": 1.1180601119995117,
+      "afterWorkspaceOpenMb": 1.1180601119995117,
+      "afterEngineeringCycleMb": 1.1180601119995117
+    },
+    "metrics": [
+      {
+        "name": "cold_process_start",
+        "p50Ms": 1121,
+        "p95Ms": 2332,
+        "sampleCount": 8,
+        "budgetMs": 5000,
+        "pass": true,
+        "coldOrWarm": "cold",
+        "source": "real-electron-probe"
+      },
+      {
+        "name": "browser_window_ready_to_show",
+        "p50Ms": 1121,
+        "p95Ms": 2332,
+        "sampleCount": 8,
+        "budgetMs": 8000,
+        "pass": true,
+        "coldOrWarm": "cold",
+        "source": "real-electron-probe"
+      },
+      {
+        "name": "renderer_interactive",
+        "p50Ms": 1135,
+        "p95Ms": 2346,
+        "sampleCount": 8,
+        "budgetMs": 10000,
+        "pass": true,
+        "coldOrWarm": "cold",
+        "source": "real-electron-probe"
+      },
+      {
+        "name": "persisted_workspace_visible",
+        "p50Ms": 0.08303999999952794,
+        "p95Ms": 0.280016999999134,
+        "sampleCount": 8,
+        "budgetMs": 500,
+        "pass": true,
+        "coldOrWarm": "warm",
+        "source": "durable-service-path"
+      },
+      {
+        "name": "persisted_engineering_task_visible",
+        "p50Ms": 0.06450199999926554,
+        "p95Ms": 0.07932799999980489,
+        "sampleCount": 8,
+        "budgetMs": 500,
+        "pass": true,
+        "coldOrWarm": "warm",
+        "source": "durable-service-path"
+      },
+      {
+        "name": "workspace_open_small",
+        "p50Ms": 122.29145599999902,
+        "p95Ms": 125.2609969999994,
+        "sampleCount": 8,
+        "budgetMs": 2000,
+        "pass": true,
+        "coldOrWarm": "warm",
+        "source": "durable-service-path"
+      },
+      {
+        "name": "workspace_open_large",
+        "p50Ms": 134.6737919999996,
+        "p95Ms": 138.52970099999948,
+        "sampleCount": 8,
+        "budgetMs": 5000,
+        "pass": true,
+        "coldOrWarm": "warm",
+        "source": "durable-service-path"
+      },
+      {
+        "name": "engineering_task_cycle",
+        "p50Ms": 2.670110000000932,
+        "p95Ms": 4.797577999999703,
+        "sampleCount": 8,
+        "budgetMs": 3000,
+        "pass": true,
+        "coldOrWarm": "warm",
+        "source": "durable-service-path"
+      }
+    ],
+    "notes": [
+      "Service-path measurements for durable stack + workspace fixtures.",
+      "No prompts, secrets, source content, or credentials recorded.",
+      "Included REAL packaged Electron probe timings (not proxies)."
+    ],
+    "realElectronProbes": true,
+    "finalEvidence": true
+  },
+  "proxyUsed": false,
+  "final": true
+}

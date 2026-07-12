@@ -41,6 +41,21 @@ const libsqlRuntimePackages = [
   'ws',
 ];
 
+// Vite marks @vscode/ripgrep as external (native binary resolver). Forge's
+// .vite-only ignore would otherwise omit it from the package → crash on launch.
+const ripgrepRuntimePackages = [
+  '@vscode/ripgrep',
+  '@vscode/ripgrep-darwin-arm64',
+  '@vscode/ripgrep-darwin-x64',
+  '@vscode/ripgrep-win32-x64',
+  '@vscode/ripgrep-win32-arm64',
+];
+
+const runtimePackagesToCopy = [
+  ...libsqlRuntimePackages,
+  ...ripgrepRuntimePackages,
+];
+
 const copyPackageToBuild = (packageName: string, buildPath: string) => {
   const source = join(process.cwd(), 'node_modules', packageName);
   if (!existsSync(source)) return;
@@ -54,7 +69,8 @@ const config: ForgeConfig = {
   packagerConfig: {
     icon: process.platform === 'darwin' ? macIcons : './assets/icon',
     asar: {
-      unpack: '**/*.node',
+      // Native addons + ripgrep platform binaries must live outside the asar.
+      unpack: '{**/*.node,**/node_modules/@vscode/ripgrep*/**}',
     },
     // Using a function suppresses the Forge Vite-plugin warning while letting
     // us keep our custom exclusions on top of its default ".vite-only" logic.
@@ -80,7 +96,7 @@ const config: ForgeConfig = {
   },
   hooks: {
     packageAfterCopy: async (_config, buildPath) => {
-      for (const packageName of libsqlRuntimePackages) {
+      for (const packageName of runtimePackagesToCopy) {
         copyPackageToBuild(packageName, buildPath);
       }
     },

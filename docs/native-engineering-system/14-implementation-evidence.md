@@ -258,3 +258,70 @@ bun run make        → PASS
 
 Active runtime: **PASS** via `scripts/check-legacy-terms.ts`.  
 Allowed residual: migration-only modules, fixtures, changelog, residual-mode strip casts in factory-run normalize tests.
+
+---
+
+## R-GATES-CLOSE — Windows CI, macOS GUI lifecycle, real BrowserWindow metrics (Agent 4)
+
+**Branch:** `feat/native-engineering-system-v0.1.2`  
+**Date:** 2026-07-12
+
+### Root-cause fix: packaged app crash
+
+`@vscode/ripgrep` was Vite-external and omitted by Forge `.vite-only` ignore → uncaught `Cannot find module '@vscode/ripgrep'` on every packaged launch.
+
+**Fix:** `forge.config.ts` copies `@vscode/ripgrep` + platform packages in `packageAfterCopy` and unpacks `**/node_modules/@vscode/ripgrep*/**` from asar.
+
+### Windows CI workflow
+
+File: `.github/workflows/windows-ci.yml`
+
+- `workflow_dispatch` + push/PR
+- Bun pinned to `1.3.14`
+- No `bun add @libsql/win32-x64-msvc` (locked deps only)
+- Clean tree after install
+- Real packaged lifecycle via `scripts/run-packaged-lifecycle.ts` (`.exe` ×2)
+- Artifact/checksum assertions with `if-no-files-found: error`
+- Smoke JSON from observed assertions only
+
+### macOS packaged GUI lifecycle (real `.app`)
+
+```text
+binary: out/MaTE X-darwin-x64/MaTE X.app/Contents/MacOS/mate-x
+createPid / recoverPid: distinct process relaunch
+BrowserWindow / preload / renderer: PASS
+EngineeringTask create + recover: PASS
+GitGate missing/stale proof blocks commit+push: PASS
+```
+
+Evidence: `artifacts/packaged-e2e/packaged-smoke-result.json`
+
+### Real BrowserWindow / renderer metrics (n=8, not proxies)
+
+| Metric | p50 (ms) | p95 (ms) | source |
+|--------|----------|----------|--------|
+| ready-to-show | 1121 | 2332 | real-electron-probe |
+| renderer interactive | 1135 | 2346 | real-electron-probe |
+| persisted workspace visible | 0.08 | 0.28 | durable-service-path |
+| persisted EngineeringTask visible | 0.06 | 0.08 | durable-service-path |
+
+Host: darwin/x64, Intel i5-10400F 12-thread, 24GB, macOS 24.6.0  
+Evidence: `artifacts/packaged-perf/perf-probe-evidence.json`  
+`proxyUsed: false`, `final: true`
+
+### Validation (this pass)
+
+```text
+bun run lint        → PASS
+bun run typecheck   → PASS
+bun test            → 386 pass / 0 fail / 55 files
+bun run verify      → PASS
+bun run package     → PASS (darwin-x64 + ripgrep unpacked)
+bun run make        → PASS
+  dmg sha256: aebb2b347f45d2ee509d703b8b3b1725c9d1c57e42936b7235744835791d3d38
+  zip sha256: df86e631f6a4e4ee035f80beb89594bad3f9b5b76eaa75fa46bb3976d63cd9fa
+bun run scripts/run-packaged-e2e.ts → PASS (real process relaunch + GUI)
+bun run scripts/run-packaged-perf-probe.ts → PASS (real probes)
+```
+
+Windows Actions run evidence: recorded after workflow_dispatch / draft PR on GitHub.

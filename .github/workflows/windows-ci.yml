@@ -1,6 +1,7 @@
 name: Windows CI (v0.1.2)
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feat/native-engineering-system-v0.1.2
@@ -26,16 +27,25 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Exact version validated on macOS packaging host (package.json / bun.lock)
+          bun-version: "1.3.14"
 
       - name: Install dependencies (locked)
         run: bun install --frozen-lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install native libsql (Windows)
+      - name: Verify working tree clean after install
         shell: bash
-        run: bun add --optional --exact @libsql/win32-x64-msvc@0.5.29
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "ERROR: working tree dirty after bun install --frozen-lockfile"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+          echo "Working tree clean after locked install"
 
       - name: Lint
         run: bun run lint
@@ -58,37 +68,73 @@ jobs:
       - name: Make
         run: bun run make
 
-      - name: Packaged startup + durable EngineeringTask smoke
+      - name: Packaged binary lifecycle smoke (real .exe launch ×2)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/windows
-          bun test src/electron/engineering/packaged-self-test.test.ts src/electron/engineering/migration/migrate-v011.test.ts src/electron/engineering/libsql-repository.test.ts src/electron/engineering/rainy-adapter.test.ts
-          # Record smoke result
-          cat > artifacts/windows/packaged-smoke-result.json <<'EOF'
-          {
-            "platform": "win32",
-            "job": "windows-verify",
-            "packagedSelfTest": "executed-via-bun-test",
-            "libsql": "ok",
-            "gitGateNegative": "covered-by-packaged-self-test",
-            "migration": "covered-by-migrate-v011.test.ts"
-          }
-          EOF
+          # In-process unit coverage remains required
+          bun test \
+            src/electron/engineering/packaged-self-test.test.ts \
+            src/electron/engineering/migration/migrate-v011.test.ts \
+            src/electron/engineering/libsql-repository.test.ts \
+            src/electron/engineering/rainy-adapter.test.ts
+          # Real packaged executable: create → exit → relaunch → recover → GitGate
+          # Smoke JSON is generated from observed assertions only.
+          bun run scripts/run-packaged-lifecycle.ts
+          test -f artifacts/windows/packaged-smoke-result.json
+          bun -e '
+            const r = JSON.parse(require("fs").readFileSync("artifacts/windows/packaged-smoke-result.json","utf8"));
+            if (!r.ok) { console.error(r); process.exit(1); }
+            console.log("smoke ok", r.engineeringTaskId, r.createPid, r.recoverPid);
+          '
 
-      - name: Checksums
+      - name: Assert packaged artifacts + checksums
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/windows
-          if [ -d out ]; then
-            find out -type f \( -name '*.exe' -o -name '*.nupkg' -o -name '*.zip' -o -name '*.dll' \) -print0 \
-              | sort -z \
-              | xargs -0 sha256sum > artifacts/windows/checksums.txt || true
-            find out -type f -print0 | sort -z | xargs -0 sha256sum > artifacts/windows/checksums-all.txt || true
+
+          # Required: packaged executable
+          mapfile -t EXES < <(find out -type f -name '*.exe' | sort)
+          if [ "${#EXES[@]}" -eq 0 ]; then
+            echo "ERROR: no .exe found under out/"
+            find out -type f | head -100 || true
+            exit 1
           fi
-          ls -la out || true
-          ls -la out/make || true
+          echo "Found executables:"
+          printf '%s\n' "${EXES[@]}"
+
+          # Required: installer/package (Squirrel Setup.exe and/or nupkg/zip)
+          mapfile -t INSTALLERS < <(find out/make -type f \( -name '*Setup*.exe' -o -name '*.nupkg' -o -name '*.zip' \) 2>/dev/null | sort || true)
+          if [ "${#INSTALLERS[@]}" -eq 0 ]; then
+            # Also accept any make output under out/make
+            mapfile -t INSTALLERS < <(find out/make -type f 2>/dev/null | sort || true)
+          fi
+          if [ "${#INSTALLERS[@]}" -eq 0 ]; then
+            echo "ERROR: no installer/package under out/make"
+            ls -laR out || true
+            exit 1
+          fi
+          echo "Found installer/package files:"
+          printf '%s\n' "${INSTALLERS[@]}"
+
+          # Checksums (required — no || true on generation)
+          : > artifacts/windows/checksums.txt
+          for f in "${EXES[@]}" "${INSTALLERS[@]}"; do
+            if [ -f "$f" ]; then
+              sha256sum "$f" >> artifacts/windows/checksums.txt
+            fi
+          done
+          test -s artifacts/windows/checksums.txt
+          find out -type f -print0 | sort -z | xargs -0 sha256sum > artifacts/windows/checksums-all.txt
+          test -s artifacts/windows/checksums-all.txt
+
+          # Explicit existence assertions
+          test -f artifacts/windows/packaged-smoke-result.json
+          test -s artifacts/windows/checksums.txt
+          echo "Artifact + checksum gates PASS"
+          cat artifacts/windows/checksums.txt
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -98,5 +144,5 @@ jobs:
             out/make/**/*
             out/**/*.exe
             artifacts/windows/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
