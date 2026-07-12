@@ -15,7 +15,6 @@ import {
   ShipStatusStrip,
   TrustGateCard,
 } from "./enhancement-panel-sections";
-import { TraceSection } from "./enhancement-trace-section";
 import {
   deriveTrustGate,
   getChangedFiles,
@@ -291,20 +290,6 @@ export function EnhancementPanel({
               signals={repoSignals}
               tests={tests}
               workspace={workspace}
-            />
-          ) : null}
-          {activeGroup === "advanced" ? (
-            <TraceSection
-              changedFiles={changedFiles}
-              commands={commands}
-              evidencePack={runtime.evidencePack}
-              events={runtime.events}
-              hasHealth={Boolean(health)}
-              impactedFiles={impactedFiles}
-              isLoading={loading || runtime.isRunning}
-              isRunning={runtime.isRunning}
-              scanPhase={scanPhase}
-              summary={summary}
             />
           ) : null}
           {activeGroup === "advanced" ? (
