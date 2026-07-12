@@ -48,15 +48,18 @@ describe('ripgrep packaging (artifact-level)', () => {
       return;
     }
 
-    const files = walk(unpacked);
+    const files = walk(unpacked).map((f) => f.replace(/\\/g, '/'));
     const rgFiles = files.filter((f) => f.includes('@vscode/ripgrep'));
-    assert.ok(rgFiles.length > 0, 'expected @vscode/ripgrep under unpacked');
+    assert.ok(
+      rgFiles.length > 0,
+      `expected @vscode/ripgrep under unpacked (${unpacked}); sample entries: ${files.slice(0, 12).join(', ') || '(empty)'}`,
+    );
 
     const hasBin =
       process.platform === 'win32'
-        ? rgFiles.some((f) => f.endsWith(`${join('bin', 'rg.exe')}`) || f.endsWith('bin\\rg.exe') || f.endsWith('bin/rg.exe'))
-        : rgFiles.some((f) => f.endsWith(`${join('bin', 'rg')}`) || f.endsWith('bin/rg'));
-    assert.ok(hasBin, 'expected rg binary in package');
+        ? rgFiles.some((f) => f.endsWith('/bin/rg.exe') || f.endsWith('bin/rg.exe'))
+        : rgFiles.some((f) => f.endsWith('/bin/rg') || f.endsWith('bin/rg'));
+    assert.ok(hasBin, `expected rg binary in package; rg files: ${rgFiles.join(', ')}`);
 
     if (process.platform === 'darwin') {
       assert.equal(
