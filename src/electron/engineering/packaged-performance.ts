@@ -142,12 +142,19 @@ export async function measurePackagedApplicationPerformance(input?: {
   outPath?: string;
   /** When true, refuse proxy BrowserWindow timings — require real probe JSON. */
   requireRealElectronProbes?: boolean;
+  /** Override large fixture size (default 400). Unit tests use smaller for CI hosts. */
+  largeFixtureFiles?: number;
+  /** Override small fixture size (default 12). */
+  smallFixtureFiles?: number;
 }): Promise<PackagedPerfReport> {
   const n = input?.sampleCount ?? 15;
   const requireReal = input?.requireRealElectronProbes === true;
   const root = mkdtempSync(join(tmpdir(), 'mate-x-perf-app-'));
-  const smallDir = makeFixture(join(root, 'small'), 12);
-  const largeDir = makeFixture(join(root, 'large'), 400);
+  const smallDir = makeFixture(join(root, 'small'), input?.smallFixtureFiles ?? 12);
+  const largeDir = makeFixture(
+    join(root, 'large'),
+    input?.largeFixtureFiles ?? 400,
+  );
   const dbPath = join(root, 'mate-x.db');
 
   const mem = (label: string) => {
