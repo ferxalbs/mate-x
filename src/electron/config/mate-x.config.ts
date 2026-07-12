@@ -51,7 +51,7 @@ export type MaTeXConfig = z.infer<typeof MaTeXConfigSchema> & MaTeXConfigContrac
 const DEFAULT_LOCAL_CONFIG: MaTeXConfig = {
   storage: {
     backend: "local",
-    bucket: ".matex/evidence",
+    bucket: ".mate-x/evidence",
     credentials: {},
     evidencePacks: {
       prefix: "evidence-packs/",
