@@ -5,7 +5,28 @@ import type { AutonomyPolicy } from "./behavior-mode";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
-export type ToolEventStatus = "done" | "active" | "error";
+export type ToolEventStatus =
+  | "queued"
+  | "active"
+  | "completed"
+  | "failed"
+  | "blocked"
+  | "cancelled"
+  /** Legacy persisted values. */
+  | "done"
+  | "error";
+export type ToolEventType =
+  | "reasoning"
+  | "search"
+  | "read"
+  | "command"
+  | "edit"
+  | "validation"
+  | "approval"
+  | "wait"
+  | "result"
+  | "error";
+export type ToolEventVisibility = "public" | "technical" | "restricted";
 export type MessageArtifactTone = "default" | "success" | "warning";
 export type EvidencePackStatus = "complete" | "partial" | "blocked" | "failed";
 export type EvidencePackConfidence = "low" | "medium" | "high";
@@ -87,10 +108,96 @@ export interface AssistantRunProgress {
 
 export interface ToolEvent {
   id: string;
+  version?: 2;
+  runId?: string;
+  sequence?: number;
+  timestamp?: string;
+  agentId?: string;
+  parentAgentId?: string;
+  groupId?: string;
+  type?: ToolEventType;
+  title?: string;
+  summary?: string;
   label: string;
   detail: string;
   status: ToolEventStatus;
+  durationMs?: number;
+  visibility?: ToolEventVisibility;
+  artifacts?: {
+    paths?: string[];
+    command?: string;
+    diff?: string;
+    output?: string;
+    evidenceRef?: string;
+  };
+  result?: {
+    count?: number;
+    exitCode?: number;
+    evidenceRef?: string;
+  };
   policy?: ToolPolicyClassification;
+}
+
+export interface AgentRunTraceParticipant {
+  id: string;
+  label: string;
+  model?: string;
+  parentAgentId?: string;
+}
+
+export interface AgentRunTrace {
+  runId: string;
+  status: RunStatus | "blocked" | "cancelled";
+  startedAt: string;
+  completedAt?: string;
+  activePhase?: string;
+  participants: AgentRunTraceParticipant[];
+  events: ToolEvent[];
+}
+
+export function normalizeToolEvent(
+  event: ToolEvent,
+  context: { runId?: string; sequence?: number; timestamp?: string } = {},
+): ToolEvent {
+  const label = event.title ?? event.label;
+  const normalizedLabel = label.replace(/^executing\s+/i, "").trim();
+  const inferredType = inferToolEventType(normalizedLabel, event.status);
+
+  return {
+    ...event,
+    version: 2,
+    runId: event.runId ?? context.runId,
+    sequence: event.sequence ?? context.sequence,
+    timestamp: event.timestamp ?? context.timestamp,
+    type: event.type ?? inferredType,
+    title: event.title ?? humanizeToolEventTitle(normalizedLabel, inferredType, event.status),
+    summary: event.summary ?? event.detail,
+    visibility: event.visibility ?? "public",
+  };
+}
+
+function inferToolEventType(label: string, status: ToolEventStatus): ToolEventType {
+  if (status === "error" || status === "failed") return "error";
+  if (/approv|policy|permission/i.test(label)) return "approval";
+  if (/valid|test|lint|typecheck|build/i.test(label)) return "validation";
+  if (/edit|patch|write|file.editor/i.test(label)) return "edit";
+  if (/command|sandbox|shell|terminal|run/i.test(label)) return "command";
+  if (/search|scan|grep|glob/i.test(label)) return "search";
+  if (/read|inspect|metadata|inventory/i.test(label)) return "read";
+  if (/reason|think|plan/i.test(label)) return "reasoning";
+  if (/complete|result|response/i.test(label)) return "result";
+  return "wait";
+}
+
+function humanizeToolEventTitle(
+  label: string,
+  type: ToolEventType,
+  status: ToolEventStatus,
+) {
+  const action = status === "active"
+    ? { reasoning: "Analizando", search: "Buscando", read: "Leyendo", command: "Ejecutando", edit: "Editando", validation: "Validando", approval: "Esperando aprobación", wait: "Esperando", result: "Preparando resultado", error: "Error" }[type]
+    : { reasoning: "Análisis listo", search: "Búsqueda completa", read: "Lectura completa", command: "Comando terminado", edit: "Cambios aplicados", validation: "Validación terminada", approval: "Aprobación resuelta", wait: "Espera terminada", result: "Resultado listo", error: "Error" }[type];
+  return label ? `${action}: ${label.replaceAll("_", " ")}` : action;
 }
 
 export interface MessageArtifact {

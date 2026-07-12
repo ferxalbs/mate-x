@@ -252,7 +252,13 @@ export async function runAssistant(
       status: "running",
       content,
       thought: thought || undefined,
-      events: cloneEvents(events),
+      events: cloneEvents(events).map((event, sequence) => ({
+        ...event,
+        version: 2 as const,
+        runId: progressReporter.runId,
+        sequence: event.sequence ?? sequence,
+        timestamp: event.timestamp ?? new Date().toISOString(),
+      })),
       artifacts: cloneArtifacts(artifacts),
     });
   };

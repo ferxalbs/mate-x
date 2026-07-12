@@ -34,6 +34,7 @@ import {
   ambientSafetyActions,
   type AmbientSafetyAction,
 } from "./ambient-safety-actions";
+import { AgentExecutionTrace } from "./agent-execution-trace";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -135,7 +136,6 @@ const MessageEntry = memo(function MessageEntry({
   const events = message.events ?? [];
   const thought = message.thought?.trim() ?? "";
   const hasTimeline = events.length > 0;
-  const hasErrorEvent = events.some((event) => event.status === "error");
   const [copied, setCopied] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
@@ -214,22 +214,17 @@ const MessageEntry = memo(function MessageEntry({
   return (
     <article className="group animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] pl-6">
       <div className="max-w-[820px] space-y-4 text-[14px] leading-6 text-foreground">
-        {thought ? (
-          <ThinkingRow
-            hasErrorEvent={hasErrorEvent}
-            isStreaming={isStreaming}
-            thought={thought}
-          />
-        ) : null}
-        {normalizedContent.length > 0 || hasTimeline ? (
-          <InterleavedMessageContent
-            content={message.content}
-            events={events}
+        <AgentExecutionTrace
+          events={events}
+          isRunning={isStreaming}
+          thought={thought || undefined}
+        />
+        {normalizedContent.length > 0 ? (
+          <ChatMarkdown
+            content={stripTraceTransportMarkers(message.content)}
             isStreaming={isStreaming}
           />
-        ) : isStreaming ? (
-          <AssistantPendingRow events={events} />
-        ) : null}
+        ) : !hasTimeline && !isStreaming ? <ResultFallback /> : null}
         {isLast && showAmbientActions ? (
           <div className="mt-2.5 flex items-center gap-2">
             <button
@@ -279,7 +274,7 @@ const MessageEntry = memo(function MessageEntry({
   );
 });
 
-function InterleavedMessageContent({
+function _InterleavedMessageContent({
   content,
   events,
   isStreaming,
@@ -434,6 +429,16 @@ function normalizeAssistantVisibleText(value: string) {
       "$1",
     )
     .replace(/[ \t]+\n/g, "\n");
+}
+
+function stripTraceTransportMarkers(value: string) {
+  return normalizeAssistantVisibleText(value)
+    .replace(/<!-- mate-trace:.*? -->/g, "")
+    .replace(
+      /<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?(?:<\/(?:thought|think|thinking|reasoning|analysis)>|$)/gi,
+      "",
+    )
+    .trim();
 }
 
 function ResultFallback() {
