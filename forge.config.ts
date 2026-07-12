@@ -96,11 +96,11 @@ const config: ForgeConfig = {
     icon: process.platform === 'darwin' ? macIcons : './assets/icon',
     asar: {
       // Native addons + spawnable ripgrep binaries must live outside the asar.
-      // Use basename-oriented patterns only: `@electron/asar` matches `unpack`
-      // with `{ matchBase: true }`. Path globs that embed `@` or assume `/`
-      // separators fail on Windows (backslashes), which previously left
-      // `rg.exe` inside the asar while `*.node` still unpacked correctly.
-      unpack: '{*.node,rg,rg.exe}',
+      // `@electron/asar` minimatch-matches absolute paths. Bare basenames and
+      // globs that assume only `/` fail on Windows (`\` is an escape). This
+      // brace set matches both POSIX and Windows absolute paths in practice:
+      //   **/*.node, **/rg (darwin), **/rg.exe + **/*.exe (win32)
+      unpack: '{**/*.node,**/rg,**/rg.exe,**/*.exe}',
     },
     // Using a function suppresses the Forge Vite-plugin warning while letting
     // us keep our custom exclusions on top of its default ".vite-only" logic.

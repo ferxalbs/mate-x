@@ -184,21 +184,38 @@ if (requireAsar) {
 
       const resourcesDir = join(asar, '..');
       const unpacked = join(resourcesDir, 'app.asar.unpacked');
-      const rgDirs = walkFiles(unpacked).filter((f) =>
-        f.includes('@vscode/ripgrep'),
+      const unpackedFiles = walkFiles(unpacked).map((f) =>
+        f.replace(/\\/g, '/'),
       );
-      if (rgDirs.length === 0) {
-        failures.push('ripgrep not found under app.asar.unpacked');
+      const rgFiles = unpackedFiles.filter(
+        (f) =>
+          f.includes('@vscode/ripgrep') ||
+          f.endsWith('/bin/rg') ||
+          f.endsWith('/bin/rg.exe') ||
+          /\/rg(\.exe)?$/.test(f),
+      );
+      if (rgFiles.length === 0) {
+        failures.push(
+          `ripgrep not found under app.asar.unpacked (${unpacked}); sample: ${unpackedFiles.slice(0, 8).join(', ') || '(missing or empty)'}`,
+        );
       } else if (process.platform === 'darwin') {
-        if (rgDirs.some((f) => f.includes('ripgrep-win32'))) {
+        if (rgFiles.some((f) => f.includes('ripgrep-win32'))) {
           failures.push(
             'macOS package includes Windows ripgrep platform package',
           );
         }
+        if (!rgFiles.some((f) => f.endsWith('/rg') || /\/rg$/.test(f))) {
+          failures.push('macOS package missing spawnable rg binary in unpacked');
+        }
       } else if (process.platform === 'win32') {
-        if (rgDirs.some((f) => f.includes('ripgrep-darwin'))) {
+        if (rgFiles.some((f) => f.includes('ripgrep-darwin'))) {
           failures.push(
             'Windows package includes macOS ripgrep platform package',
+          );
+        }
+        if (!rgFiles.some((f) => f.endsWith('.exe') || f.endsWith('/rg.exe'))) {
+          failures.push(
+            'Windows package missing spawnable rg.exe binary in unpacked',
           );
         }
       }
