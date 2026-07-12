@@ -21,6 +21,7 @@ export async function executeAgentToolCall({
   appSettings,
   runId,
   engineeringTaskStatus,
+  autonomyPolicy,
 }: {
   toolCall: AgentToolCall;
   toolIndex: number;
@@ -32,6 +33,7 @@ export async function executeAgentToolCall({
   runId: string;
   /** Control-plane status authority for pre-approval tool restrictions. */
   engineeringTaskStatus?: EngineeringTaskStatus | null;
+  autonomyPolicy?: import("../../../contracts/behavior-mode").AutonomyPolicy;
 }): Promise<{
   toolCallId: string;
   content: string;
@@ -70,6 +72,7 @@ export async function executeAgentToolCall({
     toolName,
     engineeringTaskStatus,
     toolArgs,
+    autonomyPolicy,
   );
   if (!phaseAuth.allowed) {
     events.push({

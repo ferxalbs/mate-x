@@ -8,7 +8,7 @@ interface ComposerDockProps {
 }
 
 const COMPOSER_INSET_VAR = "--mate-composer-inset";
-const DEFAULT_INSET_PX = 220;
+const DEFAULT_INSET_PX = 148;
 
 /**
  * Fixed bottom composer dock.
@@ -50,7 +50,7 @@ export function ComposerDock({
   return (
     <div
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 pointer-events-none px-4 pb-6 sm:px-8",
+        "fixed bottom-0 left-0 right-0 z-50 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] pointer-events-none px-4 pb-3 sm:px-8",
       )}
       data-testid="composer-dock"
     >

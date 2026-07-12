@@ -427,6 +427,7 @@ export async function requestRainyChatAgenticResponse({
           appSettings,
           runId,
           engineeringTaskStatus,
+          autonomyPolicy: options.autonomyPolicy,
         }),
     );
 

@@ -16,6 +16,8 @@ import type {
   AssistantRunOptions,
   EngineeringPathKind,
 } from "./chat";
+import { AUTONOMY_POLICIES, DEFAULT_CUSTOM_BEHAVIOR } from "./behavior-mode";
+import type { AutonomyPolicy, CustomBehaviorPolicy } from "./behavior-mode";
 import { isEngineeringTaskId, PATH_KINDS } from "./engineering-task";
 import type { RainyServiceTier } from "./rainy";
 import type { AgentActionRequest, AgentId } from "./sdk-orchestrator.types";
@@ -25,6 +27,7 @@ export const ASSISTANT_RUN_OPTION_KEYS = [
   "reasoning",
   "pathKind",
   "access",
+  "autonomyPolicy",
   "serviceTier",
   "runbookId",
   "attachments",
@@ -42,7 +45,11 @@ export const ASSISTANT_INTERNAL_ROUTING_FIELDS = [
 ] as const;
 
 const PATH_KIND_SET = new Set<string>(PATH_KINDS);
-const ACCESS_SET = new Set<AssistantAccess>(["approval", "full"]);
+const ACCESS_SET = new Set<AssistantAccess>(["approval", "scoped", "full"]);
+const AUTONOMY_POLICY_SET = new Set<string>(AUTONOMY_POLICIES);
+const CUSTOM_POLICY_KEYS = new Set<keyof CustomBehaviorPolicy>([
+  "askBeforeEdits", "askBeforeCommands", "askBeforeNetwork", "askBeforeGit", "autoValidate",
+]);
 const SERVICE_TIER_SET = new Set<RainyServiceTier>([
   "standard",
   "flex",
@@ -296,9 +303,29 @@ export function validateAssistantRunOptions(
 
   if (record.access !== undefined) {
     if (typeof record.access !== "string" || !ACCESS_SET.has(record.access as AssistantAccess)) {
-      throw new Error('Assistant options access must be "approval" or "full".');
+      throw new Error('Assistant options access must be "approval", "scoped", or legacy trusted "full".');
     }
     result.access = record.access as AssistantAccess;
+  }
+
+  if (record.autonomyPolicy !== undefined) {
+    const policy = assertPlainRecord(record.autonomyPolicy, "autonomyPolicy");
+    assertKnownKeys(policy, new Set(["id", "custom"]), "autonomyPolicy");
+    if (typeof policy.id !== "string" || !AUTONOMY_POLICY_SET.has(policy.id)) {
+      throw new Error("Assistant options autonomyPolicy is not supported.");
+    }
+    const parsed: AutonomyPolicy = { id: policy.id as AutonomyPolicy["id"] };
+    if (parsed.id === "custom") {
+      const custom = assertPlainRecord(policy.custom, "autonomyPolicy.custom");
+      assertKnownKeys(custom, CUSTOM_POLICY_KEYS as Set<string>, "autonomyPolicy.custom");
+      for (const key of CUSTOM_POLICY_KEYS) {
+        if (typeof custom[key] !== "boolean") {
+          throw new Error(`autonomyPolicy.custom.${key} must be a boolean.`);
+        }
+      }
+      parsed.custom = { ...DEFAULT_CUSTOM_BEHAVIOR, ...custom } as CustomBehaviorPolicy;
+    }
+    result.autonomyPolicy = parsed;
   }
 
   if (record.serviceTier !== undefined) {

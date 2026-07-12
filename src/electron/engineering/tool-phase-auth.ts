@@ -4,6 +4,7 @@
  */
 
 import type { EngineeringTaskStatus } from "../../contracts/engineering-task";
+import type { AutonomyPolicy } from "../../contracts/behavior-mode";
 import { isPreApprovalStatus } from "../../contracts/engineering-phase-result";
 
 const MUTATION_TOOL_NAMES = new Set([
@@ -46,24 +47,44 @@ export function authorizeToolForEngineeringStatus(
   toolName: string,
   status: EngineeringTaskStatus | null | undefined,
   args?: Record<string, unknown>,
+  autonomyPolicy: AutonomyPolicy = { id: "guided_approval" },
 ): ToolPhaseAuthDecision {
+  const isMutation = isMutationToolName(toolName);
+  const isGitWrite = GIT_WRITE_TOOLS.has(toolName) || GIT_WRITE_TOOLS.has(toolName.toLowerCase());
+  const command = String(args?.command ?? args?.script ?? "").toLowerCase();
+  if (isGitWrite) {
+    return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Git write tool "${toolName}" always requires explicit authorization.` };
+  }
+  if (/\bgit\s+(commit|push|reset|rebase|branch\s+-[dD])\b/.test(command)) {
+    return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Git write command always requires explicit authorization: ${command.slice(0, 120)}` };
+  }
+  if (autonomyPolicy.id === "review_read_only" && (isMutation || MUTATING_SHELL_TOOLS.has(toolName))) {
+    return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Review mode is read-only and rejects ${toolName}.` };
+  }
+  const preApproval = Boolean(status && isPreApprovalStatus(status));
+  if (autonomyPolicy.id === "guided_approval" && preApproval && isMutation) {
+    return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Guided mode needs approval before editing the repository.` };
+  }
+  if (autonomyPolicy.id === "custom") {
+    if (preApproval && isMutation && autonomyPolicy.custom?.askBeforeEdits) {
+      return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Custom policy needs approval before editing the repository.` };
+    }
+    if (preApproval && MUTATING_SHELL_TOOLS.has(toolName) && autonomyPolicy.custom?.askBeforeCommands) {
+      return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Custom policy needs approval before running commands.` };
+    }
+  }
+  if (autonomyPolicy.id === "auto_scoped" && (isMutation || MUTATING_SHELL_TOOLS.has(toolName))) {
+    return { allowed: true };
+  }
   if (!status || !isPreApprovalStatus(status)) {
     return { allowed: true };
   }
 
-  if (isMutationToolName(toolName)) {
+  if (isMutation) {
     return {
       allowed: false,
       code: "ERR_APPROVAL_REQUIRED",
       message: `Tool "${toolName}" mutates the repository and is forbidden while EngineeringTask is ${status}. Approve the plan before execution.`,
-    };
-  }
-
-  if (GIT_WRITE_TOOLS.has(toolName) || GIT_WRITE_TOOLS.has(toolName.toLowerCase())) {
-    return {
-      allowed: false,
-      code: "ERR_APPROVAL_REQUIRED",
-      message: `Git write tool "${toolName}" is forbidden before plan approval (status=${status}).`,
     };
   }
 
@@ -86,7 +107,6 @@ export function authorizeToolForEngineeringStatus(
 
   // sandbox / shell args that look like git write
   if (args) {
-    const command = String(args.command ?? args.script ?? "").toLowerCase();
     if (
       /\bgit\s+(commit|push|add|reset|checkout|merge|rebase)\b/.test(command) ||
       /\brm\s+-rf\b/.test(command)

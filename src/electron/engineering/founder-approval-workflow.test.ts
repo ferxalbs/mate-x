@@ -102,6 +102,19 @@ function basePlan(overrides: Partial<WorkPlan> = {}): WorkPlan {
 }
 
 describe("Founder approval-gated workflow [A–M + amendments]", () => {
+  it("Auto crosses the first safe mutation gate but keeps policy boundaries", () => {
+    const auto = { id: "auto_scoped" } as const;
+    assert.equal(authorizeToolForEngineeringStatus("file_editor", "captured", { path: "src/lib/id.ts" }, auto).allowed, true);
+    assert.equal(authorizeToolForEngineeringStatus("sandbox_run", "captured", { command: "bun run lint" }, auto).allowed, true);
+    assert.equal(authorizeToolForEngineeringStatus("sandbox_run", "captured", { command: "git commit -am x" }, auto).allowed, false);
+    assert.equal(authorizeToolForEngineeringStatus("sandbox_run", "executing", { command: "git push" }, auto).allowed, false);
+  });
+
+  it("Guided pauses before edit and Review rejects edit", () => {
+    assert.equal(authorizeToolForEngineeringStatus("file_editor", "captured", {}, { id: "guided_approval" }).allowed, false);
+    assert.equal(authorizeToolForEngineeringStatus("file_editor", "executing", {}, { id: "review_read_only" }).allowed, false);
+  });
+
   it("A–E: capture + planning phase does not fail Work Engine; no mutation", () => {
     const { bus, repo } = openBus();
     // A. Submit exact founder prompt via CaptureTask
@@ -408,8 +421,6 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
       "clarifying",
       "specified",
       "awaiting_approval",
-      "executing",
-      "verifying",
       "ready",
       "blocked",
       "failed",
@@ -420,7 +431,9 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
       // Approve plan has two statuses but one command each
       seen.add(`${status}:${action!.commandType}`);
     }
-    assert.ok(seen.size >= 8);
+    assert.ok(seen.size >= 7);
+    assert.equal(primaryActionForStatus("executing"), null);
+    assert.equal(primaryActionForStatus("verifying"), null);
   });
 
   it("buildPlanArtifactsForTask produces linkable artifacts without prose", () => {

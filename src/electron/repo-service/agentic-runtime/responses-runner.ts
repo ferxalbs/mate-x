@@ -315,6 +315,7 @@ export async function requestRainyResponsesAgenticResponse({
           appSettings,
           runId,
           engineeringTaskStatus,
+          autonomyPolicy: options.autonomyPolicy,
         }),
     );
 
