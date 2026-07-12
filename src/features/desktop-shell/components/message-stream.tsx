@@ -56,7 +56,7 @@ export function MessageStream({
     <MessageScrollerViewport className={cn(
       // Bottom inset tracks actual composer dock height (see ComposerDock CSS var).
       // Never couple scroll padding to blurEnabled — founder incident fix.
-      "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,220px)]",
+      "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,148px)]",
     )}>
       <MessageScrollerContent
         className={cn(

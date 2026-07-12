@@ -43,3 +43,13 @@ test("non-JS workspace does not get bun-only command allowlist [NES-2.4]", () =>
   assert.equal(contract.allowedCommands.length, 0);
   assert.ok(!contract.allowedCommands.some((c) => c.includes("bun")));
 });
+
+test("scoped trust allows an in-workspace edit and lint but rejects outside writes", () => {
+  const contract = createDefaultWorkspaceTrustContract("workspace-auto", "Repo", {
+    packageManager: "bun",
+    hasPackageJson: true,
+  });
+  assert.equal(evaluateTrustForToolCall({ toolName: "file_editor", args: { path: "src/lib/id.ts" }, contract }), null);
+  assert.equal(evaluateTrustForToolCall({ toolName: "sandbox_run", args: { command: "bun run lint" }, contract }), null);
+  assert.match(evaluateTrustForToolCall({ toolName: "file_editor", args: { path: "../outside.ts" }, contract }) ?? "", /blocks/);
+});

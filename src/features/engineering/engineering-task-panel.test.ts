@@ -18,14 +18,16 @@ describe("EngineeringTaskPanel CTA matrix [NES-7.1][founder-incident]", () => {
     assert.notEqual(primaryCtaForStatus("captured"), "Continue");
   });
 
-  it("every non-cancelled status has an action with a real commandType", () => {
+  it("never offers duplicate execution actions while work is active", () => {
+    for (const status of ["executing", "verifying", "converging"] as const) {
+      assert.equal(primaryActionForStatus(status), null);
+    }
+  });
+
+  it("every rendered action has a real commandType", () => {
     for (const status of ENGINEERING_TASK_STATUSES) {
-      if (status === "cancelled") {
-        assert.equal(primaryActionForStatus(status), null);
-        continue;
-      }
       const action = primaryActionForStatus(status as EngineeringTaskStatus);
-      assert.ok(action, `missing action for ${status}`);
+      if (!action) continue;
       assert.ok(action!.commandType.length > 0, `empty command for ${status}`);
       assert.ok(action!.label.length > 0);
       assert.notEqual(action!.label, "Continue");

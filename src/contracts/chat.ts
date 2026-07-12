@@ -1,6 +1,7 @@
 import type { ToolPolicyClassification } from "./tool-policy";
 import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
+import type { AutonomyPolicy } from "./behavior-mode";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
@@ -22,7 +23,7 @@ export type AssistantReasoningLevel =
  * Replaces deleted AssistantMode product identity (NES-8 / CLOSURE 2).
  */
 export type EngineeringPathKind = "full" | "verify_only" | "chat_help";
-export type AssistantAccess = "full" | "approval";
+export type AssistantAccess = "scoped" | "full" | "approval";
 export type AssistantRunbookId =
   | "patch_test_verify"
   | "audit_reproduce_remediate"
@@ -53,6 +54,8 @@ export interface AssistantRunOptions {
   /** Internal routing only — never a user mode selector */
   pathKind?: EngineeringPathKind;
   access: AssistantAccess;
+  /** Canonical tool-autonomy policy. Never maps Auto to unrestricted access. */
+  autonomyPolicy?: AutonomyPolicy;
   serviceTier?: RainyServiceTier;
   runbookId?: AssistantRunbookId;
   attachments?: AssistantAttachment[];

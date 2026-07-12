@@ -21,6 +21,8 @@ import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
 import { buildHomePageSubmitOptions } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
+import { DEFAULT_BEHAVIOR_PREFERENCE, behaviorInstruction, behaviorRunOptions, type BehaviorPreference } from '../contracts/behavior-mode';
+import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
 
 export function HomePage() {
   const isSubmitting = useRef(false);
@@ -30,6 +32,7 @@ export function HomePage() {
   const [activeEngineeringTask, setActiveEngineeringTask] =
     useState<EngineeringTaskViewModel | null>(null);
   const [ctaBusy, setCtaBusy] = useState(false);
+  const [behavior, setBehavior] = useState<BehaviorPreference>(DEFAULT_BEHAVIOR_PREFERENCE);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -62,8 +65,10 @@ export function HomePage() {
     isSubmitting.current = true;
     
     try {
-      await submitPrompt(prompt, {
+      const behaviorOptions = behaviorRunOptions(behavior);
+      await submitPrompt(`${behaviorInstruction(behavior)}\n\nUser request: ${prompt}`, {
         ...buildHomePageSubmitOptions({
+          ...behaviorOptions,
           ...overrides,
           // Resume same EngineeringTask when present — never second Capture on approve.
           engineeringTaskId:
@@ -95,8 +100,17 @@ export function HomePage() {
       workspace={workspace}
       prompt={composerPrompt}
       onPromptChange={setComposerPrompt}
+      behavior={behavior}
+      onBehaviorChange={(next) => {
+        setBehavior(next);
+        if (activeWorkspaceId) saveBehaviorPreference(activeWorkspaceId, next);
+      }}
     />
   );
+
+  useEffect(() => {
+    setBehavior(activeWorkspaceId ? loadBehaviorPreference(activeWorkspaceId) : DEFAULT_BEHAVIOR_PREFERENCE);
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -275,7 +289,7 @@ export function HomePage() {
         runStatus={runStatus}
         workspace={workspace}
       />
-      <div className="shrink-0 border-b border-border/40 px-4 py-2">
+      <div className="absolute right-4 top-2 z-40">
         <EngineeringTaskPanel
           task={activeEngineeringTask}
           busy={runStatus === 'running' || ctaBusy}
@@ -297,4 +311,3 @@ export function HomePage() {
     </section>
   );
 }
-

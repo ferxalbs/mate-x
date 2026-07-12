@@ -237,10 +237,22 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 
 ## Architecture Constraints & Governance
 
-- **System Scope**: MaTE X is not an IDE and must expose no user-facing modes.
+- **System Scope**: MaTE X is not an IDE and must expose no separate user-facing workflow engines.
 - **Workflow Authority**: `EngineeringTask` is the canonical workflow authority.
+- **Behavior Modes**: Auto, Guided, Review, and Custom control autonomy only; they are not workflow engines. Auto is default.
+- **Scoped Auto Policy**: Auto means scoped autonomy, never unrestricted or Full access. Safe workspace-local reads, edits, patches, and validation may run automatically.
+- **Distinct Tool Policies**: Behavior modes map to distinct canonical tool policies: `auto_scoped`, `guided_approval`, `review_read_only`, and `custom`.
+- **Repository Boundary**: Every tool authorization must enforce the active workspace boundary and repository trust state. Writes outside the active workspace require explicit approval.
+- **Git Authorization**: Git writes, including commit and push, always require explicit user authorization in every behavior mode.
+- **Validation Autonomy**: Safe repository-local lint, typecheck, test, and build commands may run automatically when policy and trust permit them.
+- **Policy Consistency**: Behavior mode and repository trust must never conflict silently. A required approval must produce a concise reason and resume the same EngineeringTask and run context.
+- **Evidence Before Questions**: Inspect repository evidence first. Ask only for material ambiguity, risk, credentials, destructive action, or required approval. Internal specification and planning are never mandatory UI ceremony.
+- **Conversational Projection**: Project workflow state through compact status, inline activity, optional task details, and concise results. Large persistent workflow cards are prohibited in primary conversation.
+- **Action Integrity**: Every visible CTA must match canonical state and have a real handler. Never show duplicate or already-running actions.
+- **Development Loop**: macOS is current primary founder-testing platform. `bun run start` is normal UX iteration loop. Packaging is reserved for release qualification.
+- **Runtime Purity**: Test and QA infrastructure must remain outside production runtime.
 - **Spec & Git Constraints**: No prompt-as-spec, regex stage authority, renderer Git authorization, or model-generated evidence.
-- **Self-Correction Policy**: `AGENTS.md` must be updated whenever architecture, test layout, platform policy, release commands, or canonical namespaces change.
+- **Self-Correction Policy**: `AGENTS.md` must be updated whenever behavior modes, workflow authority, architecture, test organization, platform policy, release commands, or canonical namespaces change.
 
 ***
 

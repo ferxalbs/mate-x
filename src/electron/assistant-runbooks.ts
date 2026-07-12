@@ -259,7 +259,7 @@ export function resolveAssistantRunOptions(
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     pathKind,
     access:
-      options?.access === "approval" || options?.access === "full"
+      options?.access === "approval" || options?.access === "scoped" || options?.access === "full"
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
     serviceTier: normalizeRainyServiceTier(options?.serviceTier),

@@ -84,18 +84,9 @@ export function primaryActionForStatus(
         commandType: "ApprovePlanAndTasks",
       };
     case "executing":
-      return {
-        id: "start_execution",
-        label: "Start execution",
-        commandType: "BeginVerification",
-      };
     case "verifying":
     case "converging":
-      return {
-        id: "run_validation",
-        label: "Run validation",
-        commandType: "ExecuteValidation",
-      };
+      return null;
     case "ready":
       return {
         id: "view_ship_proof",
@@ -154,17 +145,7 @@ export function EngineeringTaskPanel({
   onPrimaryAction?: (action: EngineeringPrimaryAction) => void;
   busy?: boolean;
 }) {
-  if (!task) {
-    return (
-      <div className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Engineering task</p>
-        <p className="mt-1">
-          Describe an engineering objective to start. MaTE X determines the
-          workflow — there is no mode picker.
-        </p>
-      </div>
-    );
-  }
+  if (!task) return null;
 
   const action = primaryActionForStatus(task.status);
   const facing = userFacingStatusLabel(task.status);
@@ -172,34 +153,23 @@ export function EngineeringTaskPanel({
   const canRenderCta = Boolean(action && onPrimaryAction);
 
   return (
-    <div
-      className="flex flex-col gap-3 rounded-lg border border-border/60 p-4"
+    <details
+      className="group text-xs text-muted-foreground"
       data-engineering-task-id={task.engineeringTaskId}
       data-engineering-status={task.status}
       data-user-facing-status={facing}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{task.title}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {task.objectivePreview}
-          </p>
-        </div>
-        <ReadinessBadge readiness={task.readiness} />
-      </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          Status:{" "}
-          <span className="text-foreground" data-testid="engineering-status">
-            {facing}
-          </span>
-        </span>
-        <span>v{task.aggregateVersion}</span>
-      </div>
-      {canRenderCta && action ? (
+      <summary className="cursor-pointer list-none rounded-full px-2 py-1 hover:bg-foreground/5">
+        Task details
+      </summary>
+      <div className="absolute right-4 top-12 z-40 mt-2 w-80 rounded-2xl border border-border/70 bg-[var(--panel)]/92 p-4 shadow-none backdrop-blur-xl">
+        <p className="break-words font-medium text-foreground">{task.title}</p>
+        <p className="mt-1 break-words">{task.objectivePreview}</p>
+        <p className="mt-3" data-testid="engineering-status">{facing} · v{task.aggregateVersion}</p>
+        {canRenderCta && action ? (
         <button
           type="button"
-          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          className="mt-3 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
           disabled={busy}
           data-testid="engineering-primary-cta"
           data-cta-id={action.id}
@@ -208,8 +178,9 @@ export function EngineeringTaskPanel({
         >
           {action.label}
         </button>
-      ) : null}
-    </div>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
