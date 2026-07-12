@@ -9,7 +9,7 @@ import type { WorkPlan } from "./work-engine/types";
 const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   reasoningEnabled: true,
   reasoning: "high",
-  mode: "build",
+  pathKind: "full",
   access: "approval",
   runbookId: "patch_test_verify",
 };
@@ -244,16 +244,12 @@ const RUNBOOK_DEFINITIONS: Record<
 export function resolveAssistantRunOptions(
   options?: AssistantRunOptions,
 ): AssistantRunOptions {
-  const mode =
-    options?.mode === "chat" ||
-      options?.mode === "review" ||
-      options?.mode === "factory" ||
-      options?.mode === "ship" ||
-      options?.mode === "plan" ||
-      options?.mode === "critic_loop"
-      ? options.mode
-      : DEFAULT_ASSISTANT_OPTIONS.mode;
-  const factoryLikeMode = mode === "factory" || mode === "ship";
+  const pathKind =
+    options?.pathKind === "full" ||
+    options?.pathKind === "verify_only" ||
+    options?.pathKind === "chat_help"
+      ? options.pathKind
+      : DEFAULT_ASSISTANT_OPTIONS.pathKind;
 
   return {
     reasoningEnabled: options?.reasoningEnabled !== false,
@@ -261,20 +257,22 @@ export function resolveAssistantRunOptions(
       typeof options?.reasoning === "string" && options.reasoning.trim()
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
-    mode,
+    pathKind,
     access:
-      factoryLikeMode
-        ? "approval"
-        :
-      options?.access === "approval" || options?.access === "full"
+      options?.access === "approval" || options?.access === "scoped" || options?.access === "full"
         ? options.access
         : DEFAULT_ASSISTANT_OPTIONS.access,
     serviceTier: normalizeRainyServiceTier(options?.serviceTier),
     runbookId:
-      factoryLikeMode
+      pathKind === "verify_only"
         ? "patch_test_verify"
-        : resolveRunbookId(options?.runbookId),
+        : pathKind === "chat_help"
+          ? "review_classify_summarize"
+          : resolveRunbookId(options?.runbookId),
     attachments: options?.attachments?.map((attachment) => ({ ...attachment })) ?? [],
+    engineeringTaskId: options?.engineeringTaskId ?? null,
+    // sdkAction is validated at the IPC boundary; preserve for orchestrator execution only.
+    ...(options?.sdkAction ? { sdkAction: options.sdkAction } : {}),
   };
 }
 

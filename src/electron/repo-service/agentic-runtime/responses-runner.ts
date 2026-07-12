@@ -41,6 +41,8 @@ export async function requestRainyResponsesAgenticResponse({
   runId,
   serviceTier,
   signal,
+  engineeringTaskStatus,
+  planningPhase: _planningPhase,
 }: {
   apiKey: string;
   history: string[];
@@ -56,11 +58,14 @@ export async function requestRainyResponsesAgenticResponse({
   runId: string;
   serviceTier?: AssistantRunOptions["serviceTier"];
   signal?: AbortSignal;
+  engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
+  planningPhase?: boolean;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
   content: string;
 }> {
+  void _planningPhase;
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
     { role: "user", content: prompt },
@@ -309,6 +314,8 @@ export async function requestRainyResponsesAgenticResponse({
           emitProgress,
           appSettings,
           runId,
+          engineeringTaskStatus,
+          autonomyPolicy: options.autonomyPolicy,
         }),
     );
 

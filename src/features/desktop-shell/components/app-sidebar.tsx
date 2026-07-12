@@ -126,7 +126,7 @@ function getThreadStatusLabel(
 
 export function AppSidebar({
   workspaces,
-  workspace,
+  workspace: _workspace,
   activeWorkspaceId,
   activeThreadId,
   threadsByWorkspace,
@@ -170,10 +170,10 @@ export function AppSidebar({
       )}>
         <div className="flex min-w-0 items-center gap-2">
           <div className="ml-1 flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">
+            <span className="truncate text-[13px] font-semibold tracking-[-0.015em] text-foreground/90">
               MaTE X
             </span>
-            <span className="rounded-full bg-muted/45 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
+            <span className="rounded-md bg-foreground/[0.05] border border-foreground/[0.03] px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-foreground/50">
               ALPHA
             </span>
           </div>
@@ -182,18 +182,19 @@ export function AppSidebar({
 
       {isSettingsRoute ? (
         <>
-          <SidebarContent className="no-drag overflow-x-hidden">
-            <SidebarGroup className="px-1 py-1">
-              <SidebarMenu>
+          <SidebarContent className="no-drag overflow-x-hidden p-2">
+            <SidebarGroup className="p-0">
+              <SidebarMenu className="gap-1">
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "general"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "general"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "general" }}
@@ -201,7 +202,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <SettingsIcon className="size-4 shrink-0" />
+                    <SettingsIcon className="size-4 shrink-0 opacity-80" />
                     <span>General</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -209,11 +210,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "connections"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "connections"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "connections" }}
@@ -221,7 +223,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <WaypointsIcon className="size-4 shrink-0" />
+                    <WaypointsIcon className="size-4 shrink-0 opacity-80" />
                     <span>Connections</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -229,11 +231,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "trust"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "trust"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "trust" }}
@@ -241,7 +244,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <ShieldCheckIcon className="size-4 shrink-0" />
+                    <ShieldCheckIcon className="size-4 shrink-0 opacity-80" />
                     <span>Trust</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -249,11 +252,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "privacy"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "privacy"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "privacy" }}
@@ -261,7 +265,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <ShieldIcon className="size-4 shrink-0" />
+                    <ShieldIcon className="size-4 shrink-0 opacity-80" />
                     <span>Privacy</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -269,11 +273,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "workspace-memory"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "workspace-memory"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "workspace-memory" }}
@@ -281,7 +286,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <FileTextIcon className="size-4 shrink-0" />
+                    <FileTextIcon className="size-4 shrink-0 opacity-80" />
                     <span>Workspace Memory</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -289,11 +294,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "agent-profiler"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "agent-profiler"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "agent-profiler" }}
@@ -301,7 +307,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <RouteIcon className="size-4 shrink-0" />
+                    <RouteIcon className="size-4 shrink-0 opacity-80" />
                     <span>Agent Profiler</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -309,11 +315,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "integrations"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "integrations"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "integrations" }}
@@ -321,7 +328,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <PuzzleIcon className="size-4 shrink-0" />
+                    <PuzzleIcon className="size-4 shrink-0 opacity-80" />
                     <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -329,11 +336,12 @@ export function AppSidebar({
                   <SidebarMenuButton
                     size="sm"
                     isActive={settingsSection === "archive"}
-                    className={
+                    className={cn(
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
                       settingsSection === "archive"
-                        ? "gap-2 px-2 py-1.5 text-left text-xs text-foreground"
-                        : "gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground/80"
-                    }
+                        ? "bg-foreground/[0.06] text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
+                    )}
                     render={
                       <SettingsLink
                         params={{ section: "archive" }}
@@ -341,7 +349,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <Trash2Icon className="size-4 shrink-0" />
+                    <Trash2Icon className="size-4 shrink-0 opacity-80" />
                     <span>Archive</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -349,17 +357,17 @@ export function AppSidebar({
             </SidebarGroup>
           </SidebarContent>
 
-          <SidebarSeparator />
+          <SidebarSeparator className="opacity-35" />
           <SidebarFooter className="no-drag p-2">
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="sm"
-                  className="gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground rounded-full"
+                  className="gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground rounded-xl transition-all duration-200"
                   render={<Link to="/" />}
                 >
                   <ArrowLeftIcon className="size-4" />
-                  <span>Back</span>
+                  <span className="font-medium">Back</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -367,37 +375,33 @@ export function AppSidebar({
         </>
       ) : (
         <>
-          <SidebarContent className="no-drag gap-0">
-            <SidebarGroup className="px-2 py-2">
-              <SidebarMenu className="mb-4">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    size="sm"
-                    className="h-8 gap-2 rounded-full px-0 text-[12px] text-muted-foreground hover:bg-transparent hover:text-foreground"
-                    onClick={onOpenSearch}
-                  >
-                    <span className="flex size-5 shrink-0 items-center justify-center">
-                      <MagnifyingGlassIcon
-                        className="size-4"
-                        weight="regular"
-                      />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">Search</span>
-                    <KbdGroup className="shrink-0 gap-0.5 opacity-65">
-                      <Kbd className="h-5 min-w-5 rounded-lg bg-muted/55 px-1 text-[10px]">
-                        ⌘K
-                      </Kbd>
-                    </KbdGroup>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-              <div className="mb-2 flex h-6 items-center justify-between">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+          <SidebarContent className="no-drag gap-0 p-2">
+            <SidebarGroup className="p-0">
+              <div className="mb-4 px-1">
+                <button
+                  onClick={onOpenSearch}
+                  className="flex h-[34px] w-full items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/35 bg-foreground/[0.03] px-3 text-[12px] text-muted-foreground transition-all duration-200 hover:bg-foreground/[0.06] hover:text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/45"
+                  type="button"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground/80" weight="regular" />
+                    <span className="truncate text-[11px] font-medium tracking-tight">Search...</span>
+                  </div>
+                  <KbdGroup className="shrink-0 gap-0.5 opacity-60">
+                    <Kbd className="h-4.5 min-w-[22px] rounded bg-foreground/[0.05] border border-foreground/[0.03] px-1 text-[9px] font-medium">
+                      ⌘K
+                    </Kbd>
+                  </KbdGroup>
+                </button>
+              </div>
+
+              <div className="mb-2.5 flex h-6 items-center justify-between px-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                   Projects
                 </span>
                 <button
                   onClick={onImportWorkspace}
-                  className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground/55 transition-colors hover:bg-accent/70 hover:text-foreground"
+                  className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
                   title="Import folder"
                   type="button"
                 >
@@ -405,21 +409,24 @@ export function AppSidebar({
                 </button>
               </div>
 
-              <SidebarMenu className="gap-1">
+              <SidebarMenu className="gap-1.5">
                 {workspaces.map((project) => {
                   const isWorkspaceActive = project.id === activeWorkspaceId;
                   const isProjectOpen = expandedWorkspaces[project.id] ?? true;
                   const projectThreads = threadsByWorkspace[project.id] ?? [];
                   const activeThreads = projectThreads.filter((t) => !t.isArchived);
                   const visibleThreads = showAllThreads
-                    ? activeThreads
-                    : activeThreads.slice(0, COLLAPSED_THREAD_LIMIT);
+                     ? activeThreads
+                     : activeThreads.slice(0, COLLAPSED_THREAD_LIMIT);
                   const hiddenThreadCount =
                     activeThreads.length - visibleThreads.length;
 
                   return (
-                    <SidebarMenuItem key={project.id} className="rounded-2xl">
-                      <div className="group/project flex items-center gap-1 pr-1">
+                    <SidebarMenuItem key={project.id}>
+                      <div className={cn(
+                        "group/project flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-all duration-200",
+                        isWorkspaceActive ? "bg-foreground/[0.04]" : "hover:bg-foreground/[0.02]"
+                      )}>
                         <button
                           onClick={() =>
                             setExpandedWorkspaces((current) => ({
@@ -427,7 +434,7 @@ export function AppSidebar({
                               [project.id]: !isProjectOpen,
                             }))
                           }
-                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/45 transition-colors hover:bg-accent hover:text-foreground"
+                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
                           title={
                             isProjectOpen
                               ? "Collapse history"
@@ -445,25 +452,28 @@ export function AppSidebar({
                         </button>
                         <button
                           className={cn(
-                            "flex h-7 min-w-0 flex-1 items-center gap-2 rounded-full px-0 text-left text-[12px] font-medium transition-colors",
+                            "flex min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-medium transition-colors",
                             isWorkspaceActive
                               ? "text-foreground"
-                              : "text-muted-foreground hover:text-foreground",
+                              : "text-muted-foreground/80 hover:text-foreground",
                           )}
                           onClick={() => void onActivateWorkspace(project.id)}
                           type="button"
                         >
-                          <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
-                            <FolderIcon className="size-4" weight="regular" />
+                          <span className={cn(
+                            "flex size-4 shrink-0 items-center justify-center transition-colors",
+                            isWorkspaceActive ? "text-primary" : "text-muted-foreground/60"
+                          )}>
+                            <FolderIcon className="size-3.5" weight={isWorkspaceActive ? "fill" : "regular"} />
                           </span>
-                          <span className="min-w-0 flex-1 truncate">
+                          <span className="min-w-0 flex-1 truncate font-medium">
                             {project.name}
                           </span>
                         </button>
                         {workspaces.length > 1 ? (
                           <button
                             onClick={() => setWorkspacePendingRemoval(project)}
-                            className="hidden shrink-0 rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-red-400 group-hover/project:inline-flex"
+                            className="hidden shrink-0 rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-foreground/[0.08] hover:text-red-400 group-hover/project:inline-flex"
                             title={`Remove ${project.name}`}
                             type="button"
                           >
@@ -473,17 +483,19 @@ export function AppSidebar({
                       </div>
 
                       {isProjectOpen ? (
-                        <div className="ml-2 mt-1 flex flex-col gap-0.5 border-l border-[var(--sidebar-border)]/70 pl-3 pr-0.5">
-                          <div className="flex items-start justify-between gap-2 pb-1 text-[10px] text-muted-foreground/40">
-                            <div className="min-w-0">
-                              <div className="truncate">{workspace?.path}</div>
-                              <div className="truncate">
+                        <div className="ml-2.5 mt-1 flex flex-col gap-0.5 border-l border-[var(--sidebar-border)]/35 pl-3.5 pr-0.5">
+                          <div className="flex items-start justify-between gap-2 pb-1.5 pt-0.5 text-[10px] text-muted-foreground/40">
+                            <div className="min-w-0 flex-1 font-mono tracking-tight leading-normal">
+                              <div className="truncate text-muted-foreground/45" title={project.path}>
+                                {project.path.replace(/^\/Users\/[^/]+/, "~")}
+                              </div>
+                              <div className="text-[9px] text-muted-foreground/35 font-sans font-medium">
                                 {activeThreads.length} saved threads
                               </div>
                             </div>
                             <button
                               onClick={onCreateThread}
-                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
                               title="New thread"
                               type="button"
                             >
@@ -514,7 +526,7 @@ export function AppSidebar({
                           {hiddenThreadCount > 0 ? (
                             <button
                               onClick={() => setShowAllThreads(true)}
-                              className="ml-2 mt-1 inline-flex h-7 items-center justify-center rounded-full px-3 text-[11px] text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+                              className="ml-2 mt-1 inline-flex h-7 items-center justify-center rounded-md px-3 text-[11px] text-muted-foreground/75 transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
                               type="button"
                             >
                               Show {hiddenThreadCount} older
@@ -535,36 +547,36 @@ export function AppSidebar({
             </SidebarGroup>
           </SidebarContent>
 
-          <SidebarSeparator className="mt-0" />
+          <SidebarSeparator className="mt-0 opacity-35" />
           <SidebarFooter className="no-drag p-2">
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               <SidebarMenuItem>
-                <div className="mb-1 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+                <div className="rounded-xl px-3 py-1.5 transition-all duration-200 hover:bg-foreground/[0.04]">
                   <Link
                     to="/runs"
-                    className="flex min-w-0 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
+                    className="flex min-w-0 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open Mission Log"
                   >
-                    <ListChecksIcon className="size-3.5" />
-                    <span className="text-xs">Mission Log</span>
+                    <ListChecksIcon className="size-4 text-muted-foreground/75" />
+                    <span className="text-[12px] font-medium">Mission Log</span>
                   </Link>
                 </div>
-                <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60">
+                <div className="flex items-center justify-between rounded-xl px-3 py-1.5 transition-all duration-200 hover:bg-foreground/[0.04]">
                   <SettingsLink
                     params={{ section: "general" }}
                     to="/settings/$section"
-                    className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground/70 transition-colors hover:text-foreground"
+                    className="flex min-w-0 flex-1 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
-                    <SettingsIcon className="size-3.5" />
-                    <span className="text-xs">Settings</span>
+                    <SettingsIcon className="size-4 text-muted-foreground/75" />
+                    <span className="text-[12px] font-medium">Settings</span>
                   </SettingsLink>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em]",
+                      "rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider",
                       resolvedTheme === "dark"
-                        ? "bg-accent text-foreground"
-                        : "bg-muted/70 text-muted-foreground",
+                        ? "bg-foreground/[0.08] text-foreground/80"
+                        : "bg-muted/70 text-muted-foreground/80",
                     )}
                   >
                     {theme}
@@ -625,7 +637,7 @@ export function AppSidebar({
     <Sidebar
       side="left"
       collapsible="offcanvas"
-      className="drag-region border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
+      className="app-sidebar-container drag-region border-r border-[var(--sidebar-border)]/35 bg-[var(--sidebar)] text-[var(--sidebar-foreground)]"
     >
       {sidebarContent}
     </Sidebar>

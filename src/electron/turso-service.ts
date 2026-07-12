@@ -34,6 +34,7 @@ import {
   createDefaultWorkspaceTrustContract,
   normalizeWorkspaceTrustContract,
 } from './workspace-trust';
+import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -45,6 +46,21 @@ const DEFAULT_THREADS_JSON = '[]';
 export class TursoService {
   private client: Client | null = null;
   private initialized = false;
+
+  /**
+   * Local file path for the app DB (file: URLs only).
+   * Remote Turso URLs return null — durable engineering repo requires local file.
+   */
+  getLocalDatabaseFilePath(): string | null {
+    const configuredUrl = process.env.TURSO_DATABASE_URL?.trim();
+    if (configuredUrl && configuredUrl.length > 0) {
+      if (configuredUrl.startsWith('file:')) {
+        return configuredUrl.slice('file:'.length);
+      }
+      return null;
+    }
+    return path.join(app.getPath('userData'), 'mate-x.db');
+  }
 
   private getClient() {
     if (this.client) {
@@ -248,6 +264,8 @@ export class TursoService {
           ON privacy_secret_vault(workspace_id, hash)`,
         `CREATE INDEX IF NOT EXISTS idx_privacy_scan_events_workspace
           ON privacy_scan_events(workspace_id, created_at)`,
+        // NES-1.2 EngineeringTask control-plane tables (idempotent)
+        ...ENGINEERING_SCHEMA_SQL,
       ],
       'write',
     );

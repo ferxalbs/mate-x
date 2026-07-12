@@ -8,6 +8,8 @@ import { toolService } from "../../tool-service";
 import { failureMemoryEngine } from "../../failure-memory-engine";
 import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateToolOutput, withTimeout } from "./helpers";
 import { resolveToolExecutionTimeoutMs } from "./config";
+import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
+import { authorizeToolForEngineeringStatus } from "../../engineering/tool-phase-auth";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -18,6 +20,8 @@ export async function executeAgentToolCall({
   emitProgress,
   appSettings,
   runId,
+  engineeringTaskStatus,
+  autonomyPolicy,
 }: {
   toolCall: AgentToolCall;
   toolIndex: number;
@@ -27,6 +31,9 @@ export async function executeAgentToolCall({
   emitProgress: () => void;
   appSettings: AppSettings;
   runId: string;
+  /** Control-plane status authority for pre-approval tool restrictions. */
+  engineeringTaskStatus?: EngineeringTaskStatus | null;
+  autonomyPolicy?: import("../../../contracts/behavior-mode").AutonomyPolicy;
 }): Promise<{
   toolCallId: string;
   content: string;
@@ -57,6 +64,35 @@ export async function executeAgentToolCall({
         toolName,
         args: {},
         output: `Tool argument parsing failed for ${toolName}: ${reason}`,
+      } satisfies ToolExecutionRecord,
+    };
+  }
+
+  const phaseAuth = authorizeToolForEngineeringStatus(
+    toolName,
+    engineeringTaskStatus,
+    toolArgs,
+    autonomyPolicy,
+  );
+  if (!phaseAuth.allowed) {
+    events.push({
+      id: eventId,
+      label: `Blocked ${toolName}`,
+      detail: phaseAuth.message,
+      status: "error",
+    });
+    emitProgress();
+    return {
+      toolCallId: toolCall.id,
+      content: phaseAuth.message,
+      toolExecution: {
+        toolName,
+        args: toolArgs,
+        output: phaseAuth.message,
+        parsedOutput: {
+          status: "blocked",
+          code: phaseAuth.code,
+        },
       } satisfies ToolExecutionRecord,
     };
   }

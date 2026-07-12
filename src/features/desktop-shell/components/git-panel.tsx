@@ -32,9 +32,10 @@ function basename(path: string) {
 }
 
 function repoNeedsShipGate(action: GitSafetyAction) {
-  const state = (window as any).__mateShipGateState as
-    | { validated?: boolean; status?: string }
-    | undefined;
+  // Mirror only: main-process GitGate is authoritative (NES-6.2/6.3).
+  // Prefer IPC-evaluated gate state; never trust a window global.
+  const state = (globalThis as { __mateGitGateMirror?: { validated?: boolean; status?: string } })
+    .__mateGitGateMirror;
   return shouldGateGitAction(action, state);
 }
 

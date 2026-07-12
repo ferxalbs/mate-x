@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ferxalbs/mate-x/releases"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-171717?labelColor=171717&color=0ea5e9"></a>
+  <a href="https://github.com/ferxalbs/mate-x/releases"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20(v0.1.2%20qualified)-171717?labelColor=171717&color=0ea5e9"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MaTE%20X%20Licence-171717?labelColor=171717&color=0ea5e9"></a>
   <a href="https://mate-x.xyz"><img alt="Website" src="https://img.shields.io/badge/website-mate--x.xyz-171717?labelColor=171717&color=10b981"></a>
 </p>
@@ -19,27 +19,30 @@ MaTE X is not another IDE, a generic chatbot, a model marketplace, a scanner-onl
 
 ## Product Promise
 
-AI coding tools are fast, but model prose is not proof. MaTE X keeps the developer's existing agent while enforcing deterministic evidence:
+AI coding tools are fast, but model prose is not proof. MaTE X keeps the developer's agent while enforcing deterministic evidence:
 
 - **Repository state**: current branch, dirty files, package manager, scripts, runtime surfaces, and trust state.
 - **Changed surfaces**: touched files, runtime entry points, secrets-risk files, infrastructure, auth, billing, crypto, migrations, IPC, shell, and Git-sensitive areas.
-- **Required validation**: the smallest useful plan backed by detected package manager and available scripts. MaTE X does not invent `npm run` commands.
+- **Required validation**: the smallest useful plan backed by detected package manager and available scripts. MaTE X does not invent package-manager commands.
 - **Executed evidence**: commands and tools that actually ran, with passed, failed, skipped, unavailable, missing, partial, cancelled, and stale states kept visible.
 - **Ship decision**: `Ready`, `Needs check`, `Risk found`, `Blocked`, or `Not proven`.
 
 A clean working tree is not the same as a trusted repository. A model saying "ready" cannot unlock Git. Commit and push fail closed when policy requires proof.
 
-## Factory Mode Lite
+## EngineeringTask and behavior modes (v0.1.2)
 
-Factory Mode is a structured verification workflow, not a large autonomous DAG product:
+`EngineeringTask` is the sole workflow authority. The normal product surface is conversational: compact status, inline activity, optional task details, and concise results — not a large persistent workflow card.
 
-```text
-Spec -> Repo Context -> Risk Surfaces -> Validation Plan -> Agent Actions -> Verification -> Ratchet Suggestions -> Ship Proof
-```
+**Behavior modes** control autonomy only (they are not separate workflow engines):
 
-Factory and Ship mode always use approval-required access and the proof-producing verification runbook. RepoGraph semantic memory and workspace health are used before broad file reads. Ratchet rules remain suggestions and require explicit approval.
+| Mode | Policy | Behavior |
+| --- | --- | --- |
+| **Auto** (default) | `auto_scoped` | Scoped autonomy inside the workspace. Safe edits and validation may run automatically. **Never** unrestricted Full access. |
+| **Guided** | `guided_approval` | Inspect freely; contextual approval before mutations. |
+| **Review** | `review_read_only` | Read-only analysis and recommendations. |
+| **Custom** | `custom` | Independent toggles: ask before edits/commands/network/Git; optional auto-validation. |
 
-Review mode stays useful for lighter analysis without forcing the full Factory experience.
+Git commit and push remain hard-gated in every mode. The agent inspects repository evidence before asking questions.
 
 ## Ship Proof
 
@@ -69,10 +72,9 @@ On first launch, MaTE X should be understandable without founder assistance:
 
 1. Configure or validate a Rainy API v3 key in Settings.
 2. Open a local repository.
-3. Let MaTE X map repository context.
-4. Review the current trust state.
-5. Run the primary action: **Run Factory verification**.
-6. Read the Ship Proof and any block remediation steps.
+3. Choose a behavior mode (Auto is default) if you need Guided, Review, or Custom.
+4. Describe the engineering objective in the composer.
+5. Review inline status, approvals, and the Ship Proof when validation completes.
 
 If Rainy is unavailable or credentials are missing, local repository state remains visible and cloud-backed review/verification is clearly unavailable rather than silently trusted.
 
@@ -134,11 +136,14 @@ Electron main process
 
 ## Requirements
 
-- Bun 1.3+ for development.
-- macOS 12+ on Intel or Apple Silicon, or Windows 10/11.
+- Bun 1.3+ for development (Bun only — do not use npm/pnpm/yarn for project scripts).
+- **macOS 12+** on Intel or Apple Silicon is the **qualified v0.1.2** platform.
+- Windows 10/11 remains architecturally supported; **Windows qualification is deferred** for this release cut.
 - Rainy API v3+ key configured in app Settings for cloud-backed verification.
 
 Linux is not a supported public release target.
+
+Release notes for this cut: [docs/release/v0.1.2-release-notes.md](docs/release/v0.1.2-release-notes.md).
 
 ## Development
 

@@ -20,4 +20,23 @@ describe("Forge release configuration", () => {
     assert.match(forgeConfig, /EnableEmbeddedAsarIntegrityValidation\]: true/);
     assert.match(forgeConfig, /OnlyLoadAppFromAsar\]: true/);
   });
+
+  it("packages @vscode/ripgrep runtime and constrains platform assets to host", () => {
+    assert.match(forgeConfig, /@vscode\/ripgrep/);
+    assert.match(forgeConfig, /@vscode\/ripgrep-darwin-x64/);
+    assert.match(forgeConfig, /@vscode\/ripgrep-darwin-arm64/);
+    assert.match(forgeConfig, /@vscode\/ripgrep-win32-x64/);
+    assert.match(forgeConfig, /ripgrepPlatformPackageForHost/);
+    assert.match(forgeConfig, /packageAfterCopy: ripgrep binary missing/);
+    // Host platform binaries must unpack outside ASAR (Windows-backslash-safe).
+    assert.match(forgeConfig, /rg\.exe/);
+    assert.match(forgeConfig, /\*\*\/\*\.node/);
+    assert.match(forgeConfig, /\*\*\/rg\.exe/);
+  });
+
+  it("excludes qa/tests/artifacts from package ignore surface", () => {
+    assert.match(forgeConfig, /qa\(\\\/\|\$\)/);
+    assert.match(forgeConfig, /tests\(\\\/\|\$\)/);
+    assert.match(forgeConfig, /artifacts\(\\\/\|\$\)/);
+  });
 });

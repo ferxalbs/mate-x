@@ -140,10 +140,26 @@ export interface GitApi {
   getLog: (limit?: number) => Promise<GitCommit[]>;
   stageFiles: (files: string[]) => Promise<void>;
   unstageFiles: (files: string[]) => Promise<void>;
-  commit: (message: string) => Promise<void>;
-  push: () => Promise<void>;
+  /** NES-6.2: proofHandle required when mainProcessGitGate is on */
+  commit: (
+    message: string | { message: string; proofHandle?: string | null },
+  ) => Promise<void>;
+  push: (payload?: { proofHandle?: string | null }) => Promise<void>;
   pull: () => Promise<void>;
   getDiff: () => Promise<GitDiff>;
+}
+
+export interface EngineeringApi {
+  dispatch: (command: unknown) => Promise<unknown>;
+  listTasks: (workspaceId: string) => Promise<unknown[]>;
+  getTask: (engineeringTaskId: string) => Promise<unknown>;
+  evaluateGitGate: (input: {
+    proofHandle?: string | null;
+    workspaceId: string;
+    headSha: string;
+    diffHash: string;
+    policyHash: string;
+  }) => Promise<{ validated: boolean; code?: string; message?: string }>;
 }
 
 export interface GitHubIntegrationApi {

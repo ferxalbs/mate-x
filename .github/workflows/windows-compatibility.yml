@@ -1,0 +1,91 @@
+# Experimental Windows compatibility probe — NOT a release gate.
+#
+# v0.1.2 is a macOS-first founder-acceptance milestone.
+# Windows production readiness is deferred to a later dedicated phase.
+#
+# Rules for this workflow:
+# - Manual dispatch only (never required for macOS PRs)
+# - Failures are visible but must not block macOS RC or founder acceptance
+# - Must not raise default product/test timeouts to hide slowness
+# - Must not publish Windows installers as release-candidate artifacts
+# - Must not drive production architecture from runner timing
+
+name: Windows Compatibility (experimental)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-compatibility:
+    name: Windows compatibility probe
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Install dependencies (locked)
+        run: bun install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify working tree clean after install
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "ERROR: working tree dirty after bun install --frozen-lockfile"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+          echo "Working tree clean after locked install"
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit / integration tests (default timeouts)
+        # Intentionally no elevated --timeout. Slow/hanging tests must surface.
+        run: bun run test:all
+
+      - name: Legacy term check
+        run: bun run scripts/check-legacy-terms.ts
+
+      - name: Verify (source purity + package config)
+        run: bun run verify
+
+      - name: Package (compatibility only — not an RC artifact)
+        run: bun run package
+
+      - name: Bundle purity + platform packaging checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run scripts/release/verify-bundle-purity.ts --require-asar
+          bun test qa/platform/ripgrep-packaging.test.ts
+          bun test \
+            qa/packaged/control-plane-recovery-driver.test.ts \
+            src/electron/engineering/migration/migrate-v011.test.ts \
+            src/electron/engineering/libsql-repository.test.ts \
+            src/electron/engineering/rainy-adapter.test.ts
+
+      - name: Summarize (no RC publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Windows compatibility probe completed."
+          echo "This run does NOT produce a Windows release candidate."
+          echo "macOS remains the only v0.1.2 founder-acceptance platform."
+          find out -type f -name '*.exe' 2>/dev/null | head -20 || true

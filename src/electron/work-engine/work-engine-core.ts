@@ -7,7 +7,8 @@ import {
 } from "./runbook-resolver";
 import type { PreventiveRiskArea, SensitiveSurfaceKind, WorkPlan, WorkPlanMetadata, WorkRisk } from "./types";
 
-export type WorkEngineMode = "build" | "plan" | "critic" | "security_review";
+/** Internal work-engine execution posture — not user-facing AssistantMode */
+export type WorkEngineMode = "execute" | "analyze" | "quality" | "security_review";
 
 export type WorkPlanInputSnapshot = {
   prompt: string;

@@ -95,6 +95,7 @@ const hardenWindow = (window: BrowserWindow) => {
   });
 };
 
+
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1275,
@@ -106,6 +107,9 @@ const createWindow = () => {
     title: 'MaTE X',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
+    vibrancy: 'under-window',
+    backgroundMaterial: 'mica',
+    backgroundColor: '#00000000',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -133,6 +137,7 @@ const createWindow = () => {
   });
 };
 
+
 app.on('ready', async () => {
   try {
     await initStack();
@@ -159,3 +164,4 @@ app.on('activate', () => {
     createWindow();
   }
 });
+

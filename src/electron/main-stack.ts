@@ -21,6 +21,46 @@ let configSnapshot: MaTeXConfig | null = null;
 export async function initStack(): Promise<void> {
   await teardownStack();
 
+  // Durable EngineeringRepository (R1) — fail closed, no in-memory fallback
+  await tursoService.initialize();
+  const { initDurableEngineeringRepository } = await import('./engineering/repository');
+  const dbPath = tursoService.getLocalDatabaseFilePath();
+  if (!dbPath) {
+    throw new Error(
+      'EngineeringRepository requires a local libSQL file path; remote-only TURSO_DATABASE_URL is not supported for v0.1.2 control-plane authority',
+    );
+  }
+  initDurableEngineeringRepository(dbPath);
+
+  // Production Rainy agent adapter — never scaffold success (CLOSURE 1)
+  const {
+    initProductionAgentAdapter,
+    resolveRainyApiKeyFromEnv,
+  } = await import('./engineering/agent-runtime');
+  initProductionAgentAdapter({
+    getApiKey: () => resolveRainyApiKeyFromEnv(process.env),
+  });
+
+  // Optional v0.1.1 migration fixture path for upgrade installs
+  try {
+    const { runV011Migration, loadV011Fixture } = await import(
+      './engineering/migration/migrate-v011'
+    );
+    const { getEngineeringRepository } = await import('./engineering/repository');
+    const fixturePath = join(app.getPath('userData'), 'legacy', 'v0.1.1-fixture.json');
+    const { existsSync } = await import('node:fs');
+    if (existsSync(fixturePath)) {
+      const fixture = loadV011Fixture(fixturePath);
+      runV011Migration({
+        repo: getEngineeringRepository(),
+        fixture,
+        userDataDir: app.getPath('userData'),
+      });
+    }
+  } catch (error) {
+    console.warn('Legacy migration skipped or failed safely', error);
+  }
+
   const nextConfig = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
   const resolvedConfig = {
     ...nextConfig,
@@ -33,8 +73,8 @@ export async function initStack(): Promise<void> {
     workspaceId: 'default',
     storage: {
       // Use app-scoped userData for the internal MaTeX SDK storage bucket / EvidencePackStorage
-      // adapter (the '.matex/evidence' tree). This was previously resolve(process.cwd(), ...),
-      // which caused .matex folders (and evidence artifacts) to be created inside the mate-x
+      // adapter (the '.mate-x/evidence' tree). This was previously resolve(process.cwd(), ...),
+      // which caused .mate-x folders (and evidence artifacts) to be created inside the mate-x
       // source repo (dev) or the packaged app launch/install dir (prod) instead of being
       // isolated to the app and the *target* workspace's .mate-x/evidence for compliance packs.
       // The portable per-workspace evidence still lives under the user-selected workspacePath

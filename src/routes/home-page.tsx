@@ -1,23 +1,38 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '../hooks/use-theme';
 import { useChatStore } from '../store/chat-store';
 import { ChatTopbar } from '../features/desktop-shell/components/chat-topbar';
 import { ChatWorkspace } from '../features/desktop-shell/components/chat-workspace';
 import { ComposerPanel } from '../features/desktop-shell/components/composer-panel';
+import {
+  EngineeringTaskPanel,
+  type EngineeringPrimaryAction,
+  type EngineeringTaskViewModel,
+} from '../features/engineering/engineering-task-panel';
 import { getAppSettings } from '../services/settings-client';
 import { listPolicyStops, resolvePolicyStop } from '../services/policy-client';
+import {
+  dispatchPrimaryEngineeringAction,
+  listEngineeringTasks,
+} from '../services/engineering-client';
 import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
 import { buildHomePageSubmitOptions } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
+import { DEFAULT_BEHAVIOR_PREFERENCE, behaviorInstruction, behaviorRunOptions, type BehaviorPreference } from '../contracts/behavior-mode';
+import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
 
 export function HomePage() {
   const isSubmitting = useRef(false);
   const [, setTraceV2InlineEvents] = useState(false);
   const [pendingPolicyStop, setPendingPolicyStop] = useState<PolicyStop | null>(null);
   const [composerPrompt, setComposerPrompt] = useState('');
+  const [activeEngineeringTask, setActiveEngineeringTask] =
+    useState<EngineeringTaskViewModel | null>(null);
+  const [ctaBusy, setCtaBusy] = useState(false);
+  const [behavior, setBehavior] = useState<BehaviorPreference>(DEFAULT_BEHAVIOR_PREFERENCE);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -50,8 +65,17 @@ export function HomePage() {
     isSubmitting.current = true;
     
     try {
-      await submitPrompt(prompt, {
-        ...buildHomePageSubmitOptions(overrides),
+      const behaviorOptions = behaviorRunOptions(behavior);
+      await submitPrompt(`${behaviorInstruction(behavior)}\n\nUser request: ${prompt}`, {
+        ...buildHomePageSubmitOptions({
+          ...behaviorOptions,
+          ...overrides,
+          // Resume same EngineeringTask when present — never second Capture on approve.
+          engineeringTaskId:
+            overrides?.engineeringTaskId ??
+            activeEngineeringTask?.engineeringTaskId ??
+            null,
+        }),
       });
     } catch (err) {
       toastManager.add({
@@ -76,8 +100,17 @@ export function HomePage() {
       workspace={workspace}
       prompt={composerPrompt}
       onPromptChange={setComposerPrompt}
+      behavior={behavior}
+      onBehaviorChange={(next) => {
+        setBehavior(next);
+        if (activeWorkspaceId) saveBehaviorPreference(activeWorkspaceId, next);
+      }}
     />
   );
+
+  useEffect(() => {
+    setBehavior(activeWorkspaceId ? loadBehaviorPreference(activeWorkspaceId) : DEFAULT_BEHAVIOR_PREFERENCE);
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +128,112 @@ export function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  const refreshEngineeringTasks = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      setActiveEngineeringTask(null);
+      return;
+    }
+    try {
+      const tasks = await listEngineeringTasks(activeWorkspaceId);
+      const latest = Array.isArray(tasks) ? tasks[0] : null;
+      if (
+        latest &&
+        typeof latest === 'object' &&
+        latest !== null &&
+        'engineeringTaskId' in latest
+      ) {
+        const row = latest as Record<string, unknown>;
+        setActiveEngineeringTask({
+          engineeringTaskId: String(row.engineeringTaskId),
+          title: String(row.title ?? 'Engineering task'),
+          status: row.status as EngineeringTaskViewModel['status'],
+          readiness: row.readiness as EngineeringTaskViewModel['readiness'],
+          objectivePreview: String(
+            row.objectivePreview ?? row.title ?? '',
+          ),
+          aggregateVersion: Number(row.aggregateVersion ?? 1),
+        });
+      }
+    } catch {
+      // IPC unavailable in pure renderer unit tests
+    }
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    void refreshEngineeringTasks();
+  }, [refreshEngineeringTasks, runStatus, messages.length]);
+
+  const handlePrimaryAction = useCallback(
+    async (action: EngineeringPrimaryAction) => {
+      if (!activeWorkspaceId || !activeEngineeringTask) return;
+      setCtaBusy(true);
+      try {
+        const result = (await dispatchPrimaryEngineeringAction({
+          workspaceId: activeWorkspaceId,
+          engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+          action,
+          aggregateVersion: activeEngineeringTask.aggregateVersion,
+        })) as { ok?: boolean; error?: { message?: string }; data?: { status?: string } };
+
+        if (result && result.ok === false) {
+          toastManager.add({
+            type: 'error',
+            title: 'Action failed',
+            description: result.error?.message ?? 'Command rejected',
+          });
+          return;
+        }
+
+        await refreshEngineeringTasks();
+
+        // After approval, start a new execution run ID on the same EngineeringTask.
+        if (
+          action.id === 'approve_plan' &&
+          action.commandType === 'ApprovePlanAndTasks'
+        ) {
+          const executionRunPrompt =
+            `Execute the approved plan for engineering task ${activeEngineeringTask.engineeringTaskId}. ` +
+            `Apply the planned patch, run validation, and produce Ship Proof. Do not recapture the objective.`;
+          await handleSubmitPrompt(executionRunPrompt, {
+            engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+            pathKind: 'full',
+            access: 'approval',
+            runbookId: 'patch_test_verify',
+          });
+        } else if (action.id === 'start_execution') {
+          await handleSubmitPrompt(
+            `Continue execution for ${activeEngineeringTask.engineeringTaskId}`,
+            {
+              engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+              pathKind: 'full',
+              access: 'approval',
+            },
+          );
+        } else if (action.id === 'run_validation') {
+          await handleSubmitPrompt(
+            `Run validation for ${activeEngineeringTask.engineeringTaskId}`,
+            {
+              engineeringTaskId: activeEngineeringTask.engineeringTaskId,
+              pathKind: 'verify_only',
+              access: 'approval',
+              runbookId: 'patch_test_verify',
+            },
+          );
+        }
+      } catch (err) {
+        toastManager.add({
+          type: 'error',
+          title: 'Action failed',
+          description: err instanceof Error ? err.message : 'Unknown error',
+        });
+      } finally {
+        setCtaBusy(false);
+        void refreshEngineeringTasks();
+      }
+    },
+    [activeWorkspaceId, activeEngineeringTask, refreshEngineeringTasks],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +289,13 @@ export function HomePage() {
         runStatus={runStatus}
         workspace={workspace}
       />
+      <div className="absolute right-4 top-2 z-40">
+        <EngineeringTaskPanel
+          task={activeEngineeringTask}
+          busy={runStatus === 'running' || ctaBusy}
+          onPrimaryAction={handlePrimaryAction}
+        />
+      </div>
       <ChatWorkspace
         canUndoLastTurn={canUndoLastTurn}
         composer={composer}

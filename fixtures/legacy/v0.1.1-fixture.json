@@ -1,0 +1,80 @@
+{
+  "version": "0.1.1",
+  "workspace": {
+    "id": "ws_v011_fixture",
+    "path": "/tmp/mate-x-v011-fixture",
+    "name": "v011-fixture",
+    "branch": "main"
+  },
+  "settings": {
+    "theme": "dark",
+    "privacyMode": "strict",
+    "unrelatedSetting": true,
+    "model": "fixture-model"
+  },
+  "legacyFactoryRuns": [
+    {
+      "id": "factory_v011_1",
+      "mode": "factory",
+      "prompt": "Implement rate limiting with tests — historical Factory record",
+      "access": "approval",
+      "stages": [
+        {
+          "id": "repo_context",
+          "label": "Repo context",
+          "status": "completed",
+          "summary": "Historical regex-projected stage — not authority"
+        },
+        {
+          "id": "validation_plan",
+          "label": "Validation plan",
+          "status": "completed",
+          "summary": "Historical"
+        },
+        {
+          "id": "verification_result",
+          "label": "Verification",
+          "status": "completed",
+          "summary": "Must not imply Ready"
+        }
+      ],
+      "ratchetSuggestions": [],
+      "shipProof": {
+        "verdict": "partial",
+        "touchedFilesCount": 2,
+        "riskSurfaces": [],
+        "validationCommands": ["bun test"],
+        "passedEvidence": [],
+        "failedEvidence": [],
+        "missingEvidence": [],
+        "privacyStatus": "unknown",
+        "gitStatus": "allowed"
+      },
+      "createdAt": "2026-06-01T12:00:00.000Z",
+      "completedAt": "2026-06-01T12:05:00.000Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_user_1",
+      "role": "user",
+      "content": "Implement rate limiting with tests — historical Factory record",
+      "createdAt": "2026-06-01T12:00:00.000Z"
+    },
+    {
+      "id": "msg_asst_1",
+      "role": "assistant",
+      "content": "Historical assistant output",
+      "createdAt": "2026-06-01T12:05:00.000Z",
+      "factoryRun": {
+        "id": "factory_v011_msg",
+        "mode": "ship",
+        "prompt": "Ship historical embed",
+        "access": "approval",
+        "stages": [],
+        "ratchetSuggestions": [],
+        "createdAt": "2026-06-01T12:05:00.000Z"
+      }
+    }
+  ]
+}

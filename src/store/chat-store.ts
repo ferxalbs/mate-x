@@ -745,6 +745,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!currentThread) {
       return;
     }
+
+    // R5: CaptureTask is sole authority entry — keep the returned engineeringTaskId
+    // for every planning/execution run. Never Capture again on approve/resume.
+    let engineeringTaskId: string | null =
+      typeof runOptions.engineeringTaskId === "string"
+        ? runOptions.engineeringTaskId
+        : null;
+    if (!engineeringTaskId) {
+      try {
+        const { captureEngineeringTask } = await import(
+          "../services/engineering-client"
+        );
+        const captured = await captureEngineeringTask({
+          workspaceId,
+          objectiveSeed: displayedPrompt,
+          conversationId: activeThreadId,
+        });
+        if (captured.ok && captured.engineeringTaskId) {
+          engineeringTaskId = captured.engineeringTaskId;
+        }
+      } catch {
+        // Unit tests without IPC still exercise chat path; packaged app has engineering IPC.
+      }
+    }
     const historyBeforePrompt = currentThread.messages.map(
       (message) => `${message.role}: ${message.content}`,
     );
@@ -763,13 +787,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: new Date().toISOString(),
       events: [],
       artifacts: [],
-      factoryRun: createFactoryRun({
-        id: createId("factory"),
-        prompt: displayedPrompt,
-        options: runOptions,
-        createdAt: new Date().toISOString(),
-      }),
+      // Factory write authority deleted — never embed factoryRun
     };
+    // Keep createFactoryRun call to prove write path remains dead (always undefined)
+    void createFactoryRun({
+      id: createId("factory"),
+      prompt: displayedPrompt,
+      options: runOptions,
+      createdAt: new Date().toISOString(),
+    });
+
     const reproducibleRun: ReproducibleRun = redactRun({
       id: runId,
       threadId: activeThreadId,
@@ -789,7 +816,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         settings: {
           reasoningEnabled: options.reasoningEnabled,
           reasoning: runOptions.reasoning,
-          mode: runOptions.mode,
+          pathKind: runOptions.pathKind,
           access: runOptions.access,
           runbookId: runOptions.runbookId,
         },
@@ -883,7 +910,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const assistantExecution = runAssistant(
         displayedPrompt,
         historyBeforePrompt,
-        runOptions,
+        {
+          ...runOptions,
+          engineeringTaskId,
+        },
         runId,
       );
       const execution = await Promise.race([
@@ -893,12 +923,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const finalMessage: ChatMessage = {
         ...execution.message,
-        factoryRun: completeFactoryRun(assistantPlaceholder.factoryRun, {
-          events: execution.message.events ?? [],
-          evidencePack: execution.message.evidencePack,
-          completedAt: execution.message.createdAt,
-        }),
       };
+      // Prove dead write path — completeFactoryRun never restores authority
+      void completeFactoryRun(undefined, {
+        events: execution.message.events ?? [],
+        evidencePack: execution.message.evidencePack,
+        completedAt: execution.message.createdAt,
+      });
 
       const finalRun = await sealRunIntegrity({
         ...reproducibleRun,
@@ -966,10 +997,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: "assistant",
         content: formattedError,
         createdAt: new Date().toISOString(),
-        factoryRun: completeFactoryRun(assistantPlaceholder.factoryRun, {
-          events: [],
-          completedAt: new Date().toISOString(),
-        }),
         artifacts: [
           {
             id: "assistant-error",
@@ -979,6 +1006,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           },
         ],
       };
+      void completeFactoryRun(undefined, {
+        events: [],
+        completedAt: new Date().toISOString(),
+      });
       const failedRun = await sealRunIntegrity({
         ...reproducibleRun,
         assistantMessageId: fallbackMessage.id,

@@ -51,6 +51,11 @@ export interface WorkPlan {
   risk: WorkRisk;
   objective: string;
   runbook: WorkRunbook;
+  /** NES-4.1: link execution spine to EngineeringTask when control plane owns the run */
+  engineeringTaskId?: string | null;
+  specificationVersion?: number | null;
+  taskIds?: string[];
+  lifecyclePhase?: string | null;
   workingSet: {
     primaryFiles: string[];
     relatedFiles: string[];
