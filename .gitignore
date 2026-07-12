@@ -120,3 +120,8 @@ demos
 mate-x-app
 mate-x-app/*
 .gstack
+# Local / CI release evidence (do not commit machine-specific output)
+artifacts/
+out/
+.vite/
+*.ndjson
