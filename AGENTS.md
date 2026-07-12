@@ -30,10 +30,10 @@ MaTE X is a desktop security review agent for local repositories.
 ### Code & Directory Structure
 
 - **Production Code**: Belongs only under `src/`. No test harness, fake adapter, fixture, generated evidence, test IPC, or qualification module may ship in the production bundle.
-- **Tests**: Belongs only under `tests/`.
+- **Unit/integration tests**: Co-located as `*.test.ts(x)` beside production modules under `src/`, or under `tests/` helpers. Fake adapters live only under `tests/helpers/`.
 - **Qualification Layer**: Packaged, platform, migration, and performance qualification belongs under `qa/`.
 - **Release Automation**: Release automation belongs under `scripts/release/`.
-- **Ignored Artifacts**: Generated artifacts and local reports must remain gitignored.
+- **Ignored Artifacts**: Generated artifacts and local reports must remain gitignored (`artifacts/`, `out/`).
 
 **Directory map — memorize this, do not re-read it:**
 
@@ -49,7 +49,7 @@ MaTE X is a desktop security review agent for local repositories.
 | `src/main.ts` | Main-process entry point |
 | `src/preload.ts` | Preload script entry |
 | `src/renderer.tsx` | Renderer entry point |
-| `tests/` | Unit, integration, and contract tests |
+| `tests/helpers/` | Non-production test doubles (e.g. fake agent adapters) |
 | `qa/` | Packaged, platform, migration, and performance qualification layer |
 | `scripts/release/` | Release automation and package verification |
 
@@ -133,10 +133,10 @@ bun run test:qa      # bun test qa
 
 ## Testing Guidelines
 
-- Tests belong under `tests/`.
+- Prefer co-located `*.test.ts(x)` next to the module under test in `src/`.
+- Shared test doubles (e.g. fake agent adapters) belong under `tests/helpers/` only — never in production runtime paths.
 - Packaged, platform, migration, and performance qualification belongs under `qa/`.
-- New tests: unit coverage for UI logic, stores, and helpers under `tests/`.
-- Minimum: lint + typecheck on every change.
+- Minimum: lint + typecheck on every change; use `bun run test:fast` during iteration and `bun run verify` before release.
 
 ***
 

@@ -8,10 +8,15 @@
 - Hardened validation gate so mutation ledger entries cannot be waived by model prose (“no changes” text).
 - Evidence status no longer treats “Response complete” alone as complete; validation tool evidence is required.
 - Disabled FactoryRun write authority when `engineeringControlPlane` is on; legacy Factory stages are not product truth for new work.
-- Removed user-facing “Factory verification” product CTA language in favor of “Run verification”; `pathKind` remains internal routing only.
+- Removed user-facing “Factory verification” product CTA language in favor of conversational EngineeringTask projection; `pathKind` remains internal routing only.
 - Trust defaults use detect-or-deny: non-JS workspaces no longer receive a universal bun command allowlist.
 - libSQL schema extended with EngineeringTask tables (idempotent migrations).
 - Preload exposes `mate.engineering` for command dispatch and gate evaluation.
+- Behavior modes: **Auto** (`auto_scoped`), **Guided**, **Review** (read-only), and **Custom** with per-control toggles; Auto never maps to unrestricted Full access.
+- Conversational product flow: optional collapsible task details; removed dead “Start execution” / “Run validation” CTAs while work is already active.
+- Production packaging purity: QA/self-test harnesses live under `qa/` and `scripts/release/`; fake adapters under `tests/helpers/`.
+- macOS is the qualified v0.1.2 platform; Windows qualification is deferred (non-blocking).
+- Canonical workspace namespace remains `.mate-x/` (default evidence bucket aligned).
 
 ## Unreleased - 2026.07.11 (1) [Model Power Selector and Agent Runtime Readiness]
 
