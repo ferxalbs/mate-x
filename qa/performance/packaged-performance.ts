@@ -142,7 +142,7 @@ export async function measurePackagedApplicationPerformance(input?: {
   outPath?: string;
   /** When true, refuse proxy BrowserWindow timings — require real probe JSON. */
   requireRealElectronProbes?: boolean;
-  /** Override large fixture size (default 400). Unit tests use smaller for CI hosts. */
+  /** Override large fixture size (default 400). */
   largeFixtureFiles?: number;
   /** Override small fixture size (default 12). */
   smallFixtureFiles?: number;
