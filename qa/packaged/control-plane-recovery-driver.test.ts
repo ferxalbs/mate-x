@@ -10,7 +10,7 @@ import {
   runPackagedSelfTest,
   runPackagedSelfTestCreate,
   runPackagedSelfTestRecover,
-} from './packaged-self-test';
+} from './control-plane-recovery-driver';
 
 const dirs: string[] = [];
 after(() => {
@@ -23,7 +23,7 @@ after(() => {
   }
 });
 
-describe('Packaged self-test driver [CLOSURE 3]', () => {
+describe('External control-plane recovery driver', () => {
   it('negative: impossible to enable in release package', () => {
     assert.equal(assertSelfTestDisabledInRelease(), true);
     assert.equal(

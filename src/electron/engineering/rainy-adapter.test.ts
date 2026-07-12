@@ -11,13 +11,13 @@ import type {
 import {
   assertAgentCannotAuthorize,
   buildCanonicalScope,
-  FakeAgentAdapter,
   mayMarkTaskCompleted,
   RainyAgentAdapter,
   rainyCapabilities,
   stripModelProseFromEvidence,
   validateLeaseBinding,
 } from './rainy-adapter';
+import { FakeAgentAdapter } from '../../../tests/helpers/fake-agent-adapter';
 import { createProductionRainyRunner } from './rainy-production-runner';
 import {
   initProductionAgentAdapter,

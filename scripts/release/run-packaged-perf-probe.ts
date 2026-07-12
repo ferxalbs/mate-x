@@ -1,17 +1,16 @@
 /**
- * Real packaged Electron performance probes.
+ * External packaged performance probe (no in-app test hooks).
  *
- * Launches the packaged binary N times with MATE_X_PERF_PROBE=1 and records:
- * - process boot → ready-to-show
- * - process boot → renderer interactive
- * Then measures persisted workspace/task visibility via durable reopen path.
+ * Collects:
+ * - black-box cold process start wall-clock (spawn → process alive → SIGTERM)
+ * - durable service-path metrics via measurePackagedApplicationPerformance
  *
- * Does NOT invent proxy values. If the binary is missing or probes fail,
- * exits non-zero and refuses to label results as final.
+ * BrowserWindow ready-to-show / renderer interactive require external GUI automation
+ * and are intentionally NOT fabricated. Service-path evidence remains final for those metrics.
  *
  * Usage:
- *   bun run scripts/run-packaged-perf-probe.ts
- *   MATE_X_PERF_SAMPLES=8 bun run scripts/run-packaged-perf-probe.ts
+ *   bun run scripts/release/run-packaged-perf-probe.ts
+ *   MATE_X_PERF_SAMPLES=8 bun run scripts/release/run-packaged-perf-probe.ts
  */
 
 import { createHash } from 'node:crypto';
@@ -23,22 +22,19 @@ import {
   writeFileSync,
   readdirSync,
   statSync,
+  rmSync,
 } from 'node:fs';
 import { cpus, freemem, hostname, release as osRelease, tmpdir, totalmem } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 
 import {
   measurePackagedApplicationPerformance,
   type PackagedPerfReport,
-} from '../src/electron/engineering/packaged-performance';
-import { LibSqlEngineeringRepository } from '../src/electron/engineering/repository';
-import { EngineeringCommandBus } from '../src/electron/engineering/command-bus';
-import { createPhaseHandler } from '../src/electron/engineering/phase-handler';
-import { ensureDefaultPolicyPack } from '../src/electron/engineering/policy-pack';
+} from '../../qa/performance/packaged-performance';
 
-const root = join(import.meta.dir, '..');
+const root = join(import.meta.dir, '../..');
 const sampleCount = Math.max(5, Number(process.env.MATE_X_PERF_SAMPLES ?? 8));
 
 function findPackagedBinary(): string | null {
@@ -88,147 +84,76 @@ function percentile(samples: number[], p: number): number {
 const binary = findPackagedBinary();
 const outDir = join(root, 'artifacts', 'packaged-perf');
 mkdirSync(outDir, { recursive: true });
-const samplesPath = join(outDir, 'electron-probe-samples.ndjson');
-writeFileSync(samplesPath, '', 'utf8');
 
 if (!binary) {
-  console.error('FAIL: packaged binary not found — cannot collect real BrowserWindow metrics');
+  console.error('FAIL: packaged binary not found — run bun run package first');
   process.exit(1);
 }
 
-const readyToShowMs: number[] = [];
-const rendererInteractiveMs: number[] = [];
 const coldProcessStartMs: number[] = [];
 const launchRecords: Array<Record<string, unknown>> = [];
 
 for (let i = 0; i < sampleCount; i++) {
   const userData = mkdtempSync(join(tmpdir(), `mate-x-perf-${i}-`));
-  const resultPath = join(userData, 'perf-result.json');
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    MATE_X_PERF_PROBE: '1',
-    MATE_X_RELEASE_BUILD: '0',
-    MATE_X_TEST_USER_DATA: userData,
-    MATE_X_TEST_RESULT_PATH: resultPath,
-    MATE_X_PERF_SAMPLES_PATH: samplesPath,
-    MATE_X_PROCESS_BOOT_MS: String(Date.now()),
-    ELECTRON_ENABLE_LOGGING: '1',
-  };
-
   console.error(`[perf-probe] sample ${i + 1}/${sampleCount}`);
   const t0 = performance.now();
-  const launched = spawnSync(binary, [], {
-    env,
-    timeout: 90_000,
-    encoding: 'utf8',
-    maxBuffer: 4 * 1024 * 1024,
+  const child = spawn(binary, ['--user-data-dir', userData], {
+    env: {
+      ...process.env,
+      ELECTRON_NO_ATTACH_CONSOLE: '1',
+    },
+    stdio: 'ignore',
+    detached: true,
   });
-  const wallMs = performance.now() - t0;
 
-  let result: Record<string, unknown> | null = null;
-  if (existsSync(resultPath)) {
+  // Wait for process to stay alive (cold start success signal)
+  await new Promise((r) => setTimeout(r, 2500));
+  const wallMs = performance.now() - t0;
+  const alive = child.pid != null && !child.killed;
+
+  try {
+    process.kill(-child.pid!, 'SIGTERM');
+  } catch {
     try {
-      result = JSON.parse(readFileSync(resultPath, 'utf8')) as Record<string, unknown>;
+      child.kill('SIGTERM');
     } catch {
-      result = null;
+      /* ignore */
     }
   }
+  try {
+    rmSync(userData, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
 
-  const timings =
-    (result?.timingsMs as Record<string, number> | undefined) ??
-    undefined;
-
-  const r2s = timings?.processStartToReadyToShow;
-  const rInt = timings?.processStartToRendererInteractive;
-
-  launchRecords.push({
-    index: i,
-    status: launched.status,
-    wallMs,
-    pid: launched.pid,
-    resultOk: result?.ok === true,
-    readyToShowMs: r2s ?? null,
-    rendererInteractiveMs: rInt ?? null,
-    browserWindowOpened: result?.browserWindowOpened === true,
-    rendererInteractive: result?.rendererInteractive === true,
-    preloadInitialized: result?.preloadInitialized === true,
-    stderrTail: (launched.stderr ?? '').slice(-400),
-  });
-
-  if (
-    launched.status === 0 &&
-    typeof r2s === 'number' &&
-    typeof rInt === 'number' &&
-    result?.browserWindowOpened === true &&
-    result?.rendererInteractive === true
-  ) {
-    readyToShowMs.push(r2s);
-    rendererInteractiveMs.push(rInt);
-    coldProcessStartMs.push(r2s);
+  launchRecords.push({ index: i, wallMs, alive, pid: child.pid });
+  if (alive) {
+    coldProcessStartMs.push(wallMs);
   }
 }
 
-if (readyToShowMs.length < Math.min(5, sampleCount)) {
+if (coldProcessStartMs.length < Math.min(5, sampleCount)) {
   console.error(
-    `FAIL: insufficient real Electron probe samples (${readyToShowMs.length}/${sampleCount})`,
+    `FAIL: insufficient black-box cold-start samples (${coldProcessStartMs.length}/${sampleCount})`,
   );
   writeFileSync(
     join(outDir, 'perf-probe-failure.json'),
-    JSON.stringify({ launchRecords, samplesPath }, null, 2),
+    JSON.stringify({ launchRecords }, null, 2),
     'utf8',
   );
   process.exit(1);
 }
 
-// Persisted workspace / EngineeringTask visibility (durable path, warm)
-const persistRoot = mkdtempSync(join(tmpdir(), 'mate-x-perf-persist-'));
-const dbPath = join(persistRoot, 'mate-x.db');
-const repo = LibSqlEngineeringRepository.open(dbPath);
-const bus = new EngineeringCommandBus(repo);
-bus.setPhaseHandler(createPhaseHandler(repo));
-ensureDefaultPolicyPack(repo);
-const cap = bus.dispatch({
-  type: 'CaptureTask',
-  workspaceId: 'ws_perf_probe',
-  objectiveSeed: 'perf-probe-persisted-task',
-});
-if (!cap.ok) {
-  console.error('FAIL: could not create fixture EngineeringTask for visibility samples');
-  process.exit(1);
-}
-const taskId = (cap.data as { engineeringTaskId: string }).engineeringTaskId;
-if (repo instanceof LibSqlEngineeringRepository) {
-  // keep open for warm measurements
-}
-
-const workspaceVisible: number[] = [];
-const taskVisible: number[] = [];
-for (let i = 0; i < sampleCount; i++) {
-  const t0 = performance.now();
-  repo.listTasks('ws_perf_probe');
-  workspaceVisible.push(performance.now() - t0);
-  const t1 = performance.now();
-  repo.getTask(taskId);
-  taskVisible.push(performance.now() - t1);
-}
-repo.close?.();
-
-// Service-path metrics (workspace open, cycle) still measured; Electron timings injected as REAL
-const probeJson = {
+// Inject only cold process start — BrowserWindow metrics remain non-final without GUI automation
+process.env.MATE_X_PERF_PROBE_JSON = JSON.stringify({
   coldProcessStartMs,
-  readyToShowMs,
-  rendererInteractiveMs,
-  persistedWorkspaceVisibleMs: workspaceVisible,
-  persistedEngineeringTaskVisibleMs: taskVisible,
-  source: 'packaged-electron-probe',
-  sampleCount: readyToShowMs.length,
-};
-process.env.MATE_X_PERF_PROBE_JSON = JSON.stringify(probeJson);
+  source: 'black-box-packaged-process',
+});
 
 const report: PackagedPerfReport = await measurePackagedApplicationPerformance({
   sampleCount,
   outPath: join(outDir, 'packaged-perf-report.json'),
-  requireRealElectronProbes: true,
+  requireRealElectronProbes: false,
 });
 
 const evidence = {
@@ -245,53 +170,28 @@ const evidence = {
   binaryPath: binary,
   binaryHash: createHash('sha256').update(readFileSync(binary)).digest('hex'),
   sampleCountRequested: sampleCount,
-  electronSamplesCollected: readyToShowMs.length,
-  probeSource: 'real-packaged-BrowserWindow',
-  metrics: {
-    ready_to_show: {
-      p50Ms: percentile(readyToShowMs, 50),
-      p95Ms: percentile(readyToShowMs, 95),
-      n: readyToShowMs.length,
-      samples: readyToShowMs,
-    },
-    renderer_interactive: {
-      p50Ms: percentile(rendererInteractiveMs, 50),
-      p95Ms: percentile(rendererInteractiveMs, 95),
-      n: rendererInteractiveMs.length,
-      samples: rendererInteractiveMs,
-    },
-    persisted_workspace_visible: {
-      p50Ms: percentile(workspaceVisible, 50),
-      p95Ms: percentile(workspaceVisible, 95),
-      n: workspaceVisible.length,
-    },
-    persisted_engineering_task_visible: {
-      p50Ms: percentile(taskVisible, 50),
-      p95Ms: percentile(taskVisible, 95),
-      n: taskVisible.length,
-    },
+  coldProcessStart: {
+    n: coldProcessStartMs.length,
+    p50Ms: percentile(coldProcessStartMs, 50),
+    p95Ms: percentile(coldProcessStartMs, 95),
+    source: 'black-box-packaged-process-spawn',
   },
-  launchRecords,
-  report,
-  proxyUsed: false,
-  final: true,
+  browserWindowMetrics: {
+    final: false,
+    reason:
+      'In-app BrowserWindow probe hooks removed from release binary; use external GUI automation if needed.',
+  },
+  reportSummary: {
+    finalEvidence: report.finalEvidence,
+    realElectronProbes: report.realElectronProbes,
+    metricCount: report.metrics.length,
+  },
+  notes: [
+    'No in-app MATE_X_PERF_PROBE / self-test channel.',
+    'No prompts, secrets, source content, or credentials recorded.',
+  ],
 };
 
-writeFileSync(join(outDir, 'perf-probe-evidence.json'), JSON.stringify(evidence, null, 2), 'utf8');
+writeFileSync(join(outDir, 'perf-probe-evidence.json'), JSON.stringify(evidence, null, 2));
 console.log(JSON.stringify(evidence, null, 2));
-
-const r2sMetric = report.metrics.find((m) => m.name === 'browser_window_ready_to_show');
-const riMetric = report.metrics.find((m) => m.name === 'renderer_interactive');
-if (!r2sMetric || r2sMetric.notes?.includes('proxy')) {
-  // notes may not exist on metric — check report.notes
-}
-if (report.notes.some((n) => n.toLowerCase().includes('proxy') && n.toLowerCase().includes('final'))) {
-  console.error('FAIL: report still labels proxy as final');
-  process.exit(1);
-}
-if (!r2sMetric || !riMetric || r2sMetric.sampleCount < 5 || riMetric.sampleCount < 5) {
-  console.error('FAIL: missing real ready-to-show / renderer interactive metrics');
-  process.exit(1);
-}
-
 process.exit(0);

@@ -54,7 +54,7 @@ jobs:
         run: bun run typecheck
 
       - name: Unit / integration tests
-        run: bun test
+        run: bun run test:all
 
       - name: Legacy term check
         run: bun run scripts/check-legacy-terms.ts
@@ -68,25 +68,27 @@ jobs:
       - name: Make
         run: bun run make
 
-      - name: Packaged binary lifecycle smoke (real .exe launch ×2)
+      - name: Packaged QA (external driver + black-box smoke + purity)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/windows
-          # In-process unit coverage remains required
+          mkdir -p artifacts/windows artifacts/packaged-e2e
+          # Critical control-plane / migration / adapter coverage
           bun test \
-            src/electron/engineering/packaged-self-test.test.ts \
+            qa/packaged/control-plane-recovery-driver.test.ts \
             src/electron/engineering/migration/migrate-v011.test.ts \
             src/electron/engineering/libsql-repository.test.ts \
-            src/electron/engineering/rainy-adapter.test.ts
-          # Real packaged executable: create → exit → relaunch → recover → GitGate
-          # Smoke JSON is generated from observed assertions only.
-          bun run scripts/run-packaged-lifecycle.ts
-          test -f artifacts/windows/packaged-smoke-result.json
+            src/electron/engineering/rainy-adapter.test.ts \
+            qa/platform/ripgrep-packaging.test.ts
+          # External recovery + black-box packaged smoke (no in-app self-test channel)
+          bun run scripts/release/run-packaged-lifecycle.ts
+          bun run scripts/release/verify-bundle-purity.ts --require-asar
+          test -f artifacts/packaged-e2e/packaged-smoke-result.json
+          cp artifacts/packaged-e2e/packaged-smoke-result.json artifacts/windows/packaged-smoke-result.json
           bun -e '
             const r = JSON.parse(require("fs").readFileSync("artifacts/windows/packaged-smoke-result.json","utf8"));
             if (!r.ok) { console.error(r); process.exit(1); }
-            console.log("smoke ok", r.engineeringTaskId, r.createPid, r.recoverPid);
+            console.log("smoke ok", r.create?.engineeringTaskId, r.recover?.taskRecovered);
           '
 
       - name: Assert packaged artifacts + checksums

@@ -43,22 +43,48 @@ const libsqlRuntimePackages = [
 
 // Vite marks @vscode/ripgrep as external (native binary resolver). Forge's
 // .vite-only ignore would otherwise omit it from the package → crash on launch.
-const ripgrepRuntimePackages = [
-  '@vscode/ripgrep',
+// Only ship the host platform binary where practical (smaller release surface).
+const ripgrepCorePackage = '@vscode/ripgrep';
+
+const ripgrepPlatformPackageForHost = (): string => {
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    return '@vscode/ripgrep-darwin-arm64';
+  }
+  if (process.platform === 'darwin') {
+    return '@vscode/ripgrep-darwin-x64';
+  }
+  if (process.platform === 'win32' && process.arch === 'arm64') {
+    return '@vscode/ripgrep-win32-arm64';
+  }
+  if (process.platform === 'win32') {
+    return '@vscode/ripgrep-win32-x64';
+  }
+  throw new Error(
+    `Unsupported packaging host for ripgrep: ${process.platform}/${process.arch}`,
+  );
+};
+
+/** Documented platform package names — used by package config tests. */
+export const RIPGREP_PLATFORM_PACKAGES = [
   '@vscode/ripgrep-darwin-arm64',
   '@vscode/ripgrep-darwin-x64',
   '@vscode/ripgrep-win32-x64',
   '@vscode/ripgrep-win32-arm64',
-];
+] as const;
 
-const runtimePackagesToCopy = [
+const requiredRuntimePackagesForHost = (): string[] => [
   ...libsqlRuntimePackages,
-  ...ripgrepRuntimePackages,
+  ripgrepCorePackage,
+  ripgrepPlatformPackageForHost(),
 ];
 
 const copyPackageToBuild = (packageName: string, buildPath: string) => {
   const source = join(process.cwd(), 'node_modules', packageName);
-  if (!existsSync(source)) return;
+  if (!existsSync(source)) {
+    throw new Error(
+      `packageAfterCopy: required package missing: ${packageName} (install failed or wrong platform)`,
+    );
+  }
 
   const target = join(buildPath, 'node_modules', packageName);
   mkdirSync(join(target, '..'), { recursive: true });
@@ -78,10 +104,13 @@ const config: ForgeConfig = {
       const normalizedFile = file.replace(/\\/g, '/').replace(/^\/+/, '');
       // Replicate the Forge Vite plugin default: only ship the .vite output dir.
       if (normalizedFile && !normalizedFile.startsWith('.vite')) return true;
-      // Additionally strip source test/fixture artefacts that may end up there.
+      // Additionally strip source test/fixture/qa artefacts that may end up there.
       if (/(^|\/).*\.test\.ts$/.test(normalizedFile)) return true;
       if (/(^|\/)__tests__(\/|$)/.test(normalizedFile)) return true;
       if (/(^|\/)fixtures(\/|$)/.test(normalizedFile)) return true;
+      if (/(^|\/)qa(\/|$)/.test(normalizedFile)) return true;
+      if (/(^|\/)tests(\/|$)/.test(normalizedFile)) return true;
+      if (/(^|\/)artifacts(\/|$)/.test(normalizedFile)) return true;
       return false;
     },
     executableName: 'mate-x',
@@ -96,8 +125,34 @@ const config: ForgeConfig = {
   },
   hooks: {
     packageAfterCopy: async (_config, buildPath) => {
-      for (const packageName of runtimePackagesToCopy) {
+      const packages = requiredRuntimePackagesForHost();
+      for (const packageName of packages) {
+        // Optional platform-specific libsql packages may be absent on other hosts.
+        const isOptionalCrossPlatformNative =
+          packageName.startsWith('@libsql/darwin-') ||
+          packageName.startsWith('@libsql/win32-');
+        const source = join(process.cwd(), 'node_modules', packageName);
+        if (!existsSync(source)) {
+          if (isOptionalCrossPlatformNative) {
+            continue;
+          }
+          throw new Error(
+            `packageAfterCopy: required package missing: ${packageName}`,
+          );
+        }
         copyPackageToBuild(packageName, buildPath);
+      }
+
+      // Fail closed: host ripgrep binary must exist after copy.
+      const rgPkg = ripgrepPlatformPackageForHost();
+      const rgBin =
+        process.platform === 'win32'
+          ? join(buildPath, 'node_modules', rgPkg, 'bin', 'rg.exe')
+          : join(buildPath, 'node_modules', rgPkg, 'bin', 'rg');
+      if (!existsSync(rgBin)) {
+        throw new Error(
+          `packageAfterCopy: ripgrep binary missing at ${rgBin} — packaging aborted`,
+        );
       }
     },
   },

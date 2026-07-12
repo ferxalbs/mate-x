@@ -16,4 +16,3 @@ export * from './repository';
 export * from './schema';
 export * from './ship-proof';
 export * from './validation-engine';
-export * from './packaged-self-test';

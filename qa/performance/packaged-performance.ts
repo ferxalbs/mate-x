@@ -3,8 +3,8 @@
  * Does not record source content, prompts, API keys, credentials, raw evidence, or secrets.
  *
  * BrowserWindow ready-to-show / renderer interactive MUST come from real packaged
- * Electron probes (MATE_X_PERF_PROBE_JSON from run-packaged-perf-probe.ts).
- * Proxy-derived values are never labeled as final performance evidence.
+ * Optional probe JSON via MATE_X_PERF_PROBE_JSON (external QA only).
+ * Proxy-derived BrowserWindow values are never labeled as final evidence.
  */
 
 import { createHash } from 'node:crypto';
@@ -21,10 +21,10 @@ import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
 import { tmpdir, cpus, totalmem, freemem, hostname, release as osRelease } from 'node:os';
 
-import { EngineeringCommandBus } from './command-bus';
-import { createPhaseHandler } from './phase-handler';
-import { LibSqlEngineeringRepository } from './repository';
-import { ensureDefaultPolicyPack } from './policy-pack';
+import { EngineeringCommandBus } from '../../src/electron/engineering/command-bus';
+import { createPhaseHandler } from '../../src/electron/engineering/phase-handler';
+import { LibSqlEngineeringRepository } from '../../src/electron/engineering/repository';
+import { ensureDefaultPolicyPack } from '../../src/electron/engineering/policy-pack';
 
 export interface PackagedPerfMetric {
   name: string;
@@ -293,7 +293,7 @@ export async function measurePackagedApplicationPerformance(input?: {
   if (!readyToShow || !rendererInteractive) {
     // Do not fabricate final BrowserWindow evidence. Leave empty samples and mark not-final.
     notes.push(
-      'BrowserWindow ready-to-show / renderer interactive NOT final — run scripts/run-packaged-perf-probe.ts against packaged binary.',
+      'BrowserWindow ready-to-show / renderer interactive NOT final without external GUI automation probe JSON.',
     );
     notes.push('Proxy values intentionally omitted (not labeled as final performance evidence).');
     readyToShow = readyToShow ?? [];

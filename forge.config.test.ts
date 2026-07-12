@@ -21,11 +21,19 @@ describe("Forge release configuration", () => {
     assert.match(forgeConfig, /OnlyLoadAppFromAsar\]: true/);
   });
 
-  it("packages @vscode/ripgrep runtime + platform binaries for macOS and Windows", () => {
+  it("packages @vscode/ripgrep runtime and constrains platform assets to host", () => {
     assert.match(forgeConfig, /@vscode\/ripgrep/);
     assert.match(forgeConfig, /@vscode\/ripgrep-darwin-x64/);
     assert.match(forgeConfig, /@vscode\/ripgrep-darwin-arm64/);
     assert.match(forgeConfig, /@vscode\/ripgrep-win32-x64/);
+    assert.match(forgeConfig, /ripgrepPlatformPackageForHost/);
+    assert.match(forgeConfig, /packageAfterCopy: ripgrep binary missing/);
     assert.match(forgeConfig, /node_modules\/@vscode\/ripgrep\*/);
+  });
+
+  it("excludes qa/tests/artifacts from package ignore surface", () => {
+    assert.match(forgeConfig, /qa\(\\\/\|\$\)/);
+    assert.match(forgeConfig, /tests\(\\\/\|\$\)/);
+    assert.match(forgeConfig, /artifacts\(\\\/\|\$\)/);
   });
 });

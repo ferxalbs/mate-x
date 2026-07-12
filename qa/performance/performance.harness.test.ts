@@ -9,14 +9,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, it } from 'node:test';
 
-import { EngineeringCommandBus } from './command-bus';
-import { createPhaseHandler } from './phase-handler';
-import { computeReadiness } from './readiness';
-import { evaluateProofFreshness } from './ship-proof';
-import { evaluateGitGate } from './git-gate';
-import { LibSqlEngineeringRepository } from './repository';
-import { ensureDefaultPolicyPack } from './policy-pack';
-import { nowIso, sha256Hex } from './ids';
+import { EngineeringCommandBus } from '../../src/electron/engineering/command-bus';
+import { createPhaseHandler } from '../../src/electron/engineering/phase-handler';
+import { computeReadiness } from '../../src/electron/engineering/readiness';
+import { evaluateProofFreshness } from '../../src/electron/engineering/ship-proof';
+import { evaluateGitGate } from '../../src/electron/engineering/git-gate';
+import { LibSqlEngineeringRepository } from '../../src/electron/engineering/repository';
+import { ensureDefaultPolicyPack } from '../../src/electron/engineering/policy-pack';
+import { nowIso, sha256Hex } from '../../src/electron/engineering/ids';
 
 const SAMPLE = 25;
 const dirs: string[] = [];

@@ -16,10 +16,10 @@ import { buildFreshnessAnchors, hashDiffPayload } from './freshness-anchors';
 import { ensureDefaultPolicyPack } from './policy-pack';
 import { LibSqlEngineeringRepository } from './repository';
 import {
-  FakeAgentAdapter,
   buildCanonicalScope,
   stripModelProseFromEvidence,
 } from './rainy-adapter';
+import { FakeAgentAdapter } from '../../../tests/helpers/fake-agent-adapter';
 import { sha256Hex } from './ids';
 
 const dirs: string[] = [];
