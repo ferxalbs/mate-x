@@ -84,6 +84,7 @@ const APP_SETTING_KEYS = new Set([
   "appearance",
   "theme",
   "blurEnabled",
+  "vibrancyMode",
   "timeFormat",
   "agentTraceVersion",
   "agentTraceV2InlineEvents",
@@ -1427,8 +1428,20 @@ export function registerIpcHandlers() {
   );
   handle(
     "settings:update-app-settings",
-    async (_event, settings: AppSettings) =>
-      tursoService.updateAppSettings(validateAppSettings(settings)),
+    async (_event, settings: AppSettings) => {
+      const updatedSettings = await tursoService.updateAppSettings(validateAppSettings(settings));
+      const [win] = BrowserWindow.getAllWindows();
+      if (win) {
+        const mode = updatedSettings.vibrancyMode || 'solid';
+        const isVibrancyEnabled = mode === 'sidebar' || mode === 'special';
+        if (process.platform === 'darwin') {
+          win.setVibrancy(isVibrancyEnabled ? 'under-window' : null);
+        } else if (process.platform === 'win32') {
+          win.setBackgroundMaterial(isVibrancyEnabled ? 'mica' : 'none');
+        }
+      }
+      return updatedSettings;
+    }
   );
 
   // ── Mobile Companion ───────────────────────────────────────────────────

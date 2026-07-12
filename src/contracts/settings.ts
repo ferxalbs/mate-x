@@ -7,11 +7,13 @@ export type PrivacyPlaceholderStyle = 'simple' | 'typed' | 'stable';
 export type AgentIntegrationId = 'codex' | 'antigravity' | 'cursor';
 export type PowerMode = 'efficient' | 'balanced' | 'max';
 export type AgentFirewallMode = 'strict' | 'balanced' | 'audit-only';
+export type VibrancyMode = 'solid' | 'sidebar' | 'special';
 
 export interface AppSettings {
   appearance: AppearancePreference;
   theme: ThemePreference;
   blurEnabled: boolean;
+  vibrancyMode: VibrancyMode;
   timeFormat: TimeFormat;
   agentTraceVersion: AgentTraceVersion;
   agentTraceV2InlineEvents: boolean;
@@ -50,6 +52,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   appearance: 'dark',
   theme: 'midnight',
   blurEnabled: false,
+  vibrancyMode: 'solid',
   timeFormat: 'system',
   agentTraceVersion: 'v2',
   agentTraceV2InlineEvents: true,

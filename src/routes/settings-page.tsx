@@ -45,6 +45,7 @@ import {
   type PrivacyMode,
   type PrivacyPlaceholderStyle,
   type TimeFormat,
+  type VibrancyMode,
 } from '../contracts/settings';
 import type {
   MobileBridgeDeviceSession,
@@ -479,13 +480,14 @@ export function SettingsPage() {
         appearance: DEFAULT_APP_SETTINGS.appearance,
         theme: DEFAULT_APP_SETTINGS.theme,
         blurEnabled: DEFAULT_APP_SETTINGS.blurEnabled,
+        vibrancyMode: DEFAULT_APP_SETTINGS.vibrancyMode,
         diffLineWrapping: DEFAULT_APP_SETTINGS.diffLineWrapping,
         assistantOutput: DEFAULT_APP_SETTINGS.assistantOutput,
         compactMode: DEFAULT_APP_SETTINGS.compactMode,
       }));
       setAppearance('system');
       setTheme('default');
-      setBlurEnabled(true);
+      setBlurEnabled(DEFAULT_APP_SETTINGS.blurEnabled);
     } else if (section === 'archive') {
       setAppSettings((current) => ({
         ...current,
@@ -537,7 +539,7 @@ export function SettingsPage() {
     () => [
       ...(appSettings.appearance !== savedAppSettings.appearance ? ['Appearance'] : []),
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
-      ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Blur effects'] : []),
+      ...(appSettings.vibrancyMode !== savedAppSettings.vibrancyMode ? ['Transparency Mode'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
@@ -579,6 +581,7 @@ export function SettingsPage() {
       appSettings.appearance,
       appSettings.theme,
       appSettings.blurEnabled,
+      appSettings.vibrancyMode,
       appSettings.archiveConfirmation,
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
@@ -602,6 +605,7 @@ export function SettingsPage() {
       savedAppSettings.appearance,
       savedAppSettings.theme,
       savedAppSettings.blurEnabled,
+      savedAppSettings.vibrancyMode,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
@@ -720,19 +724,34 @@ export function SettingsPage() {
                     }
                   />
                   <SettingsRow
-                    title="Blur effects"
-                    description="Enable backdrop glass effects on supported areas."
+                    title="Transparency Mode"
+                    description="Configure native visual transparency effects (macOS Vibrancy / Windows Mica)."
                     control={
-                      <Switch
-                        checked={appSettings.blurEnabled}
-                        onCheckedChange={(value) => {
-                          setBlurEnabled(value);
-                          setAppSettings((current) => ({ ...current, blurEnabled: value }));
+                      <Select
+                        value={appSettings.vibrancyMode || 'solid'}
+                        onValueChange={(value) => {
+                          const mode = value as VibrancyMode;
+                          const isBlurEnabled = mode !== 'solid';
+                          setBlurEnabled(isBlurEnabled);
+                          setAppSettings((current) => ({
+                            ...current,
+                            vibrancyMode: mode,
+                            blurEnabled: isBlurEnabled,
+                          }));
                           if (saveState === 'saved') {
                             setSaveState('idle');
                           }
                         }}
-                      />
+                      >
+                        <SelectTrigger className="w-[185px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="solid">Solid (Default)</SelectItem>
+                          <SelectItem value="sidebar">Normal (Sidebar Blur)</SelectItem>
+                          <SelectItem value="special">Special (Full App Blur)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     }
                   />
 

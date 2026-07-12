@@ -533,14 +533,24 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* Platform-specific Vibrancy, Mica, and Acrylic Overrides */
-.platform-mac .app-sidebar-container {
+
+/* Sidebar transparency in vibrancy modes */
+.vibrancy-sidebar.platform-mac .app-sidebar-container,
+.vibrancy-special.platform-mac .app-sidebar-container {
   background-color: color-mix(in srgb, var(--sidebar) 38%, transparent) !important;
   backdrop-filter: blur(32px) saturate(210%) !important;
 }
 
-.platform-windows .app-sidebar-container {
+.vibrancy-sidebar.platform-windows .app-sidebar-container,
+.vibrancy-special.platform-windows .app-sidebar-container {
   background-color: color-mix(in srgb, var(--sidebar) 68%, transparent) !important;
   backdrop-filter: blur(20px) !important;
+}
+
+/* Sidebar solid fallback in solid mode */
+.vibrancy-solid .app-sidebar-container {
+  background-color: var(--sidebar) !important;
+  backdrop-filter: none !important;
 }
 
 /* Sidebar List Item Hover/Active Transitions */
@@ -562,9 +572,20 @@ label:has(> select#reasoning-effort) select {
   padding-left: 12px !important;
 }
 
-/* Make sure main content areas are opaque and readable over the transparency */
-.platform-mac main > div > div:not([data-sidebar="sidebar-wrapper"]),
-.platform-windows main > div > div:not([data-sidebar="sidebar-wrapper"]) {
-  background-color: var(--background);
+/* Make sure main content areas are opaque and readable in solid/sidebar modes */
+.vibrancy-solid main > div > div:not([data-sidebar="sidebar-wrapper"]),
+.vibrancy-sidebar main > div > div:not([data-sidebar="sidebar-wrapper"]) {
+  background-color: var(--background) !important;
+}
+
+/* Special (full app) vibrancy: make main content areas translucent too! */
+.vibrancy-special.platform-mac main > div > div:not([data-sidebar="sidebar-wrapper"]) {
+  background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
+  backdrop-filter: blur(28px) saturate(210%) !important;
+}
+
+.vibrancy-special.platform-windows main > div > div:not([data-sidebar="sidebar-wrapper"]) {
+  background-color: color-mix(in srgb, var(--background) 88%, transparent) !important;
+  backdrop-filter: blur(20px) !important;
 }
 

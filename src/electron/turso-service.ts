@@ -1698,6 +1698,12 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
         ? input.theme
         : DEFAULT_APP_SETTINGS.theme,
     blurEnabled: typeof input.blurEnabled === 'boolean' ? input.blurEnabled : DEFAULT_APP_SETTINGS.blurEnabled,
+    vibrancyMode:
+      input.vibrancyMode === 'solid' ||
+      input.vibrancyMode === 'sidebar' ||
+      input.vibrancyMode === 'special'
+        ? input.vibrancyMode
+        : DEFAULT_APP_SETTINGS.vibrancyMode,
     timeFormat:
       input.timeFormat === '12h' || input.timeFormat === '24h' || input.timeFormat === 'system'
         ? input.timeFormat

@@ -121,11 +121,16 @@ export function DesktopShell() {
     // overwritten on the next effect run when settings change.
   }, [shellStyle]);
 
+  const vibrancyMode = settings.vibrancyMode || 'solid';
+
   return (
     <SidebarProvider defaultOpen>
       <main
         className={cn(
-          "relative flex h-screen w-full overflow-hidden bg-transparent text-foreground",
+          "relative flex h-screen w-full overflow-hidden text-foreground",
+          vibrancyMode === "solid" && "vibrancy-solid bg-background",
+          vibrancyMode === "sidebar" && "vibrancy-sidebar bg-background",
+          vibrancyMode === "special" && "vibrancy-special bg-transparent",
           platform === "mac" ? "platform-mac" : platform === "windows" ? "platform-windows" : ""
         )}
         style={shellStyle}
