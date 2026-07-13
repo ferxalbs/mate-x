@@ -134,7 +134,6 @@ const MessageEntry = memo(function MessageEntry({
   const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
-  const thought = message.thought?.trim() ?? "";
   const hasTimeline = events.length > 0;
   const [copied, setCopied] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -217,7 +216,6 @@ const MessageEntry = memo(function MessageEntry({
         <AgentExecutionTrace
           events={events}
           isRunning={isStreaming}
-          thought={thought || undefined}
         />
         {normalizedContent.length > 0 ? (
           <ChatMarkdown
@@ -432,13 +430,7 @@ function normalizeAssistantVisibleText(value: string) {
 }
 
 function stripTraceTransportMarkers(value: string) {
-  return normalizeAssistantVisibleText(value)
-    .replace(/<!-- mate-trace:.*? -->/g, "")
-    .replace(
-      /<(?:thought|think|thinking|reasoning|analysis)\b[^>]*>[\s\S]*?(?:<\/(?:thought|think|thinking|reasoning|analysis)>|$)/gi,
-      "",
-    )
-    .trim();
+  return normalizeAssistantVisibleText(value).trim();
 }
 
 function ResultFallback() {
