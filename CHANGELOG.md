@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.13 [Agent Tool Platform Reliability and Precision]
+
+Full tooling lifecycle audit for agent missions: discovery, selection, validation, authorization, execution, cancellation, failure honesty, and result consistency — without parallel definition catalogs or duplicate residency cost.
+
+### Critical correctness
+
+* Fixed agent tool-name resolution: registry aliases and canonical `tool.name` values (e.g. `git` / `git_diag`, `secrets` / `secret_scan`, `audit` / `security_audit`, and related pairs) now both resolve to the same loaded tool. Definitions no longer advertise names that `callTool` could not find.
+* Registered dual loader keys where historical short names differed from the name exposed to the model, so selection and execution stay consistent.
+
+### Execution pipeline
+
+* Hardened `ToolService` with structured invalid-input / forbidden / cancelled / missing-tool failures, optional `AbortSignal` and `runId` on the execution context, optional perf samples behind `MATE_X_TOOL_PERF=1`, and post-execute `ensureStructuredToolOutput` so legacy free-form error strings still surface as failures.
+* Strengthened `tool-schema` validation: min/max, minLength/maxLength, pattern, integer, minItems/maxItems; WeakMap cache for `toStrictObjectSchema` so warm definition builds do not re-walk schemas.
+* Improved failure detection in the agent runtime (`isToolFailureOutput`) to honor structured JSON trailers (`ok: false`) and additional textual failure prefixes (e.g. file not found), reducing false “success” on real tool failures.
+* Per-tool timeouts via static operational metadata (`tool-metadata`): analysis, network, mutation, and sandbox tools no longer all share a flat 20s ceiling; `sandbox_run` still honors allowed timeoutSeconds + grace.
+* Propagated timeout abort: `withTimeout` can abort a controller; tool-executor creates an `AbortController` per call and passes the signal into tools.
+
+### Structured results and process control
+
+* Added shared result helpers (`tool-result`: error codes, `formatToolFailure` / `formatToolSuccess` / `failTool` / `cancelledTool`, errno mapping, structured failure detection).
+* Added abortable process helpers (`execFileAbortable`, `spawnAbortable`) that hard-kill process trees on abort.
+* Wired AbortSignal and structured failures through high-traffic and process-heavy tools including `read`, `ls`, `pwd`, `rg`, `git_diag`, `sandbox_run`, `run_tests`, `eslint_scan`, `semgrep_scan`, and `attack_surface_scan`.
+* Improved core tool descriptions for agent selection (when to use / not use, mutation honesty); governed descriptions now append compact Ops metadata (side effects, idempotency, retry, cancel, parallel safety, default timeout) plus policy risk class.
+
+### Deliberately not kept (precision over duplication)
+
+* Removed the experimental static `*.definition.ts` catalog, generated definition tree, definition catalog module, and `tools:generate-defs` generator.
+* Tool name/description/parameters live only in each tool module; discovery loads real tools once then caches definitions. Avoids dual source of truth and extra RAM/CPU for a one-time micro-win that did not justify permanent residency.
+
+### Harnesses and tests
+
+* Added tooling baselines and mission fixtures: `bun run tools:baseline`, `tools:baseline:electron` (Electron mock load of tools that import `electron`), `tools:mission-fixtures` (representative missions: schema validity, ops metadata, calls-per-mission).
+* Expanded unit coverage for schema validation, structured results, registry aliases, metadata timeouts, core FS tools, abortable process helpers, and existing sandbox / attack-surface suites.
+* Rate-limiter maps drop empty windows to avoid unbounded timestamp growth.
+
+### Compatibility and security
+
+* Public tool behavior preserved; aliases are additive; Workspace Trust Contract and policy stops remain on the call path; no authorization bypass.
+* macOS Intel and Apple Silicon remain the primary target; no new arch-specific native assumptions.
+
 ## Unreleased - 2026.07.12 (2) [Local Dev Startup Performance]
 
 * Reduced main-process cold-start work for `bun start` by deferring heavy modules until first use (assistant/work-engine, OpenAI/Rainy client, git, repo-graph, GitHub integration, mobile bridge, compliance export, privacy ONNX/model loader).
