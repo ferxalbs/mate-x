@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useState } from "react";
+import { ChevronDownIcon, ListChecksIcon } from "lucide-react";
 
 import type {
   EngineeringTaskStatus,
@@ -126,7 +127,7 @@ export function userFacingStatusLabel(
 export function ReadinessBadge({ readiness }: { readiness: ReadinessLabel }) {
   return (
     <span
-      className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium"
+      className="inline-flex items-center rounded-full border border-border/70 bg-background/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
       data-readiness={readiness}
       aria-label={`Readiness: ${READINESS_TEXT[readiness]}`}
     >
@@ -154,22 +155,29 @@ export function EngineeringTaskPanel({
 
   return (
     <details
-      className="group text-xs text-muted-foreground"
+      className="group relative text-xs text-muted-foreground"
       data-engineering-task-id={task.engineeringTaskId}
       data-engineering-status={task.status}
       data-user-facing-status={facing}
     >
-      <summary className="cursor-pointer list-none rounded-full px-2 py-1 hover:bg-foreground/5">
-        Task details
+      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-full border border-border/55 bg-background/55 px-3 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition-[background-color,border-color,color] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-primary/35 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35">
+        <ListChecksIcon className="size-3.5" />
+        <span>Task details</span>
+        <span className="text-muted-foreground/65">{facing}</span>
+        <ChevronDownIcon className="size-3 opacity-60 transition-transform duration-[250ms] group-open:rotate-180" />
       </summary>
-      <div className="absolute right-4 top-12 z-40 mt-2 w-80 rounded-2xl border border-border/70 bg-[var(--panel)]/92 p-4 shadow-none backdrop-blur-xl">
-        <p className="break-words font-medium text-foreground">{task.title}</p>
-        <p className="mt-1 break-words">{task.objectivePreview}</p>
+      <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border border-border/70 bg-[var(--panel)]/95 p-4 shadow-none backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Task status</p>
+          <ReadinessBadge readiness={task.readiness} />
+        </div>
+        <p className="mt-3 break-words text-[13px] font-semibold text-foreground">{task.title}</p>
+        <p className="mt-1 break-words leading-relaxed">{task.objectivePreview}</p>
         <p className="mt-3" data-testid="engineering-status">{facing} · v{task.aggregateVersion}</p>
         {canRenderCta && action ? (
         <button
           type="button"
-          className="mt-3 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          className="mt-3 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-transform duration-[180ms] ease-out active:scale-[0.97] disabled:opacity-50"
           disabled={busy}
           data-testid="engineering-primary-cta"
           data-cta-id={action.id}
