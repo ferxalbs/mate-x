@@ -247,20 +247,22 @@ export async function runAssistant(
       content = nextContent;
     }
 
+    const emittedAt = new Date().toISOString();
+    events.forEach((event, sequence) => {
+      event.id = event.segmentId ?? event.id;
+      event.segmentId ??= event.id;
+      event.version = 2;
+      event.runId ??= progressReporter.runId;
+      event.sequence ??= sequence;
+      event.timestamp ??= emittedAt;
+    });
+
     progressReporter.emit({
       runId: progressReporter.runId,
       status: "running",
       content,
       thought: thought || undefined,
-      events: cloneEvents(events).map((event, sequence) => ({
-        ...event,
-        id: event.segmentId ?? event.id,
-        segmentId: event.segmentId ?? event.id,
-        version: 2 as const,
-        runId: progressReporter.runId,
-        sequence: event.sequence ?? sequence,
-        timestamp: event.timestamp ?? new Date().toISOString(),
-      })),
+      events: cloneEvents(events),
       artifacts: cloneArtifacts(artifacts),
     });
   };
