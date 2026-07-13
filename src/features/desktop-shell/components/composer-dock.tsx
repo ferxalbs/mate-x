@@ -2,6 +2,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import { useChatStore } from "../../../store/chat-store";
+import { useSidebar } from "../../../components/ui/sidebar";
 import { ComposerScrollButton } from "./composer-scroll-button";
 
 interface ComposerDockProps {
@@ -21,6 +22,7 @@ export function ComposerDock({
   children,
 }: ComposerDockProps) {
   const settings = useChatStore((state) => state.settings);
+  const { state: sidebarState } = useSidebar();
   const measureRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export function ComposerDock({
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] sm:px-8 md:left-(--sidebar-width)",
+        "pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-[left,right,padding] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] sm:px-8",
+        sidebarState === "expanded" ? "md:left-(--sidebar-width)" : "md:left-0",
       )}
       data-testid="composer-dock"
     >
