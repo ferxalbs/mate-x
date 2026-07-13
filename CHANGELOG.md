@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.13 (2) [Model Selector Redesign]
+
+Redesigned the model selector dropdown in the composer panel.
+
+### UI and Aesthetics
+
+* Removed nested submenu-style model selection and directly displayed the model list upon opening the dropdown trigger.
+* Added a search input at the top of the model selector dropdown for quick searching and filtering of models.
+* Constrained the vertical height of the model list to prevent screen overflow and enabled custom scroll support.
+* Applied theme-aware glassmorphism styling (`bg-[var(--panel)]/70 backdrop-blur-2xl border-[var(--panel-border)]/40`) matching the composer input's design system.
+* Improved list typography by splitting provider labels and model names, listing context lengths, and adding active state checkmarks.
+* Restored conditional hiding logic: when Advanced Settings is toggled open, only the advanced settings slider pane is visible, keeping the popover compact.
+
 ## Unreleased - 2026.07.13 (1) [Agent Tool Platform Reliability and Precision]
 
 Full tooling lifecycle audit for agent missions: discovery, selection, validation, authorization, execution, cancellation, failure honesty, and result consistency — without parallel definition catalogs or duplicate residency cost.
