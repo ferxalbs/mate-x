@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { createToolError, formatToolFailure } from '../tool-result';
 import { ripgrepPath } from '../rg-binary';
 import { clampNumber, limitTextOutput, resolveWorkspacePath } from './tool-utils';
 
@@ -44,13 +45,15 @@ function normalizeMaxFilesize(value: unknown): string {
 
 export const rgTool: Tool = {
   name: 'rg',
-  description: 'High-performance code search using ripgrep. Use for fast symbol, text, and regex discovery in large repositories before reading files. Defaults skip generated/build output and cap noisy results.',
+  description:
+    'High-performance code search via ripgrep. Use for symbol, text, and regex discovery before read. Defaults skip node_modules/dist/out/build artifacts and cap noisy results. Does not edit files. Prefer path/include filters to keep results actionable.',
   parameters: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
         description: 'The search term or regex pattern.',
+        minLength: 1,
       },
       isRegex: {
         type: 'boolean',
@@ -109,7 +112,14 @@ export const rgTool: Tool = {
     },
     required: ['query'],
   },
-  async execute(args, { workspacePath, trustContract, settings: _settings }) {
+  async execute(args, { workspacePath, trustContract, settings: _settings, signal }) {
+    if (signal?.aborted) {
+      return formatToolFailure(
+        createToolError('CANCELLED', 'rg cancelled before start.'),
+        'rg',
+      );
+    }
+
     const {
       query,
       isRegex = false,
@@ -120,9 +130,24 @@ export const rgTool: Tool = {
       hidden = false,
       sort = 'none',
     } = args;
+
+    if (typeof query !== 'string' || query.length === 0) {
+      return formatToolFailure(
+        createToolError('INVALID_INPUT', 'query is required and must be a non-empty string.'),
+        'rg',
+      );
+    }
+
     const requestedPaths = normalizePathList(args.paths ?? args.path);
-    for (const requestedPath of requestedPaths) {
-      resolveWorkspacePath(workspacePath, requestedPath);
+    try {
+      for (const requestedPath of requestedPaths) {
+        resolveWorkspacePath(workspacePath, requestedPath);
+      }
+    } catch (error) {
+      return formatToolFailure(
+        createToolError('FORBIDDEN', (error as Error).message),
+        'rg',
+      );
     }
     const scopedPaths =
       trustContract && !trustContract.allowedPaths.includes('.')
@@ -165,9 +190,17 @@ export const rgTool: Tool = {
     commandArgs.push('--', query, ...existingScopedPaths);
 
     try {
+      if (signal?.aborted) {
+        return formatToolFailure(
+          createToolError('CANCELLED', 'rg cancelled before spawn.'),
+          'rg',
+        );
+      }
+
       const { stdout } = await execFileAsync(ripgrepPath, commandArgs, {
         cwd: workspacePath,
         maxBuffer: 10 * 1024 * 1024,
+        signal,
       });
 
       if (!stdout.trim()) {
@@ -186,11 +219,25 @@ export const rgTool: Tool = {
 
       return cappedLines;
     } catch (error) {
+      if (signal?.aborted || (error as Error)?.name === 'AbortError') {
+        return formatToolFailure(
+          createToolError('CANCELLED', 'rg cancelled during search.'),
+          'rg',
+        );
+      }
+
       const execError = error as { stdout?: string; stderr?: string; code?: number };
       if (execError.code === 1 && !execError.stdout) {
         return 'No matches found.';
       }
-      return `Error executing rg: ${execError.stderr || execError.stdout || (error as Error).message}`;
+      return formatToolFailure(
+        createToolError(
+          'EXECUTION_ERROR',
+          `Error executing rg: ${execError.stderr || execError.stdout || (error as Error).message}`,
+          { retryable: true },
+        ),
+        'rg',
+      );
     }
   },
 };
