@@ -30,6 +30,7 @@ import { openWorkspacePath } from "../../../services/repo-client";
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
   conversation: Conversation | null;
+  taskDetails?: ReactNode;
   liquidGlassEnabled?: boolean;
   resolvedTheme: "light" | "dark";
   runStatus: RunStatus;
@@ -81,6 +82,7 @@ function TitlebarButton({
 export function ChatTopbar({
   workspace,
   conversation,
+  taskDetails,
   liquidGlassEnabled = false,
   runStatus,
   onCreateThread,
@@ -88,13 +90,9 @@ export function ChatTopbar({
   const { state } = useSidebar();
   const platform = usePlatform();
   const [openTarget, setOpenTarget] = useState("folder");
-  const [gitAction, setGitAction] = useState("commit-push");
   const [repoSafetyLabel, setRepoSafetyLabel] = useState("Needs check");
   const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
-  const userTurns =
-    conversation?.messages.filter((message) => message.role === "user")
-      .length ?? 0;
   const liveLabel =
     runStatus === "running"
       ? "Running"
@@ -112,13 +110,6 @@ export function ChatTopbar({
   const openSelectedTarget = () => {
     void openWorkspacePath(openTarget as "folder" | "vscode" | "terminal");
   };
-  const runGitAction = () => {
-    window.dispatchEvent(
-      new CustomEvent("mate:git-action", { detail: { action: gitAction } }),
-    );
-    window.dispatchEvent(new Event("mate:toggle-git-panel"));
-  };
-
   useEffect(() => {
     const handleRepoSafety = (event: Event) => {
       const label = (event as CustomEvent<{ label?: string }>).detail?.label;
@@ -146,19 +137,14 @@ export function ChatTopbar({
         } as any
       }
     >
-      <div className="relative z-10 flex min-w-0 items-center gap-3">
+      <div className="relative z-10 flex min-w-0 items-center gap-2.5">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />
-        <h2 className="truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92">
+        <h2 className="max-w-[300px] truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92 lg:max-w-[400px]">
           {title}
         </h2>
         {workspace ? (
-          <span className="rounded-full border border-border/60 bg-[var(--mate-panel-bg)] px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-md">
+          <span className="hidden rounded-full border border-border/60 bg-[var(--mate-panel-bg)] px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-md min-[1180px]:inline-flex">
             {workspace.name}
-          </span>
-        ) : null}
-        {eventCount > 0 ? (
-          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-md sm:inline-flex">
-            {userTurns} turns
           </span>
         ) : null}
         {runStatus === "running" ? (
@@ -167,7 +153,7 @@ export function ChatTopbar({
           </span>
         ) : null}
         {workspace ? (
-          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md sm:inline-flex">
+          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md 2xl:inline-flex">
             {repoSafetyLabel}
           </span>
         ) : null}
@@ -275,22 +261,16 @@ export function ChatTopbar({
             render={
               <TitlebarButton
                 liquidGlassEnabled={liquidGlassEnabled}
-                onClick={runGitAction}
               />
             }
           >
             <GitBranchIcon className="size-3.5" />
-            {gitAction === "commit-push"
-              ? "Commit & push"
-              : gitAction === "commit"
-                ? "Commit"
-                : "Push & PR"}
+            Git
             <ChevronDownIcon className="size-3.5 text-muted-foreground" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
               onClick={() => {
-                setGitAction("commit");
                 window.dispatchEvent(
                   new CustomEvent("mate:git-action", {
                     detail: { action: "commit" },
@@ -302,7 +282,6 @@ export function ChatTopbar({
             </MenuItem>
             <MenuItem
               onClick={() => {
-                setGitAction("commit-push");
                 window.dispatchEvent(
                   new CustomEvent("mate:git-action", {
                     detail: { action: "commit-push" },
@@ -314,7 +293,6 @@ export function ChatTopbar({
             </MenuItem>
             <MenuItem
               onClick={() => {
-                setGitAction("push-pr");
                 window.dispatchEvent(
                   new CustomEvent("mate:git-action", {
                     detail: { action: "push-pr" },
@@ -326,6 +304,9 @@ export function ChatTopbar({
             </MenuItem>
           </MenuPopup>
         </Menu>
+        {taskDetails ? (
+          <div className="hidden min-[1120px]:block">{taskDetails}</div>
+        ) : null}
         <Button
           aria-label="Create thread"
           size="icon-xs"

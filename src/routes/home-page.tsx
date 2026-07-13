@@ -287,15 +287,15 @@ export function HomePage() {
         onAppearanceChange={setAppearance}
         resolvedTheme={resolvedTheme}
         runStatus={runStatus}
+        taskDetails={
+          <EngineeringTaskPanel
+            task={activeEngineeringTask}
+            busy={runStatus === 'running' || ctaBusy}
+            onPrimaryAction={handlePrimaryAction}
+          />
+        }
         workspace={workspace}
       />
-      <div className="absolute right-4 top-2 z-40">
-        <EngineeringTaskPanel
-          task={activeEngineeringTask}
-          busy={runStatus === 'running' || ctaBusy}
-          onPrimaryAction={handlePrimaryAction}
-        />
-      </div>
       <ChatWorkspace
         canUndoLastTurn={canUndoLastTurn}
         composer={composer}

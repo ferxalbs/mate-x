@@ -136,6 +136,18 @@ export function ComposerPanel({
   const settings = useChatStore((state) => state.settings);
   const cancelActiveRun = useChatStore((state) => state.cancelActiveRun);
   const hasWorkspace = Boolean(workspace);
+  const trustLabel =
+    trustContract?.autonomy === "unrestricted"
+      ? "Trust: unrestricted"
+      : trustContract?.autonomy === "trusted-patch"
+        ? "Trust: trusted patch"
+        : trustContract?.autonomy === "plan-only"
+          ? "Trust: plan only"
+          : "Trust: approval required";
+  const trustTone =
+    trustContract?.autonomy === "unrestricted"
+      ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-700 dark:text-emerald-300"
+      : "border-amber-400/20 bg-amber-400/5 text-amber-700 dark:text-amber-300";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -438,10 +450,10 @@ export function ComposerPanel({
     <>
       <div
         className={cn(
-          "relative mx-auto flex w-full max-w-[820px] flex-col transition-all duration-[300ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] rounded-[32px] overflow-hidden",
+          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20 focus-within:bg-[var(--panel)]/85",
           settings.blurEnabled
-            ? "bg-[var(--panel)]/70 backdrop-blur-2xl border border-[var(--panel-border)]/40 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
-            : "bg-[var(--panel)] border border-[var(--panel-border)]/40 shadow-[0_8px_32px_rgba(0,0,0,0.08)]",
+            ? "border-[var(--panel-border)]/40 bg-[var(--panel)]/70 backdrop-blur-2xl shadow-none"
+            : "border-[var(--panel-border)]/40 bg-[var(--panel)] shadow-none",
           isDraggingFile
             ? "ring-2 ring-foreground/20 bg-[var(--panel)]/90"
             : "",
@@ -475,7 +487,7 @@ export function ComposerPanel({
         ) : null}
 
         {hasWorkspace && workspace ? (
-          <div className="flex items-center gap-3 px-6 pt-4 pb-1 text-[11px] font-medium text-muted-foreground/50">
+          <div className="flex items-center gap-3 px-6 pb-0 pt-3 text-[11px] font-medium text-muted-foreground/70">
             <div className="flex items-center gap-1.5 transition-colors cursor-pointer hover:text-foreground">
               <FolderIcon className="size-3.5" />
               <span>{workspace.name}</span>
@@ -493,9 +505,9 @@ export function ComposerPanel({
           </div>
         ) : null}
 
-        <div className="relative z-10 bg-transparent px-6 py-2">
+        <div className="relative z-10 bg-transparent px-6 py-1.5">
           <textarea
-            className="min-h-[44px] w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-foreground outline-none placeholder:text-foreground/30 focus:placeholder:text-foreground/50"
+            className="min-h-[48px] w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-foreground outline-none placeholder:text-foreground/45 focus:placeholder:text-foreground/60"
             onChange={(event) => handlePromptChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -545,7 +557,7 @@ export function ComposerPanel({
           </div>
         ) : null}
 
-        <div className="relative z-10 flex flex-col gap-3 px-4 pb-4 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative z-10 flex flex-col gap-2 px-4 pb-3 pt-1.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <input
               className="hidden"
@@ -561,7 +573,7 @@ export function ComposerPanel({
             />
             <button
               aria-label="Attach files"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-all hover:bg-foreground/15 hover:text-foreground hover:scale-105"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-[background-color,color,transform] duration-[180ms] ease-out hover:bg-foreground/15 hover:text-foreground active:scale-95"
               disabled={!hasWorkspace}
               onClick={() => fileInputRef.current?.click()}
               title="Attach files"
@@ -570,19 +582,11 @@ export function ComposerPanel({
               <span className="text-xl font-light leading-none">+</span>
             </button>
             <div
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors"
+              className="flex items-center gap-1.5 text-[11px] font-medium transition-colors"
               title="Access follows workspace trust and policy — not unrestricted"
             >
               <ShieldCheckIcon className="size-3.5" />
-              <span>
-                {trustContract?.autonomy === "unrestricted"
-                  ? "Trust: unrestricted"
-                  : trustContract?.autonomy === "trusted-patch"
-                    ? "Trust: trusted patch"
-                    : trustContract?.autonomy === "plan-only"
-                      ? "Trust: plan only"
-                      : "Trust: approval required"}
-              </span>
+              <span className={cn("rounded-full border px-2.5 py-1", trustTone)}>{trustLabel}</span>
             </div>
           </div>
 
@@ -630,13 +634,13 @@ export function ComposerPanel({
             <button
               aria-label="Send"
               className={cn(
-                "flex size-8 items-center justify-center rounded-full transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-sm",
+                "flex size-8 items-center justify-center rounded-full transition-[background-color,color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-none active:scale-95",
                 isRunning
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   : (!prompt.trim() && attachments.length === 0) ||
                       isModelSaving
                     ? "bg-foreground/5 text-foreground/30 shadow-none cursor-not-allowed"
-                    : "bg-foreground text-background hover:scale-105 hover:bg-foreground/90 hover:shadow-md",
+                    : "bg-foreground text-background hover:scale-105 hover:bg-foreground/90",
               )}
               disabled={
                 (!prompt.trim() && attachments.length === 0 && !isRunning) ||
