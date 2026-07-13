@@ -731,7 +731,7 @@ export function SettingsPage() {
                         value={appSettings.vibrancyMode || 'solid'}
                         onValueChange={(value) => {
                           const mode = value as VibrancyMode;
-                          const isBlurEnabled = mode !== 'solid';
+                          const isBlurEnabled = mode === 'special';
                           setBlurEnabled(isBlurEnabled);
                           setAppSettings((current) => ({
                             ...current,
