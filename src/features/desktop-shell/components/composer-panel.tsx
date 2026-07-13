@@ -945,6 +945,7 @@ function ModelConfigurationMenu({
   showServiceTierSelector: boolean;
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const powerOptions = buildModelPowerOptions(catalog);
   const currentIndex = powerOptions.findIndex(
@@ -953,11 +954,27 @@ function ModelConfigurationMenu({
   const safeIndex = currentIndex >= 0 ? currentIndex : 0;
   const selectedPowerOption = powerOptions[safeIndex];
 
+  // Reset search query when model changes
+  useEffect(() => {
+    setSearchQuery("");
+  }, [modelValue]);
+
+  const filteredCatalog = useMemo(() => {
+    if (!searchQuery) return catalog;
+    const q = searchQuery.toLowerCase();
+    return catalog.filter(
+      (entry) =>
+        entry.label.toLowerCase().includes(q) ||
+        (entry.id && entry.id.toLowerCase().includes(q)) ||
+        (entry.ownedBy && entry.ownedBy.toLowerCase().includes(q)),
+    );
+  }, [catalog, searchQuery]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         disabled={isModelDisabled}
-        className="flex h-8 items-center gap-1.5 rounded-[12px] bg-foreground/[0.03] px-3 text-[12px] font-medium text-foreground/80 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-foreground/[0.06] hover:text-foreground"
+        className="flex h-8 items-center gap-1.5 rounded-[12px] bg-foreground/[0.03] px-3 text-[12px] font-medium text-foreground/80 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-foreground/[0.06] hover:text-foreground focus:outline-none"
       >
         <span>{modelLabel}</span>
         {supportsReasoningEffort && (
@@ -984,167 +1001,214 @@ function ModelConfigurationMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="w-56 overflow-hidden rounded-[20px] border-[var(--panel-border)]/40 bg-[var(--panel)]/95 p-1.5 shadow-none backdrop-blur-xl"
+        className="w-76 overflow-hidden rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-2 shadow-none backdrop-blur-2xl flex flex-col gap-1.5 min-h-0"
       >
         {!advancedOpen && (
           <>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
-                <span className="flex-1">Model</span>
-                <span className="text-muted-foreground">{modelLabel}</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                sideOffset={4}
-                className="w-56 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
-              >
-                <DropdownMenuRadioGroup
-                  value={modelValue}
-                  onValueChange={onModelChange}
-                >
-                  {catalog.map((entry) => (
-                    <DropdownMenuRadioItem
-                      key={entry.id}
-                      value={entry.id}
-                      className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]"
-                    >
-                      {entry.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-
-            {supportsReasoningEffort && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
-                  <span className="flex-1">Effort</span>
-                  <span className="text-muted-foreground">
-                    {formatReasoningEffort(reasoningValue as any)}
-                  </span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent
-                  sideOffset={4}
-                  className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
-                >
-                  <DropdownMenuRadioGroup
-                    value={reasoningValue}
-                    onValueChange={onReasoningChange}
-                  >
-                    {effortOptions.map((opt) => (
-                      <DropdownMenuRadioItem
-                        key={opt}
-                        value={opt}
-                        className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]"
-                      >
-                        {formatReasoningEffort(opt as any)}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
-
-            {showServiceTierSelector && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]">
-                  <span className="flex-1">Speed</span>
-                  <span className="text-muted-foreground">
-                    {formatServiceTier(serviceTier)}
-                  </span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent
-                  sideOffset={4}
-                  className="w-48 overflow-hidden rounded-[20px] bg-[var(--panel)]/95 p-1.5 shadow-lg backdrop-blur-3xl"
-                >
-                  <DropdownMenuRadioGroup
-                    value={serviceTier}
-                    onValueChange={(val) =>
-                      onServiceTierChange(val as RainyServiceTier)
-                    }
-                  >
-                    {serviceTierOptions.map((tier) => (
-                      <DropdownMenuRadioItem
-                        key={tier}
-                        value={tier}
-                        className="h-8 rounded-[12px] px-3 text-[13px] focus:bg-foreground/[0.05]"
-                      >
-                        {formatServiceTier(tier)}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
-
-            <div className="my-1.5 border-b border-foreground/[0.05]" />
-          </>
-        )}
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setAdvancedOpen((open) => !open);
-          }}
-          className="flex h-8 w-full items-center justify-between rounded-[12px] px-3 text-[13px] transition-colors focus:bg-foreground/[0.05] hover:bg-foreground/[0.05]"
-        >
-          <span>Advanced</span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={cn(
-              "opacity-60 transition-transform duration-[150ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-              advancedOpen && "rotate-180",
-            )}
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
-        {advancedOpen && (
-          <div className="flex flex-col gap-2.5 px-3 pb-3 pt-2 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground/80">
-              <span>Faster</span>
-              <span>Smartest</span>
-            </div>
-
-            <div className="px-1 py-2">
-              <Slider
-                min={0}
-                max={Math.max(0, powerOptions.length - 1)}
-                step={1}
-                value={[safeIndex]}
-                disabled={powerOptions.length < 2}
-                thumbLabel="Model power"
-                onValueChange={(value) => {
-                  const index = Array.isArray(value) ? value[0] : value;
-                  const option = powerOptions[index];
-                  if (option) {
-                    onModelChange(option.model.id);
+            {/* Search bar */}
+            <div className="px-1 py-0.5">
+              <input
+                type="text"
+                placeholder="Search models..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-8 rounded-xl bg-foreground/[0.04] border border-[var(--panel-border)]/20 px-3 text-[12px] placeholder-muted-foreground/50 focus:outline-none focus:border-border/40 focus:bg-foreground/[0.06] transition-all"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "ArrowUp" || e.key === "ArrowDown") {
+                    e.stopPropagation();
                   }
                 }}
-                className="w-full"
               />
             </div>
 
-            <div className="text-center">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                {getModelPowerLabel(safeIndex, powerOptions.length)}
+            {/* Scrollable list of models */}
+            <div className="max-h-[260px] overflow-y-auto px-0.5 py-0.5 flex flex-col gap-1 select-none">
+              <DropdownMenuRadioGroup
+                value={modelValue}
+                onValueChange={onModelChange}
+              >
+                {filteredCatalog.map((entry) => {
+                  const colonIndex = entry.label.indexOf(":");
+                  const provider = colonIndex !== -1 ? entry.label.substring(0, colonIndex).trim() : entry.ownedBy ?? "";
+                  const name = colonIndex !== -1 ? entry.label.substring(colonIndex + 1).trim() : entry.label;
+
+                  return (
+                    <DropdownMenuRadioItem
+                      key={entry.id}
+                      value={entry.id}
+                      className="group relative flex min-h-[42px] cursor-default items-center rounded-xl px-2 py-1 text-[13px] text-foreground outline-none focus:bg-foreground/[0.05] data-[state=checked]:bg-foreground/[0.03] transition-colors"
+                    >
+                      <div className="flex flex-col w-full min-w-0 pr-1">
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span className="text-[12.5px] font-medium text-foreground truncate group-data-[state=checked]:font-semibold">
+                            {name}
+                          </span>
+                          {entry.contextLength && (
+                            <span className="text-[9.5px] text-muted-foreground/60 font-mono flex-shrink-0">
+                              {Math.round(entry.contextLength / 1000)}k
+                            </span>
+                          )}
+                        </div>
+                        {provider && (
+                          <span className="text-[9px] uppercase tracking-wider font-semibold text-muted-foreground/40 mt-0.5">
+                            {provider}
+                          </span>
+                        )}
+                      </div>
+                    </DropdownMenuRadioItem>
+                  );
+                })}
+                {filteredCatalog.length === 0 && (
+                  <div className="py-6 text-center text-[12px] text-muted-foreground/60">
+                    No matching models
+                  </div>
+                )}
+              </DropdownMenuRadioGroup>
+            </div>
+
+            {/* Configurations/Advanced Footer */}
+            {(supportsReasoningEffort || showServiceTierSelector) && (
+              <>
+                <div className="my-1 border-t border-[var(--panel-border)]/20" />
+                <div className="flex flex-col gap-1 px-1">
+                  {supportsReasoningEffort && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="h-8 rounded-xl px-2 text-[12.5px] focus:bg-foreground/[0.05]">
+                        <span className="flex-1">Effort</span>
+                        <span className="text-muted-foreground/75">
+                          {formatReasoningEffort(reasoningValue as any)}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={4}
+                        className="w-44 overflow-hidden rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-1.5 shadow-none backdrop-blur-2xl"
+                      >
+                        <DropdownMenuRadioGroup
+                          value={reasoningValue}
+                          onValueChange={onReasoningChange}
+                        >
+                          {effortOptions.map((opt) => (
+                            <DropdownMenuRadioItem
+                              key={opt}
+                              value={opt}
+                              className="h-8 rounded-xl px-2 text-[12.5px] focus:bg-foreground/[0.05]"
+                            >
+                              {formatReasoningEffort(opt as any)}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
+
+                  {showServiceTierSelector && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="h-8 rounded-xl px-2 text-[12.5px] focus:bg-foreground/[0.05]">
+                        <span className="flex-1">Speed</span>
+                        <span className="text-muted-foreground/75">
+                          {formatServiceTier(serviceTier)}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={4}
+                        className="w-44 overflow-hidden rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-1.5 shadow-none backdrop-blur-2xl"
+                      >
+                        <DropdownMenuRadioGroup
+                          value={serviceTier}
+                          onValueChange={(val) =>
+                            onServiceTierChange(val as RainyServiceTier)
+                          }
+                        >
+                          {serviceTierOptions.map((tier) => (
+                            <DropdownMenuRadioItem
+                              key={tier}
+                              value={tier}
+                              className="h-8 rounded-xl px-2 text-[12.5px] focus:bg-foreground/[0.05]"
+                            >
+                              {formatServiceTier(tier)}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="my-1 border-t border-[var(--panel-border)]/20" />
+          </>
+        )}
+
+        <div className="flex flex-col gap-1 px-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setAdvancedOpen((open) => !open);
+            }}
+            className="flex h-8 w-full items-center justify-between rounded-xl px-2 text-[12.5px] text-foreground/80 transition-colors focus:bg-foreground/[0.05] hover:bg-foreground/[0.05] hover:text-foreground"
+          >
+            <span>Advanced Settings</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={cn(
+                "opacity-60 transition-transform duration-[150ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+                advancedOpen && "rotate-180",
+              )}
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          {advancedOpen && (
+            <div className="flex flex-col gap-2 px-2 pb-2 pt-1 animate-in fade-in duration-150 border-t border-[var(--panel-border)]/10 mt-1">
+              <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
+                <span>Faster</span>
+                <span>Smartest</span>
               </div>
-              <div className="mt-1 break-words text-[12px] font-medium text-foreground">
-                {selectedPowerOption?.model.label ??
-                  "No GPT-5.6 or Claude models available"}
+
+              <div className="px-1 py-1.5">
+                <Slider
+                  min={0}
+                  max={Math.max(0, powerOptions.length - 1)}
+                  step={1}
+                  value={[safeIndex]}
+                  disabled={powerOptions.length < 2}
+                  thumbLabel="Model power"
+                  onValueChange={(value) => {
+                    const index = Array.isArray(value) ? value[0] : value;
+                    const option = powerOptions[index];
+                    if (option) {
+                      onModelChange(option.model.id);
+                    }
+                  }}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="text-center bg-foreground/[0.02] border border-[var(--panel-border)]/10 rounded-xl p-2 mt-0.5">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                  {getModelPowerLabel(safeIndex, powerOptions.length)}
+                </div>
+                <div className="mt-0.5 break-words text-[11.5px] font-medium text-foreground">
+                  {selectedPowerOption?.model.label ??
+                    "No GPT-5.6 or Claude models available"}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
