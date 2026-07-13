@@ -1,10 +1,10 @@
 @variant dark {
   color-scheme: dark;
-  --background: #161617;
+  --background: #181818;
   --foreground: color-mix(in srgb, white 92%, #c8cbd4 8%);
-  --card: color-mix(in srgb, #1b1b1d 96%, black 4%);
+  --card: color-mix(in srgb, #1d1d1f 96%, black 4%);
   --card-foreground: var(--color-neutral-100);
-  --popover: color-mix(in srgb, #1b1b1d 96%, black 4%);
+  --popover: color-mix(in srgb, #1d1d1f 96%, black 4%);
   --popover-foreground: var(--color-neutral-100);
   --primary: oklch(0.588 0.217 264);
   --primary-foreground: var(--color-white);
@@ -37,16 +37,16 @@
   --code-constant: #fc9867;
   --code-tag: #ff6188;
   --code-class: #78dce8;
-  --app-chrome-background: #0f1011;
+  --app-chrome-background: #111112;
   --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
-  --sidebar: color-mix(in srgb, #141517 97%, black 3%);
+  --sidebar: color-mix(in srgb, #161618 97%, black 3%);
   --sidebar-foreground: var(--foreground);
   --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
-  --sidebar-accent: color-mix(in srgb, white 4%, #191b20 96%);
-  --surface: color-mix(in srgb, #1b1c1f 97%, black 3%);
-  --surface-soft: color-mix(in srgb, white 2%, #121316 98%);
-  --panel: color-mix(in srgb, #17181b 97%, black 3%);
+  --sidebar-accent: color-mix(in srgb, white 4%, #1a1c20 96%);
+  --surface: color-mix(in srgb, #1d1e21 97%, black 3%);
+  --surface-soft: color-mix(in srgb, white 2%, #141518 98%);
+  --panel: color-mix(in srgb, #191a1d 97%, black 3%);
   --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
-  --titlebar: color-mix(in srgb, #151618 97%, black 3%);
+  --titlebar: color-mix(in srgb, #17181a 97%, black 3%);
   --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 }

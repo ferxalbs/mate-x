@@ -134,7 +134,7 @@ export function DesktopShell() {
         className={cn(
           "relative flex h-screen w-full overflow-hidden text-foreground",
           vibrancyMode === "solid" && "vibrancy-solid bg-background",
-          vibrancyMode === "sidebar" && "vibrancy-sidebar bg-background",
+          vibrancyMode === "sidebar" && "vibrancy-sidebar bg-transparent",
           vibrancyMode === "special" && "vibrancy-special bg-transparent",
           platform === "mac" ? "platform-mac" : platform === "windows" ? "platform-windows" : ""
         )}
@@ -181,7 +181,7 @@ export function DesktopShell() {
           {/* Non-blocking Rainy model launch card — never gates app startup. */}
           <ModelLaunchCard />
 
-          <div className="relative isolate flex min-w-0 flex-1 overflow-hidden">
+          <div className="app-main-content-container relative isolate flex min-w-0 flex-1 overflow-hidden">
 
             <div className="relative flex h-full min-w-0 flex-1">
               <Outlet />

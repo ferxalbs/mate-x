@@ -534,17 +534,17 @@ label:has(> select#reasoning-effort) select {
 
 /* Platform-specific Vibrancy, Mica, and Acrylic Overrides */
 
-/* Sidebar transparency in vibrancy modes */
+/* Sidebar transparency in vibrancy modes (medium tint for day/night readability) */
 .vibrancy-sidebar.platform-mac .app-sidebar-container,
 .vibrancy-special.platform-mac .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 38%, transparent) !important;
-  backdrop-filter: blur(32px) saturate(210%) !important;
+  background-color: color-mix(in srgb, var(--sidebar) 52%, transparent) !important;
+  backdrop-filter: blur(40px) saturate(210%) !important;
 }
 
 .vibrancy-sidebar.platform-windows .app-sidebar-container,
 .vibrancy-special.platform-windows .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 68%, transparent) !important;
-  backdrop-filter: blur(20px) !important;
+  background-color: color-mix(in srgb, var(--sidebar) 76%, transparent) !important;
+  backdrop-filter: blur(30px) !important;
 }
 
 /* Sidebar solid fallback in solid mode */
@@ -578,18 +578,18 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* Make sure main content areas are opaque and readable in solid/sidebar modes */
-.vibrancy-solid main > div > div:not([data-sidebar="sidebar-wrapper"]),
-.vibrancy-sidebar main > div > div:not([data-sidebar="sidebar-wrapper"]) {
+.vibrancy-solid .app-main-content-container,
+.vibrancy-sidebar .app-main-content-container {
   background-color: var(--background) !important;
 }
 
 /* Special (full app) vibrancy: make main content areas translucent too! */
-.vibrancy-special.platform-mac main > div > div:not([data-sidebar="sidebar-wrapper"]) {
+.vibrancy-special.platform-mac .app-main-content-container {
   background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
   backdrop-filter: blur(28px) saturate(210%) !important;
 }
 
-.vibrancy-special.platform-windows main > div > div:not([data-sidebar="sidebar-wrapper"]) {
+.vibrancy-special.platform-windows .app-main-content-container {
   background-color: color-mix(in srgb, var(--background) 88%, transparent) !important;
   backdrop-filter: blur(20px) !important;
 }
