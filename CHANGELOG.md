@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased - 2026.07.13 [Agent Tool Platform Reliability and Precision]
+## Unreleased - 2026.07.13 (1) [Agent Tool Platform Reliability and Precision]
 
 Full tooling lifecycle audit for agent missions: discovery, selection, validation, authorization, execution, cancellation, failure honesty, and result consistency — without parallel definition catalogs or duplicate residency cost.
 
@@ -39,6 +39,38 @@ Full tooling lifecycle audit for agent missions: discovery, selection, validatio
 
 * Public tool behavior preserved; aliases are additive; Workspace Trust Contract and policy stops remain on the call path; no authorization bypass.
 * macOS Intel and Apple Silicon remain the primary target; no new arch-specific native assumptions.
+
+## Unreleased - 2026.07.12 (3) [Reliability Audit and React Doctor Hygiene]
+
+Deep reliability, defect, and React Doctor pass across main process, tools, renderer, and tests. Goal: safer path boundaries, cleaner shutdown, fewer UI races, and a higher React Doctor score without product behavior rewrites.
+
+### Reliability and security boundaries
+
+* Unified workspace path containment in `tool-utils` (`isPathInsideRoot` / `isInsideWorkspace` / `resolveWorkspacePath`) with precise parent-segment checks (no false rejects of names like `..config`).
+* Routed critic-loop existence checks through the same containment helper so model-claimed paths cannot probe outside the workspace; added `critic-loop.test.ts` regression coverage for parent-traversal claims.
+* Consolidated duplicate path guards in `find`, `glob`, `container`, `security_path_trace`, and `candidate_revalidator`; fixed container checks to use absolute-path detection instead of Unix-only `startsWith('/')`.
+* Hardened local evidence storage path resolution in `main-stack` (null-byte reject, cross-drive absolute relatives treated as escapes).
+* Made app quit teardown reliable: `before-quit` now `preventDefault`s once, awaits `teardownStack()`, then quits (Electron does not wait on bare async handlers).
+* Prevented ambient safety double-submit via a synchronous in-flight ref in `message-stream` (same-tick double-click no longer starts two runs); cleared copy-feedback timers on unmount.
+* Documented weak default privacy-vault key material; prefer `MATE_X_PRIVACY_VAULT_KEY` for multi-user machines.
+* Scoped ESLint away from agent IDE / artifact trees; fixed import newline lint on tool modules.
+
+### React Doctor (0 errors)
+
+* Score improved from **46 → 50** Critical; diagnostics **319 → 274** (all **4 errors cleared**).
+* Fixed impure `useLocalStorage` updaters: state updates stay pure; persistence and same-tab events run after commit in effects.
+* Stabilized empty shell style object and related effect deps in `desktop-shell`.
+* Replaced onboarding progress `width` animation with GPU-friendly `scaleX`; switched Framer Motion call sites to `LazyMotion` + `m` (onboarding, enhancement panel chrome).
+* Accessibility: `aria-label` / `aria-checked` / `type="button"` on git panel, sidebar icon actions, toast copy, composer mic, rename input, trust/memory textareas; model launch variants use `radiogroup`/`radio`.
+* Performance hygiene: hoisted `Intl.DateTimeFormat` in `time.ts`; module-scoped quick-action catalog and behavior labels; reduced decorative aurora blur cost; extracted nested `StandalonePackItem` from `RunsPage`.
+* Effect hygiene: quick-action shortcut listener no longer re-subscribes on unstable callbacks; search modal clears query on open rather than blanket close reset; module-level live-panel helpers in chat topbar.
+* Set-based modified-file lookups in critic claim evaluation; minor loop clarity in semantic context building.
+* Recorded verified false positives / deferred architectural findings in `.react-doctor/false-positives.md` (shadcn export surface, WIP UI kit files, planned deps, intentional serial awaits).
+
+### Verification
+
+* `bun run typecheck`, `bun run lint`, `bun run test:all` (464 pass), and React Doctor re-scan after fixes.
+* Local `bun start` smoke on Intel macOS; path packaging still selects arch-specific ripgrep/libsql packages via static config (Apple Silicon not re-run on hardware in this pass).
 
 ## Unreleased - 2026.07.12 (2) [Local Dev Startup Performance]
 

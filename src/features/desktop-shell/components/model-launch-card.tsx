@@ -181,7 +181,7 @@ export function ModelLaunchCardContent({
   return (
     <div
       className={cn(
-        "relative flex min-h-0 w-full flex-col overflow-hidden outline-none transition-all duration-300",
+        "relative flex min-h-0 w-full flex-col overflow-hidden outline-none",
         "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
         className,
       )}
@@ -189,7 +189,8 @@ export function ModelLaunchCardContent({
         ...cssVars,
         backgroundColor: "var(--launch-surface)",
         color: "var(--launch-on-surface)",
-        transition: "background-color 0.4s ease, color 0.4s ease",
+        transition:
+          "background-color 200ms cubic-bezier(0.23, 1, 0.32, 1), color 200ms cubic-bezier(0.23, 1, 0.32, 1)",
       }}
       data-testid="model-launch-card"
       data-layout={isMobile ? "mobile" : "desktop"}
@@ -201,13 +202,13 @@ export function ModelLaunchCardContent({
     >
       {/* Aurora background */}
       <div
-        className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-400"
+        className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
         aria-hidden
         data-testid="model-launch-aurora"
       >
         <div
           className={cn(
-            "absolute inset-0 transition-all duration-500",
+            "absolute inset-0",
             animate && "model-launch-aurora-layer",
           )}
           style={{
@@ -222,7 +223,7 @@ export function ModelLaunchCardContent({
         {animate ? (
           <>
             <div
-              className="model-launch-aurora-bloom pointer-events-none absolute inset-0 opacity-30 mix-blend-screen transition-colors duration-400"
+              className="model-launch-aurora-bloom pointer-events-none absolute inset-0 opacity-30 mix-blend-screen transition-colors duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
               style={{
                 background: "radial-gradient(circle at 50% 0%, var(--launch-accent) 0%, transparent 50%)",
                 filter: "blur(20px)",
@@ -248,13 +249,13 @@ export function ModelLaunchCardContent({
         <div className="flex flex-col gap-3 items-center text-center">
           <Title
             id={asDialog ? undefined : "model-launch-title"}
-            className="text-[1.5rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem] transition-colors duration-400"
+            className="text-[1.5rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem] transition-colors duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{ color: "var(--launch-on-surface)" }}
           >
             {launch.title}
           </Title>
           <Description
-            className="text-[0.9375rem] leading-relaxed opacity-90 max-w-[340px] transition-colors duration-400"
+            className="text-[0.9375rem] leading-relaxed opacity-90 max-w-[340px] transition-colors duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{ color: "var(--launch-muted)" }}
           >
             {launch.summary}
@@ -282,7 +283,7 @@ export function ModelLaunchCardContent({
                     aria-checked={isSelected}
                     disabled={!isClickable}
                     className={cn(
-                      "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-400",
+                      "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-[background-color,color,opacity,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)]",
                       !isClickable && "opacity-50 cursor-not-allowed",
                     )}
@@ -328,13 +329,13 @@ export function ModelLaunchCardContent({
             </button>
             <div
               className={cn(
-                "grid transition-all duration-300 ease-in-out w-full",
+                "grid w-full overflow-hidden transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
                 pricingOpen ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 mt-0",
               )}
             >
               <p
                 id={pricingId}
-                className="text-[11px] leading-relaxed overflow-hidden text-center transition-colors duration-400"
+                className="text-[11px] leading-relaxed overflow-hidden text-center transition-colors duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
                 style={{ color: "var(--launch-muted)" }}
                 data-testid="model-launch-pricing-detail"
               >
@@ -363,7 +364,7 @@ export function ModelLaunchCardContent({
             variant="ghost"
             size="sm"
             className={cn(
-              "h-11 w-full rounded-full sm:h-[38px] sm:w-[160px] font-medium transition-colors hover:bg-transparent duration-400",
+              "h-11 w-full rounded-full sm:h-[38px] sm:w-[160px] font-medium transition-colors duration-160 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent",
               "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)]",
             )}
             style={{
@@ -378,7 +379,7 @@ export function ModelLaunchCardContent({
             type="button"
             size="sm"
             className={cn(
-              "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-all duration-400",
+              "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-[background-color,color,opacity,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
               "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)] shadow-lg shadow-black/20",
               ctaDisabled && "opacity-50",
             )}
@@ -452,7 +453,7 @@ export function ModelLaunchCardView({
       <DialogPopup
         showCloseButton
         className={cn(
-          "overflow-hidden border-0 p-0 shadow-2xl transition-all duration-400",
+          "overflow-hidden border-0 p-0 shadow-2xl transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
           isMobile
             ? "max-w-none w-full max-sm:rounded-t-[32px] max-sm:rounded-b-none sm:max-w-[420px]"
             : "w-full max-w-[420px] rounded-[32px]",
