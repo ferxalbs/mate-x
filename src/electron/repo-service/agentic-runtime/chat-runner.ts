@@ -155,6 +155,8 @@ export async function requestRainyChatAgenticResponse({
           ? "Starting the chat-completions tool loop."
           : `Continuing agent loop after ${toolRounds} tool round(s).`,
       status: "active",
+      segmentKind: "tool",
+      visibility: "technical",
     });
     emitProgress();
 
@@ -306,6 +308,8 @@ export async function requestRainyChatAgenticResponse({
           label: "Preparatory answer rejected",
           detail: "Model returned a plan/progress note without tool evidence. Requesting actual repository tool use.",
           status: "done",
+          segmentKind: "tool",
+          visibility: "technical",
         });
         emitProgress();
 
@@ -325,6 +329,8 @@ export async function requestRainyChatAgenticResponse({
         events.push({
           id: `step-agent-nudge-${iterations}`,
           label: "Continue investigation",
+          segmentKind: "tool",
+          visibility: "technical",
           detail: runtime.executionIntent
             ? "Model produced text for an execution request without running a tool. Requesting the required tool-backed pass."
             : "Model tried to conclude early. Requesting another tool-backed pass.",
@@ -346,6 +352,8 @@ export async function requestRainyChatAgenticResponse({
         label: "Response complete",
         detail: `Agent finished after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`,
         status: "done",
+        segmentKind: "tool",
+        visibility: "technical",
       });
       emitProgress();
 
@@ -434,6 +442,8 @@ export async function requestRainyChatAgenticResponse({
       label: `Tool batch ${toolRounds}`,
       detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. sandbox_run may request 30/45/60/120/240s; other tools use ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     });
     emitProgress();
 
@@ -490,6 +500,8 @@ export async function requestRainyChatAgenticResponse({
         label: "Tool budget reached",
         detail: `Collected ${totalToolCalls} tool call(s). Asking the model to conclude from the evidence.`,
         status: "done",
+        segmentKind: "tool",
+        visibility: "technical",
       });
       emitProgress();
 
