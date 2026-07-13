@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
 import {
   createToolError,
+  ensureStructuredToolOutput,
   formatToolFailure,
   formatToolSuccess,
   isStructuredToolFailureOutput,
@@ -41,5 +42,22 @@ describe("tool result contracts", () => {
       isToolFailureOutput('{"ok":true,"status":"completed","data":{}}'),
       false,
     );
+  });
+
+  test("ensureStructuredToolOutput wraps legacy Error strings", () => {
+    const out = ensureStructuredToolOutput("Error: boom happened", "demo");
+    assert.equal(isStructuredToolFailureOutput(out), true);
+    assert.match(out, /"ok":false/);
+    assert.match(out, /boom happened/);
+  });
+
+  test("ensureStructuredToolOutput passes through structured success", () => {
+    const original = '{"ok":true,"status":"completed","data":{"x":1}}';
+    assert.equal(ensureStructuredToolOutput(original, "demo"), original);
+  });
+
+  test("ensureStructuredToolOutput passes through normal success text", () => {
+    const original = "No matches found.";
+    assert.equal(ensureStructuredToolOutput(original, "rg"), original);
   });
 });
