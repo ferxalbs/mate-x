@@ -946,6 +946,7 @@ function ModelConfigurationMenu({
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const powerOptions = buildModelPowerOptions(catalog);
   const currentIndex = powerOptions.findIndex(
@@ -1008,16 +1009,29 @@ function ModelConfigurationMenu({
             {/* Search bar */}
             <div className="px-1 py-0.5">
               <input
+                ref={inputRef}
                 type="text"
                 placeholder="Search models..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full h-8 rounded-xl bg-foreground/[0.04] border border-[var(--panel-border)]/20 px-3 text-[12px] placeholder-muted-foreground/50 focus:outline-none focus:border-border/40 focus:bg-foreground/[0.06] transition-all"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.focus();
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.focus();
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.focus();
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === " " || e.key === "ArrowUp" || e.key === "ArrowDown") {
-                    e.stopPropagation();
-                  }
+                  e.stopPropagation();
+                }}
+                onKeyUp={(e) => {
+                  e.stopPropagation();
                 }}
               />
             </div>
