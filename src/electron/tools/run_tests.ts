@@ -4,7 +4,13 @@ import { BrowserWindow } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
-import { buildToolProcessEnv, killProcessTree, parseDirectCommand } from "./process";
+import {
+  buildToolProcessEnv,
+  killProcessTree,
+  parseDirectCommand,
+  spawnAbortable,
+} from "./process";
+import { failTool } from "../tool-result";
 
 const TEST_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_SUMMARY_CHARS = 120_000;
@@ -61,10 +67,17 @@ export const runTestsTool: Tool = {
     },
     required: ["scope"],
   },
-  execute: async (args: { scope: string; specificPath?: string; plannedCommand?: "primary" | "fallback" }, context: { workspacePath: string }) => {
+  execute: async (
+    args: { scope: string; specificPath?: string; plannedCommand?: "primary" | "fallback" },
+    context: { workspacePath: string; signal?: AbortSignal },
+  ) => {
+    if (context.signal?.aborted) {
+      return failTool("run_tests", "run_tests cancelled before start.", "CANCELLED");
+    }
+
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     if (!activeWorkspaceId) {
-      return JSON.stringify({ error: "No active workspace ID found." });
+      return failTool("run_tests", "No active workspace ID found.", "MISSING_RESOURCE");
     }
 
     const profile = await tursoService.getWorkspaceProfile(activeWorkspaceId);
@@ -169,6 +182,7 @@ export const runTestsTool: Tool = {
 
       try {
         if (profile?.shell || shellFallbackSuffix) {
+          // Shell mode: still honor abort via listener after spawn.
           child = spawn(command, {
             cwd: context.workspacePath,
             shell: profile?.shell || (isWindows ? "cmd.exe" : "/bin/sh"),
@@ -178,18 +192,27 @@ export const runTestsTool: Tool = {
           });
         } else {
           const parsedCommand = parseDirectCommand(baseCommand);
-          child = spawn(parsedCommand.cmd, [...parsedCommand.cmdArgs, ...commandArgs], {
+          child = spawnAbortable(parsedCommand.cmd, [...parsedCommand.cmdArgs, ...commandArgs], {
             cwd: context.workspacePath,
-            shell: isWindows,
             env: buildToolProcessEnv({ FORCE_COLOR: "0" }),
+            signal: context.signal,
             detached: !isWindows,
             windowsHide: true,
           });
         }
       } catch (error) {
-        resolve(JSON.stringify({ error: (error as Error).message }));
+        if ((error as Error)?.name === "AbortError" || context.signal?.aborted) {
+          resolve(failTool("run_tests", "run_tests cancelled before process start.", "CANCELLED"));
+          return;
+        }
+        resolve(failTool("run_tests", (error as Error).message, "EXECUTION_ERROR"));
         return;
       }
+
+      const onAbort = () => {
+        killProcessTree(child.pid);
+      };
+      context.signal?.addEventListener("abort", onAbort, { once: true });
 
       child.stdout.on("data", (data) => {
         const str = data.toString();
@@ -216,10 +239,11 @@ export const runTestsTool: Tool = {
 
         finished = true;
         clearTimeout(timeout);
+        context.signal?.removeEventListener("abort", onAbort);
         outputSummary = appendOutputSummary(outputSummary, `\n${error.message}`);
         const errorMessage = `Failed to start process: ${error.message}`;
         broadcastStream(`\n${errorMessage}\n`);
-        resolve(JSON.stringify({ error: errorMessage }));
+        resolve(failTool("run_tests", errorMessage, "EXECUTION_ERROR"));
       });
 
       const persistRun = async (code: number | null) => {
@@ -317,6 +341,18 @@ export const runTestsTool: Tool = {
 
         finished = true;
         clearTimeout(timeout);
+        context.signal?.removeEventListener("abort", onAbort);
+
+        if (context.signal?.aborted) {
+          broadcastStream(`\n--- Tests cancelled via AbortSignal ---\n`);
+          resolve(
+            failTool("run_tests", "run_tests cancelled during execution.", "CANCELLED", {
+              mayHavePartialEffects: true,
+            }),
+          );
+          return;
+        }
+
         broadcastStream(`\n--- Tests completed with exit code ${code} ---\n`);
         await persistRun(code);
       });

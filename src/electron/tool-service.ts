@@ -5,9 +5,14 @@ import { evaluateTrustForToolCall } from "./workspace-trust";
 import { policyService } from "./policy-service";
 import { buildGovernedToolDescription } from "./tool-policy-description";
 import { lazyToolLoaders } from "./tool-registry";
+import {
+  listStaticToolDefinitions,
+  type StaticToolDefinition,
+} from "./tool-definitions-catalog";
 import { toStrictObjectSchema, validateToolArguments } from "./tool-schema";
 import {
   createToolError,
+  ensureStructuredToolOutput,
   formatToolFailure,
 } from "./tool-result";
 import type {
@@ -106,22 +111,10 @@ export class ToolService {
     }
 
     if (!this.chatToolDefinitionsPromise) {
-      this.chatToolDefinitionsPromise = this.getAllTools()
-        .then((allTools) => {
-          const definitions: OpenAI.Chat.Completions.ChatCompletionTool[] =
-            allTools.map((tool) => ({
-              type: "function" as const,
-              function: {
-                name: tool.name,
-                description: this.getGovernedToolDescription(tool),
-                parameters: toStrictObjectSchema(tool.parameters) as Record<
-                  string,
-                  unknown
-                >,
-              },
-            }));
-          return definitions;
-        })
+      // Prefer static catalog: zero execute-module imports for discovery cold path.
+      this.chatToolDefinitionsPromise = Promise.resolve(
+        this.buildChatDefinitionsFromStaticCatalog(),
+      )
         .then((definitions) => {
           this.chatToolDefinitionsCache = definitions;
           return definitions;
@@ -140,19 +133,9 @@ export class ToolService {
     }
 
     if (!this.responsesToolDefinitionsPromise) {
-      this.responsesToolDefinitionsPromise = this.getAllTools()
-        .then((allTools) => {
-          const definitions: ResponsesFunctionTool[] = allTools.map((tool) => ({
-            type: "function" as const,
-            name: tool.name,
-            description: this.getGovernedToolDescription(tool),
-            parameters: toStrictObjectSchema(tool.parameters) as {
-              [key: string]: unknown;
-            },
-            strict: true,
-          }));
-          return definitions;
-        })
+      this.responsesToolDefinitionsPromise = Promise.resolve(
+        this.buildResponsesDefinitionsFromStaticCatalog(),
+      )
         .then((definitions) => {
           this.responsesToolDefinitionsCache = definitions;
           return definitions;
@@ -282,7 +265,8 @@ export class ToolService {
       }
 
       const executeStart = PERF_ENABLED ? performance.now() : 0;
-      const result = await tool.execute(args, context);
+      const rawResult = await tool.execute(args, context);
+      const result = ensureStructuredToolOutput(String(rawResult ?? ""), tool.name);
       if (PERF_ENABLED) {
         this.recordPerf({
           toolName: tool.name,
@@ -408,6 +392,36 @@ export class ToolService {
     } else {
       this.governedDescriptionCache.clear();
     }
+  }
+
+  private buildChatDefinitionsFromStaticCatalog(): OpenAI.Chat.Completions.ChatCompletionTool[] {
+    return listStaticToolDefinitions().map((def) => ({
+      type: "function" as const,
+      function: {
+        name: def.name,
+        description: this.getGovernedDescriptionForDefinition(def),
+        parameters: toStrictObjectSchema(def.parameters) as Record<string, unknown>,
+      },
+    }));
+  }
+
+  private buildResponsesDefinitionsFromStaticCatalog(): ResponsesFunctionTool[] {
+    return listStaticToolDefinitions().map((def) => ({
+      type: "function" as const,
+      name: def.name,
+      description: this.getGovernedDescriptionForDefinition(def),
+      parameters: toStrictObjectSchema(def.parameters) as { [key: string]: unknown },
+      strict: true,
+    }));
+  }
+
+  private getGovernedDescriptionForDefinition(def: StaticToolDefinition): string {
+    return this.getGovernedToolDescription({
+      name: def.name,
+      description: def.description,
+      parameters: def.parameters,
+      execute: async () => "",
+    });
   }
 
   private getGovernedToolDescription(tool: Tool) {

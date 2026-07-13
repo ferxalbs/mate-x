@@ -1,12 +1,9 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
 import { createToolError, formatToolFailure } from '../tool-result';
 import { ripgrepPath } from '../rg-binary';
+import { execFileAbortable } from './process';
 import { clampNumber, limitTextOutput, resolveWorkspacePath } from './tool-utils';
-
-const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_RESULTS = 80;
 const MAX_RESULTS = 500;
 const DEFAULT_MAX_OUTPUT_CHARS = 24_000;
@@ -197,7 +194,7 @@ export const rgTool: Tool = {
         );
       }
 
-      const { stdout } = await execFileAsync(ripgrepPath, commandArgs, {
+      const { stdout } = await execFileAbortable(ripgrepPath, commandArgs, {
         cwd: workspacePath,
         maxBuffer: 10 * 1024 * 1024,
         signal,

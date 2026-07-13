@@ -1,11 +1,9 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { Tool } from "../tool-service";
+import { failTool } from "../tool-result";
+import { execFileAbortable } from "./process";
 import { resolveWorkspacePath } from "./tool-utils";
-
-const execFileAsync = promisify(execFile);
 
 export const eslintScanTool: Tool = {
   name: "eslint_scan",
@@ -28,16 +26,20 @@ export const eslintScanTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const targetInput = args.path || ".";
     const fix = !!args.fix;
     const extensions = args.ext || ".js,.ts,.jsx,.tsx";
+
+    if (signal?.aborted) {
+      return failTool("eslint_scan", "eslint_scan cancelled.", "CANCELLED");
+    }
 
     let targetPath: string;
     try {
       targetPath = resolveWorkspacePath(workspacePath, targetInput);
     } catch (err) {
-      return `Error: ${(err as Error).message}`;
+      return failTool("eslint_scan", (err as Error).message, "FORBIDDEN");
     }
 
     // Determine the local eslint executable path for reliability and speed
@@ -63,9 +65,10 @@ export const eslintScanTool: Tool = {
     }
 
     try {
-      const { stdout } = await execFileAsync(eslintCmd, eslintArgs, {
+      const { stdout } = await execFileAbortable(eslintCmd, eslintArgs, {
         cwd: workspacePath,
         env: { ...process.env, FORCE_COLOR: "0" },
+        signal,
       });
 
       // If it exits with 0 and stdout is empty, it's clean
@@ -75,11 +78,19 @@ export const eslintScanTool: Tool = {
 
       return parseEslintJson(stdout, workspacePath);
     } catch (err: any) {
+      if (signal?.aborted || err?.name === "AbortError") {
+        return failTool("eslint_scan", "eslint_scan cancelled.", "CANCELLED");
+      }
       // ESLint returns non-zero exits on errors/warnings
       if (err.stdout) {
         return parseEslintJson(err.stdout, workspacePath);
       }
-      return `ESLint execution failed: ${err.message}`;
+      return failTool(
+        "eslint_scan",
+        `ESLint execution failed: ${err.message}`,
+        "EXECUTION_ERROR",
+        { retryable: true },
+      );
     }
   },
 };
