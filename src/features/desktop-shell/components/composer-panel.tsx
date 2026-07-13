@@ -606,6 +606,8 @@ export function ComposerPanel({
 
             <button
               type="button"
+              aria-label="Voice input"
+              title="Voice input"
               className="flex size-8 items-center justify-center rounded-full bg-transparent text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
             >
               <svg
@@ -618,6 +620,7 @@ export function ComposerPanel({
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -661,6 +664,13 @@ export function ComposerPanel({
   );
 }
 
+const BEHAVIOR_MODE_LABELS: Record<BehaviorMode, string> = {
+  auto: "Auto",
+  guided: "Guided",
+  review: "Review",
+  custom: "Custom",
+};
+
 function BehaviorSelector({
   value,
   onChange,
@@ -668,28 +678,22 @@ function BehaviorSelector({
   value: BehaviorPreference;
   onChange: (value: BehaviorPreference) => void;
 }) {
-  const labels: Record<BehaviorMode, string> = {
-    auto: "Auto",
-    guided: "Guided",
-    review: "Review",
-    custom: "Custom",
-  };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className="rounded-full border border-border/70 px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-foreground/5"
         data-testid="behavior-selector"
       >
-        {labels[value.mode]}
+        {BEHAVIOR_MODE_LABELS[value.mode]}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 rounded-2xl border-border/70 bg-[var(--panel)]/92 shadow-none backdrop-blur-xl">
         <DropdownMenuRadioGroup
           value={value.mode}
           onValueChange={(mode) => onChange({ ...value, mode: mode as BehaviorMode })}
         >
-          {(Object.keys(labels) as BehaviorMode[]).map((mode) => (
+          {(Object.keys(BEHAVIOR_MODE_LABELS) as BehaviorMode[]).map((mode) => (
             <DropdownMenuRadioItem key={mode} value={mode}>
-              {labels[mode]}
+              {BEHAVIOR_MODE_LABELS[mode]}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

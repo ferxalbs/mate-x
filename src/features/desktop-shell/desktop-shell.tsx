@@ -19,7 +19,10 @@ import { AppSidebar } from "./components/app-sidebar";
 import { ModelLaunchCard } from "./components/model-launch-card";
 import { SearchModal } from "./components/search-modal";
 import { toastManager } from "../../components/ui/toast";
+import type { CSSProperties } from "react";
 
+/** Module-stable empty style object — never recreated per render. */
+const EMPTY_SHELL_STYLE: CSSProperties = Object.freeze({});
 
 export function DesktopShell() {
   const navigate = useNavigate();
@@ -48,7 +51,9 @@ export function DesktopShell() {
     : "";
   const { theme, resolvedTheme, setTheme } = useTheme();
   const platform = usePlatform();
-  const shellStyle: React.CSSProperties = {};
+  // Stable identity — never rebuild an empty style object each render (effect deps).
+  // Dynamic --mate-shell-* vars currently come from CSS themes, not React state.
+  const shellStyle = EMPTY_SHELL_STYLE;
 
   const submitContextualAction = async (
     prompt: string,

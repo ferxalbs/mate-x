@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { isInsideWorkspace, isPathInsideRoot } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LIMIT = 500;
@@ -32,19 +33,13 @@ const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   return Math.min(Math.floor(numberValue), max);
 };
 
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
-};
-
 const isPathAllowed = (workspacePath: string, candidatePath: string, allowedPaths: string[]) => {
   if (allowedPaths.includes('.')) return true;
   const resolvedCandidate = resolve(workspacePath, candidatePath);
 
   return allowedPaths.some((allowedPath) => {
     const resolvedAllowed = resolve(workspacePath, allowedPath);
-    const candidateRelative = relative(resolvedAllowed, resolvedCandidate);
-    return candidateRelative === '' || (!candidateRelative.startsWith('..') && !isAbsolute(candidateRelative));
+    return isPathInsideRoot(resolvedAllowed, resolvedCandidate);
   });
 };
 

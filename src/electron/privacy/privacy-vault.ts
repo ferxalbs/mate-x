@@ -4,6 +4,14 @@ import { app, safeStorage } from "electron";
 import type { PrivacySpan } from "./privacy-types";
 import { tursoService } from "../turso-service";
 
+/**
+ * Local privacy-span key material.
+ *
+ * Prefer MATE_X_PRIVACY_VAULT_KEY in production/shared machines. The baked-in
+ * default is intentionally weak and is only acceptable for single-user local
+ * installs; the userData path scopes ciphertext to this profile, but does not
+ * replace a strong secret. Changing this derivation invalidates existing spans.
+ */
 function deriveVaultKey() {
   const secret = process.env.MATE_X_PRIVACY_VAULT_KEY?.trim() || "mate-x-local-privacy-vault";
   const localScope = `${app.getPath("userData")}:${safeStorage.isEncryptionAvailable() ? "safe-storage" : "fallback"}`;

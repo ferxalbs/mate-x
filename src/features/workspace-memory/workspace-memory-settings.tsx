@@ -199,6 +199,7 @@ export function WorkspaceMemorySettings() {
             <textarea
               className="min-h-[420px] w-full resize-y bg-transparent p-3 font-mono text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/50"
               value={activeDraft}
+              aria-label={activeFile?.title ?? 'Workspace memory file'}
               onChange={(event) => {
                 setDrafts((current) => ({
                   ...current,

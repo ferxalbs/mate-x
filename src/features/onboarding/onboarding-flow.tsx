@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { LazyMotion, AnimatePresence, domAnimation, m } from "framer-motion";
 import { 
   ChevronRight, 
   Shield, 
@@ -129,6 +129,7 @@ export function OnboardingFlow() {
   if (!settings) return null;
 
   return (
+    <LazyMotion features={domAnimation} strict>
     <div className="relative flex min-h-[560px] flex-col items-center justify-center py-10">
       <div className="mb-4 flex items-center gap-3">
         {steps.map((step, idx) => (
@@ -161,7 +162,7 @@ export function OnboardingFlow() {
 
       <div className="relative w-full max-w-2xl">
         <AnimatePresence initial={false} mode="wait" custom={direction}>
-          <motion.div
+          <m.div
             key={currentStep}
             custom={direction}
             variants={variants}
@@ -189,7 +190,7 @@ export function OnboardingFlow() {
               setTheme,
               handleNext,
             })}
-          </motion.div>
+          </m.div>
         </AnimatePresence>
       </div>
 
@@ -203,7 +204,7 @@ export function OnboardingFlow() {
         </Button>
       </div>
 
-      <motion.div 
+      <m.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.25 }}
         transition={{ delay: 1, duration: 1 }}
@@ -212,8 +213,9 @@ export function OnboardingFlow() {
         <p className="text-[9px] tracking-[0.2em] uppercase font-bold text-muted-foreground max-w-md mx-auto leading-relaxed">
           See risk earlier, patch with review, validate remediation, and keep local-first evidence.
         </p>
-      </motion.div>
+      </m.div>
     </div>
+    </LazyMotion>
   );
 }
 
@@ -250,7 +252,7 @@ function renderStep(step: number, props: any) {
 function IntroStep() {
   return (
     <div className="flex flex-col items-center justify-center text-center space-y-8 py-12">
-      <motion.div 
+      <m.div 
         initial={{ y: 10, opacity: 0, filter: "blur(10px)" }}
         animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
         transition={{ duration: 1, ease: "easeOut" }}
@@ -259,16 +261,16 @@ function IntroStep() {
         <h1 className="text-[5.5rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/30 pb-2">
           MaTE X
         </h1>
-        <motion.p 
+        <m.p 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
           className="text-3xl text-foreground font-bold max-w-lg mx-auto tracking-tight"
         >
           Write secure code from day one.
-        </motion.p>
+        </m.p>
 
-      </motion.div>
+      </m.div>
     </div>
   );
 }
@@ -427,11 +429,17 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
                 <span>{progressLabel}</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <motion.div
-                  className="h-full bg-primary"
-                  initial={{ width: 0 }}
-                  animate={{ width: hasProgressTotal ? `${progressPercent}%` : "18%" }}
-                  transition={{ repeat: hasProgressTotal ? 0 : Infinity, repeatType: "reverse", duration: 0.9 }}
+                <m.div
+                  className="h-full w-full origin-left bg-primary"
+                  initial={{ scaleX: 0 }}
+                  animate={{
+                    scaleX: hasProgressTotal ? Math.max(progressPercent, 0) / 100 : 0.18,
+                  }}
+                  transition={{
+                    repeat: hasProgressTotal ? 0 : Infinity,
+                    repeatType: "reverse",
+                    duration: 0.9,
+                  }}
                 />
               </div>
             </div>
@@ -668,6 +676,7 @@ function TrustListField({ icon, title, description, value, onChange }: {
       <textarea
         value={value.join("\n")}
         onChange={(event) => onChange(event.target.value)}
+        aria-label={title}
         className="mt-3 h-24 w-full resize-none rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs outline-none focus:border-primary"
         spellCheck={false}
       />

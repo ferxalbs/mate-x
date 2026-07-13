@@ -1,6 +1,5 @@
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 
 import type { ToolExecutionRecord } from "./evidence-pack";
@@ -10,6 +9,7 @@ import {
   extractClaimedChangedFiles,
   extractRepoPaths,
 } from "./critic-loop-claims";
+import { resolveWorkspacePath } from "./tools/tool-utils";
 
 export interface CriticLoopInput {
   workspacePath: string;
@@ -99,7 +99,7 @@ export async function verifyCriticLoop(
   const fileChecks = await Promise.all(
     claimedFiles.map(async (path) => ({
       path,
-      exists: await fileExists(resolveWorkspacePath(input.workspacePath, path)),
+      exists: await fileExistsInsideWorkspace(input.workspacePath, path),
     })),
   );
   const commandsRan = extractCommandsRan(input.toolExecutions);
@@ -129,8 +129,9 @@ export async function verifyCriticLoop(
 
   const claimedChangedFiles = extractClaimedChangedFiles(input.finalContent);
   if (claimedChangedFiles.length > 0) {
+    const modifiedFileSet = new Set(modifiedFiles);
     const missingChangedFiles = claimedChangedFiles.filter(
-      (path) => !modifiedFiles.includes(path),
+      (path) => !modifiedFileSet.has(path),
     );
     if (missingChangedFiles.length > 0) {
       warnings.push(
@@ -222,13 +223,15 @@ function resolveValidationStatus(
   return "passed";
 }
 
-function resolveWorkspacePath(workspacePath: string, path: string) {
-  return isAbsolute(path) ? path : join(workspacePath, path);
-}
-
-async function fileExists(path: string) {
+/**
+ * Existence checks for model-claimed paths must stay inside the workspace.
+ * Escaped or absolute-out-of-workspace paths are treated as non-existent so
+ * critic verification cannot be steered by filesystem probes outside the repo.
+ */
+async function fileExistsInsideWorkspace(workspacePath: string, path: string) {
   try {
-    await access(path);
+    const resolved = resolveWorkspacePath(workspacePath, path);
+    await access(resolved);
     return true;
   } catch {
     return false;

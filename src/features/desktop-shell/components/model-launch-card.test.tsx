@@ -208,7 +208,7 @@ describe("Contract: three callable variants, distinct colors", () => {
 
   it("renders exactly 3 selector buttons from API — no more, no less", () => {
     const view = renderCard({ launch });
-    assert.equal(view.queryAllByRole("listitem").length, 3);
+    assert.equal(view.queryAllByRole("radio").length, 3);
     assert.ok(view.getByText("Sol"));
     assert.ok(view.getByText("Terra"));
     assert.ok(view.getByText("Luna"));

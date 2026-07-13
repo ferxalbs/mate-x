@@ -6,7 +6,23 @@ import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
   {
-    ignores: ['dist/**', 'node_modules/**', '.vite/**', 't3code/**', '@eslint/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      '.vite/**',
+      't3code/**',
+      '@eslint/**',
+      // Agent IDE hooks are not product source; keep eslint scoped to the app.
+      '.claude/**',
+      '.cursor/**',
+      '.codex/**',
+      '.kiro/**',
+      '.qwen/**',
+      '.windsurf/**',
+      '.agents/**',
+      'out/**',
+      'artifacts/**',
+    ],
   },
   js.configs.recommended,
   ...tsPlugin.configs['flat/recommended'],

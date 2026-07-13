@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { LazyMotion, domMax, m } from "framer-motion";
 import { ChevronRightIcon, GitBranchIcon } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
@@ -96,33 +96,35 @@ export function PanelTabs({
   tabs: EnhancementPanelTab[];
 }) {
   return (
-    <div className="mt-4 flex items-center justify-between gap-1 px-1">
-      {tabs.map((view) => (
-        <button
-          className={cn(
-            "relative flex h-7 flex-1 items-center justify-center rounded-full text-[10.5px] font-medium transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] active:scale-95",
-            activeView === view.id
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-          key={view.id}
-          onClick={() => onChange(view.id)}
-          type="button"
-        >
-          {activeView === view.id && (
-            <motion.div
-              className="absolute inset-0 rounded-full border border-[var(--panel-border)]/50 bg-[var(--mate-control-bg)]/20"
-              layoutId="activeTabEnhancement"
-              transition={{
-                damping: 30,
-                stiffness: 400,
-                type: "spring",
-              }}
-            />
-          )}
-          <span className="relative z-10">{view.label}</span>
-        </button>
-      ))}
-    </div>
+    <LazyMotion features={domMax} strict>
+      <div className="mt-4 flex items-center justify-between gap-1 px-1">
+        {tabs.map((view) => (
+          <button
+            className={cn(
+              "relative flex h-7 flex-1 items-center justify-center rounded-full text-[10.5px] font-medium transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] active:scale-95",
+              activeView === view.id
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            key={view.id}
+            onClick={() => onChange(view.id)}
+            type="button"
+          >
+            {activeView === view.id && (
+              <m.div
+                className="absolute inset-0 rounded-full border border-[var(--panel-border)]/50 bg-[var(--mate-control-bg)]/20"
+                layoutId="activeTabEnhancement"
+                transition={{
+                  damping: 30,
+                  stiffness: 400,
+                  type: "spring",
+                }}
+              />
+            )}
+            <span className="relative z-10">{view.label}</span>
+          </button>
+        ))}
+      </div>
+    </LazyMotion>
   );
 }

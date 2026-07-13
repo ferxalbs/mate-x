@@ -84,16 +84,20 @@ function FileRow({
       </span>
       {isStaged ? (
         <button
+          type="button"
           onClick={onUnstage}
           title="Unstage file"
+          aria-label={`Unstage ${basename(path)}`}
           className="ml-1 hidden shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground group-hover:block"
         >
           <MinusSquare className="size-3" />
         </button>
       ) : (
         <button
+          type="button"
           onClick={onStage}
           title="Stage file"
+          aria-label={`Stage ${basename(path)}`}
           className="ml-1 hidden shrink-0 text-muted-foreground/40 transition-colors hover:text-emerald-400 group-hover:block"
         >
           <PlusSquare className="size-3" />
@@ -207,15 +211,18 @@ export function GitPanel() {
         <div className="flex items-center gap-1">
           {/* Pull */}
           <button
+            type="button"
             onClick={() => void pull()}
             disabled={!canPull}
             title="Pull"
+            aria-label="Pull from remote"
             className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ArrowDownToLine className="size-3" />
           </button>
           {/* Push */}
           <button
+            type="button"
             onClick={() => {
               if (repoNeedsShipGate('push')) {
                 requestShipGate();
@@ -225,15 +232,18 @@ export function GitPanel() {
             }}
             disabled={!canPush}
             title="Push"
+            aria-label="Push to remote"
             className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ArrowUpFromLine className="size-3" />
           </button>
           {/* Refresh */}
           <button
+            type="button"
             onClick={() => void refresh()}
             disabled={loadStatus === 'loading'}
             title="Refresh"
+            aria-label="Refresh git status"
             className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
           >
             <RefreshCwIcon className={cn('size-3', loadStatus === 'loading' && 'animate-spin')} />
@@ -263,9 +273,11 @@ export function GitPanel() {
               <SectionLabel>Staged ({staged.length})</SectionLabel>
               {staged.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => void unstageAll()}
                   className="text-[9px] text-muted-foreground/40 hover:text-foreground"
                   title="Unstage all"
+                  aria-label="Unstage all files"
                 >
                   unstage all
                 </button>
@@ -294,9 +306,11 @@ export function GitPanel() {
               <SectionLabel>Changes ({unstaged.length})</SectionLabel>
               {unstaged.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => void stageAll()}
                   className="text-[9px] text-muted-foreground/40 hover:text-emerald-400"
                   title="Stage all"
+                  aria-label="Stage all files"
                 >
                   stage all
                 </button>
@@ -330,8 +344,10 @@ export function GitPanel() {
               className="w-full resize-none rounded-md bg-transparent px-1 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
             />
             <button
+              type="button"
               onClick={() => void commit()}
               disabled={!canCommit}
+              aria-label="Commit staged changes"
               className={cn(
                 'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all',
                 canCommit

@@ -3,6 +3,7 @@ import { relative, resolve } from 'node:path';
 import type { Tool } from '../tool-service';
 import { failTool } from '../tool-result';
 import { execFileAbortable } from './process';
+
 const RG_MAX_BUFFER = 1024 * 1024 * 12;
 const RG_FILE_BATCH_CHAR_LIMIT = process.platform === 'win32' ? 24_000 : 120_000;
 

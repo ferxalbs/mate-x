@@ -152,6 +152,7 @@ export function ThreadMenuItem({
               <input
                 ref={inputRef}
                 autoFocus
+                aria-label="Rename thread"
                 className="w-full bg-transparent outline-none"
                 value={renamingTitle}
                 onChange={(e) => setRenamingTitle(e.target.value)}

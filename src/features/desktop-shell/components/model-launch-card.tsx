@@ -213,7 +213,8 @@ export function ModelLaunchCardContent({
           style={{
             backgroundImage: "var(--launch-gradient)",
             backgroundSize: animate ? "200% 200%" : "100% 100%",
-            filter: "blur(80px) saturate(1.2)",
+            // Keep decorative blur under the layout-cost threshold; scale already softens edges.
+            filter: "blur(24px) saturate(1.2)",
             transform: "scale(1.5) translateY(-30%)",
             opacity: 0.6,
           }}
@@ -224,7 +225,7 @@ export function ModelLaunchCardContent({
               className="model-launch-aurora-bloom pointer-events-none absolute inset-0 opacity-30 mix-blend-screen transition-colors duration-400"
               style={{
                 background: "radial-gradient(circle at 50% 0%, var(--launch-accent) 0%, transparent 50%)",
-                filter: "blur(60px)",
+                filter: "blur(20px)",
               }}
             />
             <div
@@ -263,7 +264,11 @@ export function ModelLaunchCardContent({
         {/* Variant selector — rendered per api ui.selector value */}
         {ui.selector === "multiple" && ui.variants.length > 0 ? (
           <div className="flex flex-col w-full items-center">
-            <div className="flex flex-wrap justify-center gap-1.5" role="list">
+            <div
+              className="flex flex-wrap justify-center gap-1.5"
+              role="radiogroup"
+              aria-label="Model variants"
+            >
               {ui.variants.map((variant) => {
                 const isSelected = selectedId === variant.id;
                 const isClickable = variant.selectable;
@@ -273,7 +278,8 @@ export function ModelLaunchCardContent({
                   <button
                     key={variant.id}
                     type="button"
-                    role="listitem"
+                    role="radio"
+                    aria-checked={isSelected}
                     disabled={!isClickable}
                     className={cn(
                       "group flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all duration-400",
@@ -286,7 +292,6 @@ export function ModelLaunchCardContent({
                         : "transparent",
                       color: isSelected ? "var(--launch-on-surface)" : "var(--launch-muted)",
                     }}
-                    aria-pressed={isSelected}
                     onClick={() => isClickable && setSelectedId(variant.id)}
                     onKeyDown={(event) => handleVariantKeyDown(event, variant.id)}
                     onFocus={() => isClickable && setSelectedId(variant.id)}

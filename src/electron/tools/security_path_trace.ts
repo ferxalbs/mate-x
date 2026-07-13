@@ -1,12 +1,8 @@
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import type { Tool } from '../tool-service';
 import { formatSecurityTraces } from '../security-trace/format';
 import { traceSecurityPaths } from '../security-trace/scanner';
-
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
-};
+import { isInsideWorkspace } from './tool-utils';
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number, min = 1) => {
   const numberValue = typeof value === 'number' ? value : Number(value);

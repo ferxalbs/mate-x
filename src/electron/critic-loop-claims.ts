@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
 
 import type { ToolExecutionRecord } from "./evidence-pack";
+import { resolveWorkspacePath } from "./tools/tool-utils";
 
 export interface CriticLoopClaimInput {
   workspacePath: string;
@@ -129,8 +129,9 @@ function evaluatePatchClaims(input: CriticLoopClaimInput) {
   }
 
   if (claimedChangedFiles.length > 0) {
+    const modifiedFileSet = new Set(input.modifiedFiles);
     const missingChangedFiles = claimedChangedFiles.filter(
-      (path) => !input.modifiedFiles.includes(path),
+      (path) => !modifiedFileSet.has(path),
     );
     if (missingChangedFiles.length > 0) {
       warnings.push(
@@ -221,7 +222,7 @@ async function evaluateFileExistenceClaims(input: CriticLoopClaimInput) {
   );
 
   for (const path of claimedMissingFiles) {
-    if (await fileExists(resolveWorkspacePath(input.workspacePath, path))) {
+    if (await fileExistsInsideWorkspace(input.workspacePath, path)) {
       warnings.push(
         `Claimed missing file exists in workspace: ${path}.`,
       );
@@ -313,13 +314,10 @@ function uniqueWarnings(warnings: string[]) {
   return Array.from(new Set(warnings));
 }
 
-function resolveWorkspacePath(workspacePath: string, path: string) {
-  return isAbsolute(path) ? path : join(workspacePath, path);
-}
-
-async function fileExists(path: string) {
+async function fileExistsInsideWorkspace(workspacePath: string, path: string) {
   try {
-    await access(path);
+    const resolved = resolveWorkspacePath(workspacePath, path);
+    await access(resolved);
     return true;
   } catch {
     return false;

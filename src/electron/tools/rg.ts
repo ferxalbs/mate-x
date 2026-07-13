@@ -4,6 +4,7 @@ import { createToolError, formatToolFailure } from '../tool-result';
 import { ripgrepPath } from '../rg-binary';
 import { execFileAbortable } from './process';
 import { clampNumber, limitTextOutput, resolveWorkspacePath } from './tool-utils';
+
 const DEFAULT_MAX_RESULTS = 80;
 const MAX_RESULTS = 500;
 const DEFAULT_MAX_OUTPUT_CHARS = 24_000;

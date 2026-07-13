@@ -180,8 +180,22 @@ app.on('ready', async () => {
   startupPerfMark('window-created');
 });
 
-app.on('before-quit', async () => {
-  await teardownStack();
+// Electron does not wait for async before-quit handlers. Prevent default once,
+// finish teardown, then quit so durable services are not left half-closed.
+let isQuitting = false;
+app.on('before-quit', (event) => {
+  if (isQuitting) {
+    return;
+  }
+  event.preventDefault();
+  isQuitting = true;
+  void teardownStack()
+    .catch((error) => {
+      console.error('MaTE X stack teardown failed during quit:', error);
+    })
+    .finally(() => {
+      app.quit();
+    });
 });
 
 app.on('window-all-closed', () => {

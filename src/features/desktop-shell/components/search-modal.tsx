@@ -46,8 +46,12 @@ export function SearchModal({
       .slice(0, 8);
   }, [query, threads, workspaceName]);
 
+  // Clear the query when the dialog opens so each open starts fresh,
+  // without treating "closed" as a blanket state-reset trigger.
   useEffect(() => {
-    if (!open) setQuery("");
+    if (open) {
+      setQuery("");
+    }
   }, [open]);
 
   return (
