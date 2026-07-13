@@ -8,7 +8,18 @@ import { powerSaveBlocker } from "electron";
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
-import { buildToolProcessEnv, killProcessTree, parseDirectCommand } from "./process";
+import {
+  buildToolProcessEnv,
+  killProcessTree,
+  parseDirectCommand,
+  spawnAbortable,
+} from "./process";
+import {
+  createToolError,
+  ensureStructuredToolOutput,
+  failTool,
+  formatToolFailure,
+} from "../tool-result";
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
@@ -546,10 +557,19 @@ export const sandboxRunnerTool: Tool = {
     },
     required: ["command"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const { command } = args;
 
-    if (!command) return "Error: Command is required.";
+    if (signal?.aborted) {
+      return formatToolFailure(
+        createToolError("CANCELLED", "sandbox_run cancelled before start."),
+        "sandbox_run",
+      );
+    }
+
+    if (!command) {
+      return failTool("sandbox_run", "Command is required.", "INVALID_INPUT");
+    }
 
     let cmd: string;
     let cmdArgs: string[];
@@ -560,7 +580,11 @@ export const sandboxRunnerTool: Tool = {
         args: args.args,
       }));
     } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : "Invalid command."}`;
+      return failTool(
+        "sandbox_run",
+        error instanceof Error ? error.message : "Invalid command.",
+        "INVALID_INPUT",
+      );
     }
 
     const timeoutSeconds = resolveAllowedNumber(
@@ -629,20 +653,25 @@ export const sandboxRunnerTool: Tool = {
       });
     } catch (error) {
       releaseSandboxRunSlot();
-      return buildSandboxReport({
-        status: "START_FAILED",
-        executionMode,
-        cleanupStatus: "not_started",
-        prepareDurationMs: 0,
-        output: error instanceof Error ? error.message : "Failed to prepare sandbox workspace.",
-        timeoutSeconds,
-        port,
-        nodeEnv,
-        keepAwake,
-        powerSaveBlockerType,
-        startedAt: Date.now(),
-        exitCode: 1,
-      });
+      const message =
+        error instanceof Error ? error.message : "Failed to prepare sandbox workspace.";
+      return ensureStructuredToolOutput(
+        buildSandboxReport({
+          status: "START_FAILED",
+          executionMode,
+          cleanupStatus: "not_started",
+          prepareDurationMs: 0,
+          output: message,
+          timeoutSeconds,
+          port,
+          nodeEnv,
+          keepAwake,
+          powerSaveBlockerType,
+          startedAt: Date.now(),
+          exitCode: 1,
+        }),
+        "sandbox_run",
+      );
     }
 
     return new Promise((resolve) => {
@@ -748,17 +777,79 @@ export const sandboxRunnerTool: Tool = {
 
       let childStarted = false;
       let child: ReturnType<typeof spawn>;
+      let abortedBySignal = false;
+
+      if (signal?.aborted) {
+        void finish(
+          {
+            status: "TERMINATED",
+            executionMode,
+            output: "sandbox_run cancelled before process start.",
+            timeoutSeconds,
+            port,
+            nodeEnv,
+            keepAwake,
+            powerBlockerId,
+            powerSaveBlockerType,
+            startedAt,
+            exitCode: 130,
+            pid: undefined,
+            resolvedExecutable: resolvedCommand.executable,
+            args: cmdArgs,
+            cwd: preparedWorkspace.runPath,
+            timedOut: false,
+            packageManager: resolvedCommand.packageManager,
+          },
+          130,
+        );
+        return;
+      }
+
       try {
-        child = spawn(resolvedCommand.executable, cmdArgs, {
+        child = spawnAbortable(resolvedCommand.executable, cmdArgs, {
           cwd: preparedWorkspace.runPath,
           env: childEnv,
+          signal,
           detached: process.platform !== "win32",
           windowsHide: true,
         });
       } catch (error) {
+        if ((error as Error)?.name === "AbortError" || signal?.aborted) {
+          void finish(
+            {
+              status: "TERMINATED",
+              executionMode,
+              output: "sandbox_run cancelled before process start.",
+              timeoutSeconds,
+              port,
+              nodeEnv,
+              keepAwake,
+              powerBlockerId,
+              powerSaveBlockerType,
+              startedAt,
+              exitCode: 130,
+              pid: undefined,
+              resolvedExecutable: resolvedCommand.executable,
+              args: cmdArgs,
+              cwd: preparedWorkspace.runPath,
+              timedOut: false,
+              packageManager: resolvedCommand.packageManager,
+            },
+            130,
+          );
+          return;
+        }
         finishStartFailure(error instanceof Error ? error : new Error(String(error)));
         return;
       }
+
+      const onExternalAbort = () => {
+        abortedBySignal = true;
+        if (childStarted) {
+          killProcessTree(child.pid);
+        }
+      };
+      signal?.addEventListener("abort", onExternalAbort, { once: true });
 
       child.stdout?.on("data", (data) => {
         const text = data.toString();
@@ -771,6 +862,7 @@ export const sandboxRunnerTool: Tool = {
       });
 
       child.on("error", (error) => {
+        signal?.removeEventListener("abort", onExternalAbort);
         finishStartFailure(error, child.pid);
       });
 
@@ -807,13 +899,41 @@ export const sandboxRunnerTool: Tool = {
         );
       }, timeoutSeconds * 1000);
 
-      child.on("close", (code, signal) => {
+      child.on("close", (code, closeSignal) => {
+        signal?.removeEventListener("abort", onExternalAbort);
         if (timedOut) {
           return;
         }
 
+        if (abortedBySignal || signal?.aborted) {
+          void finish(
+            {
+              status: "TERMINATED",
+              executionMode,
+              output: `${output}\n\nThe sandbox process tree was cancelled via AbortSignal.`,
+              timeoutSeconds,
+              port,
+              nodeEnv,
+              keepAwake,
+              powerBlockerId,
+              powerSaveBlockerType,
+              startedAt,
+              exitCode: 130,
+              signal: closeSignal,
+              pid: child.pid,
+              resolvedExecutable: resolvedCommand.executable,
+              args: cmdArgs,
+              cwd: preparedWorkspace.runPath,
+              timedOut: false,
+              packageManager: resolvedCommand.packageManager,
+            },
+            130,
+          );
+          return;
+        }
+
         const status: SandboxStatus =
-          code === 0 ? "PASSED" : signal ? "TERMINATED" : "FAILED";
+          code === 0 ? "PASSED" : closeSignal ? "TERMINATED" : "FAILED";
 
         void finish(
           {
@@ -828,7 +948,7 @@ export const sandboxRunnerTool: Tool = {
             powerSaveBlockerType,
             startedAt,
             exitCode: code,
-            signal,
+            signal: closeSignal,
             pid: child.pid,
             resolvedExecutable: resolvedCommand.executable,
             args: cmdArgs,
@@ -839,7 +959,9 @@ export const sandboxRunnerTool: Tool = {
           code ?? undefined,
         );
       });
-    });
+    }).then((report) =>
+      ensureStructuredToolOutput(String(report ?? ""), "sandbox_run"),
+    );
   },
 };
 

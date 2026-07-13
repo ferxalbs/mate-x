@@ -1,10 +1,8 @@
-import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
-
-const execFileAsync = promisify(execFile);
+import { failTool } from '../tool-result';
+import { execFileAbortable } from './process';
 const RG_MAX_BUFFER = 1024 * 1024 * 12;
 const RG_FILE_BATCH_CHAR_LIMIT = process.platform === 'win32' ? 24_000 : 120_000;
 
@@ -326,13 +324,22 @@ function clusterCandidates(candidates: Candidate[]) {
 export async function scanAttackSurfaceCandidates(params: {
   workspacePath: string;
   relativePath: string;
+  signal?: AbortSignal;
 }): Promise<{ scannedFiles: string[]; candidates: Candidate[] }> {
-  const { workspacePath, relativePath } = params;
+  const { workspacePath, relativePath, signal } = params;
+  if (signal?.aborted) {
+    const error = new Error('Aborted');
+    error.name = 'AbortError';
+    throw error;
+  }
   const safeRelativePath = resolveWorkspaceScope(workspacePath, relativePath);
   const targetStat = await stat(resolve(workspacePath, safeRelativePath));
   const files = targetStat.isFile()
     ? [safeRelativePath]
-    : (await execFileAsync('rg', ['--files', '--', safeRelativePath], { cwd: workspacePath })).stdout.split('\n').filter(Boolean);
+    : (await execFileAbortable('rg', ['--files', '--', safeRelativePath], {
+        cwd: workspacePath,
+        signal,
+      })).stdout.split('\n').filter(Boolean);
   const scannedFiles = files.filter((file) => !shouldSkipFile(file));
   const scannedFileSet = new Set(scannedFiles);
   const searchPattern = MATCHERS.map((matcher) => `(?:${matcher.search})`).join('|');
@@ -340,13 +347,16 @@ export async function scanAttackSurfaceCandidates(params: {
     ? ''
     : (await Promise.all(batchFilesForRg(scannedFiles).map(async (batch) => {
       try {
-        const result = await execFileAsync(
+        const result = await execFileAbortable(
           'rg',
           ['-n', '--no-heading', '-e', searchPattern, '--', ...batch],
-          { cwd: workspacePath, maxBuffer: RG_MAX_BUFFER },
+          { cwd: workspacePath, maxBuffer: RG_MAX_BUFFER, signal },
         );
         return result.stdout;
       } catch (error) {
+        if ((error as Error)?.name === 'AbortError' || signal?.aborted) {
+          throw error;
+        }
         const stdoutFromError = (error as { stdout?: unknown }).stdout;
         return typeof stdoutFromError === 'string' ? stdoutFromError : '';
       }
@@ -379,12 +389,20 @@ export const attackSurfaceScanTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const relativePath = String(args.path || '.');
     const limit = Math.max(10, Math.min(Number(args.limit || 80), 200));
 
+    if (signal?.aborted) {
+      return failTool('attack_surface_scan', 'attack_surface_scan cancelled.', 'CANCELLED');
+    }
+
     try {
-      const { scannedFiles, candidates } = await scanAttackSurfaceCandidates({ workspacePath, relativePath });
+      const { scannedFiles, candidates } = await scanAttackSurfaceCandidates({
+        workspacePath,
+        relativePath,
+        signal,
+      });
       const counts = candidates.reduce<Record<Severity, number>>((acc, candidate) => {
         acc[candidate.severity] += 1;
         return acc;
@@ -428,7 +446,15 @@ export const attackSurfaceScanTool: Tool = {
 
       return report;
     } catch (error) {
-      return `Error running DeepSec candidate scan: ${(error as Error).message}`;
+      if (signal?.aborted || (error as Error)?.name === 'AbortError') {
+        return failTool('attack_surface_scan', 'attack_surface_scan cancelled.', 'CANCELLED');
+      }
+      return failTool(
+        'attack_surface_scan',
+        `Error running DeepSec candidate scan: ${(error as Error).message}`,
+        'EXECUTION_ERROR',
+        { retryable: true },
+      );
     }
   },
 };

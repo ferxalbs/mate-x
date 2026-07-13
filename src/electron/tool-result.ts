@@ -261,3 +261,123 @@ function extractTrailingJsonObject(text: string): string | null {
 
   return null;
 }
+
+/** Shorthand failure for tool bodies. */
+export function failTool(
+  toolName: string,
+  message: string,
+  code: ToolErrorCode = 'EXECUTION_ERROR',
+  options: {
+    retryable?: boolean;
+    mayHavePartialEffects?: boolean;
+    recommendedNextAction?: string;
+    details?: Record<string, unknown>;
+  } = {},
+): string {
+  return formatToolFailure(createToolError(code, message, options), toolName);
+}
+
+/** Return a structured cancellation failure when the signal is aborted. */
+export function cancelledTool(
+  toolName: string,
+  message = 'Tool execution was cancelled.',
+): string {
+  return formatToolFailure(
+    createToolError('CANCELLED', message, {
+      retryable: false,
+      mayHavePartialEffects: true,
+    }),
+    toolName,
+  );
+}
+
+export function throwIfAborted(signal: AbortSignal | undefined, toolName: string): void {
+  if (signal?.aborted) {
+    const error = new Error(`Tool "${toolName}" was cancelled.`);
+    error.name = 'AbortError';
+    throw error;
+  }
+}
+
+/**
+ * Run a tool body with abort + structured error normalization.
+ * Prefer this in execute() so catch blocks always produce structured failures.
+ */
+export async function runToolBody(
+  toolName: string,
+  signal: AbortSignal | undefined,
+  body: () => Promise<string>,
+): Promise<string> {
+  try {
+    throwIfAborted(signal, toolName);
+    const result = await body();
+    throwIfAborted(signal, toolName);
+    return ensureStructuredToolOutput(result, toolName);
+  } catch (error) {
+    if (signal?.aborted || (error as Error)?.name === 'AbortError') {
+      return cancelledTool(toolName);
+    }
+    return formatToolFailure(mapErrnoToToolError(error, { operation: toolName }), toolName);
+  }
+}
+
+/**
+ * Normalize legacy free-form error strings into structured failures.
+ * Success payloads and already-structured results pass through unchanged.
+ */
+export function ensureStructuredToolOutput(output: string, toolName: string): string {
+  if (typeof output !== 'string') {
+    return formatToolFailure(
+      createToolError('INTERNAL_INVARIANT', 'Tool returned a non-string result.'),
+      toolName,
+    );
+  }
+
+  const trimmed = output.trim();
+  if (!trimmed) {
+    return output;
+  }
+
+  // Already structured (success or failure trailer / full JSON)
+  const jsonCandidate = extractTrailingJsonObject(trimmed);
+  if (jsonCandidate) {
+    try {
+      const parsed = JSON.parse(jsonCandidate) as Record<string, unknown>;
+      if (typeof parsed.ok === 'boolean') {
+        return output;
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  // Legacy error-shaped free text → structured failure (preserve original message).
+  if (
+    /^(?:Error\b|Tool .+ failed\b|Invalid arguments\b|Workspace Trust Contract blocks\b|Policy stop\b|File not found\b|Path must remain\b|Timed? ?out\b|Cancelled\b|Canceled\b)/i.test(
+      trimmed,
+    )
+  ) {
+    const message = trimmed
+      .replace(/^Error executing tool "[^"]+":\s*/i, '')
+      .replace(/^Error:\s*/i, '')
+      .replace(/^Error\s+/i, '');
+
+    let code: ToolErrorCode = 'EXECUTION_ERROR';
+    if (/not found|ENOENT/i.test(message)) code = 'MISSING_RESOURCE';
+    else if (/permission|forbidden|EACCES|EPERM|Path must remain/i.test(message))
+      code = 'FORBIDDEN';
+    else if (/invalid|required|must be/i.test(message)) code = 'INVALID_INPUT';
+    else if (/timeout|timed out/i.test(message)) code = 'TIMEOUT';
+    else if (/cancel/i.test(message)) code = 'CANCELLED';
+    else if (/rate limit/i.test(message)) code = 'RATE_LIMITED';
+
+    // Avoid double-wrapping if already structured by formatToolFailure text form.
+    if (trimmed.includes('"ok":false') || trimmed.includes('"ok": false')) {
+      return output;
+    }
+
+    return formatToolFailure(createToolError(code, message), toolName);
+  }
+
+  return output;
+}

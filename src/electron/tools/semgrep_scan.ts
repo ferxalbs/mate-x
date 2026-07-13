@@ -1,11 +1,9 @@
-import { execFile } from "node:child_process";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { promisify } from "node:util";
 import { resolve } from "node:path";
 import type { Tool } from "../tool-service";
+import { failTool } from "../tool-result";
+import { execFileAbortable } from "./process";
 import { resolveWorkspacePath } from "./tool-utils";
-
-const execFileAsync = promisify(execFile);
 
 // Common security hotspots for built-in fallback scanner
 const SECURITY_HOTSPOTS = [
@@ -98,28 +96,32 @@ export const semgrepScanTool: Tool = {
     },
     required: [],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const targetInput = args.path || ".";
     const ruleset = args.ruleset || "p/security-audit";
     const useFallbackOnly = !!args.useFallbackOnly;
+
+    if (signal?.aborted) {
+      return failTool("semgrep_scan", "semgrep_scan cancelled.", "CANCELLED");
+    }
 
     let targetPath: string;
     try {
       targetPath = resolveWorkspacePath(workspacePath, targetInput);
     } catch (err) {
-      return `Error: ${(err as Error).message}`;
+      return failTool("semgrep_scan", (err as Error).message, "FORBIDDEN");
     }
 
     if (!useFallbackOnly) {
       try {
         // Test if semgrep is installed
-        await execFileAsync("semgrep", ["--version"]);
+        await execFileAbortable("semgrep", ["--version"], { signal });
         
         // Execute semgrep in JSON format
-        const { stdout } = await execFileAsync(
+        const { stdout } = await execFileAbortable(
           "semgrep",
           ["scan", "--json", "--config", ruleset, targetPath],
-          { cwd: workspacePath }
+          { cwd: workspacePath, signal },
         );
         
         const data = JSON.parse(stdout);
@@ -149,7 +151,10 @@ export const semgrepScanTool: Tool = {
         });
         
         return report;
-      } catch (_err: any) {
+      } catch (err: any) {
+        if (signal?.aborted || err?.name === "AbortError") {
+          return failTool("semgrep_scan", "semgrep_scan cancelled.", "CANCELLED");
+        }
         // Semgrep not installed or exited with error; proceed to high-performance fallback
       }
     }

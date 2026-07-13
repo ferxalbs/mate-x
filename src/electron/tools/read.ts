@@ -6,33 +6,13 @@ import {
   formatToolFailure,
   mapErrnoToToolError,
 } from '../tool-result';
+import { readDefinition } from './definitions/read.definition';
 import { limitTextOutput, resolveWorkspacePath } from "./tool-utils";
 
 export const readTool: Tool = {
-  name: 'read',
-  description:
-    'Read a file in the active workspace. Use for inspecting source after locating paths with rg/glob/ls. Supports optional 1-indexed line ranges. Does not search or list directories. Mutates nothing.',
-  parameters: {
-    type: 'object',
-    properties: {
-      path: {
-        type: 'string',
-        description: 'File path relative to the workspace root.',
-        minLength: 1,
-      },
-      lineStart: {
-        type: 'number',
-        description: 'Optional starting line number (1-indexed, inclusive).',
-        minimum: 1,
-      },
-      lineEnd: {
-        type: 'number',
-        description: 'Optional ending line number (1-indexed, inclusive).',
-        minimum: 1,
-      },
-    },
-    required: ['path'],
-  },
+  name: readDefinition.name,
+  description: readDefinition.description,
+  parameters: readDefinition.parameters,
   async execute(args, { workspacePath, settings: _settings, signal }) {
     const { path, lineStart, lineEnd } = args;
 
