@@ -5,7 +5,10 @@ import type { RainyModelCapabilities, RainyModelCatalogEntry } from "../../../co
 import type { AgentRuntimeConfig } from "./types";
 import { isExecutionIntentPrompt } from "./helpers";
 
+import { resolveToolTimeoutMs } from "../../tool-metadata";
+
 export const TOOL_BATCH_MAX_CONCURRENCY = 8;
+/** Default fallback when a tool has no catalog entry. Prefer resolveToolExecutionTimeoutMs. */
 export const TOOL_EXECUTION_TIMEOUT_MS = 20_000;
 export const SANDBOX_RUN_ALLOWED_TIMEOUT_SECONDS = new Set([30, 45, 60, 120, 240]);
 export const TOOL_TIMEOUT_GRACE_MS = 5_000;
@@ -54,16 +57,7 @@ export function resolveToolExecutionTimeoutMs(
   toolName: string,
   args: Record<string, unknown>,
 ): number {
-  if (toolName !== "sandbox_run") {
-    return TOOL_EXECUTION_TIMEOUT_MS;
-  }
-
-  const timeoutSeconds = Number(args.timeoutSeconds);
-  if (!SANDBOX_RUN_ALLOWED_TIMEOUT_SECONDS.has(timeoutSeconds)) {
-    return 30_000 + TOOL_TIMEOUT_GRACE_MS;
-  }
-
-  return timeoutSeconds * 1000 + TOOL_TIMEOUT_GRACE_MS;
+  return resolveToolTimeoutMs(toolName, args, TOOL_TIMEOUT_GRACE_MS);
 }
 
 export async function resolveDefaultRainyRuntimeConfig(

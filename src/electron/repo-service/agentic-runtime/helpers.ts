@@ -328,23 +328,50 @@ export function truncateToolOutput(content: string): string {
   return `${content.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n... (truncated ${content.length - MAX_TOOL_OUTPUT_CHARS} characters)`;
 }
 
+/**
+ * Race a promise against a timeout. When an AbortController is provided, the
+ * controller is aborted on timeout so cooperative tools can stop work.
+ * Does not force-kill non-cooperative work; callers should still treat the
+ * rejection as the authoritative timeout boundary.
+ */
 export function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   timeoutMessage: string,
+  options?: {
+    abortController?: AbortController;
+    signal?: AbortSignal;
+  },
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(timeoutMessage)),
-      timeoutMs,
-    );
+    if (options?.signal?.aborted) {
+      options.abortController?.abort();
+      reject(new Error("Tool call was cancelled."));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      options?.abortController?.abort();
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      options?.abortController?.abort();
+      reject(new Error("Tool call was cancelled."));
+    };
+
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
+
     void promise.then(
       (value) => {
         clearTimeout(timer);
+        options?.signal?.removeEventListener("abort", onAbort);
         resolve(value);
       },
       (error) => {
         clearTimeout(timer);
+        options?.signal?.removeEventListener("abort", onAbort);
         reject(error);
       },
     );
@@ -380,7 +407,56 @@ export async function mapWithConcurrency<T, R>(
 }
 
 export function isToolFailureOutput(output: string): boolean {
-  return /^(?:Error|Tool .+ failed|Workspace Trust Contract blocks|Policy stop)\b/i.test(output.trim());
+  // Prefer the shared structured detector (JSON ok:false + stable prefixes).
+  // Local import avoided to keep this module usable in pure unit tests.
+  const trimmed = output.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  // Full-body or trailing structured failure marker.
+  const jsonCandidate = extractTrailingJsonObjectForFailure(trimmed);
+  if (jsonCandidate) {
+    try {
+      const parsed = JSON.parse(jsonCandidate) as Record<string, unknown>;
+      if (parsed.ok === false) {
+        return true;
+      }
+      if (parsed.ok === true) {
+        return false;
+      }
+      if (
+        parsed.status === "failed" ||
+        parsed.status === "error" ||
+        parsed.status === "cancelled"
+      ) {
+        return true;
+      }
+      if (parsed.fatal === true) {
+        return true;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  return /^(?:Error\b|Tool .+ failed\b|Invalid arguments\b|Workspace Trust Contract blocks\b|Policy stop\b|File not found\b|Path must remain\b|Timed? ?out\b|Cancelled\b|Canceled\b)/i.test(
+    trimmed,
+  );
+}
+
+function extractTrailingJsonObjectForFailure(text: string): string | null {
+  if (text.startsWith("{") && text.endsWith("}")) {
+    return text;
+  }
+  const lastBrace = text.lastIndexOf("\n{");
+  if (lastBrace >= 0) {
+    const candidate = text.slice(lastBrace + 1).trim();
+    if (candidate.startsWith("{") && candidate.endsWith("}")) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 export function appendAttachmentContext(

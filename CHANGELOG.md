@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.12 (2) [Local Dev Startup Performance]
+
+* Reduced main-process cold-start work for `bun start` by deferring heavy modules until first use (assistant/work-engine, OpenAI/Rainy client, git, repo-graph, GitHub integration, mobile bridge, compliance export, privacy ONNX/model loader).
+* Split SDK orchestrator readiness into `sdk-orchestrator-state` so main/main-stack no longer pull `repo-service` only to record startup failures.
+* Converted IPC service wiring to dynamic loaders; workspace bootstrap imports the lighter `repo-service/workspace` path instead of the full assistant graph.
+* Parallelized engineering adapter init, optional v0.1.1 migration, and config load inside `initStack` after durable turso/engineering repo readiness.
+* Deferred Failure Memory sync interval start until idle (`requestIdleCallback` / short timeout) so background timers leave the critical path; `createMaTeXStack` no longer auto-starts the timer.
+* Made OpenAI SDK loading lazy in Rainy service and privacy ONNX/model-loader imports dynamic in the privacy firewall.
+* Removed dead blocking work in workspace bootstrap (unused workspace-memory status await) and lazy-loaded git/memory/graph dependencies on that path.
+* Deduplicated concurrent renderer `getAppSettings()` IPC calls with an in-flight promise cache.
+* Lazy-loaded Settings and Runs routes via TanStack `lazyRouteComponent`; deferred `react-syntax-highlighter` in chat markdown with a plain `<pre>` fallback until Prism loads.
+* Added opt-in startup marks behind `MATE_X_PERF_STARTUP=1` (`startup-perf`) without noisy default logging.
+* Measured local improvement on the main static graph: packaged cold graph ~1.58 MB → ~0.70 MB, `main.js` ~597 KB → ~273 KB, static TS modules ~85 → ~24 (wall-clock still dominated by Electron Forge + Vite rebuild).
+* Verified with `bun run typecheck`, `bun run lint`, `bun run test:fast`, and focused rainy/config/privacy/workspace tests. No production package/make artifacts generated.
+
 ## Unreleased - 2026.07.12 (1) [Stable Real-Time Agent Activity]
 
 * Fixed completed runs retaining frozen spinners by making preventive warnings terminal and excluding stale active or queued segments from completed trace projection.

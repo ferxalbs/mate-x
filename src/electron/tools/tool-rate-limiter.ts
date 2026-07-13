@@ -29,11 +29,21 @@ export class ToolRateLimiter {
     callTimestampsByTool.set(this.toolName, timestamps);
   }
 
+  /** Drop empty windows so the global map cannot grow without bound. */
   private getFreshTimestamps(now: number) {
     const windowStart = now - this.windowMs;
     const timestamps = callTimestampsByTool.get(this.toolName) ?? [];
     const freshTimestamps = timestamps.filter((timestamp) => timestamp > windowStart);
-    callTimestampsByTool.set(this.toolName, freshTimestamps);
+    if (freshTimestamps.length === 0) {
+      callTimestampsByTool.delete(this.toolName);
+    } else {
+      callTimestampsByTool.set(this.toolName, freshTimestamps);
+    }
     return freshTimestamps;
   }
+}
+
+/** Test/diagnostics helper — clear all rate-limit windows. */
+export function clearAllToolRateLimits() {
+  callTimestampsByTool.clear();
 }

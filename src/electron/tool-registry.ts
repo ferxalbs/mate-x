@@ -1,24 +1,43 @@
 import type { ToolLoader } from "./tool-types";
 
+/**
+ * Lazy tool loaders.
+ *
+ * Each entry is [registryKey, loader]. Where the historical short alias differs
+ * from the canonical tool.name exposed to agents, BOTH keys are registered so
+ * resolution never fails for either form.
+ */
 export const lazyToolLoaders: Array<[string, ToolLoader]> = [
   ["rg", () => import("./tools/rg").then((m) => m.rgTool)],
   ["ls", () => import("./tools/ls").then((m) => m.lsTool)],
   ["read", () => import("./tools/read").then((m) => m.readTool)],
   ["git", () => import("./tools/git").then((m) => m.gitTool)],
+  ["git_diag", () => import("./tools/git").then((m) => m.gitTool)],
   ["secrets", () => import("./tools/secrets").then((m) => m.secretScanTool)],
+  ["secret_scan", () => import("./tools/secrets").then((m) => m.secretScanTool)],
   ["metadata", () => import("./tools/metadata").then((m) => m.fileMetadataTool)],
+  ["file_metadata", () => import("./tools/metadata").then((m) => m.fileMetadataTool)],
   ["tree", () => import("./tools/tree").then((m) => m.projectTreeTool)],
   ["audit", () => import("./tools/audit").then((m) => m.securityAuditTool)],
   ["security_audit", () => import("./tools/audit").then((m) => m.securityAuditTool)],
   ["deps", () => import("./tools/deps").then((m) => m.dependencyAnalyzerTool)],
+  ["dependency_check", () => import("./tools/deps").then((m) => m.dependencyAnalyzerTool)],
   ["network", () => import("./tools/network").then((m) => m.networkMapTool)],
+  ["network_map", () => import("./tools/network").then((m) => m.networkMapTool)],
   ["sql", () => import("./tools/sql").then((m) => m.sqlAuditTool)],
+  ["sql_audit", () => import("./tools/sql").then((m) => m.sqlAuditTool)],
   ["env_safety", () => import("./tools/env_safety").then((m) => m.envSafetyTool)],
+  ["env_audit", () => import("./tools/env_safety").then((m) => m.envSafetyTool)],
   ["container", () => import("./tools/container").then((m) => m.containerAuditTool)],
+  ["container_audit", () => import("./tools/container").then((m) => m.containerAuditTool)],
   ["flow", () => import("./tools/flow").then((m) => m.flowTraceTool)],
+  ["flow_trace", () => import("./tools/flow").then((m) => m.flowTraceTool)],
   ["entropy", () => import("./tools/entropy").then((m) => m.entropyScannerTool)],
+  ["entropy_scan", () => import("./tools/entropy").then((m) => m.entropyScannerTool)],
   ["auth", () => import("./tools/auth").then((m) => m.accessControlAuditTool)],
+  ["auth_audit", () => import("./tools/auth").then((m) => m.accessControlAuditTool)],
   ["report", () => import("./tools/report").then((m) => m.securityReportTool)],
+  ["security_report", () => import("./tools/report").then((m) => m.securityReportTool)],
   ["ast_grep", () => import("./tools/ast_grep").then((m) => m.astGrepTool)],
   ["git_forensics", () => import("./tools/git_forensics").then((m) => m.gitForensicsTool)],
   ["threat_model", () => import("./tools/threat_model").then((m) => m.threatModelTool)],
@@ -40,6 +59,7 @@ export const lazyToolLoaders: Array<[string, ToolLoader]> = [
   ["record_resolution", () => import("./tools/failure_memory").then((m) => m.recordResolutionTool)],
   ["supermemory", () => import("./tools/supermemory").then((m) => m.supermemoryTool)],
   ["pdf_report", () => import("./tools/pdf_report").then((m) => m.pdfReportTool)],
+  ["pdf_security_report", () => import("./tools/pdf_report").then((m) => m.pdfReportTool)],
   ["glob", () => import("./tools/glob").then((m) => m.globTool)],
   ["pwd", () => import("./tools/pwd").then((m) => m.pwdTool)],
   ["du", () => import("./tools/du").then((m) => m.duTool)],

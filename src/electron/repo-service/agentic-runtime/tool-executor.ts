@@ -169,14 +169,18 @@ export async function executeAgentToolCall({
 
   try {
     const toolTimeoutMs = resolveToolExecutionTimeoutMs(toolName, toolArgs);
+    const abortController = new AbortController();
     const result = await withTimeout(
       toolService.callTool(toolName, toolArgs, {
         workspacePath: snapshot.workspace.path,
         trustContract: snapshot.trustContract,
         settings: appSettings,
+        signal: abortController.signal,
+        runId,
       }),
       toolTimeoutMs,
       `Tool ${toolName} timed out after ${Math.round(toolTimeoutMs / 1000)}s.`,
+      { abortController },
     );
 
     const normalizedResult = truncateToolOutput(String(result ?? ""));

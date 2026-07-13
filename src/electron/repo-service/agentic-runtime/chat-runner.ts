@@ -440,7 +440,7 @@ export async function requestRainyChatAgenticResponse({
     events.push({
       id: `step-tool-batch-${iterations}`,
       label: `Tool batch ${toolRounds}`,
-      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. sandbox_run may request 30/45/60/120/240s; other tools use ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
+      detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. Timeouts are per-tool (sandbox_run 30/45/60/120/240s; analysis tools longer; default ~${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s).`,
       status: "done",
       segmentKind: "tool",
       visibility: "technical",
