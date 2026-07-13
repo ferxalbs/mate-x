@@ -162,7 +162,8 @@ export async function createMaTeXStack(config: MaTeXConfig, dependencies: Create
       maxTotalRecords: config.failureMemory.maxTotalRecords,
     },
   });
-  failureMemorySync.start();
+  // Caller (main-stack) starts the interval after first paint so startup
+  // does not schedule background timers on the critical path.
   const orchestrator = new SDKOrchestrator({
     workspaceId,
     codexClient: sdk.codexClient ?? unavailableClient,

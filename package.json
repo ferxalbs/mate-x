@@ -29,7 +29,8 @@
     "test:qa": "bun test qa",
     "test:all": "bun test src qa",
     "verify:bundle-purity": "bun run scripts/release/verify-bundle-purity.ts",
-    "verify:release": "bun run verify && bun run package && bun run scripts/release/verify-bundle-purity.ts --require-asar && bun run scripts/release/run-packaged-e2e.ts"
+    "verify:release": "bun run verify && bun run package && bun run scripts/release/verify-bundle-purity.ts --require-asar && bun run scripts/release/run-packaged-e2e.ts",
+    "doctor": "npx react-doctor@latest"
   },
   "keywords": [],
   "author": {
@@ -65,6 +66,7 @@
     "eslint-plugin-import-x": "4.17.1",
     "globals": "^17.7.0",
     "happy-dom": "^20.10.6",
+    "react-doctor": "^0.7.6",
     "shadcn": "^4.13.0",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",

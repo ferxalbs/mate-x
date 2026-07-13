@@ -23,12 +23,20 @@ import { collectRepoSnapshot } from "./repo-service/workspace";
 import { buildArtifacts, buildFallbackResponse, buildWorkspaceMemoryArtifacts, executeAgentToolCall, parseDirectDeepAnalysisPipelineArgs, parseDirectSecurityPathTraceArgs, requestRainyAgenticResponse, resolveDefaultRainyRuntimeConfig } from "./repo-service/agentic-runtime";
 import { buildWorkEngineArtifactSnapshot, loadCompliancePolicySources } from "./repo-service/work-engine-artifacts";
 import { getRainyServiceTierOptions } from "../contracts/rainy";
-import type { SDKOrchestrator } from "./orchestration/sdk-orchestrator";
-import { AgentRuntimeReadiness } from "./orchestration/agent-runtime-readiness";
 import type { AgentActionEvidenceEvent } from "../contracts/sdk-orchestrator.types";
+import {
+  getSDKOrchestrator,
+  getSDKOrchestratorReadinessError,
+} from "./sdk-orchestrator-state";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
+export {
+  getSDKOrchestrator,
+  getSDKOrchestratorReadinessError,
+  setSDKOrchestrator,
+  setSDKOrchestratorInitializationError,
+} from "./sdk-orchestrator-state";
 
 interface AssistantProgressReporter {
   runId: string;
@@ -38,19 +46,6 @@ interface AssistantProgressReporter {
 
 const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
 const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
-const sdkOrchestratorReadiness = new AgentRuntimeReadiness<SDKOrchestrator>();
-
-export function setSDKOrchestrator(orchestrator: SDKOrchestrator | null) {
-  sdkOrchestratorReadiness.setRuntime(orchestrator);
-}
-
-export function setSDKOrchestratorInitializationError(error: unknown) {
-  sdkOrchestratorReadiness.setInitializationError(error);
-}
-
-export function getSDKOrchestratorReadinessError() {
-  return sdkOrchestratorReadiness.getErrorMessage();
-}
 
 function cloneArtifacts(artifacts: MessageArtifact[]) {
   return artifacts.map((artifact) => ({ ...artifact }));
@@ -344,7 +339,7 @@ export async function runAssistant(
   }
 
   if (!handledDirectTool && resolvedOptions.sdkAction) {
-    const sdkOrchestrator = sdkOrchestratorReadiness.getRuntime();
+    const sdkOrchestrator = getSDKOrchestrator();
     if (!sdkOrchestrator) {
       throw new Error(getSDKOrchestratorReadinessError() ?? "Agent runtime is not ready.");
     }

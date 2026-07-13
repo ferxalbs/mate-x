@@ -18,7 +18,6 @@ import type {
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
 import type { WorkspaceMemoryFileKind, WorkspaceTrustContract } from "../contracts/workspace";
-import { GitService } from "./git-service";
 import { assertTrustedRendererSender } from "./ipc/guards";
 import { policyService } from "./policy-service";
 import {
@@ -27,50 +26,30 @@ import {
   getWorkspaceEntries,
   getWorkspaceSummary,
   getWorkspaceTrustContract,
-  getAgentRoutingRecommendation,
   listFiles,
   removeWorkspace,
-  runAssistant,
   saveWorkspaceSession,
   searchInFiles,
   setActiveWorkspace,
   updateWorkspaceTrustContract,
   collectRepoSnapshot,
-} from "./repo-service";
-import {
-  RAINY_REPO_EMBEDDING_MODELS,
-  listRainyModelLaunches,
-  listRainyModels,
-  validateRainyEmbeddingModelSelection,
-  validateRainyModelSelection,
-} from "./rainy-service";
-import {
-  repoGraphService,
-  resolveActiveWorkspaceForRepoGraph,
-} from "./repo-graph-service";
+} from "./repo-service/workspace";
 import { tursoService } from "./turso-service";
-import { workspaceMemoryService } from "./workspace-memory-service";
 import { checkForUpdates } from "./updater";
-import { privacyFirewall } from "./privacy/privacy-firewall-service";
-import {
-  collectGitHubLocalEvidence,
-  detectGitHubRemote,
-  getChangedFiles,
-  getCurrentBranch,
-  getIntegrationStatus,
-  getLocalDiff,
-  getPullRequestChecks,
-  getPullRequestFiles,
-  getPullRequestForBranch,
-} from "./github-integration-service";
-import {
-  generateComplianceExport,
-  verifyComplianceZipForDelivery,
-  sanitizeComplianceTaskId,
-} from "../features/compliance/complianceExport";
-import { canonicalJson, sha256Hex } from "../features/compliance/attestation";
 import { getStack } from "./main-stack";
-import { mobileBridgeService } from "./mobile-bridge-service";
+
+// ── Lazy service loaders (keep main-process cold start free of assistant/SDK bulk) ──
+const loadRepoService = () => import("./repo-service");
+const loadRainyService = () => import("./rainy-service");
+const loadRepoGraphService = () => import("./repo-graph-service");
+const loadWorkspaceMemoryService = () => import("./workspace-memory-service");
+const loadPrivacyFirewall = () => import("./privacy/privacy-firewall-service");
+const loadGitService = () => import("./git-service");
+const loadGitHubIntegration = () => import("./github-integration-service");
+const loadComplianceExport = () => import("../features/compliance/complianceExport");
+const loadAttestation = () => import("../features/compliance/attestation");
+const loadMobileBridge = () => import("./mobile-bridge-service");
+
 
 const ASSISTANT_PROGRESS_IPC_FLUSH_MS = 80;
 const ASSISTANT_PROGRESS_TERMINAL_STATUSES = new Set(["completed", "failed"]);
@@ -371,12 +350,12 @@ function sourceRoleForPath(file: string): ThreatGraphNode["sourceRole"] {
 }
 
 async function buildThreatGraphSnapshot() {
-  const workspace = await resolveActiveWorkspaceForRepoGraph();
+  const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
   const [entrypoints, ipcSurface, envUsage, dependencySurface] = await Promise.all([
-    repoGraphService.getEntrypoints(workspace),
-    repoGraphService.getIpcSurface(workspace),
-    repoGraphService.getEnvUsage(workspace),
-    repoGraphService.getDependencySurface(workspace),
+    (await loadRepoGraphService()).repoGraphService.getEntrypoints(workspace),
+    (await loadRepoGraphService()).repoGraphService.getIpcSurface(workspace),
+    (await loadRepoGraphService()).repoGraphService.getEnvUsage(workspace),
+    (await loadRepoGraphService()).repoGraphService.getDependencySurface(workspace),
   ]);
   const nodes: ThreatGraphNode[] = [
     { id: "workspace", kind: "workspace", label: workspace.name, sourceRole: "active", confidence: 1 },
@@ -535,12 +514,12 @@ async function loadVerifiedEvidencePackForExport(workspacePath: string, taskId: 
   const expectedDigest = attestation.statement?.subject?.find(
     (subject) => subject.name === "evidence-pack.json",
   )?.digest?.sha256;
-  const actualDigest = sha256Hex(canonicalJson(evidencePack));
+  const actualDigest = (await loadAttestation()).sha256Hex((await loadAttestation()).canonicalJson(evidencePack));
   if (!expectedDigest || expectedDigest !== actualDigest) {
     throw new Error("Evidence Pack digest does not match signed attestation.");
   }
 
-  const scan = await privacyFirewall.scanTextSafe(canonicalJson(evidencePack));
+  const scan = await (await loadPrivacyFirewall()).privacyFirewall.scanTextSafe((await loadAttestation()).canonicalJson(evidencePack));
   if (scan.spans.some((span) => span.risk === "p0" || span.label === "secret" || span.label === "repo_secret")) {
     throw new Error("Privacy Firewall blocked compliance export because Evidence Pack contains secret material.");
   }
@@ -585,7 +564,7 @@ async function listLocalEvidencePacks(workspaceId?: string) {
           const expectedDigest = att.statement?.subject?.find(
             (s: any) => s.name === "evidence-pack.json",
           )?.digest?.sha256;
-          const actualDigest = sha256Hex(canonicalJson(pack));
+          const actualDigest = (await loadAttestation()).sha256Hex((await loadAttestation()).canonicalJson(pack));
           if (pack.attestation?.status === "blocked") {
             attestationStatus = "blocked";
           } else {
@@ -689,7 +668,10 @@ async function resolveActiveWorkspace() {
 }
 
 async function resolveGitService() {
-  const workspacePath = await resolveActiveWorkspacePath();
+  const [{ GitService }, workspacePath] = await Promise.all([
+    loadGitService(),
+    resolveActiveWorkspacePath(),
+  ]);
   return new GitService(workspacePath);
 }
 
@@ -704,19 +686,19 @@ export function registerIpcHandlers() {
     if (text.length > MAX_IPC_TEXT_LENGTH) {
       throw new Error(`privacy scan text exceeds ${MAX_IPC_TEXT_LENGTH} characters.`);
     }
-    return privacyFirewall.scanTextSafe(text);
+    return (await loadPrivacyFirewall()).privacyFirewall.scanTextSafe(text);
   });
   handle("privacy:get-model-status", async () =>
-    privacyFirewall.getModelStatus(),
+    (await loadPrivacyFirewall()).privacyFirewall.getModelStatus(),
   );
   handle("privacy:download-model", async (event) =>
-    privacyFirewall.downloadModel((progress) => {
+    (await loadPrivacyFirewall()).privacyFirewall.downloadModel((progress) => {
       event.sender.send("privacy:model-download-progress", progress);
     }),
   );
   handle("privacy:clear-vault", async () => {
     await requireSensitiveIpcApproval({ action: "privacy:clear-vault" });
-    return privacyFirewall.clearVault();
+    return (await loadPrivacyFirewall()).privacyFirewall.clearVault();
   });
 
   handle("repo:bootstrap", async () => bootstrapWorkspaceState());
@@ -730,14 +712,14 @@ export function registerIpcHandlers() {
       // load + generate will target the correct location; assert failures now indicate real
       // mismatch rather than launch-cwd pollution.
       const evidencePack = await loadVerifiedEvidencePackForExport(workspace.path, taskId);
-      const result = await generateComplianceExport({
+      const result = await (await loadComplianceExport()).generateComplianceExport({
         evidencePack,
         taskId,
         workspacePath: workspace.path,
         userId: workspace.id,
         policyApplied: "workspace-trust-contract",
       });
-      await verifyComplianceZipForDelivery(result);
+      await (await loadComplianceExport()).verifyComplianceZipForDelivery(result);
       return result;
     },
   );
@@ -753,14 +735,14 @@ export function registerIpcHandlers() {
   handle("evidence:get-pack", async (_event, workspaceId: string, taskId: string) => {
     const wsId = requireWorkspaceId(workspaceId);
     const snapshot = await collectRepoSnapshot("get-evidence-pack", wsId);
-    const sanitizedTaskId = sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
+    const sanitizedTaskId = (await loadComplianceExport()).sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
     return loadVerifiedEvidencePackForExport(snapshot.workspace.path, sanitizedTaskId);
   });
 
   handle("evidence:verify-attestation", async (_event, workspaceId: string, taskId: string) => {
     const wsId = requireWorkspaceId(workspaceId);
     const snapshot = await collectRepoSnapshot("verify-attestation", wsId);
-    const sanitizedTaskId = sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
+    const sanitizedTaskId = (await loadComplianceExport()).sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
     try {
       await loadVerifiedEvidencePackForExport(snapshot.workspace.path, sanitizedTaskId);
       return { valid: true };
@@ -772,16 +754,16 @@ export function registerIpcHandlers() {
   handle("evidence:export-compliance-zip", async (_event, workspaceId: string, taskId: string) => {
     const wsId = requireWorkspaceId(workspaceId);
     const snapshot = await collectRepoSnapshot("export-evidence", wsId);
-    const sanitizedTaskId = sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
+    const sanitizedTaskId = (await loadComplianceExport()).sanitizeComplianceTaskId(requireBoundedString(taskId, "taskId", 200));
     const evidencePack = await loadVerifiedEvidencePackForExport(snapshot.workspace.path, sanitizedTaskId);
-    const result = await generateComplianceExport({
+    const result = await (await loadComplianceExport()).generateComplianceExport({
       evidencePack,
       taskId: sanitizedTaskId,
       workspacePath: snapshot.workspace.path,
       userId: snapshot.workspace.id,
       policyApplied: "workspace-trust-contract",
     });
-    await verifyComplianceZipForDelivery(result);
+    await (await loadComplianceExport()).verifyComplianceZipForDelivery(result);
     return result;
   });
 
@@ -800,13 +782,13 @@ export function registerIpcHandlers() {
   );
   handle("repo:get-workspace-memory-status", async () => {
     const workspace = await resolveActiveWorkspace();
-    return workspaceMemoryService.getStatus(workspace.id, workspace.path);
+    return (await loadWorkspaceMemoryService()).workspaceMemoryService.getStatus(workspace.id, workspace.path);
   });
   handle(
     "repo:write-workspace-memory-file",
     async (_event, kind: WorkspaceMemoryFileKind, content: string) => {
       const workspace = await resolveActiveWorkspace();
-      return workspaceMemoryService.writeFile(
+      return (await loadWorkspaceMemoryService()).workspaceMemoryService.writeFile(
         workspace.id,
         workspace.path,
         validateWorkspaceMemoryKind(kind),
@@ -818,23 +800,23 @@ export function registerIpcHandlers() {
     "repo:reset-workspace-memory-file",
     async (_event, kind: WorkspaceMemoryFileKind) => {
       const workspace = await resolveActiveWorkspace();
-      return workspaceMemoryService.resetFile(workspace.id, workspace.path, validateWorkspaceMemoryKind(kind));
+      return (await loadWorkspaceMemoryService()).workspaceMemoryService.resetFile(workspace.id, workspace.path, validateWorkspaceMemoryKind(kind));
     },
   );
   handle("repo:reveal-workspace-memory-folder", async () => {
     const workspace = await resolveActiveWorkspace();
-    return workspaceMemoryService.revealFolder(workspace.id, workspace.path);
+    return (await loadWorkspaceMemoryService()).workspaceMemoryService.revealFolder(workspace.id, workspace.path);
   });
   handle("repo:get-workspace-memory-bootstrap-context", async () => {
     const workspace = await resolveActiveWorkspace();
-    return workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path);
+    return (await loadWorkspaceMemoryService()).workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path);
   });
   handle(
     "repo:set-active-workspace",
     async (_event, workspaceId: string) => {
       const snapshot = await setActiveWorkspace(requireWorkspaceId(workspaceId));
       const workspace = await resolveActiveWorkspace();
-      void repoGraphService.ensureWorkspaceGraph(workspace);
+      void (await loadRepoGraphService()).repoGraphService.ensureWorkspaceGraph(workspace);
       return snapshot;
     },
   );
@@ -981,7 +963,7 @@ export function registerIpcHandlers() {
   handle(
     "repo:get-agent-routing-recommendation",
     async (_event, task: string, workspaceId?: string) =>
-      getAgentRoutingRecommendation(
+      (await loadRepoService()).getAgentRoutingRecommendation(
         requireBoundedString(task, "task", 5_000),
         optionalWorkspaceId(workspaceId),
       ),
@@ -1030,7 +1012,7 @@ export function registerIpcHandlers() {
       };
 
       const emitProgress = (
-        progress: NonNullable<Parameters<typeof runAssistant>[4]>["emit"] extends (
+        progress: NonNullable<Parameters<Awaited<ReturnType<typeof loadRepoService>>["runAssistant"]>[4]>["emit"] extends (
           value: infer T,
         ) => void
           ? T
@@ -1069,7 +1051,7 @@ export function registerIpcHandlers() {
       };
 
       try {
-        return await runAssistant(
+        return await (await loadRepoService()).runAssistant(
         requireBoundedString(prompt, "prompt"),
         requireStringArray(history, "history", MAX_IPC_TEXT_LENGTH),
         // Forward explicit workspaceId when provided by caller (future renderer updates can pass
@@ -1104,47 +1086,47 @@ export function registerIpcHandlers() {
   });
 
   handle("repo-graph:refresh", async () => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.refreshWorkspace(workspace);
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.refreshWorkspace(workspace);
   });
   handle("repo-graph:get-entrypoints", async () => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getEntrypoints(workspace);
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getEntrypoints(workspace);
   });
   handle("repo-graph:get-impacted-files", async (_event, files: string[]) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getImpactedFiles(
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getImpactedFiles(
       workspace,
       requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files")),
     );
   });
   handle("repo-graph:get-tests-for-file", async (_event, file: string) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getTestsForFile(workspace, assertSafeRelativePath(requireBoundedString(file, "file", 2_000), "file"));
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getTestsForFile(workspace, assertSafeRelativePath(requireBoundedString(file, "file", 2_000), "file"));
   });
   handle("repo-graph:get-import-chain", async (_event, from: string, to: string) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getImportChain(
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getImportChain(
       workspace,
       assertSafeRelativePath(requireBoundedString(from, "from", 2_000), "from"),
       assertSafeRelativePath(requireBoundedString(to, "to", 2_000), "to"),
     );
   });
   handle("repo-graph:get-ipc-surface", async () => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getIpcSurface(workspace);
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getIpcSurface(workspace);
   });
   handle("repo-graph:get-env-usage", async (_event, variable?: string) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getEnvUsage(workspace, optionalBoundedString(variable, "variable", 200)?.trim() || undefined);
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getEnvUsage(workspace, optionalBoundedString(variable, "variable", 200)?.trim() || undefined);
   });
   handle("repo-graph:get-dependency-surface", async () => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getDependencySurface(workspace);
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getDependencySurface(workspace);
   });
   handle("repo-graph:semantic-search", async (_event, query: string, limit?: number, role?: string, risk?: string) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.semanticSearch(
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.semanticSearch(
       workspace,
       requireBoundedString(query, "query", 2_000),
       {
@@ -1155,19 +1137,19 @@ export function registerIpcHandlers() {
     );
   });
   handle("repo-graph:get-semantic-profile", async (_event, file: string) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getSemanticProfile(
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getSemanticProfile(
       workspace,
       assertSafeRelativePath(requireBoundedString(file, "file", 2_000), "file"),
     );
   });
   handle("repo-graph:get-architecture-summary", async () => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.getArchitectureSummary(workspace);
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.getArchitectureSummary(workspace);
   });
   handle("repo-graph:detect-changes", async (_event, files?: string[]) => {
-    const workspace = await resolveActiveWorkspaceForRepoGraph();
-    return repoGraphService.detectChanges(
+    const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+    return (await loadRepoGraphService()).repoGraphService.detectChanges(
       workspace,
       Array.isArray(files)
         ? requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files"))
@@ -1219,7 +1201,7 @@ export function registerIpcHandlers() {
   handle("git:status", async () => {
     const workspace = await resolveActiveWorkspace();
     const status = await (await resolveGitService()).getStatus();
-    void repoGraphService.noteGitStatusChanged(workspace);
+    void (await loadRepoGraphService()).repoGraphService.noteGitStatusChanged(workspace);
     return status;
   });
   handle("git:log", async (_event, limit?: number) =>
@@ -1383,12 +1365,12 @@ export function registerIpcHandlers() {
   handle(
     "settings:list-models",
     async (_event, forceRefresh?: boolean) =>
-      listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh: forceRefresh === true }),
+      (await loadRainyService()).listRainyModels({ apiKey: await tursoService.getApiKey(), forceRefresh: forceRefresh === true }),
   );
   handle(
     "settings:list-model-launches",
     async (_event, forceRefresh?: boolean) =>
-      listRainyModelLaunches({
+      (await loadRainyService()).listRainyModelLaunches({
         apiKey: await tursoService.getApiKey(),
         forceRefresh: forceRefresh === true,
       }),
@@ -1397,22 +1379,22 @@ export function registerIpcHandlers() {
   handle("settings:set-model", async (_event, model: string) => {
     const apiKey = await tursoService.getApiKey();
     const normalizedModel = requireBoundedString(model, "model", 500);
-    await validateRainyModelSelection({ apiKey, model: normalizedModel });
+    await (await loadRainyService()).validateRainyModelSelection({ apiKey, model: normalizedModel });
     await tursoService.setModel(normalizedModel);
   });
   handle("settings:list-embedding-models", async () => [
-    ...RAINY_REPO_EMBEDDING_MODELS,
+    ...(await loadRainyService()).RAINY_REPO_EMBEDDING_MODELS,
   ]);
   handle("settings:get-embedding-model", async () =>
     tursoService.getEmbeddingModel(),
   );
   handle("settings:set-embedding-model", async (_event, model: string) => {
     const normalizedModel = requireBoundedString(model, "model", 500);
-    validateRainyEmbeddingModelSelection(normalizedModel);
+    (await loadRainyService()).validateRainyEmbeddingModelSelection(normalizedModel);
     await tursoService.setEmbeddingModel(normalizedModel);
     try {
-      const workspace = await resolveActiveWorkspaceForRepoGraph();
-      await repoGraphService.refreshWorkspace(
+      const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
+      await (await loadRepoGraphService()).repoGraphService.refreshWorkspace(
         workspace,
         (progress) => {
           if (!_event.sender.isDestroyed()) {
@@ -1449,64 +1431,64 @@ export function registerIpcHandlers() {
   // ── Mobile Companion ───────────────────────────────────────────────────
   handle("mobile:start-pairing", async () => {
     await requireSensitiveIpcApproval({ action: "mobile:start-pairing" });
-    return mobileBridgeService.startPairing();
+    return (await loadMobileBridge()).mobileBridgeService.startPairing();
   });
   handle("mobile:stop-pairing", async () => {
     await requireSensitiveIpcApproval({ action: "mobile:stop-pairing" });
-    return mobileBridgeService.stopPairing();
+    return (await loadMobileBridge()).mobileBridgeService.stopPairing();
   });
-  handle("mobile:get-status", async () => mobileBridgeService.getStatus());
-  handle("mobile:get-pending-pairing", async () => mobileBridgeService.getPendingPairing());
+  handle("mobile:get-status", async () => (await loadMobileBridge()).mobileBridgeService.getStatus());
+  handle("mobile:get-pending-pairing", async () => (await loadMobileBridge()).mobileBridgeService.getPendingPairing());
   handle("mobile:approve-pending-pairing", async (_event, approved: boolean) => {
     await requireSensitiveIpcApproval({
       action: "mobile:approve-pending-pairing",
       metadata: { approved: approved === true },
     });
-    return mobileBridgeService.approvePendingPairing(approved === true);
+    return (await loadMobileBridge()).mobileBridgeService.approvePendingPairing(approved === true);
   });
-  handle("mobile:list-devices", async () => mobileBridgeService.listDevices());
+  handle("mobile:list-devices", async () => (await loadMobileBridge()).mobileBridgeService.listDevices());
   handle("mobile:revoke-device", async (_event, deviceId: string) => {
     const normalizedDeviceId = requireBoundedString(deviceId, "deviceId", 200);
     await requireSensitiveIpcApproval({
       action: "mobile:revoke-device",
       target: normalizedDeviceId,
     });
-    return mobileBridgeService.revokeDevice(normalizedDeviceId);
+    return (await loadMobileBridge()).mobileBridgeService.revokeDevice(normalizedDeviceId);
   });
 
   // ── GitHub Integration ──────────────────────────────────────────────────
   handle("github:detect-remote", async () => {
     const workspacePath = await resolveActiveWorkspacePath();
-    return detectGitHubRemote(workspacePath);
+    return (await loadGitHubIntegration()).detectGitHubRemote(workspacePath);
   });
   handle("github:get-current-branch", async () => {
     const workspacePath = await resolveActiveWorkspacePath();
-    return getCurrentBranch(workspacePath);
+    return (await loadGitHubIntegration()).getCurrentBranch(workspacePath);
   });
   handle("github:get-local-diff", async () => {
     const workspacePath = await resolveActiveWorkspacePath();
-    return getLocalDiff(workspacePath);
+    return (await loadGitHubIntegration()).getLocalDiff(workspacePath);
   });
   handle("github:get-changed-files", async () => {
     const workspacePath = await resolveActiveWorkspacePath();
-    return getChangedFiles(workspacePath);
+    return (await loadGitHubIntegration()).getChangedFiles(workspacePath);
   });
   handle("github:collect-local-evidence", async () => {
     const workspacePath = await resolveActiveWorkspacePath();
     await requireSensitiveIpcApproval({ action: "github:collect-local-evidence" });
-    return collectGitHubLocalEvidence(workspacePath);
+    return (await loadGitHubIntegration()).collectGitHubLocalEvidence(workspacePath);
   });
   handle("github:get-status", async () => {
     const workspacePath = await resolveActiveWorkspacePath();
     const settings = await tursoService.getAppSettings();
-    return getIntegrationStatus(
+    return (await loadGitHubIntegration()).getIntegrationStatus(
       workspacePath,
       settings.githubIntegrationEnabled,
     );
   });
-  handle("github:get-pr-for-branch", async () => getPullRequestForBranch());
-  handle("github:get-pr-files", async () => getPullRequestFiles());
-  handle("github:get-pr-checks", async () => getPullRequestChecks());
+  handle("github:get-pr-for-branch", async () => (await loadGitHubIntegration()).getPullRequestForBranch());
+  handle("github:get-pr-files", async () => (await loadGitHubIntegration()).getPullRequestFiles());
+  handle("github:get-pr-checks", async () => (await loadGitHubIntegration()).getPullRequestChecks());
 
   // ── UI ───────────────────────────────────────────────────────────────────
   handle(

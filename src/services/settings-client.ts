@@ -50,8 +50,18 @@ export function setEmbeddingModel(model: string) {
   return getSettingsApi().setEmbeddingModel(model);
 }
 
+/** In-flight dedupe: concurrent getAppSettings() callers share one IPC round-trip. */
+let appSettingsInflight: Promise<AppSettings> | null = null;
+
 export function getAppSettings() {
-  return getSettingsApi().getAppSettings();
+  if (!appSettingsInflight) {
+    appSettingsInflight = getSettingsApi()
+      .getAppSettings()
+      .finally(() => {
+        appSettingsInflight = null;
+      });
+  }
+  return appSettingsInflight;
 }
 
 export function updateAppSettings(settings: AppSettings) {

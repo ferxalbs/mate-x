@@ -6,12 +6,30 @@ import type {
   PrivacySpan,
 } from "./privacy-types";
 import { scanWithRegex } from "./privacy-regex-scanner";
-import { scanWithOnnx } from "./privacy-onnx-scanner";
-import { downloadPrivacyModelAssets, loadPrivacyModelStatus } from "./privacy-model-loader";
 import { postprocessPrivacySpans } from "./privacy-postprocessor";
 import { redactText } from "./privacy-redactor";
 import { storePrivacySpans } from "./privacy-vault";
 import { tursoService } from "../turso-service";
+
+/** ONNX / model-loader stay dynamic — avoids static main-process edge to onnx scanners. */
+async function scanWithOnnx(text: string) {
+  const { scanWithOnnx: scan } = await import("./privacy-onnx-scanner");
+  return scan(text);
+}
+
+async function loadPrivacyModelStatus() {
+  const { loadPrivacyModelStatus: load } = await import("./privacy-model-loader");
+  return load();
+}
+
+async function downloadPrivacyModelAssets(
+  onProgress?: Parameters<
+    typeof import("./privacy-model-loader").downloadPrivacyModelAssets
+  >[0],
+) {
+  const { downloadPrivacyModelAssets: download } = await import("./privacy-model-loader");
+  return download(onProgress);
+}
 
 const DEFAULT_OPTIONS: PrivacyFirewallOptions = {
   mode: "review",
@@ -185,7 +203,11 @@ export class PrivacyFirewallService {
     return loadPrivacyModelStatus();
   }
 
-  downloadModel(onProgress?: Parameters<typeof downloadPrivacyModelAssets>[0]) {
+  downloadModel(
+    onProgress?: Parameters<
+      typeof import("./privacy-model-loader").downloadPrivacyModelAssets
+    >[0],
+  ) {
     return downloadPrivacyModelAssets(onProgress);
   }
 
