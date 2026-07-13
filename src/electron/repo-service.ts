@@ -118,24 +118,32 @@ export async function runAssistant(
       label: "Create WorkPlan",
       detail: JSON.stringify(initialWorkPlanMetadata),
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     },
     {
       id: "step-working-set",
       label: "Compile working set",
       detail: `Ranked ${workingSet.metadata.totalFileCount} files within a ${workingSet.metadata.tokenBudget} token budget.`,
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     },
     {
       id: "step-workspace",
       label: "Read workspace metadata",
       detail: `Resolved ${snapshot.workspace.path} on branch ${snapshot.workspace.branch}.`,
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     },
     {
       id: "step-files",
       label: "Inventory repository surface",
       detail: `Indexed ${snapshot.files.length} files and ${snapshot.statusLines.length} git changes.`,
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     },
     {
       id: "step-query",
@@ -145,12 +153,16 @@ export async function runAssistant(
           ? `Found ${snapshot.promptMatches.length} repo matches connected to the request.`
           : "No direct file matches from the current prompt terms.",
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     },
     {
       id: "step-runbook",
       label: "Resolve runbook",
       detail: `Using structured runbook: ${runbookDefinition.name} from WorkPlan ${workPlan.id}.`,
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     },
   ];
 
@@ -211,6 +223,8 @@ export async function runAssistant(
       label: "Privacy Sentinel preflight",
       detail: `${privacyPreflight.reason} Redactions: ${privacyPreflight.redactionCount}; P0: ${privacyPreflight.p0Count}. ${JSON.stringify(privacyWorkPlanMetadata)}`,
       status: privacyPreflight.status === "blocked" ? "error" : "done",
+      segmentKind: "tool",
+      visibility: "technical",
     });
   }
   const createdAt = new Date().toISOString();
@@ -444,7 +458,9 @@ export async function runAssistant(
       id: "step-preventive-guard-warning",
       label: "Preventive Guard warning",
       detail: preventiveWarningDetail(workPlan),
-      status: "active",
+      status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     });
   }
   const noPatchNeeded = /\b(no patch|patch not needed|no code change|read-only)\b/i.test(content);
@@ -472,6 +488,8 @@ export async function runAssistant(
       engineeringTaskId: resolvedOptions.engineeringTaskId ?? null,
     }),
     status: validationGate.allowed ? "done" : "error",
+    segmentKind: "tool",
+    visibility: "technical",
   });
 
   // Stable taskId generated early and tied to the runId (when provided by caller).
@@ -538,6 +556,8 @@ export async function runAssistant(
   events.push({
     id: "step-work-engine-evidence",
     label: "WorkPlan evidence gate",
+    segmentKind: "tool",
+    visibility: "technical",
     detail: JSON.stringify({
       stages: evidenceStages,
       verdict: evidenceFinalization.verdict,
@@ -577,6 +597,8 @@ export async function runAssistant(
       label: "Persist Work Engine artifact",
       detail: `Persisted sanitized Work Engine run artifact at ${artifactResult.artifactPath}.`,
       status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
     });
   } else {
     events.push({
@@ -584,6 +606,8 @@ export async function runAssistant(
       label: "Persist Work Engine artifact",
       detail: `Artifact persistence failed: ${artifactResult.error}`,
       status: "error",
+      segmentKind: "tool",
+      visibility: "technical",
     });
   }
   if (configuredModel) {

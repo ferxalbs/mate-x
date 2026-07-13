@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.12 (1) [Stable Real-Time Agent Activity]
+
+* Fixed completed runs retaining frozen spinners by making preventive warnings terminal and excluding stale active or queued segments from completed trace projection.
+* Restricted WorkPlan, privacy preflight, evidence gates, artifact persistence, pass bookkeeping, and tool-batch orchestration to technical visibility so internal engine metadata no longer competes with the conversation.
+* Kept explicit model reasoning and real read, search, edit, command, validation, and tool-result activity inline in canonical timeline order.
+* Preserved the live `Working for` counter during execution and the static `Worked for` duration after completion.
+
 ## MaTE X v0.1.2 — Native Engineering Control System
 
 MaTE X v0.1.2 introduces a major redesign of the engineering workflow, focused on turning a single development objective into controlled, traceable, and verified repository work.

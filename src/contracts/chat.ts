@@ -196,7 +196,6 @@ function inferToolEventType(label: string, status: ToolEventStatus): ToolEventTy
   if (/command|sandbox|shell|terminal|run/i.test(label)) return "command";
   if (/search|scan|grep|glob/i.test(label)) return "search";
   if (/read|inspect|metadata|inventory/i.test(label)) return "read";
-  if (/reason|think|plan/i.test(label)) return "reasoning";
   if (/complete|result|response/i.test(label)) return "result";
   return "wait";
 }
