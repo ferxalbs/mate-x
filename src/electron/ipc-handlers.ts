@@ -1008,7 +1008,7 @@ export function registerIpcHandlers() {
         status: string;
         content: string;
         thought?: string;
-        events?: Array<{ id?: string; status?: string }>;
+        events?: Array<{ id?: string; segmentId?: string; status?: string; detail?: string }>;
         artifacts?: unknown[];
       } | null = null;
       let progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1044,7 +1044,9 @@ export function registerIpcHandlers() {
           progress.thought ?? "",
           progress.events?.length ?? 0,
           lastEvent?.id ?? "",
+          lastEvent?.segmentId ?? "",
           lastEvent?.status ?? "",
+          lastEvent?.detail ?? "",
           progress.artifacts?.length ?? 0,
         ].join("\u001f");
 

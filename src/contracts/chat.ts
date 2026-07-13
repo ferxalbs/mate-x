@@ -27,6 +27,13 @@ export type ToolEventType =
   | "result"
   | "error";
 export type ToolEventVisibility = "public" | "technical" | "restricted";
+export type TimelineSegmentKind =
+  | "reasoning"
+  | "tool"
+  | "intermediate_response"
+  | "final_response"
+  | "error"
+  | "cancelled";
 export type MessageArtifactTone = "default" | "success" | "warning";
 export type EvidencePackStatus = "complete" | "partial" | "blocked" | "failed";
 export type EvidencePackConfidence = "low" | "medium" | "high";
@@ -110,10 +117,15 @@ export interface ToolEvent {
   id: string;
   version?: 2;
   runId?: string;
+  /** Stable identity for one append-only timeline entry. */
+  segmentId?: string;
+  /** Explicit model invocation identity. Never inferred from text. */
+  passId?: string;
   sequence?: number;
   timestamp?: string;
   agentId?: string;
   parentAgentId?: string;
+  segmentKind?: TimelineSegmentKind;
   groupId?: string;
   type?: ToolEventType;
   title?: string;
@@ -195,8 +207,8 @@ function humanizeToolEventTitle(
   status: ToolEventStatus,
 ) {
   const action = status === "active"
-    ? { reasoning: "Analizando", search: "Buscando", read: "Leyendo", command: "Ejecutando", edit: "Editando", validation: "Validando", approval: "Esperando aprobación", wait: "Esperando", result: "Preparando resultado", error: "Error" }[type]
-    : { reasoning: "Análisis listo", search: "Búsqueda completa", read: "Lectura completa", command: "Comando terminado", edit: "Cambios aplicados", validation: "Validación terminada", approval: "Aprobación resuelta", wait: "Espera terminada", result: "Resultado listo", error: "Error" }[type];
+    ? { reasoning: "Thinking", search: "Searching", read: "Reading", command: "Running", edit: "Editing", validation: "Validating", approval: "Waiting for approval", wait: "Waiting", result: "Writing response", error: "Error" }[type]
+    : { reasoning: "Reasoning complete", search: "Search complete", read: "Read complete", command: "Command finished", edit: "Edit complete", validation: "Validation complete", approval: "Approval resolved", wait: "Wait complete", result: "Response complete", error: "Error" }[type];
   return label ? `${action}: ${label.replaceAll("_", " ")}` : action;
 }
 

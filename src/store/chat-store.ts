@@ -260,64 +260,22 @@ function getAssistantProgressSignature(progress: AssistantProgressPayload) {
   ].join("\u001f");
 }
 
-function mergeProgressEvents(
+export function mergeTimelineSegments(
   previous: ChatMessage["events"],
   incoming: AssistantProgressPayload["events"],
-  progress: Pick<AssistantProgressPayload, "runId" | "content" | "thought">,
-  previousMessage?: Pick<ChatMessage, "content" | "thought">,
+  _progress: Pick<AssistantProgressPayload, "runId">,
 ) {
   const merged = new Map((previous ?? []).map((event) => [event.id, event]));
 
-  const completedThought = previousMessage?.thought?.trim();
-  const nextThought = progress.thought?.trim();
-  if (
-    completedThought &&
-    nextThought &&
-    nextThought !== completedThought &&
-    !nextThought.startsWith(completedThought)
-  ) {
-    const turn = [...merged.values()].filter((event) => event.type === "reasoning").length + 1;
-    const id = `${progress.runId}:reasoning-turn:${turn}`;
-    merged.set(id, normalizeToolEvent({
-      id,
-      label: `Reasoning pass ${turn}`,
-      title: `Reasoning pass ${turn}`,
-      detail: completedThought,
-      type: "reasoning",
-      status: "completed",
-      runId: progress.runId,
-      groupId: `turn-${turn}`,
-    }, { runId: progress.runId, sequence: merged.size }));
-  }
-
-  const completedResponse = previousMessage?.content.trim();
-  const nextResponse = progress.content.trim();
-  if (
-    completedResponse &&
-    nextResponse &&
-    nextResponse !== completedResponse &&
-    !nextResponse.startsWith(completedResponse)
-  ) {
-    const turn = [...merged.values()].filter((event) => event.type === "result").length + 1;
-    const id = `${progress.runId}:response-turn:${turn}`;
-    merged.set(id, normalizeToolEvent({
-      id,
-      label: `Agent response ${turn}`,
-      title: `Agent response ${turn}`,
-      detail: completedResponse,
-      type: "result",
-      status: "completed",
-      runId: progress.runId,
-      groupId: `turn-${turn}`,
-    }, { runId: progress.runId, sequence: merged.size }));
-  }
-
   incoming.forEach((event, index) => {
-    merged.set(event.id, normalizeToolEvent(event, {
+    const segmentId = event.segmentId ?? event.id;
+    const current = merged.get(segmentId);
+    const normalized = normalizeToolEvent({ ...current, ...event, id: segmentId, segmentId }, {
       runId: event.runId,
-      sequence: event.sequence ?? index,
+      sequence: current?.sequence ?? event.sequence ?? (previous?.length ?? 0) + index,
       timestamp: event.timestamp ?? new Date().toISOString(),
-    }));
+    });
+    merged.set(segmentId, normalized);
   });
   return [...merged.values()].sort(
     (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
@@ -359,12 +317,7 @@ function applyAssistantProgress(
                       ...message,
                       content: progress.content,
                       thought: progress.thought,
-                      events: mergeProgressEvents(
-                        message.events,
-                        progress.events,
-                        progress,
-                        message,
-                      ),
+                      events: mergeTimelineSegments(message.events, progress.events, progress),
                       artifacts: progress.artifacts,
                     },
               ),
@@ -374,7 +327,7 @@ function applyAssistantProgress(
                   : {
                       ...run,
                       status: progress.status,
-                      events: mergeProgressEvents(run.events, progress.events, progress),
+                      events: mergeTimelineSegments(run.events, progress.events, progress),
                       artifacts: progress.artifacts,
                     },
               ),

@@ -23,7 +23,7 @@ describe("agent run trace contract", () => {
     assert.equal(normalized.sequence, 4);
     assert.equal(normalized.type, "read");
     assert.equal(normalized.status, "done");
-    assert.equal(normalized.title, "Lectura completa: read");
+    assert.equal(normalized.title, "Read complete: read");
     assert.equal(normalized.visibility, "public");
   });
 
@@ -56,6 +56,6 @@ describe("agent run trace contract", () => {
     });
 
     assert.equal(event.type, "edit");
-    assert.equal(event.title, "Editando: file editor");
+    assert.equal(event.title, "Editing: file editor");
   });
 });

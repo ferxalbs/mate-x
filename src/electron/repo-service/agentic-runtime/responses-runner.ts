@@ -95,6 +95,7 @@ export async function requestRainyResponsesAgenticResponse({
 
   while (iterations < runtime.maxIterations) {
     iterations++;
+    const passId = `${runId}:pass:${iterations}`;
 
     events.push({
       id: `step-agent-loop-${iterations}`,
@@ -128,10 +129,18 @@ export async function requestRainyResponsesAgenticResponse({
 
     previousResponseId = response.id;
     const responseText = response.output_text || "";
+    const responseThought = extractResponseThought(response);
+    if (responseThought) {
+      events.push({
+        id: `${passId}:reasoning`, segmentId: `${passId}:reasoning`, passId, runId,
+        segmentKind: "reasoning", type: "reasoning", label: `Reasoning pass ${iterations}`,
+        detail: responseThought, status: "completed",
+      });
+    }
     if (responseText.trim()) {
       lastContent = appendAssistantPass(lastContent, responseText);
     }
-    lastThought = extractResponseThought(response) || lastThought;
+    lastThought = responseThought || lastThought;
     emitProgress(lastContent, lastThought);
 
     const loopEvent = events.find(
@@ -153,6 +162,15 @@ export async function requestRainyResponsesAgenticResponse({
         arguments: toolCall.arguments,
       }),
     );
+    if (responseText.trim()) {
+      events.push({
+        id: `${passId}:response`, segmentId: `${passId}:response`, passId, runId,
+        segmentKind: toolCalls.length ? "intermediate_response" : "final_response",
+        type: "result", label: toolCalls.length ? `Agent pass ${iterations} response` : "Final response",
+        detail: responseText, status: "completed",
+      });
+      emitProgress();
+    }
 
     if (toolCalls.length === 0) {
       if (
@@ -292,14 +310,7 @@ export async function requestRainyResponsesAgenticResponse({
       detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. sandbox_run may request 30/45/60/120/240s; other tools use ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
       status: "done",
     });
-    // Insert markers for the current batch of tool calls
-    for (let i = 0; i < executableToolCalls.length; i++) {
-      const toolCall = executableToolCalls[i];
-      const eventId = `tool-${iterations}-${i}-${toolCall.name}`;
-      lastContent += `\n\n<!-- mate-trace:${eventId} -->`;
-    }
-
-    emitProgress(lastContent);
+    emitProgress();
 
     const toolResults = await mapWithConcurrency(
       executableToolCalls,

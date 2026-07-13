@@ -254,6 +254,8 @@ export async function runAssistant(
       thought: thought || undefined,
       events: cloneEvents(events).map((event, sequence) => ({
         ...event,
+        id: event.segmentId ?? event.id,
+        segmentId: event.segmentId ?? event.id,
         version: 2 as const,
         runId: progressReporter.runId,
         sequence: event.sequence ?? sequence,

@@ -133,6 +133,19 @@ export async function requestRainyChatAgenticResponse({
 
   while (iterations < runtime.maxIterations) {
     iterations++;
+    const passId = `${runId}:pass:${iterations}`;
+    const reasoningSegment: ToolEvent = {
+      id: `${passId}:reasoning`,
+      segmentId: `${passId}:reasoning`,
+      passId,
+      runId,
+      segmentKind: "reasoning",
+      type: "reasoning",
+      label: `Reasoning pass ${iterations}`,
+      detail: "",
+      status: "active",
+    };
+    events.push(reasoningSegment);
 
     events.push({
       id: `step-agent-loop-${iterations}`,
@@ -183,6 +196,7 @@ export async function requestRainyChatAgenticResponse({
         signal,
         onReasoningDelta: (delta: string) => {
           streamedThought += delta;
+          reasoningSegment.detail += delta;
           emitProgress(
             lastNonEmptyAssistantText
               ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
@@ -234,6 +248,12 @@ export async function requestRainyChatAgenticResponse({
       };
     }
 
+    reasoningSegment.status = "completed";
+    if (!reasoningSegment.detail.trim()) {
+      const index = events.indexOf(reasoningSegment);
+      if (index >= 0) events.splice(index, 1);
+    }
+
     messages.push(responseMessage);
     const toolCalls = responseMessage.tool_calls
       ?.filter((toolCall) => toolCall.type === "function")
@@ -245,6 +265,17 @@ export async function requestRainyChatAgenticResponse({
 
     const responseText = normalizeAssistantText(responseMessage.content);
     if (responseText.trim()) {
+      events.push({
+        id: `${passId}:response`,
+        segmentId: `${passId}:response`,
+        passId,
+        runId,
+        segmentKind: toolCalls?.length ? "intermediate_response" : "final_response",
+        type: "result",
+        label: toolCalls?.length ? `Agent pass ${iterations} response` : "Final response",
+        detail: responseText,
+        status: "completed",
+      });
       lastNonEmptyAssistantText = appendAssistantPass(lastNonEmptyAssistantText, responseText);
       emitProgress(lastNonEmptyAssistantText);
     }
@@ -404,14 +435,7 @@ export async function requestRainyChatAgenticResponse({
       detail: `Executing ${executableToolCalls.length} tool call(s), up to ${TOOL_BATCH_MAX_CONCURRENCY} concurrent. sandbox_run may request 30/45/60/120/240s; other tools use ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`,
       status: "done",
     });
-    // Insert markers for the current batch of tool calls
-    for (let i = 0; i < executableToolCalls.length; i++) {
-      const toolCall = executableToolCalls[i];
-      const eventId = `tool-${iterations}-${i}-${toolCall.name}`;
-      lastNonEmptyAssistantText += `\n\n<!-- mate-trace:${eventId} -->`;
-    }
-
-    emitProgress(lastNonEmptyAssistantText);
+    emitProgress();
 
     const toolResults = await mapWithConcurrency(
       executableToolCalls,
