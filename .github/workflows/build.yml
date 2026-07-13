@@ -22,9 +22,7 @@ jobs:
           bun-version: latest
 
       - name: Install Dependencies
-        run: bun install --frozen-lockfile
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Lint
         run: bun run lint
@@ -59,9 +57,7 @@ jobs:
           bun-version: latest
 
       - name: Install Dependencies
-        run: bun install --frozen-lockfile
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Install native libsql optional dependency
         shell: bash
