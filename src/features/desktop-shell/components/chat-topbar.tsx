@@ -26,6 +26,7 @@ import type { Appearance } from "../../../hooks/use-theme";
 import { usePlatform } from "../../../hooks/use-platform";
 import { cn } from "../../../lib/utils";
 import { openWorkspacePath } from "../../../services/repo-client";
+import { useChatStore } from "../../../store/chat-store";
 
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
@@ -83,14 +84,20 @@ export function ChatTopbar({
   workspace,
   conversation,
   taskDetails,
-  liquidGlassEnabled = false,
   runStatus,
   onCreateThread,
 }: ChatTopbarProps) {
   const { state } = useSidebar();
+  const settings = useChatStore((state) => state.settings);
+  const vibrancyMode = settings?.vibrancyMode ?? 'solid';
+  const isSpecialMode = vibrancyMode === 'special';
+  const liquidGlassEnabled = !isSpecialMode;
+
+  const [openTarget, setOpenTarget] = useState<string>("folder");
+  const [repoSafetyLabel, setRepoSafetyLabel] = useState<string>("Workspace safe");
+
   const platform = usePlatform();
-  const [openTarget, setOpenTarget] = useState("folder");
-  const [repoSafetyLabel, setRepoSafetyLabel] = useState("Needs check");
+
   const title = conversation?.title ?? "No active thread";
   const eventCount = conversation?.messages.length ?? 0;
   const liveLabel =
@@ -104,7 +111,7 @@ export function ChatTopbar({
       ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-[0_0_12px_-3px_rgba(59,130,246,0.3)] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
       : eventCount > 0
         ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-        : liquidGlassEnabled
+        : !isSpecialMode
           ? "border-transparent bg-[var(--mate-panel-bg)] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
           : "border-transparent bg-background/40 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
   const openSelectedTarget = () => {
@@ -123,18 +130,18 @@ export function ChatTopbar({
     <header
       className={cn(
         "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-linear",
-        liquidGlassEnabled
-          ? "bg-transparent"
-          : "glass border-b border-[var(--titlebar-border)]/40",
+        isSpecialMode
+          ? "glass border-b border-[var(--titlebar-border)]/40"
+          : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]",
       )}
       style={
-        {
-          "--glass-bg": liquidGlassEnabled
-            ? "color-mix(in srgb, var(--titlebar) 52%, transparent)"
-            : "var(--titlebar)",
-        } as any
+        isSpecialMode
+          ? ({
+              "--glass-bg": "var(--titlebar)",
+            } as any)
+          : undefined
       }
     >
       <div className="relative z-10 flex min-w-0 items-center gap-2.5">

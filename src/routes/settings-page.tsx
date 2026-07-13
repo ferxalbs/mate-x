@@ -635,11 +635,17 @@ export function SettingsPage() {
         <header
           className={cn(
             "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 px-4 transition-[padding-left] duration-200 ease-linear",
-            "border-b border-border/70 glass",
+            appSettings.vibrancyMode === 'special'
+              ? "border-b border-border/70 glass"
+              : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
             state === "collapsed" && platform === "mac" && "pl-[88px]",
             platform === "windows" && "pr-[138px]"
           )}
-          style={{ '--glass-bg': 'var(--titlebar)' } as any}
+          style={
+            appSettings.vibrancyMode === 'special'
+              ? ({ '--glass-bg': 'var(--titlebar)' } as any)
+              : undefined
+          }
         >
           <div className="flex min-w-0 items-center gap-3">
             <span className="text-sm font-medium tracking-tight text-foreground">Settings</span>
