@@ -17,9 +17,7 @@ This release establishes **EngineeringTask** as the canonical workflow authority
 
 #### Native engineering workflow
 
-MaTE X now maintains a persistent engineering task across the complete lifecycle:
-
-**Intent → Investigation → Plan → Execution → Validation → Ship Proof**
+MaTE X now maintains a persistent engineering task across the complete lifecycle: **Intent → Investigation → Plan → Execution → Validation → Ship Proof**
 
 Specifications and plans remain available internally without forcing users to manage unnecessary workflow ceremony.
 

@@ -3,12 +3,10 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import { loadConfig, createMaTeXStack, type MaTeXConfig } from './config/mate-x.config';
-import { failureMemoryEngine } from './failure-memory-engine';
 import { MissingSDKClientError } from './orchestration/sdk-orchestrator';
-import { policyService } from './policy-service';
-import { privacyFirewall } from './privacy/privacy-firewall-service';
-import { setSDKOrchestrator } from './repo-service';
+import { setSDKOrchestrator } from './sdk-orchestrator-state';
 import { tursoService } from './turso-service';
+import { startupPerfMark } from './startup-perf';
 import type { AgentAction, AgentSdkClient } from '../contracts/sdk-orchestrator.types';
 import type { FailureMemorySyncStateStore } from '../contracts/failure-memory-sync.types';
 import type { FilesSdkClient, StorageEvent } from '../contracts/storage-adapter.types';
@@ -23,6 +21,7 @@ export async function initStack(): Promise<void> {
 
   // Durable EngineeringRepository (R1) — fail closed, no in-memory fallback
   await tursoService.initialize();
+  startupPerfMark('stack:turso');
   const { initDurableEngineeringRepository } = await import('./engineering/repository');
   const dbPath = tursoService.getLocalDatabaseFilePath();
   if (!dbPath) {
@@ -31,44 +30,57 @@ export async function initStack(): Promise<void> {
     );
   }
   initDurableEngineeringRepository(dbPath);
+  startupPerfMark('stack:engineering-repo');
 
-  // Production Rainy agent adapter — never scaffold success (CLOSURE 1)
-  const {
-    initProductionAgentAdapter,
-    resolveRainyApiKeyFromEnv,
-  } = await import('./engineering/agent-runtime');
-  initProductionAgentAdapter({
-    getApiKey: () => resolveRainyApiKeyFromEnv(process.env),
-  });
+  // Production Rainy agent adapter + optional migration + config load can proceed in parallel
+  // after the durable repo is ready (adapter does not depend on migration).
+  const agentAdapterPromise = import('./engineering/agent-runtime').then(
+    ({ initProductionAgentAdapter, resolveRainyApiKeyFromEnv }) => {
+      initProductionAgentAdapter({
+        getApiKey: () => resolveRainyApiKeyFromEnv(process.env),
+      });
+    },
+  );
 
   // Optional v0.1.1 migration fixture path for upgrade installs
-  try {
-    const { runV011Migration, loadV011Fixture } = await import(
-      './engineering/migration/migrate-v011'
-    );
-    const { getEngineeringRepository } = await import('./engineering/repository');
-    const fixturePath = join(app.getPath('userData'), 'legacy', 'v0.1.1-fixture.json');
-    const { existsSync } = await import('node:fs');
-    if (existsSync(fixturePath)) {
-      const fixture = loadV011Fixture(fixturePath);
-      runV011Migration({
-        repo: getEngineeringRepository(),
-        fixture,
-        userDataDir: app.getPath('userData'),
-      });
+  const migrationPromise = (async () => {
+    try {
+      const { runV011Migration, loadV011Fixture } = await import(
+        './engineering/migration/migrate-v011'
+      );
+      const { getEngineeringRepository } = await import('./engineering/repository');
+      const fixturePath = join(app.getPath('userData'), 'legacy', 'v0.1.1-fixture.json');
+      const { existsSync } = await import('node:fs');
+      if (existsSync(fixturePath)) {
+        const fixture = loadV011Fixture(fixturePath);
+        runV011Migration({
+          repo: getEngineeringRepository(),
+          fixture,
+          userDataDir: app.getPath('userData'),
+        });
+      }
+    } catch (error) {
+      console.warn('Legacy migration skipped or failed safely', error);
     }
-  } catch (error) {
-    console.warn('Legacy migration skipped or failed safely', error);
-  }
+  })();
 
-  const nextConfig = await loadConfig(join(app.getPath('userData'), 'mate-x.config.json'));
-  const resolvedConfig = {
-    ...nextConfig,
-    storage: {
-      ...nextConfig.storage,
-      credentials: await resolveStorageCredentials(nextConfig),
-    },
-  };
+  const configPromise = loadConfig(join(app.getPath('userData'), 'mate-x.config.json')).then(
+    async (nextConfig) => ({
+      ...nextConfig,
+      storage: {
+        ...nextConfig.storage,
+        credentials: await resolveStorageCredentials(nextConfig),
+      },
+    }),
+  );
+
+  const [, , resolvedConfig] = await Promise.all([
+    agentAdapterPromise,
+    migrationPromise,
+    configPromise,
+  ]);
+  startupPerfMark('stack:config-ready');
+
   const nextStack = await createMaTeXStack(resolvedConfig, {
     workspaceId: 'default',
     storage: {
@@ -82,6 +94,7 @@ export async function initStack(): Promise<void> {
       files: createLocalFilesClient(join(app.getPath('userData'), 'matex-storage', resolvedConfig.storage.bucket ?? 'evidence')),
       privacySentinel: {
         scan: async (content) => {
+          const { privacyFirewall } = await import('./privacy/privacy-firewall-service');
           const scan = await privacyFirewall.scanTextSafe(
             typeof content === 'string' ? content : Buffer.from(content).toString('utf8'),
           );
@@ -95,7 +108,10 @@ export async function initStack(): Promise<void> {
         },
       },
       failureMemory: {
-        recordFailure: (input) => failureMemoryEngine.recordFailure(input),
+        recordFailure: async (input) => {
+          const { failureMemoryEngine } = await import('./failure-memory-engine');
+          return failureMemoryEngine.recordFailure(input);
+        },
       },
       approvalGate: {
         requireApproval: async (input) => {
@@ -112,6 +128,7 @@ export async function initStack(): Promise<void> {
       repository: {
         list: (workspaceId, limit) => tursoService.getFailureMemories(workspaceId, limit),
         upsert: async (records) => {
+          const { failureMemoryEngine } = await import('./failure-memory-engine');
           for (const record of records) {
             await failureMemoryEngine.recordFailure({
               workspaceId: record.workspaceId,
@@ -137,6 +154,7 @@ export async function initStack(): Promise<void> {
       antigravityClient: createUnavailableSdkClient('antigravity'),
       privacySentinel: {
         scan: async (payload) => {
+          const { privacyFirewall } = await import('./privacy/privacy-firewall-service');
           const scan = await privacyFirewall.scanTextSafe(payload);
           const categories = Array.from(new Set(scan.spans.map((span) => span.label)));
           return { hasSecrets: categories.length > 0, categories };
@@ -148,7 +166,10 @@ export async function initStack(): Promise<void> {
         },
       },
       failureMemory: {
-        recordFailure: (input) => failureMemoryEngine.recordFailure(input),
+        recordFailure: async (input) => {
+          const { failureMemoryEngine } = await import('./failure-memory-engine');
+          return failureMemoryEngine.recordFailure(input);
+        },
       },
       confirmHighImpact: (action) => requestPolicyApproval(`sdk:${action.agentId}`, action.actionType, action),
     },
@@ -156,6 +177,10 @@ export async function initStack(): Promise<void> {
   configSnapshot = resolvedConfig;
   stack = nextStack;
   setSDKOrchestrator(nextStack.orchestrator);
+  // Defer periodic Failure Memory sync until after first paint / idle.
+  // start() only schedules setInterval (no immediate sync), but keep it off the critical path.
+  scheduleFailureMemorySyncStart(nextStack.failureMemorySync);
+  startupPerfMark('stack:ready');
 }
 
 async function resolveStorageCredentials(config: MaTeXConfig): Promise<Record<string, unknown>> {
@@ -278,6 +303,7 @@ async function listLocalFiles(root: string, currentPath: string): Promise<Array<
 }
 
 async function requestPolicyApproval(toolName: string, actionType: string, payload: unknown): Promise<boolean> {
+  const { policyService } = await import('./policy-service');
   const runId = `policy-${Date.now()}`;
   const stop = policyService.createStop({
     runId,
@@ -299,6 +325,24 @@ async function requestPolicyApproval(toolName: string, actionType: string, paylo
   });
   const resolved = await policyService.waitForResolution(stop.id);
   return resolved.status === 'approved';
+}
+
+function scheduleFailureMemorySyncStart(sync: { start: () => void; stop: () => void }) {
+  // Prefer idle callback when available (Electron/Chromium); else short deferral.
+  const start = () => {
+    try {
+      sync.start();
+    } catch (error) {
+      console.warn('Failure Memory sync failed to start', error);
+    }
+  };
+  const idle = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+    .requestIdleCallback;
+  if (typeof idle === 'function') {
+    idle(start, { timeout: 5_000 });
+    return;
+  }
+  setTimeout(start, 2_500);
 }
 
 function createFailureMemorySyncStateStore(): FailureMemorySyncStateStore {

@@ -4,10 +4,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { promisify } from "node:util";
 
-import { GitService } from "../git-service";
 import { tursoService } from "../turso-service";
-import { workspaceMemoryService } from "../workspace-memory-service";
-import { repoGraphService } from "../repo-graph-service";
 import { ripgrepPath } from "../rg-binary";
 import type { Conversation } from "../../contracts/chat";
 import type { SearchMatch, WorkspaceMemoryBootstrapContext, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary, WorkspaceTrustContract } from "../../contracts/workspace";
@@ -66,6 +63,10 @@ export async function removeWorkspace(
     (entry) => entry.id === workspaceId,
   );
   if (workspace) {
+    const [{ repoGraphService }, { workspaceMemoryService }] = await Promise.all([
+      import("../repo-graph-service"),
+      import("../workspace-memory-service"),
+    ]);
     repoGraphService.forgetWorkspace(workspace.id);
     await workspaceMemoryService.clearWorkspaceMemory(workspace.id, workspace.path);
   }
@@ -147,11 +148,13 @@ export async function collectRepoSnapshot(
     tursoService.getWorkspaceTrustContract(workspace.id),
     listWorkspaceFiles(workspace.path, 200),
     readFileMaybe(workspace.path, "package.json"),
-    new GitService(workspace.path).getStatus(),
+    import("../git-service").then(({ GitService }) => new GitService(workspace.path).getStatus()),
     promptPattern
       ? searchWorkspaceFiles(workspace.path, promptPattern, 16)
       : Promise.resolve([]),
-    workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path),
+    import("../workspace-memory-service").then(({ workspaceMemoryService }) =>
+      workspaceMemoryService.getBootstrapContext(workspace.id, workspace.path),
+    ),
   ]);
 
   return {
@@ -184,6 +187,10 @@ async function buildWorkspaceSnapshot(
   }
 
   const workspace = await resolveWorkspace(resolvedWorkspaceId, workspaces);
+  // Status for workspace memory is fire-and-forget warm-up; not required for snapshot shape.
+  void import("../workspace-memory-service").then(({ workspaceMemoryService }) =>
+    workspaceMemoryService.getStatus(workspace.id, workspace.path),
+  );
   const [summary, trustContract, files, signals, session] = await Promise.all([
     buildWorkspaceSummary(workspace),
     tursoService.getWorkspaceTrustContract(workspace.id),
@@ -194,7 +201,6 @@ async function buildWorkspaceSnapshot(
       10,
     ),
     tursoService.getWorkspaceSession(workspace.id),
-    workspaceMemoryService.getStatus(workspace.id, workspace.path),
   ]);
 
   return {
@@ -274,7 +280,9 @@ async function buildWorkspaceSummary(
   workspace: WorkspaceEntry,
 ): Promise<WorkspaceSummary> {
   const [status, listedFiles, packageJson, qualityFiles] = await Promise.all([
-    new GitService(workspace.path).getStatusSafe(),
+    import("../git-service").then(({ GitService }) =>
+      new GitService(workspace.path).getStatusSafe(),
+    ),
     listWorkspaceFiles(workspace.path, 180),
     readFileMaybe(workspace.path, "package.json"),
     detectRootQualityFiles(workspace.path),

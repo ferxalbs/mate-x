@@ -1,11 +1,28 @@
-import { memo, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ComponentType, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { cn } from "../../../lib/utils";
+
+type SyntaxHighlighterComponent = ComponentType<{
+  language?: string;
+  style?: { [key: string]: React.CSSProperties };
+  PreTag?: string;
+  customStyle?: React.CSSProperties;
+  codeTagProps?: { style?: React.CSSProperties };
+  children: string;
+}>;
+
+let syntaxHighlighterPromise: Promise<SyntaxHighlighterComponent> | null = null;
+
+function loadSyntaxHighlighter() {
+  syntaxHighlighterPromise ??= import("react-syntax-highlighter").then(
+    (mod) => mod.Prism as unknown as SyntaxHighlighterComponent,
+  );
+  return syntaxHighlighterPromise;
+}
 
 interface ChatMarkdownProps {
   content: string;
@@ -75,8 +92,21 @@ const markdownComponents: Components = {
 
 function CodeBlock({ className, children }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [Highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(null);
   const content = String(children ?? "");
   const language = className?.replace(/^language-/, "") ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadSyntaxHighlighter().then((component) => {
+      if (!cancelled) {
+        setHighlighter(() => component);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleCopy() {
     try {
@@ -106,24 +136,37 @@ function CodeBlock({ className, children }: CodeBlockProps) {
           <CopyIcon className="size-3.5" />
         )}
       </button>
-      <SyntaxHighlighter
-        language={language}
-        style={customPrismTheme}
-        PreTag="div"
-        customStyle={{
-          margin: 0,
-          padding: 0,
-          background: "transparent",
-        }}
-        codeTagProps={{
-          style: {
-            display: "block",
-            paddingTop: language ? "2.2rem" : "0.85rem",
-          },
-        }}
-      >
-        {content}
-      </SyntaxHighlighter>
+      {Highlighter ? (
+        <Highlighter
+          language={language}
+          style={customPrismTheme}
+          PreTag="div"
+          customStyle={{
+            margin: 0,
+            padding: 0,
+            background: "transparent",
+          }}
+          codeTagProps={{
+            style: {
+              display: "block",
+              paddingTop: language ? "2.2rem" : "0.85rem",
+            },
+          }}
+        >
+          {content}
+        </Highlighter>
+      ) : (
+        <pre className="m-0 overflow-x-auto p-0">
+          <code
+            style={{
+              display: "block",
+              paddingTop: language ? "2.2rem" : "0.85rem",
+            }}
+          >
+            {content}
+          </code>
+        </pre>
+      )}
     </div>
   );
 }

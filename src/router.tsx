@@ -3,6 +3,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Outlet,
   useNavigate,
   useLocation,
@@ -13,9 +14,16 @@ import { DesktopShell } from './features/desktop-shell/desktop-shell';
 import { OnboardingShell } from './features/onboarding/onboarding-shell';
 import { OnboardingFlow } from './features/onboarding/onboarding-flow';
 import { HomePage } from './routes/home-page';
-import { RunsPage } from './routes/runs-page';
-import { SettingsPage } from './routes/settings-page';
 import { getAppSettings } from './services/settings-client';
+
+const LazySettingsPage = lazyRouteComponent(
+  () => import('./routes/settings-page'),
+  'SettingsPage',
+);
+const LazyRunsPage = lazyRouteComponent(
+  () => import('./routes/runs-page'),
+  'RunsPage',
+);
 
 function RootComponent() {
   const navigate = useNavigate();
@@ -76,20 +84,20 @@ const indexRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/settings',
-  component: SettingsPage,
+  component: LazySettingsPage,
 });
 
 const runsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/runs',
-  component: RunsPage,
+  component: LazyRunsPage,
 });
 
 
 const settingsSectionRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/settings/$section',
-  component: SettingsPage,
+  component: LazySettingsPage,
 });
 
 const routeTree = rootRoute.addChildren([

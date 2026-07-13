@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
 import type {
   FunctionTool as ResponsesFunctionTool,
   Response as OpenAIResponse,
@@ -33,7 +33,19 @@ import {
   serializeReasoningRequest,
   serializeServiceTierRequest,
 } from "../lib/rainy-model-launches";
-import { privacyFirewall } from "./privacy/privacy-firewall-service";
+
+/** Lazy OpenAI SDK — avoids ~400KB static pull into main-process startup for catalog-only IPC. */
+let openAIModulePromise: Promise<typeof import("openai")> | null = null;
+
+function loadOpenAIModule() {
+  openAIModulePromise ??= import("openai");
+  return openAIModulePromise;
+}
+
+async function getPrivacyFirewall() {
+  const { privacyFirewall } = await import("./privacy/privacy-firewall-service");
+  return privacyFirewall;
+}
 
 const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, "");
 const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith("/api/v1")
@@ -97,7 +109,8 @@ let cachedLaunches: {
   launches: RainyModelLaunch[];
 } | null = null;
 
-function createRainyClient(apiKey: string): OpenAI {
+async function createRainyClient(apiKey: string): Promise<OpenAI> {
+  const { default: OpenAI } = await loadOpenAIModule();
   return new OpenAI({
     apiKey,
     baseURL: RAINY_API_ROOT_URL,
@@ -600,7 +613,7 @@ export async function requestRainyTextResponse(params: {
   tools?: any[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
 }): Promise<{ content: string; toolCalls?: any[] }> {
-  const client = createRainyClient(params.apiKey);
+  const client = await createRainyClient(params.apiKey);
 
   if (params.apiMode === "responses") {
     const response = await client.responses.create(
@@ -658,8 +671,8 @@ export async function requestRainyChatCompletion(params: {
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
   serviceTier?: RainyServiceTier;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  const client = createRainyClient(params.apiKey);
-  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
+  const client = await createRainyClient(params.apiKey);
+  const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
     messages: params.messages,
     tools: params.tools,
   });
@@ -705,8 +718,8 @@ export async function requestRainyEmbeddings(params: {
     return [];
   }
 
-  const client = createRainyClient(params.apiKey);
-  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload(
+  const client = await createRainyClient(params.apiKey);
+  const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload(
     {
       input: params.input,
     },
@@ -820,8 +833,8 @@ export async function requestRainyChatCompletionStream(params: {
   serviceTier?: RainyServiceTier;
   signal?: AbortSignal;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
-  const client = createRainyClient(params.apiKey);
-  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
+  const client = await createRainyClient(params.apiKey);
+  const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
     messages: params.messages,
     tools: params.tools,
   });
@@ -959,8 +972,8 @@ export async function requestRainyResponsesCompletion(params: {
   serviceTier?: RainyServiceTier;
   signal?: AbortSignal;
 }): Promise<OpenAIResponse> {
-  const client = createRainyClient(params.apiKey);
-  const sanitized = await privacyFirewall.sanitizeOutboundModelPayload({
+  const client = await createRainyClient(params.apiKey);
+  const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
     input: params.input,
     instructions: params.instructions,
     tools: params.tools,

@@ -5,7 +5,8 @@ import { initializeUpdater } from './updater';
 
 import { registerIpcHandlers } from './ipc-handlers';
 import { initStack, teardownStack } from './main-stack';
-import { setSDKOrchestratorInitializationError } from './repo-service';
+import { setSDKOrchestratorInitializationError } from './sdk-orchestrator-state';
+import { startupPerfBegin, startupPerfMark } from './startup-perf';
 import { tursoService } from './turso-service';
 
 // Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
@@ -141,23 +142,42 @@ const createWindow = (vibrancyMode: string) => {
 
 
 app.on('ready', async () => {
+  startupPerfBegin('app-ready');
+
+  // Initialize durable storage first so settings IPC and vibrancy resolve quickly.
+  // initStack also calls tursoService.initialize() (idempotent after this).
   try {
-    await initStack();
+    await tursoService.initialize();
+    startupPerfMark('turso-ready');
   } catch (error) {
-    setSDKOrchestratorInitializationError(error);
-    console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
+    console.error('Turso initialization failed during startup:', error);
   }
-  registerIpcHandlers();
 
   let vibrancyMode = 'solid';
   try {
     const settings = await tursoService.getAppSettings();
     vibrancyMode = settings.vibrancyMode || 'solid';
+    startupPerfMark('settings-loaded');
   } catch (error) {
     console.warn('Failed to load settings for vibrancy on startup, using solid default:', error);
   }
 
+  // Full stack (engineering repo, storage adapter, orchestrator). Window creation
+  // waits for this so SDK readiness is consistent, but turso/settings above are
+  // no longer serialized behind optional migration / config work inside initStack.
+  try {
+    await initStack();
+    startupPerfMark('stack-ready');
+  } catch (error) {
+    setSDKOrchestratorInitializationError(error);
+    console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
+  }
+
+  registerIpcHandlers();
+  startupPerfMark('ipc-registered');
+
   createWindow(vibrancyMode);
+  startupPerfMark('window-created');
 });
 
 app.on('before-quit', async () => {
