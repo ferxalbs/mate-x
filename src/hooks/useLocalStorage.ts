@@ -71,7 +71,6 @@ export function useLocalStorage<T>(
   initialValue: T,
   codec: LocalStorageCodec<T>,
 ): [T, (value: T | ((val: T) => T)) => void] {
-  // Get the initial value from localStorage or use the provided initialValue
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
       const item = getLocalStorageItem(key, codec);
@@ -82,27 +81,34 @@ export function useLocalStorage<T>(
     }
   });
 
-  // Return a wrapped version of useState's setter function that persists the new value to localStorage
-  const setValue = useCallback(
-    (value: T | ((val: T) => T)) => {
-      try {
-        setStoredValue((prev) => {
-          const valueToStore = typeof value === "function" ? (value as (val: T) => T)(prev) : value;
-          if (valueToStore === null) {
-            removeLocalStorageItem(key);
-          } else {
-            setLocalStorageItem(key, valueToStore, codec);
-          }
-          // Dispatch event after state update completes to avoid nested state updates
+  // Pure React updater only — persistence happens in the effect below.
+  const setValue = useCallback((value: T | ((val: T) => T)) => {
+    setStoredValue((prev) =>
+      typeof value === "function" ? (value as (val: T) => T)(prev) : value,
+    );
+  }, []);
+
+  // Persist after commit. Skip write when storage already matches to avoid
+  // feedback loops with same-tab / cross-tab sync handlers.
+  useEffect(() => {
+    try {
+      const currentRaw = isomorphicLocalStorage.getItem(key);
+      if (storedValue === null) {
+        if (currentRaw !== null) {
+          removeLocalStorageItem(key);
           queueMicrotask(() => dispatchLocalStorageChange(key));
-          return valueToStore;
-        });
-      } catch (error) {
-        console.error("[LOCALSTORAGE] Error:", error);
+        }
+        return;
       }
-    },
-    [codec, key],
-  );
+      const nextRaw = encode(codec, storedValue);
+      if (currentRaw !== nextRaw) {
+        isomorphicLocalStorage.setItem(key, nextRaw);
+        queueMicrotask(() => dispatchLocalStorageChange(key));
+      }
+    } catch (error) {
+      console.error("[LOCALSTORAGE] Error:", error);
+    }
+  }, [storedValue, key, codec]);
 
   const prevKeyRef = useRef(key);
 

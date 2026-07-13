@@ -1,8 +1,8 @@
 import { readdir } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import { isAbsolute, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 import type { Tool } from '../tool-service';
-import { resolveWorkspacePath } from './tool-utils';
+import { isInsideWorkspace, resolveWorkspacePath } from './tool-utils';
 
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 2000;
@@ -41,11 +41,6 @@ const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(numberValue) || numberValue <= 0) return fallback;
   return Math.min(Math.floor(numberValue), max);
-};
-
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
 };
 
 const matchesName = (fileName: string, searchName: string, exact: boolean) => {

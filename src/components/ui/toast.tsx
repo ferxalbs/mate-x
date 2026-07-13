@@ -58,6 +58,7 @@ function CopyErrorButton({ text }: { text: string }) {
       className="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground opacity-60 transition-opacity hover:opacity-100"
       onClick={() => copyToClipboard(text)}
       title="Copy error"
+      aria-label="Copy error to clipboard"
       type="button"
     >
       {isCopied ? (

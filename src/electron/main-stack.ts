@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { loadConfig, createMaTeXStack, type MaTeXConfig } from './config/mate-x.config';
 import { MissingSDKClientError } from './orchestration/sdk-orchestrator';
@@ -234,8 +234,14 @@ function createUnavailableSdkClient(agentId: AgentAction['agentId']): AgentSdkCl
 
 function createLocalFilesClient(root: string): FilesSdkClient {
   const safePath = (key: string) => {
+    if (typeof key !== 'string' || key.includes('\0')) {
+      throw new Error(`Refusing local storage path outside evidence root: ${String(key)}`);
+    }
     const resolved = resolve(root, key);
-    const escapedRoot = relative(root, resolved).startsWith(`..${sep}`) || relative(root, resolved) === '..';
+    const rel = relative(root, resolved);
+    // Cross-drive relatives are absolute on Windows; treat them as escapes.
+    const escapedRoot =
+      isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`);
     if (escapedRoot) {
       throw new Error(`Refusing local storage path outside evidence root: ${key}`);
     }

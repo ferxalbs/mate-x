@@ -4,7 +4,7 @@ import {
   RefreshCcwIcon,
   BugIcon,
 } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { cn } from "../../../lib/utils";
 
@@ -48,58 +48,64 @@ interface QuickActionCardsProps {
   disabled?: boolean;
 }
 
+const QUICK_ACTIONS = [
+  {
+    id: "explore",
+    title: "Explore and understand code",
+    icon: <TelescopeIcon className="size-[20px]" />,
+    prompt:
+      "Explain how the current repository is structured and what its main components are.",
+  },
+  {
+    id: "build",
+    title: "Build a new feature, app, or tool",
+    icon: <HammerIcon className="size-[20px]" />,
+    prompt: "I want to build a new feature. How should we approach it?",
+  },
+  {
+    id: "review",
+    title: "Review code and suggest changes",
+    icon: <RefreshCcwIcon className="size-[20px]" />,
+    prompt:
+      "Review the recent changes in the repository and suggest any improvements.",
+  },
+  {
+    id: "fix",
+    title: "Fix issues and failures",
+    icon: <BugIcon className="size-[20px]" />,
+    prompt:
+      "Help me find and fix any issues or failures in the current codebase.",
+  },
+] as const;
+
 export function QuickActionCards({
   onSelectAction,
   disabled,
 }: QuickActionCardsProps) {
-  const actions = [
-    {
-      id: "explore",
-      title: "Explore and understand code",
-      icon: <TelescopeIcon className="size-[20px]" />,
-      prompt:
-        "Explain how the current repository is structured and what its main components are.",
-    },
-    {
-      id: "build",
-      title: "Build a new feature, app, or tool",
-      icon: <HammerIcon className="size-[20px]" />,
-      prompt: "I want to build a new feature. How should we approach it?",
-    },
-    {
-      id: "review",
-      title: "Review code and suggest changes",
-      icon: <RefreshCcwIcon className="size-[20px]" />,
-      prompt:
-        "Review the recent changes in the repository and suggest any improvements.",
-    },
-    {
-      id: "fix",
-      title: "Fix issues and failures",
-      icon: <BugIcon className="size-[20px]" />,
-      prompt:
-        "Help me find and fix any issues or failures in the current codebase.",
-    },
-  ];
+  // Keep latest callback without re-subscribing the window listener every parent render.
+  const onSelectActionRef = useRef(onSelectAction);
+  useEffect(() => {
+    onSelectActionRef.current = onSelectAction;
+  }, [onSelectAction]);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
       if (disabled || (!event.metaKey && !event.ctrlKey)) return;
 
-      const action = actions[Number(event.key) - 1];
+      const action = QUICK_ACTIONS[Number(event.key) - 1];
       if (!action) return;
 
       event.preventDefault();
-      onSelectAction(action.prompt);
+      onSelectActionRef.current(action.prompt);
     }
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [disabled, onSelectAction]);
+  }, [disabled]);
 
   return (
     <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-4">
-      {actions.map((action) => (
+      {QUICK_ACTIONS.map((action) => (
         <QuickActionCard
           key={action.id}
           title={action.title}

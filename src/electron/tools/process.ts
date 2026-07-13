@@ -209,7 +209,8 @@ export function execFileAbortable(
     signal?.addEventListener("abort", onAbort, { once: true });
 
     child.on("error", () => {
-      // callback above also fires; ensure abort listener is cleared on early errors
+      // The execFile callback also fires on spawn failures; clear the abort listener.
+      cleanup();
     });
   });
 }

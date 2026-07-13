@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach, afterEach } from "bun:test";
-import { render, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { ScrollArea } from "@base-ui/react/scroll-area";
 import { MessageStream } from "./message-stream";
 import { MessageScrollerProvider } from "../../../components/ui/message-scroller";
 import type { ChatMessage } from "../../../contracts/chat";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import type { ReactElement } from "react";
 
 // Setup happy-dom globally for React Testing Library
 if (!globalThis.document) {
@@ -19,6 +20,27 @@ if (!Element.prototype.getAnimations) {
 afterEach(() => {
   cleanup();
 });
+
+/**
+ * Base UI ScrollArea schedules layout measurements after mount. Flush them
+ * inside act so test runners do not report false-positive act(...) warnings.
+ */
+async function renderAmbient(ui: ReactElement) {
+  let view!: ReturnType<typeof render>;
+  await act(async () => {
+    view = render(
+      <MessageScrollerProvider>
+        <ScrollArea.Root>
+          {ui}
+        </ScrollArea.Root>
+      </MessageScrollerProvider>,
+    );
+    // Allow ScrollArea measurement microtasks / rAF-like updates to settle.
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  return view;
+}
 
 describe("Ambient Safety Actions in MessageStream", () => {
   const mockOnSelect = createSpy(() => {});
@@ -40,20 +62,16 @@ describe("Ambient Safety Actions in MessageStream", () => {
     }
   ];
 
-  it("renders contextual action buttons when ambient safety note is present", () => {
-    const view = render(
-      <MessageScrollerProvider>
-        <ScrollArea.Root>
-          <MessageStream
-            canUndoLastTurn={false}
-            messages={defaultMessages}
-            isRunning={false}
-            onSelectPrompt={mockOnSelect}
-            onSubmitPrompt={mockOnSubmit}
-            onUndoLastTurn={mockOnUndo}
-          />
-        </ScrollArea.Root>
-      </MessageScrollerProvider>
+  it("renders contextual action buttons when ambient safety note is present", async () => {
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={defaultMessages}
+        isRunning={false}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
     );
 
     assert.ok(view.getByText("Run verification"));
@@ -61,22 +79,20 @@ describe("Ambient Safety Actions in MessageStream", () => {
   });
 
   it("clicking Run verification submits immediately and preserves mode/intent", async () => {
-    const view = render(
-      <MessageScrollerProvider>
-        <ScrollArea.Root>
-          <MessageStream
-            canUndoLastTurn={false}
-            messages={defaultMessages}
-            isRunning={false}
-            onSelectPrompt={mockOnSelect}
-            onSubmitPrompt={mockOnSubmit}
-            onUndoLastTurn={mockOnUndo}
-          />
-        </ScrollArea.Root>
-      </MessageScrollerProvider>
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={defaultMessages}
+        isRunning={false}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
     );
 
-    fireEvent.click(view.getByText("Run verification"));
+    await act(async () => {
+      fireEvent.click(view.getByText("Run verification"));
+    });
     await waitFor(() => assert.equal(mockOnSubmit.calls.length, 1));
     assert.match(mockOnSubmit.calls[0][0], /Run verification/);
     assert.deepEqual(mockOnSubmit.calls[0][1], { runbookId: "patch_test_verify", access: "approval" });
@@ -84,22 +100,20 @@ describe("Ambient Safety Actions in MessageStream", () => {
   });
 
   it("clicking Review changes submits immediately and preserves mode/intent", async () => {
-    const view = render(
-      <MessageScrollerProvider>
-        <ScrollArea.Root>
-          <MessageStream
-            canUndoLastTurn={false}
-            messages={defaultMessages}
-            isRunning={false}
-            onSelectPrompt={mockOnSelect}
-            onSubmitPrompt={mockOnSubmit}
-            onUndoLastTurn={mockOnUndo}
-          />
-        </ScrollArea.Root>
-      </MessageScrollerProvider>
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={defaultMessages}
+        isRunning={false}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
     );
 
-    fireEvent.click(view.getByText("Review changes"));
+    await act(async () => {
+      fireEvent.click(view.getByText("Review changes"));
+    });
     await waitFor(() => assert.equal(mockOnSubmit.calls.length, 1));
     assert.match(mockOnSubmit.calls[0][0], /Explain the current changes/);
     assert.deepEqual(mockOnSubmit.calls[0][1], { runbookId: "review_classify_summarize" });
@@ -114,44 +128,39 @@ describe("Ambient Safety Actions in MessageStream", () => {
           resolveSubmit = resolve;
         });
 
-    const view = render(
-      <MessageScrollerProvider>
-        <ScrollArea.Root>
-          <MessageStream
-            canUndoLastTurn={false}
-            messages={defaultMessages}
-            isRunning={false}
-            onSelectPrompt={mockOnSelect}
-            onSubmitPrompt={mockOnSubmit}
-            onUndoLastTurn={mockOnUndo}
-          />
-        </ScrollArea.Root>
-      </MessageScrollerProvider>
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={defaultMessages}
+        isRunning={false}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
     );
 
     const button = view.getByText("Run verification") as HTMLButtonElement;
+    // Same-tick double click must not start two submits (ref guard).
     fireEvent.click(button);
     fireEvent.click(button);
 
     await waitFor(() => assert.equal(mockOnSubmit.calls.length, 1));
     assert.equal(button.disabled, true);
-    resolveSubmit();
+    await act(async () => {
+      resolveSubmit();
+    });
   });
 
-  it("buttons are disabled and cursor-not-allowed when isRunning is true", () => {
-    const view = render(
-      <MessageScrollerProvider>
-        <ScrollArea.Root>
-          <MessageStream
-            canUndoLastTurn={false}
-            messages={defaultMessages}
-            isRunning={true}
-            onSelectPrompt={mockOnSelect}
-            onSubmitPrompt={mockOnSubmit}
-            onUndoLastTurn={mockOnUndo}
-          />
-        </ScrollArea.Root>
-      </MessageScrollerProvider>
+  it("buttons are disabled and cursor-not-allowed when isRunning is true", async () => {
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={defaultMessages}
+        isRunning={true}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
     );
 
     const btn1 = view.getByText("Run verification") as HTMLButtonElement;

@@ -11,6 +11,7 @@ import {
   memo,
   useDeferredValue,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -135,12 +136,30 @@ const MessageEntry = memo(function MessageEntry({
   const hasTimeline = events.length > 0;
   const [copied, setCopied] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  // Synchronous guard so double-clicks in the same tick cannot start two submits
+  // before React re-renders with pendingAction set.
+  const ambientActionInFlightRef = useRef(false);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
 
   async function handleCopy() {
     try {
       await window.mate.ui.copyToClipboard(message.content);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = setTimeout(() => {
+        copyResetTimerRef.current = null;
+        setCopied(false);
+      }, 1200);
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
     }
@@ -191,11 +210,15 @@ const MessageEntry = memo(function MessageEntry({
   const showAmbientActions = normalizedContent.includes(
     "Repo note: changes need a safety check before commit.",
   );
-  const actionDisabled = isRunning || pendingAction !== null;
+  const actionDisabled =
+    isRunning || pendingAction !== null || ambientActionInFlightRef.current;
 
   async function submitAmbientAction(action: AmbientSafetyAction) {
-    if (actionDisabled) return;
+    if (isRunning || ambientActionInFlightRef.current || pendingAction !== null) {
+      return;
+    }
 
+    ambientActionInFlightRef.current = true;
     setPendingAction(action.id);
     try {
       if (onSubmitPrompt) {
@@ -204,6 +227,7 @@ const MessageEntry = memo(function MessageEntry({
         onSelectPrompt(action.prompt);
       }
     } finally {
+      ambientActionInFlightRef.current = false;
       setPendingAction(null);
     }
   }

@@ -7,7 +7,11 @@ export function buildSemanticContext(input: {
   primaryFiles: WorkingSetFile[];
 }): WorkingSet["semanticContext"] {
   const files = [...input.fileKeys];
-  const changed = input.gitState.map((line) => normalizePath(line.replace(/^[ MADRCU?!]{2}\s+/, ""))).filter(Boolean);
+  const changed: string[] = [];
+  for (const line of input.gitState) {
+    const path = normalizePath(line.replace(/^[ MADRCU?!]{2}\s+/, ""));
+    if (path) changed.push(path);
+  }
   const ranked = input.primaryFiles.map((file) => file.path);
   const evidence = new Set([...changed, ...ranked, ...files.slice(0, 80)]);
   const lowerPrompt = input.prompt.toLowerCase();

@@ -403,6 +403,7 @@ export function AppSidebar({
                   onClick={onImportWorkspace}
                   className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
                   title="Import folder"
+                  aria-label="Import folder"
                   type="button"
                 >
                   <FolderPlusIcon className="size-3.5" weight="regular" />
@@ -440,6 +441,11 @@ export function AppSidebar({
                               ? "Collapse history"
                               : "Expand history"
                           }
+                          aria-label={
+                            isProjectOpen
+                              ? `Collapse ${project.name} history`
+                              : `Expand ${project.name} history`
+                          }
                           type="button"
                         >
                           <CaretDownIcon
@@ -475,6 +481,7 @@ export function AppSidebar({
                             onClick={() => setWorkspacePendingRemoval(project)}
                             className="hidden shrink-0 rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-foreground/[0.08] hover:text-red-400 group-hover/project:inline-flex"
                             title={`Remove ${project.name}`}
+                            aria-label={`Remove project ${project.name}`}
                             type="button"
                           >
                             <Trash2Icon className="size-3" />
@@ -497,6 +504,7 @@ export function AppSidebar({
                               onClick={onCreateThread}
                               className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
                               title="New thread"
+                              aria-label="New thread"
                               type="button"
                             >
                               <NotePencilIcon

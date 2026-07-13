@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { isInsideWorkspace } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_FINDINGS = 50;
@@ -163,11 +164,6 @@ const CONTAINER_RULES: ContainerRule[] = [
     recommendation: 'Set readOnlyRootFilesystem true and mount writable volumes explicitly.',
   },
 ];
-
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === '' || (!relativePath.startsWith('..') && !relativePath.startsWith('/'));
-};
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === 'number' ? value : Number(value);

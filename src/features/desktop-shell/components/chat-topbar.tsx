@@ -38,6 +38,19 @@ interface ChatTopbarProps {
   onAppearanceChange: (appearance: Appearance) => void;
 }
 
+function toggleLivePanel() {
+  window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
+}
+
+function sendLiveCommand(detail: {
+  action?: "open" | "scan";
+  view?: "trace" | "impact" | "validation" | "evidence";
+}) {
+  window.dispatchEvent(
+    new CustomEvent("mate:enhancement-panel-command", { detail }),
+  );
+}
+
 function TitlebarButton({
   children,
   onClick,
@@ -96,17 +109,6 @@ export function ChatTopbar({
         : liquidGlassEnabled
           ? "border-transparent bg-[var(--mate-panel-bg)] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
           : "border-transparent bg-background/40 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
-  const toggleLivePanel = () => {
-    window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
-  };
-  const sendLiveCommand = (detail: {
-    action?: "open" | "scan";
-    view?: "trace" | "impact" | "validation" | "evidence";
-  }) => {
-    window.dispatchEvent(
-      new CustomEvent("mate:enhancement-panel-command", { detail }),
-    );
-  };
   const openSelectedTarget = () => {
     void openWorkspacePath(openTarget as "folder" | "vscode" | "terminal");
   };

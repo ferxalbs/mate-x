@@ -44,6 +44,67 @@ type CommandEvidence = {
   result: string;
 };
 
+function StandalonePackItem({
+  pack,
+  isSelected,
+  onSelect,
+  onVerify,
+  onExport,
+}: {
+  pack: any;
+  isSelected: boolean;
+  onSelect: (taskId: string) => void;
+  onVerify: (taskId: string) => void;
+  onExport: (taskId: string) => void;
+}) {
+  return (
+    <Card
+      className={cn(
+        "w-[280px] shrink-0 cursor-pointer transition-colors",
+        isSelected ? "border-sky-500 bg-sky-500/5" : "hover:border-border",
+      )}
+      onClick={() => onSelect(pack.taskId)}
+    >
+      <CardContent className="p-3">
+        <div className="truncate font-mono text-[10px] text-muted-foreground">{pack.taskId}</div>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="font-medium">{pack.verdict?.label || pack.status}</span>
+          {pack.verifiedTaskScore && (
+            <span className="text-muted-foreground">· {pack.verifiedTaskScore.score}/100</span>
+          )}
+        </div>
+        <div className="mt-1 text-[10px] text-muted-foreground">
+          {pack.filesModifiedCount ?? 0} files · {pack.attestationStatus}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 rounded-full px-2 text-[10px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onVerify(pack.taskId);
+            }}
+          >
+            Verify
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 rounded-full px-2 text-[10px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport(pack.taskId);
+            }}
+          >
+            Export ZIP
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function buildRuns(threads: Conversation[]) {
   const runs: MissionRun[] = [];
 
@@ -304,56 +365,6 @@ export function RunsPage() {
     URL.revokeObjectURL(url);
   }
 
-  function StandalonePackItem({ pack }: { pack: any }) {
-    const isSelected = pack.taskId === selectedLocalTaskId;
-    return (
-      <Card
-        className={cn(
-          "w-[280px] shrink-0 cursor-pointer transition-colors",
-          isSelected ? "border-sky-500 bg-sky-500/5" : "hover:border-border"
-        )}
-        onClick={() => loadLocalPackDetail(pack.taskId)}
-      >
-        <CardContent className="p-3">
-          <div className="truncate font-mono text-[10px] text-muted-foreground">{pack.taskId}</div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="font-medium">{pack.verdict?.label || pack.status}</span>
-            {pack.verifiedTaskScore && (
-              <span className="text-muted-foreground">· {pack.verifiedTaskScore.score}/100</span>
-            )}
-          </div>
-          <div className="mt-1 text-[10px] text-muted-foreground">
-            {pack.filesModifiedCount ?? 0} files · {pack.attestationStatus}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 rounded-full px-2 text-[10px]"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleVerifyLocalPack(pack.taskId);
-              }}
-            >
-              Verify
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 rounded-full px-2 text-[10px]"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleExportLocalPack(pack.taskId);
-              }}
-            >
-              Export ZIP
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
       <header className={cn(
@@ -407,7 +418,14 @@ export function RunsPage() {
             <ScrollArea className="w-full whitespace-nowrap pb-4">
               <div className="flex w-max space-x-2">
                 {localPacks.map((p) => (
-                  <StandalonePackItem key={p.taskId} pack={p} />
+                  <StandalonePackItem
+                    key={p.taskId}
+                    pack={p}
+                    isSelected={p.taskId === selectedLocalTaskId}
+                    onSelect={loadLocalPackDetail}
+                    onVerify={handleVerifyLocalPack}
+                    onExport={handleExportLocalPack}
+                  />
                 ))}
               </div>
             </ScrollArea>

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { join, normalize, relative } from 'node:path';
+import { resolve } from 'node:path';
 import type { Tool } from '../tool-service';
+import { resolveWorkspacePath } from './tool-utils';
 
 type Verdict = 'confirmed_candidate' | 'likely_false_positive' | 'needs_context';
 
@@ -37,9 +38,14 @@ const REFERENCE_HINTS = [
 ];
 
 function assertInsideWorkspace(workspacePath: string, filePath: string) {
-  const absolutePath = normalize(join(workspacePath, filePath));
-  const rel = relative(workspacePath, absolutePath);
-  if (rel.startsWith('..') || rel === '' || rel.includes('..')) {
+  let absolutePath: string;
+  try {
+    absolutePath = resolveWorkspacePath(workspacePath, filePath);
+  } catch {
+    throw new Error('Candidate file must stay inside workspace.');
+  }
+  // Candidates must be files under the workspace, not the workspace root itself.
+  if (absolutePath === resolve(workspacePath)) {
     throw new Error('Candidate file must stay inside workspace.');
   }
   return absolutePath;
