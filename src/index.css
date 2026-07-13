@@ -534,17 +534,29 @@ label:has(> select#reasoning-effort) select {
 
 /* Platform-specific Vibrancy, Mica, and Acrylic Overrides */
 
-/* Sidebar transparency in vibrancy modes (medium tint for day/night readability) */
+/* Sidebar transparency in vibrancy modes */
 .vibrancy-sidebar.platform-mac .app-sidebar-container,
 .vibrancy-special.platform-mac .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 52%, transparent) !important;
+  background-color: color-mix(in srgb, var(--sidebar) 28%, transparent) !important;
   backdrop-filter: blur(40px) saturate(210%) !important;
+  border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent) !important;
+}
+
+:root.dark .vibrancy-sidebar.platform-mac .app-sidebar-container,
+:root.dark .vibrancy-special.platform-mac .app-sidebar-container {
+  background-color: color-mix(in srgb, var(--sidebar) 52%, transparent) !important;
 }
 
 .vibrancy-sidebar.platform-windows .app-sidebar-container,
 .vibrancy-special.platform-windows .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 76%, transparent) !important;
+  background-color: color-mix(in srgb, var(--sidebar) 50%, transparent) !important;
   backdrop-filter: blur(30px) !important;
+  border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent) !important;
+}
+
+:root.dark .vibrancy-sidebar.platform-windows .app-sidebar-container,
+:root.dark .vibrancy-special.platform-windows .app-sidebar-container {
+  background-color: color-mix(in srgb, var(--sidebar) 76%, transparent) !important;
 }
 
 /* Sidebar solid fallback in solid mode */

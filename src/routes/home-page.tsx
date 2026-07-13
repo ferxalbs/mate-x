@@ -23,6 +23,8 @@ import { buildHomePageSubmitOptions } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
 import { DEFAULT_BEHAVIOR_PREFERENCE, behaviorInstruction, behaviorRunOptions, type BehaviorPreference } from '../contracts/behavior-mode';
 import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
+import { updateWorkspaceTrustContract } from '../services/repo-client';
+import type { WorkspaceTrustAutonomy } from '../contracts/workspace';
 
 export function HomePage() {
   const isSubmitting = useRef(false);
@@ -104,6 +106,17 @@ export function HomePage() {
       onBehaviorChange={(next) => {
         setBehavior(next);
         if (activeWorkspaceId) saveBehaviorPreference(activeWorkspaceId, next);
+      }}
+      onTrustChange={async (autonomy: WorkspaceTrustAutonomy) => {
+        if (!trustContract) {
+          throw new Error('No active workspace trust contract.');
+        }
+
+        const nextContract = await updateWorkspaceTrustContract({
+          ...trustContract,
+          autonomy,
+        });
+        useChatStore.setState({ trustContract: nextContract });
       }}
     />
   );
