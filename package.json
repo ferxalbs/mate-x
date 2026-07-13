@@ -30,7 +30,6 @@
     "test:all": "bun test src qa",
     "verify:bundle-purity": "bun run scripts/release/verify-bundle-purity.ts",
     "verify:release": "bun run verify && bun run package && bun run scripts/release/verify-bundle-purity.ts --require-asar && bun run scripts/release/run-packaged-e2e.ts",
-    "tools:generate-defs": "bun run scripts/generate-tool-definitions.ts",
     "tools:baseline": "bun run scripts/tooling-baseline.ts",
     "tools:baseline:electron": "bun run scripts/tooling-electron-baseline.ts",
     "tools:mission-fixtures": "bun run scripts/tooling-mission-fixtures.ts",
