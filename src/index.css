@@ -597,11 +597,19 @@ label:has(> select#reasoning-effort) select {
 
 /* Special (full app) vibrancy: make main content areas translucent too! */
 .vibrancy-special.platform-mac .app-main-content-container {
-  background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
-  backdrop-filter: blur(28px) saturate(210%) !important;
+  background-color: color-mix(in srgb, var(--background) 28%, transparent) !important;
+  backdrop-filter: blur(40px) saturate(210%) !important;
+}
+
+:root.dark .vibrancy-special.platform-mac .app-main-content-container {
+  background-color: color-mix(in srgb, var(--background) 52%, transparent) !important;
 }
 
 .vibrancy-special.platform-windows .app-main-content-container {
-  background-color: color-mix(in srgb, var(--background) 88%, transparent) !important;
-  backdrop-filter: blur(20px) !important;
+  background-color: color-mix(in srgb, var(--background) 50%, transparent) !important;
+  backdrop-filter: blur(30px) !important;
+}
+
+:root.dark .vibrancy-special.platform-windows .app-main-content-container {
+  background-color: color-mix(in srgb, var(--background) 76%, transparent) !important;
 }
