@@ -131,18 +131,11 @@ export function ChatTopbar({
       className={cn(
         "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-linear",
         isSpecialMode
-          ? "glass border-b border-[var(--titlebar-border)]/40"
+          ? "bg-transparent border-b border-[var(--titlebar-border)]/40"
           : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]",
       )}
-      style={
-        isSpecialMode
-          ? ({
-              "--glass-bg": "var(--titlebar)",
-            } as any)
-          : undefined
-      }
     >
       <div className="relative z-10 flex min-w-0 items-center gap-2.5">
         <SidebarTrigger className="no-drag h-8 w-8 rounded-full bg-transparent text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground" />

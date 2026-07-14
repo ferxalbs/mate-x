@@ -750,11 +750,28 @@ function TrustSelector({
   value: WorkspaceTrustAutonomy;
 }) {
   const [confirmUnrestricted, setConfirmUnrestricted] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const confirmationFrameRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (confirmationFrameRef.current !== null) {
+        cancelAnimationFrame(confirmationFrameRef.current);
+      }
+    },
+    [],
+  );
 
   function selectTrust(nextValue: string) {
     const autonomy = nextValue as WorkspaceTrustAutonomy;
     if (autonomy === "unrestricted" && value !== "unrestricted") {
-      setConfirmUnrestricted(true);
+      setMenuOpen(false);
+      confirmationFrameRef.current = requestAnimationFrame(() => {
+        confirmationFrameRef.current = requestAnimationFrame(() => {
+          confirmationFrameRef.current = null;
+          setConfirmUnrestricted(true);
+        });
+      });
       return;
     }
 
@@ -763,7 +780,7 @@ function TrustSelector({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
         <DropdownMenuTrigger
           aria-label="Change workspace trust"
           className={cn(
