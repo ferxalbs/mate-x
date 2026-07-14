@@ -1,6 +1,6 @@
 @variant dark {
   color-scheme: dark;
-  --background: #181818;
+  --background: #111111;
   --foreground: color-mix(in srgb, white 92%, #c8cbd4 8%);
   --card: color-mix(in srgb, #1d1d1f 96%, black 4%);
   --card-foreground: var(--color-neutral-100);

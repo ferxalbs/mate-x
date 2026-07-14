@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.13 (3) [Theme Colors Customization]
+
+Updated the default theme background colors:
+* Set night mode default background color to `#111111` in `src/styles/themes/dark.css`.
+* Set day mode default background color to `#ffffff` in `src/styles/themes/base.css`.
+
 ## Unreleased - 2026.07.13 (2) [Model Selector Redesign]
 
 Redesigned the model selector dropdown in the composer panel.

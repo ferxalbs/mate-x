@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   --radius: 0.625rem;
-  --background: var(--color-white);
+  --background: #ffffff;
   --foreground: oklch(0.28 0.014 260);
   --card: var(--color-white);
   --card-foreground: var(--foreground);
