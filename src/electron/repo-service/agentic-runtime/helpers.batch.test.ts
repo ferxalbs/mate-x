@@ -76,10 +76,13 @@ describe("executeToolBatchWithSafety", () => {
 });
 
 describe("truncateToolOutputForModel", () => {
-  test("applies tighter budget for noisy search tools than hard ceiling", () => {
-    const huge = "x".repeat(50_000);
+  test("keeps large tool results under the hard ceiling only", () => {
+    const under = "x".repeat(50_000);
+    assert.equal(truncateToolOutputForModel("rg", under), under);
+
+    const huge = "x".repeat(100_000);
     const truncated = truncateToolOutputForModel("rg", huge);
     assert.ok(truncated.length < huge.length);
-    assert.ok(truncated.length <= 16_000 + 80); // budget + truncation suffix
+    assert.ok(truncated.length <= 80_000 + 80);
   });
 });

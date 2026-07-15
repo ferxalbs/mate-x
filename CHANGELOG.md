@@ -2,54 +2,51 @@
 
 ## Unreleased - 2026.07.14 (2) [Agent Speed, Accuracy, and Tool-Loop Optimization]
 
-Made the agent tool loop faster and more accurate: scoped tool catalogs by runbook, enforced safe parallel tool batches, tightened model-facing output budgets, improved OpenAI/Rainy client usage, and reduced system-prompt noise for simple tasks.
+Made the agent tool loop faster and more accurate: **full tool catalog** for capable models, **system-prompt tool preference** (not hard allowlists), parallel-safe batching, OpenAI/Rainy client improvements, and runbook-conditional playbooks.
 
-### Mission-scoped tool catalogs
+### Tool selection via system prompt (not hard limits)
 
-* Added `getAgentToolAllowlist(runbook, pathKind)` with a compact core set (`rg`, `read`, `read_many`, `repo_graph`, `git_diag`, `glob`, `ls`, `pwd`, `find_similar_failures`) plus runbook-specific extras for inspect, review, patch, validate, audit, scan/report, trace, and evidence-only workflows.
-* Wired allowlists into both chat-completions and Responses agent runners so each model request advertises only the mission tool set instead of the full ~61-tool catalog.
-* Scoped `chat_help` to core tools and `verify_only` to validation-focused tools regardless of runbook drift.
-* When the model requests a tool outside the mission set, the loop skips it and nudges with the available tool list rather than failing silently or expanding the full catalog.
-* Emitted a technical Mission tool set step event with allowlist size and runbook/pathKind for run transparency.
+* Advertises the full tool catalog on every agent run so capable models can use any registered tool when the task warrants it.
+* Hard runbook allowlists are disabled (`getAgentToolAllowlist` always returns null). Preference lists are guidance only.
+* Added `getPreferredToolsForRunbook` + `renderToolPreferenceGuidance`: system prompt names preferred starting tools per runbook/pathKind while stating the full catalog remains available.
+* Strengthened `MATE_AGENT_SYSTEM_PROMPT` tool-use policy: full catalog, treat runbook hints as defaults not cages, scope args for signal without discarding capability.
+* Guides agents toward minimal high-signal batches, scoped `rg`/`read_many`, RepoGraph before broad reads, and reversible tools before mutators — without blocking other tools.
+* Kept special-case current-change review scope filters (git/read only) as product intent for that prompt shape, not a general capability lock.
 
-### Faster tool definition loading
+### Tool definition and registry quality
 
-* Extended `ToolService.getChatToolDefinitions` / `getResponsesToolDefinitions` to accept optional `{ names }` filters and load only those tools, avoiding cold-start import of unused scanners (browser, fuzzer, etc.).
-* Cached filtered definition sets by sorted name key; full-catalog cache behavior remains for unfiltered callers.
-* Registered canonical loader aliases for `plan_validation`, `verify_validation_persistence`, and `detect_workspace_capabilities` so filtered resolution matches advertised tool names.
-* Chat function definitions now request `strict: true` (with type cast for provider compatibility); Responses definitions already used strict schemas.
+* Production runners load the full catalog; optional `{ names }` filters remain available for future callers.
+* Registered canonical loader aliases for `plan_validation`, `verify_validation_persistence`, and `detect_workspace_capabilities`.
+* Chat function definitions request `strict: true` (provider-compatible cast); Responses already used strict schemas.
+* Canonicalized tool expectations (`git_diag` not `git`, and related pairs).
 
 ### Parallel-safe tool batching
 
-* Added `executeToolBatchWithSafety`: parallel-safe tools still run with concurrency up to 8; tools marked `exclusive` or `parallelSafe: false` run serially after reads complete.
-* Replaced flat `mapWithConcurrency` batches in both `chat-runner` and `responses-runner` with the safety-aware scheduler so mutators such as `file_editor` and `sandbox_run` no longer race.
-* Added `isToolBatchExclusive` and regression coverage proving exclusive tools never overlap and run after parallel reads.
+* Added `executeToolBatchWithSafety`: parallel-safe tools run with concurrency up to 8; exclusive / non-parallel-safe tools run serially after reads (safety, not capability restriction).
+* Mutators such as `file_editor` and `sandbox_run` no longer race with concurrent workspace writers.
 
-### Model output budgets and Responses context hygiene
+### Context hygiene without starving the model
 
-* Added `getToolModelOutputBudgetChars` and `truncateToolOutputForModel` so model-facing tool results use tighter limits for noisy search/scan tools (~16–20k) while keeping a hard 80k ceiling.
-* Tool executor now truncates for model context by tool metadata rather than only the global ceiling.
-* Added `compressResponsesInputItems` for the Responses path: large `function_call_output` and long message text items are head/tail truncated before the next turn (chat path already had mid-loop compression).
+* Model-facing tool output defaults to the hard 80k ceiling (removed aggressive 16–20k per-tool caps). Prefer prompt guidance to scope tool args over discarding evidence.
+* Mid-loop chat compression and Responses `compressResponsesInputItems` still protect multi-turn growth.
+* Evidence records keep full raw tool output; only the hard ceiling applies to model-facing content.
 
 ### OpenAI SDK / Rainy client quality
 
-* Reused one OpenAI client per API key via an in-process cache (`clearRainyClientCache` for rotation/tests); kept lazy `import("openai")` to avoid startup weight.
-* Added agent-generation timeouts separate from catalog/list/embedding defaults: 90s for agent loops, 120s for `xhigh` reasoning (`RAINY_AGENT_REQUEST_TIMEOUT_MS` / `RAINY_AGENT_XHIGH_REQUEST_TIMEOUT_MS`).
-* Passed agent timeouts into chat stream and Responses completion requests from both runners.
-* Chat path now sets `tool_choice: "none"` when the tool budget is exhausted (parity with Responses).
-* Documented Responses `store: false` as intentional local-first privacy (do not retain agent turns on the provider).
+* Reused one OpenAI client per API key (`clearRainyClientCache` for rotation/tests); kept lazy `import("openai")`.
+* Agent-generation timeouts: 90s default, 120s for `xhigh`, vs 20s catalog defaults.
+* Chat sets `tool_choice: "none"` when the tool-call budget is exhausted (parity with Responses).
+* Responses keeps `store: false` for local-first privacy.
 
-### System prompt and canonical naming
+### System prompt layering
 
-* Split long security, validation, reproduction, and review playbooks into runbook-conditional sections so simple inspect/answer runs no longer carry full audit playbooks every pass.
-* Canonicalized tool expectations (`git_diag` not `git`, and related pairs) and alias normalization for allowlist/expectation construction.
-* Added `scan_contain_report` expectation coverage and expanded allowlist extras aligned with Work Engine runbooks.
+* Split long security, validation, reproduction, and review playbooks into runbook-conditional sections.
+* Preference + playbook guidance lives in the system prompt so models self-select efficiently without hard tool removal.
 
 ### Tests and documentation
 
-* Added unit tests for allowlists, registry aliases, batch safety, model output budgets, and Responses input compression.
-* Extended tool-metadata and tool-registry tests for exclusive scheduling and validation aliases.
-* Added `docs/agent-runtime.md` describing the custom OpenAI tool loop, allowlists, batch safety, dual-path parity, and timeouts (local docs tree).
+* Unit tests for preference guidance (full catalog), batch safety, 80k ceilings, Responses compression, registry aliases.
+* Added `docs/agent-runtime.md` describing the custom OpenAI tool loop, prompt-based tool preference, batch safety, and timeouts (local docs tree).
 
 ## Unreleased - 2026.07.14 (1) [Agent Loop and Tool Feedback Reliability]
 

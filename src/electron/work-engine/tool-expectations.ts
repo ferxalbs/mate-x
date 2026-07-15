@@ -192,27 +192,30 @@ export function getToolExpectations(runbook: WorkRunbook): ToolExpectation[] {
 }
 
 /**
- * Extra tools granted per runbook beyond CORE_AGENT_TOOLS.
- * Kept intentionally tight so model requests stay small and selection accurate.
+ * Preferred tools for a runbook — guidance only, not a hard allowlist.
+ * Capable models receive the full catalog; these names are injected into the
+ * system prompt so the agent biases toward the smallest effective path first.
  */
-function getRunbookExtraTools(runbook: WorkRunbook): string[] {
+function getRunbookPreferredTools(runbook: WorkRunbook): string[] {
   switch (runbook) {
     case "answer_from_context":
       return [];
     case "inspect_explain":
-      return ["find", "file_metadata", "json_probe"];
+      return ["repo_graph", "rg", "read", "read_many", "find", "file_metadata", "json_probe"];
     case "review_classify_summarize":
-      return ["plan_validation", "find", "file_metadata"];
+      return ["git_diag", "repo_graph", "read", "read_many", "rg"];
     case "patch_test_verify":
       return [
+        "repo_graph",
+        "rg",
+        "read",
+        "read_many",
         "file_editor",
-        "mutation",
-        "auto_patch",
         "plan_validation",
         "run_tests",
         "sandbox_run",
         "verify_validation_persistence",
-        "detect_workspace_capabilities",
+        "find_similar_failures",
         "record_failure",
         "record_resolution",
         "evidence_pack",
@@ -224,6 +227,7 @@ function getRunbookExtraTools(runbook: WorkRunbook): string[] {
         "sandbox_run",
         "verify_validation_persistence",
         "detect_workspace_capabilities",
+        "find_similar_failures",
         "record_failure",
         "record_resolution",
       ];
@@ -233,27 +237,16 @@ function getRunbookExtraTools(runbook: WorkRunbook): string[] {
         "security_path_trace",
         "candidate_revalidator",
         "secret_scan",
-        "flow_trace",
-        "source_map_analyzer",
-        "security_audit",
+        "repo_graph",
+        "rg",
+        "read",
+        "read_many",
         "ast_grep",
         "deep_analysis_pipeline",
-        "file_editor",
-        "mutation",
         "plan_validation",
         "run_tests",
         "sandbox_run",
-        "verify_validation_persistence",
-        "record_failure",
-        "record_resolution",
         "evidence_pack",
-        "browser_prober",
-        "http_prober",
-        "container_audit",
-        "cve_audit",
-        "redos_analyzer",
-        "semgrep_scan",
-        "eslint_scan",
       ];
     case "scan_contain_report":
       return [
@@ -261,18 +254,8 @@ function getRunbookExtraTools(runbook: WorkRunbook): string[] {
         "secret_scan",
         "security_audit",
         "dependency_check",
-        "package_audit",
-        "cve_audit",
-        "entropy_scan",
-        "env_audit",
-        "network_map",
-        "sql_audit",
-        "auth_audit",
-        "container_audit",
-        "source_map_analyzer",
         "deep_analysis_pipeline",
         "security_report",
-        "pdf_security_report",
         "evidence_pack",
       ];
     case "trace_source_to_sink":
@@ -281,45 +264,82 @@ function getRunbookExtraTools(runbook: WorkRunbook): string[] {
         "flow_trace",
         "ast_grep",
         "candidate_revalidator",
+        "rg",
+        "read",
         "evidence_pack",
       ];
     case "evidence_only":
       return ["evidence_pack"];
     default:
-      return [];
+      return [...CORE_AGENT_TOOLS];
   }
 }
 
 export type AgentPathKind = "full" | "verify_only" | "chat_help" | string | undefined;
 
 /**
- * Resolve the canonical tool names advertised to the model for a run.
- * Returns null when the full catalog should be used (unknown/broad path).
+ * @deprecated Hard tool allowlists are no longer applied at runtime.
+ * Prefer {@link getPreferredToolsForRunbook} + system-prompt guidance.
+ * Always returns null so runners advertise the full catalog.
  */
 export function getAgentToolAllowlist(
+  _runbook: WorkRunbook,
+  _pathKind?: AgentPathKind,
+): string[] | null {
+  return null;
+}
+
+/**
+ * Preferred tools for the current runbook (and pathKind), for prompt guidance only.
+ * Does not restrict which tools the model may call.
+ */
+export function getPreferredToolsForRunbook(
   runbook: WorkRunbook,
   pathKind?: AgentPathKind,
-): string[] | null {
-  // chat_help: minimal tools; prefer answer from context.
+): string[] {
   if (pathKind === "chat_help") {
     return uniqueCanonical([...CORE_AGENT_TOOLS]);
   }
-
-  // verify_only: validation-focused set regardless of runbook drift.
   if (pathKind === "verify_only") {
     return uniqueCanonical([
       ...CORE_AGENT_TOOLS,
-      ...getRunbookExtraTools("validate_only"),
+      ...getRunbookPreferredTools("validate_only"),
     ]);
   }
 
-  if (pathKind !== undefined && pathKind !== "full") {
-    return null;
+  const preferred = getRunbookPreferredTools(runbook);
+  const fromExpectations = getToolExpectations(runbook).flatMap((item) => item.tools);
+  return uniqueCanonical([...CORE_AGENT_TOOLS, ...preferred, ...fromExpectations]);
+}
+
+/**
+ * Compact system-prompt block: prefer these tools first, but the full catalog remains available.
+ */
+export function renderToolPreferenceGuidance(
+  runbook: WorkRunbook,
+  pathKind?: AgentPathKind,
+): string {
+  const preferred = getPreferredToolsForRunbook(runbook, pathKind);
+  if (preferred.length === 0) {
+    return [
+      "Tool selection (full catalog available):",
+      "- Prefer answering from context already in this prompt when it is sufficient.",
+      "- Call tools only when you need evidence not already provided.",
+      "- Prefer the smallest useful tool batch; do not explore for its own sake.",
+      "- Scope search/read tools tightly (path, include, maxResults) so results stay high-signal.",
+    ].join("\n");
   }
 
-  const extras = getRunbookExtraTools(runbook);
-  const fromExpectations = getToolExpectations(runbook).flatMap((item) => item.tools);
-  return uniqueCanonical([...CORE_AGENT_TOOLS, ...extras, ...fromExpectations]);
+  return [
+    "Tool selection (full catalog available — not restricted by allowlist):",
+    `- For this runbook (${runbook}${pathKind ? `, pathKind=${pathKind}` : ""}), prefer starting with: ${preferred.join(", ")}.`,
+    "- These are defaults, not a cage. Use any other registered tool (browser, fuzzer, scanners, validation, graph, etc.) when it is clearly the better fit.",
+    "- Prefer the minimum number of high-signal tool calls. Prefer scoped rg/read_many over broad tree/ls.",
+    "- Prefer repo_graph semantic tools before broad file reads when discovering unfamiliar code.",
+    "- Prefer reversible, read-only tools before mutating ones unless the task requires mutation.",
+    "- Stop once evidence supports a well-grounded answer; extra tool calls that would not change the conclusion are waste.",
+    "- When using search/scan tools, keep arguments scoped (path, include, maxResults, maxOutputChars) so returns stay useful — without avoiding the right tool.",
+  ].join("\n");
 }
 
 function uniqueCanonical(names: string[]): string[] {
