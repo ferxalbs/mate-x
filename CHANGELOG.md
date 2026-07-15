@@ -1,8 +1,44 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.14 (1) [Agent Loop and Tool Feedback Reliability]
+
+Improved conversational runs so agents progress from user intent through tool evidence without restarting, while activity timing and Git diagnostics now report useful, accurate results.
+
+### Agent loop continuity
+
+* Kept raw user input separate from Auto, Guided, Review, and Custom behavior policy instructions. Casual prompts such as `Hi` no longer inherit policy words like `commit` or `push`, trigger false execution intent, force an unnecessary tool round, or receive Work Engine validation warnings.
+* Moved behavior guidance into the system prompt through the structured autonomy policy, preserving tool authorization without exposing internal policy text inside the user message.
+* Added explicit tool-loop continuity guidance: after each tool result, continue from the latest evidence instead of quoting, paraphrasing, or re-analyzing the initial request.
+* Added regression coverage proving the submitted prompt remains raw while the selected behavior policy travels through structured run options.
+
+### Accurate response timing
+
+* Fixed completed responses showing `Worked for 0s` when visible trace events shared one timestamp or the final response event was hidden from the activity list.
+* Calculated elapsed time from the complete normalized trace, including the final-response timestamp, while keeping final-response content out of the visible activity rows.
+* Anchored the first event without a provider timestamp to the actual run start and later events to their receive time, preserving accurate live and completed durations.
+* Added focused duration and chat-store regression coverage.
+
+### More useful Git diagnostics
+
+* Upgraded `git_diag diff` from summary-only output to return bounded patch content alongside file, insertion, and deletion statistics, eliminating redundant file reads for normal change explanations.
+* Added optional repository-relative `path`, `contextLines`, and `maxChars` controls so agents can request focused diffs with 2,000–80,000 returned characters and up to 20 context lines.
+* Added explicit patch metadata (`totalChars`, `returnedChars`, and `truncated`) plus a recommended follow-up call when a patch exceeds the output limit.
+* Rejected absolute paths and parent traversal, preserved top-level clean-diff statistics for runtime compatibility, and made path-filtered statistics describe only the selected file.
+* Verified real tool output contains a valid `diff --git` patch header; focused tool tests, typecheck, lint, and diff safety checks pass.
+
+### Focused tool selection and context use
+
+* Added a compact core tool set for repository grounding and runbook-specific allowlists so models receive the tools relevant to the current workflow instead of carrying the full catalog on every request.
+* Added focused tool sets for explanation, review, patching, validation, security remediation, containment reporting, source-to-sink tracing, and evidence-only runs.
+* Canonicalized historical tool aliases before building model definitions, including Git, security, metadata, validation-plan, validation-persistence, and workspace-capability names.
+* Registered canonical validation aliases alongside their historical loader keys so advertised names resolve to the same real tool implementation.
+* Added per-tool model-output budgets: noisy search tools and scanners receive tighter limits while normal tools keep a larger default, reducing context waste without discarding stored evidence.
+* Added exclusive-batch metadata so tools marked exclusive or unsafe for parallel execution can be scheduled without competing workspace operations.
+
 ## Unreleased - 2026.07.13 (3) [Theme Colors Customization]
 
 Updated the default theme background colors:
+
 * Set night mode default background color to `#111111` in `src/styles/themes/dark.css`.
 * Set day mode default background color to `#ffffff` in `src/styles/themes/base.css`.
 

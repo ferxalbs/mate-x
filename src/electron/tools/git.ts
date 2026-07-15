@@ -5,6 +5,11 @@ import {
   formatToolFailure,
   formatToolSuccess,
 } from '../tool-result';
+import type { GitDiff, GitDiffPatch } from '../../contracts/git';
+
+const DEFAULT_DIFF_MAX_CHARS = 40_000;
+const MIN_DIFF_MAX_CHARS = 2_000;
+const MAX_DIFF_MAX_CHARS = 80_000;
 
 export const gitTool: Tool = {
   name: 'git_diag',
@@ -28,6 +33,22 @@ export const gitTool: Tool = {
         type: 'string',
         description: 'For show: commit hash prefix to inspect (matched against recent history).',
         minLength: 4,
+      },
+      path: {
+        type: 'string',
+        description: 'For diff: optional repository-relative file path to limit patch content.',
+      },
+      contextLines: {
+        type: 'number',
+        description: 'For diff: unchanged context lines around each hunk. Defaults to 3; max 20.',
+        minimum: 0,
+        maximum: 20,
+      },
+      maxChars: {
+        type: 'number',
+        description: 'For diff: maximum patch characters returned. Defaults to 40000; range 2000-80000.',
+        minimum: MIN_DIFF_MAX_CHARS,
+        maximum: MAX_DIFF_MAX_CHARS,
       },
     },
     required: ['operation'],
@@ -100,8 +121,29 @@ export const gitTool: Tool = {
           );
         }
         case 'diff': {
-          const diff = await git.getDiff();
-          return JSON.stringify(diff, null, 2);
+          const path = normalizeDiffPath(args.path);
+          if (args.path !== undefined && path === null) {
+            return formatToolFailure(
+              createToolError(
+                'INVALID_INPUT',
+                'path must be a repository-relative file path without parent traversal.',
+              ),
+              'git_diag',
+            );
+          }
+          const requestedContextLines = Number(args.contextLines);
+          const contextLines = Number.isFinite(requestedContextLines)
+            ? Math.min(20, Math.max(0, requestedContextLines))
+            : 3;
+          const maxChars = Math.min(
+            MAX_DIFF_MAX_CHARS,
+            Math.max(MIN_DIFF_MAX_CHARS, Number(args.maxChars) || DEFAULT_DIFF_MAX_CHARS),
+          );
+          const [diff, patch] = await Promise.all([
+            git.getDiff(),
+            git.getDiffPatch({ path: path || undefined, contextLines }),
+          ]);
+          return JSON.stringify(buildGitDiffResult(diff, patch, { path: path || null, maxChars }), null, 2);
         }
         default:
           return formatToolFailure(
@@ -128,3 +170,48 @@ export const gitTool: Tool = {
     }
   },
 };
+
+export function buildGitDiffResult(
+  diff: GitDiff,
+  patch: string,
+  options: { path: string | null; maxChars: number },
+): GitDiff & { selectedPath: string | null; patch: GitDiffPatch; recommendedNextAction?: string } {
+  const boundedPatch = patch.slice(0, options.maxChars);
+  const truncated = boundedPatch.length < patch.length;
+  const files = options.path
+    ? diff.files.filter((file) => file.file === options.path)
+    : diff.files;
+  return {
+    ...diff,
+    files,
+    insertions: options.path
+      ? files.reduce((total, file) => total + file.insertions, 0)
+      : diff.insertions,
+    deletions: options.path
+      ? files.reduce((total, file) => total + file.deletions, 0)
+      : diff.deletions,
+    selectedPath: options.path,
+    patch: {
+      patch: boundedPatch,
+      totalChars: patch.length,
+      returnedChars: boundedPatch.length,
+      truncated,
+    },
+    ...(truncated
+      ? {
+          recommendedNextAction:
+            'Call git_diag diff again with path set to one changed file, or increase maxChars up to 80000.',
+        }
+      : {}),
+  };
+}
+
+export function normalizeDiffPath(value: unknown): string | null {
+  if (value === undefined) return '';
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().replaceAll('\\', '/');
+  if (!normalized || normalized.startsWith('/') || normalized.split('/').includes('..')) {
+    return null;
+  }
+  return normalized;
+}
