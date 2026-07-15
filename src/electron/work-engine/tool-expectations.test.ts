@@ -5,7 +5,9 @@ import {
   CORE_AGENT_TOOLS,
   canonicalizeToolName,
   getAgentToolAllowlist,
+  getPreferredToolsForRunbook,
   getToolExpectations,
+  renderToolPreferenceGuidance,
 } from "./tool-expectations";
 import type { WorkRunbook } from "./types";
 
@@ -21,7 +23,7 @@ const RUNBOOKS: WorkRunbook[] = [
   "evidence_only",
 ];
 
-describe("tool expectations and allowlists", () => {
+describe("tool expectations and preferences", () => {
   test("canonicalizes historical aliases", () => {
     assert.equal(canonicalizeToolName("git"), "git_diag");
     assert.equal(canonicalizeToolName("secrets"), "secret_scan");
@@ -43,7 +45,7 @@ describe("tool expectations and allowlists", () => {
     }
   });
 
-  test("every expectation name is a registered registry key or will resolve via alias", () => {
+  test("every expectation name is a registered registry key", () => {
     const keys = new Set(lazyToolLoaders.map(([name]) => name));
     for (const runbook of RUNBOOKS) {
       for (const expectation of getToolExpectations(runbook)) {
@@ -58,42 +60,33 @@ describe("tool expectations and allowlists", () => {
     }
   });
 
-  test("patch allowlist includes edit/validate tools and excludes fuzzer/browser by default", () => {
-    const allow = getAgentToolAllowlist("patch_test_verify", "full");
-    assert.ok(allow);
-    assert.ok(allow!.includes("file_editor"));
-    assert.ok(allow!.includes("plan_validation"));
-    assert.ok(allow!.includes("run_tests"));
-    assert.ok(allow!.includes("sandbox_run"));
-    assert.equal(allow!.includes("fuzzer"), false);
-    assert.equal(allow!.includes("browser_prober"), false);
+  test("hard allowlists are disabled — full catalog always", () => {
+    for (const runbook of RUNBOOKS) {
+      assert.equal(getAgentToolAllowlist(runbook, "full"), null);
+      assert.equal(getAgentToolAllowlist(runbook, "chat_help"), null);
+      assert.equal(getAgentToolAllowlist(runbook, "verify_only"), null);
+    }
   });
 
-  test("chat_help uses core tools only", () => {
-    const allow = getAgentToolAllowlist("patch_test_verify", "chat_help");
-    assert.deepEqual(allow, [...CORE_AGENT_TOOLS].sort((a, b) => a.localeCompare(b)));
+  test("preferred tools are guidance for patch and prefer edit/validate first", () => {
+    const preferred = getPreferredToolsForRunbook("patch_test_verify", "full");
+    assert.ok(preferred.includes("file_editor"));
+    assert.ok(preferred.includes("plan_validation"));
+    assert.ok(preferred.includes("run_tests"));
+    // Preferences are not exclusive — capable agents still get the full catalog.
   });
 
-  test("verify_only focuses on validation tools", () => {
-    const allow = getAgentToolAllowlist("inspect_explain", "verify_only");
-    assert.ok(allow);
-    assert.ok(allow!.includes("plan_validation"));
-    assert.ok(allow!.includes("run_tests"));
-    assert.equal(allow!.includes("file_editor"), false);
+  test("preference guidance states full catalog is available", () => {
+    const text = renderToolPreferenceGuidance("patch_test_verify", "full");
+    assert.match(text, /full catalog available/i);
+    assert.match(text, /file_editor/);
+    assert.match(text, /prefer/i);
   });
 
-  test("unknown path kinds fall back to the full tool catalog", () => {
-    assert.equal(
-      getAgentToolAllowlist("patch_test_verify", "future_agent_path"),
-      null,
-    );
-  });
-
-  test("core tools are always present on full path runbooks", () => {
-    const allow = getAgentToolAllowlist("inspect_explain", "full");
-    assert.ok(allow);
+  test("core tools appear in preferred set for inspect", () => {
+    const preferred = getPreferredToolsForRunbook("inspect_explain", "full");
     for (const core of CORE_AGENT_TOOLS) {
-      assert.ok(allow!.includes(core), `missing core tool ${core}`);
+      assert.ok(preferred.includes(core), `missing preferred core tool ${core}`);
     }
   });
 });

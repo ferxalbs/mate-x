@@ -66,7 +66,6 @@ export async function requestRainyChatAgenticResponse({
   signal,
   engineeringTaskStatus,
   planningPhase,
-  allowedToolNames,
 }: {
   apiKey: string;
   history: string[];
@@ -86,8 +85,6 @@ export async function requestRainyChatAgenticResponse({
   signal?: AbortSignal;
   engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
   planningPhase?: boolean;
-  /** When set, only these tools are advertised to the model. */
-  allowedToolNames?: string[] | null;
 }): Promise<{
   toolExecutions: ToolExecutionRecord[];
   content: string;
@@ -99,13 +96,8 @@ export async function requestRainyChatAgenticResponse({
     ...historyMessages,
     { role: "user", content: buildChatUserContent(prompt, options.attachments) },
   ];
-  const chatTools = await toolService.getChatToolDefinitions(
-    allowedToolNames ? { names: allowedToolNames } : undefined,
-  );
-  const allowedToolSet =
-    allowedToolNames && allowedToolNames.length > 0
-      ? new Set(allowedToolNames)
-      : null;
+  // Full catalog: capable models choose tools; system prompt steers preference.
+  const chatTools = await toolService.getChatToolDefinitions();
   const tokenEstimator = createTokenEstimator(model);
   let iterations = 0;
   let toolRounds = 0;
@@ -417,14 +409,11 @@ export async function requestRainyChatAgenticResponse({
       0,
       Math.max(remainingBudget, 0),
     );
-    const executableToolCalls = budgetedToolCalls.filter((toolCall: AgentToolCall) => {
-      if (allowedToolSet && !allowedToolSet.has(toolCall.name)) {
-        return false;
-      }
-      return cleanCurrentChangeReview
+    const executableToolCalls = budgetedToolCalls.filter((toolCall: AgentToolCall) =>
+      cleanCurrentChangeReview
         ? isAllowedCleanReviewToolCall(toolCall)
-        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall);
-    });
+        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall),
+    );
     const executableToolCallIds = new Set(
       executableToolCalls.map((toolCall: AgentToolCall) => toolCall.id),
     );
@@ -432,11 +421,9 @@ export async function requestRainyChatAgenticResponse({
       (toolCall: AgentToolCall) => !executableToolCallIds.has(toolCall.id),
     );
     const rejectedToolCallContent = (toolCall: AgentToolCall) =>
-      allowedToolSet && !allowedToolSet.has(toolCall.name)
-        ? `Tool ${toolCall.name} was not executed because it is outside this mission's tool set. Available tools: ${allowedToolNames?.join(", ") ?? "core tools"}.`
-        : currentChangeReview
-          ? `Tool ${toolCall.name} was not executed because it is outside current-change review scope.`
-          : `Tool ${toolCall.name} was not executed because the tool-call budget is exhausted.`;
+      currentChangeReview
+        ? `Tool ${toolCall.name} was not executed because it is outside current-change review scope.`
+        : `Tool ${toolCall.name} was not executed because the tool-call budget is exhausted.`;
     const appendRejectedToolResults = () => {
       for (const toolCall of rejectedToolCalls) {
         messages.push({
@@ -475,12 +462,8 @@ export async function requestRainyChatAgenticResponse({
 
       messages.push({
         role: "user",
-        content: rejectedToolCalls.some(
-          (toolCall: AgentToolCall) =>
-            allowedToolSet && !allowedToolSet.has(toolCall.name),
-        )
-          ? `Use only the available mission tools: ${allowedToolNames?.join(", ") ?? "core tools"}.`
-          : "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
+        content:
+          "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
       });
       continue;
     }

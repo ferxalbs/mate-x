@@ -46,10 +46,12 @@ export interface ToolOperationalMeta {
   modelOutputBudgetChars?: number;
 }
 
-/** Default model-facing output budgets by category. */
-const DEFAULT_MODEL_OUTPUT_BUDGET_CHARS = 40_000;
-const NOISY_MODEL_OUTPUT_BUDGET_CHARS = 16_000;
-const SCAN_MODEL_OUTPUT_BUDGET_CHARS = 20_000;
+/**
+ * Default model-facing output budget matches the runtime hard ceiling.
+ * Prefer system-prompt guidance (scoped args) over tight per-tool caps that
+ * discard high-signal scan/search evidence from capable agents.
+ */
+const DEFAULT_MODEL_OUTPUT_BUDGET_CHARS = 80_000;
 
 const DEFAULT_READ_TIMEOUT_MS = 15_000;
 const DEFAULT_ANALYSIS_TIMEOUT_MS = 60_000;
@@ -802,34 +804,15 @@ export function listCataloguedToolNames(): string[] {
 
 /**
  * Characters of tool output to feed back into the model.
- * Noisy scanners/search tools get a tighter budget to protect context.
+ * Defaults to the hard ceiling; only an explicit meta.modelOutputBudgetChars
+ * overrides (for rare tools that must hard-cap). Context pressure is handled by
+ * mid-loop compression + system-prompt guidance to scope tool arguments.
  */
 export function getToolModelOutputBudgetChars(toolName: string): number {
   const meta = getToolOperationalMeta(toolName);
   if (typeof meta.modelOutputBudgetChars === "number" && meta.modelOutputBudgetChars > 0) {
     return meta.modelOutputBudgetChars;
   }
-
-  if (
-    meta.categories.includes("search") ||
-    toolName === "rg" ||
-    toolName === "tree" ||
-    toolName === "find" ||
-    toolName === "glob" ||
-    toolName === "ls"
-  ) {
-    return NOISY_MODEL_OUTPUT_BUDGET_CHARS;
-  }
-
-  if (
-    meta.categories.includes("analysis") ||
-    toolName.includes("scan") ||
-    toolName.includes("audit") ||
-    toolName.includes("fuzzer")
-  ) {
-    return SCAN_MODEL_OUTPUT_BUDGET_CHARS;
-  }
-
   return DEFAULT_MODEL_OUTPUT_BUDGET_CHARS;
 }
 

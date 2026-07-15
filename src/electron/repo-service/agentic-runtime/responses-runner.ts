@@ -50,7 +50,6 @@ export async function requestRainyResponsesAgenticResponse({
   signal,
   engineeringTaskStatus,
   planningPhase: _planningPhase,
-  allowedToolNames,
 }: {
   apiKey: string;
   history: string[];
@@ -68,8 +67,6 @@ export async function requestRainyResponsesAgenticResponse({
   signal?: AbortSignal;
   engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
   planningPhase?: boolean;
-  /** When set, only these tools are advertised to the model. */
-  allowedToolNames?: string[] | null;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
@@ -80,13 +77,8 @@ export async function requestRainyResponsesAgenticResponse({
     ...buildHistoryMessages(history),
     { role: "user", content: prompt },
   ]);
-  const responseTools = await toolService.getResponsesToolDefinitions(
-    allowedToolNames ? { names: allowedToolNames } : undefined,
-  );
-  const allowedToolSet =
-    allowedToolNames && allowedToolNames.length > 0
-      ? new Set(allowedToolNames)
-      : null;
+  // Full catalog: capable models choose tools; system prompt steers preference.
+  const responseTools = await toolService.getResponsesToolDefinitions();
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
@@ -277,14 +269,11 @@ export async function requestRainyResponsesAgenticResponse({
       0,
       Math.max(remainingBudget, 0),
     );
-    const executableToolCalls = budgetedToolCalls.filter((toolCall: AgentToolCall) => {
-      if (allowedToolSet && !allowedToolSet.has(toolCall.name)) {
-        return false;
-      }
-      return cleanCurrentChangeReview
+    const executableToolCalls = budgetedToolCalls.filter((toolCall: AgentToolCall) =>
+      cleanCurrentChangeReview
         ? isAllowedCleanReviewToolCall(toolCall)
-        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall);
-    });
+        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall),
+    );
     const executableToolCallIds = new Set(
       executableToolCalls.map((toolCall: AgentToolCall) => toolCall.id),
     );
@@ -292,11 +281,9 @@ export async function requestRainyResponsesAgenticResponse({
       (toolCall: AgentToolCall) => !executableToolCallIds.has(toolCall.id),
     );
     const rejectedToolCallContent = (toolCall: AgentToolCall) =>
-      allowedToolSet && !allowedToolSet.has(toolCall.name)
-        ? `Tool ${toolCall.name} was not executed because it is outside this mission's tool set. Available tools: ${allowedToolNames?.join(", ") ?? "core tools"}.`
-        : currentChangeReview
-          ? `Tool ${toolCall.name} was not executed because it is outside current-change review scope.`
-          : `Tool ${toolCall.name} was not executed because the tool-call budget is exhausted.`;
+      currentChangeReview
+        ? `Tool ${toolCall.name} was not executed because it is outside current-change review scope.`
+        : `Tool ${toolCall.name} was not executed because the tool-call budget is exhausted.`;
     const buildRejectedToolResults = () =>
       rejectedToolCalls.map((toolCall: AgentToolCall) => ({
         type: "function_call_output" as const,
@@ -346,12 +333,7 @@ export async function requestRainyResponsesAgenticResponse({
           content: [
             {
               type: "input_text",
-              text: rejectedToolCalls.some(
-                (toolCall: AgentToolCall) =>
-                  allowedToolSet && !allowedToolSet.has(toolCall.name),
-              )
-                ? `Use only the available mission tools: ${allowedToolNames?.join(", ") ?? "core tools"}.`
-                : "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
+              text: "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
             },
           ],
         },

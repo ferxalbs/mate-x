@@ -53,8 +53,10 @@ describe("tool metadata catalog", () => {
     assert.equal(isToolBatchExclusive("rg"), false);
   });
 
-  test("noisy search tools get tighter model output budgets", () => {
-    assert.ok(getToolModelOutputBudgetChars("rg") < getToolModelOutputBudgetChars("file_editor") || getToolModelOutputBudgetChars("rg") <= 20_000);
-    assert.ok(getToolModelOutputBudgetChars("rg") <= 20_000);
+  test("default model output budgets match the hard ceiling so capable agents keep full results", () => {
+    assert.equal(getToolModelOutputBudgetChars("rg"), 80_000);
+    assert.equal(getToolModelOutputBudgetChars("file_editor"), 80_000);
+    assert.equal(getToolModelOutputBudgetChars("attack_surface_scan"), 80_000);
   });
 });
+

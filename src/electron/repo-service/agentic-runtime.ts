@@ -20,7 +20,7 @@ import { buildAgentRuntimeConfig } from "./agentic-runtime/config";
 import { appendAttachmentContext } from "./agentic-runtime/helpers";
 import { requestRainyResponsesAgenticResponse } from "./agentic-runtime/responses-runner";
 import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
-import { getAgentToolAllowlist } from "../work-engine/tool-expectations";
+import { renderToolPreferenceGuidance } from "../work-engine/tool-expectations";
 
 // Re-exports for absolute backward-compatibility
 export * from "./agentic-runtime/types";
@@ -273,6 +273,7 @@ Repo Intelligence efficiency contract:
 - Patch planning: combine semantic_search with get_impacted_files and get_tests_for_file so validation targets affected behavior, not the whole repo by default.
 - Evidence standard: graph results guide exploration; confirmed claims still require source, diff, command, or security-tool evidence.
 ${buildRunbookPlaybookSection(workPlan.runbook)}
+${renderToolPreferenceGuidance(workPlan.runbook, options.pathKind)}
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
@@ -286,22 +287,8 @@ Structured runbook contract (must follow):
 ${renderRunbookForPrompt(runbookDefinition)}`;
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
   const serviceTier = options.serviceTier;
-  const allowedToolNames = getAgentToolAllowlist(
-    workPlan.runbook,
-    options.pathKind,
-  );
 
-  if (allowedToolNames) {
-    events.push({
-      id: "step-tool-allowlist",
-      label: "Mission tool set",
-      detail: `Advertising ${allowedToolNames.length} tools for runbook ${workPlan.runbook} (pathKind=${options.pathKind ?? "full"}).`,
-      status: "done",
-      segmentKind: "tool",
-      visibility: "technical",
-    });
-  }
-
+  // Full tool catalog is advertised; preferred tools are system-prompt guidance only.
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({
       apiKey,
@@ -320,7 +307,6 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       signal,
       engineeringTaskStatus,
       planningPhase,
-      allowedToolNames,
     });
   }
 
@@ -343,6 +329,5 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     signal,
     engineeringTaskStatus,
     planningPhase,
-    allowedToolNames,
   });
 }
