@@ -264,8 +264,10 @@ export function mergeTimelineSegments(
   previous: ChatMessage["events"],
   incoming: AssistantProgressPayload["events"],
   _progress: Pick<AssistantProgressPayload, "runId">,
+  startedAt?: string,
 ) {
   const merged = new Map((previous ?? []).map((event) => [event.id, event]));
+  const receivedAt = new Date().toISOString();
 
   incoming.forEach((event, index) => {
     const segmentId = event.segmentId ?? event.id;
@@ -273,7 +275,11 @@ export function mergeTimelineSegments(
     const normalized = normalizeToolEvent({ ...current, ...event, id: segmentId, segmentId }, {
       runId: event.runId,
       sequence: current?.sequence ?? event.sequence ?? (previous?.length ?? 0) + index,
-      timestamp: event.timestamp ?? new Date().toISOString(),
+      timestamp:
+        event.timestamp ??
+        current?.timestamp ??
+        (merged.size === 0 && index === 0 ? startedAt : undefined) ??
+        receivedAt,
     });
     merged.set(segmentId, normalized);
   });
@@ -317,7 +323,7 @@ function applyAssistantProgress(
                       ...message,
                       content: progress.content,
                       thought: progress.thought,
-                      events: mergeTimelineSegments(message.events, progress.events, progress),
+                      events: mergeTimelineSegments(message.events, progress.events, progress, message.createdAt),
                       artifacts: progress.artifacts,
                     },
               ),
@@ -327,7 +333,7 @@ function applyAssistantProgress(
                   : {
                       ...run,
                       status: progress.status,
-                      events: mergeTimelineSegments(run.events, progress.events, progress),
+                      events: mergeTimelineSegments(run.events, progress.events, progress, run.startedAt),
                       artifacts: progress.artifacts,
                     },
               ),

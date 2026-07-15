@@ -19,9 +19,9 @@ import {
 import type { AppSettings } from '../contracts/settings';
 import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
-import { buildHomePageSubmitOptions } from './home-page-submit-options';
+import { buildHomePageSubmission } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
-import { DEFAULT_BEHAVIOR_PREFERENCE, behaviorInstruction, behaviorRunOptions, type BehaviorPreference } from '../contracts/behavior-mode';
+import { DEFAULT_BEHAVIOR_PREFERENCE, type BehaviorPreference } from '../contracts/behavior-mode';
 import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
 import { updateWorkspaceTrustContract } from '../services/repo-client';
 import type { WorkspaceTrustAutonomy } from '../contracts/workspace';
@@ -67,18 +67,15 @@ export function HomePage() {
     isSubmitting.current = true;
     
     try {
-      const behaviorOptions = behaviorRunOptions(behavior);
-      await submitPrompt(`${behaviorInstruction(behavior)}\n\nUser request: ${prompt}`, {
-        ...buildHomePageSubmitOptions({
-          ...behaviorOptions,
-          ...overrides,
+      const submission = buildHomePageSubmission(prompt, behavior, {
+        ...overrides,
           // Resume same EngineeringTask when present — never second Capture on approve.
-          engineeringTaskId:
-            overrides?.engineeringTaskId ??
-            activeEngineeringTask?.engineeringTaskId ??
-            null,
-        }),
+        engineeringTaskId:
+          overrides?.engineeringTaskId ??
+          activeEngineeringTask?.engineeringTaskId ??
+          null,
       });
+      await submitPrompt(submission.prompt, submission.options);
     } catch (err) {
       toastManager.add({
         type: "error",

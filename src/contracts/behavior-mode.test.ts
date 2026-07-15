@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   DEFAULT_BEHAVIOR_PREFERENCE,
+  autonomyPolicyInstruction,
   behaviorInstruction,
   behaviorRunOptions,
   shouldAskQuestion,
@@ -22,6 +23,10 @@ describe("behavior modes", () => {
       autonomyPolicy: { id: "auto_scoped" },
     });
     assert.match(behaviorInstruction(DEFAULT_BEHAVIOR_PREFERENCE), /edit and validate without ceremony/);
+    assert.equal(
+      autonomyPolicyInstruction({ id: "auto_scoped" }),
+      behaviorInstruction(DEFAULT_BEHAVIOR_PREFERENCE),
+    );
   });
 
   it("Guided requires inline approval", () => {

@@ -31,4 +31,13 @@ describe("agent execution duration", () => {
       event("invalid", "not-a-date"),
     ]))).toMatch(/^0$/);
   });
+
+  test("includes final-response timestamp in completed duration", () => {
+    const timeline = [
+      event("reasoning", "2026-07-13T01:00:00.000Z"),
+      { ...event("final", "2026-07-13T01:00:04.000Z"), segmentKind: "final_response" as const },
+    ];
+
+    expect(formatDuration(getTimelineDuration(timeline))).toMatch(/^4s$/);
+  });
 });

@@ -13,22 +13,20 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   thought?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const timeline = useMemo(() => {
-    const normalized = events.reduce<ToolEvent[]>((result, event, sequence) => {
-      const segment = normalizeToolEvent(event, { sequence });
-      if (segment.segmentKind !== "final_response" && segment.visibility !== "technical" && segment.visibility !== "restricted") {
-        result.push(segment);
-      }
-      return result;
-    }, []);
-    return normalized.sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0));
+  const normalizedEvents = useMemo(() => {
+    return events
+      .map((event, sequence) => normalizeToolEvent(event, { sequence }))
+      .sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0));
   }, [events]);
+  const timeline = normalizedEvents.filter(
+    (segment) => segment.segmentKind !== "final_response" && segment.visibility !== "technical" && segment.visibility !== "restricted",
+  );
   const settledTimeline = isRunning
     ? timeline
     : timeline.filter((event) => event.status !== "active" && event.status !== "queued");
   const errors = settledTimeline.filter((event) => ["error", "failed", "blocked"].includes(event.status));
   const visible = isRunning || expanded ? settledTimeline : errors;
-  const duration = useRunDuration(timeline, isRunning);
+  const duration = useRunDuration(normalizedEvents, isRunning);
 
   if (timeline.length === 0) return null;
 

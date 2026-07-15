@@ -38,4 +38,15 @@ describe("HomePage submit options", () => {
       "review_classify_summarize",
     );
   });
+
+  it("keeps user input separate from behavior policy", async () => {
+    const { buildHomePageSubmission } = await import("./home-page-submit-options");
+    const { DEFAULT_BEHAVIOR_PREFERENCE } = await import("../contracts/behavior-mode");
+
+    const submission = buildHomePageSubmission("Hi", DEFAULT_BEHAVIOR_PREFERENCE);
+
+    assert.equal(submission.prompt, "Hi");
+    assert.equal(submission.options.autonomyPolicy?.id, "auto_scoped");
+    assert.doesNotMatch(submission.prompt, /AUTO:|User request:/);
+  });
 });
