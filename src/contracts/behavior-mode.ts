@@ -88,6 +88,26 @@ export function behaviorInstruction(preference: BehaviorPreference): string {
   }
 }
 
+export function autonomyPolicyInstruction(policy?: AutonomyPolicy): string {
+  if (!policy) return "";
+  if (policy.id === "custom") {
+    return behaviorInstruction({
+      mode: "custom",
+      custom: policy.custom ?? DEFAULT_CUSTOM_BEHAVIOR,
+    });
+  }
+  const modeByPolicy: Record<Exclude<AutonomyPolicyId, "custom">, BehaviorMode> = {
+    auto_scoped: "auto",
+    guided_approval: "guided",
+    review_read_only: "review",
+  };
+  return behaviorInstruction(preference(modeByPolicy[policy.id]));
+}
+
+function preference(mode: BehaviorMode): BehaviorPreference {
+  return { mode, custom: DEFAULT_CUSTOM_BEHAVIOR };
+}
+
 export function shouldAskQuestion(input: {
   evidenceSufficient: boolean;
   materialAmbiguity: boolean;

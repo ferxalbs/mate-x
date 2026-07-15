@@ -9,6 +9,7 @@ import type { AssistantRunbookDefinition, AssistantRunOptions, ToolEvent } from 
 import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } from "../../contracts/rainy";
 import { supportsTools } from "../../lib/rainy-model-capabilities";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../config/mate-agent";
+import { autonomyPolicyInstruction } from "../../contracts/behavior-mode";
 import { renderRunbookForPrompt } from "../assistant-runbooks";
 import { renderTrustContractForPrompt } from "../workspace-trust";
 import type { AppSettings } from "../../contracts/settings";
@@ -123,6 +124,12 @@ Reasoning level: ${options.reasoning}
 Reasoning enabled: ${options.reasoningEnabled ? "yes" : "no"}
 Filesystem access policy: ${options.access}
 Execution intent detected: ${runtime.executionIntent ? "yes - at least one tool-backed pass is required before the final answer" : "no"}
+Behavior mode policy: ${autonomyPolicyInstruction(options.autonomyPolicy) || "default"}
+
+Tool-loop continuity:
+- After a tool result, continue from that result and prior assistant tool call.
+- Do not restart from, quote, paraphrase, or re-analyze the initial user request.
+- Do not repeat analysis already emitted in an earlier pass. Produce only new progress toward the final answer.
 
 ${renderTrustContractForPrompt(snapshot.trustContract)}
 
