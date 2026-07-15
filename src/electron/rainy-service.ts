@@ -10,6 +10,8 @@ import { MATE_AGENT_SYSTEM_PROMPT } from "../config/mate-agent";
 import {
   RAINY_API_BASE_URL,
   RAINY_REQUEST_TIMEOUT_MS,
+  RAINY_AGENT_REQUEST_TIMEOUT_MS,
+  RAINY_AGENT_XHIGH_REQUEST_TIMEOUT_MS,
   normalizeRainyApiMode,
 } from "../config/rainy";
 import {
@@ -37,9 +39,25 @@ import {
 /** Lazy OpenAI SDK — avoids ~400KB static pull into main-process startup for catalog-only IPC. */
 let openAIModulePromise: Promise<typeof import("openai")> | null = null;
 
+/** Reuse one OpenAI client per API key for the agent loop lifetime. */
+const rainyClientCache = new Map<string, OpenAI>();
+
 function loadOpenAIModule() {
   openAIModulePromise ??= import("openai");
   return openAIModulePromise;
+}
+
+export function resolveRainyAgentTimeoutMs(options?: {
+  reasoningEnabled?: boolean;
+  reasoning?: string;
+}): number {
+  if (options?.reasoning === "xhigh") {
+    return RAINY_AGENT_XHIGH_REQUEST_TIMEOUT_MS;
+  }
+  if (options?.reasoningEnabled || options?.reasoning) {
+    return RAINY_AGENT_REQUEST_TIMEOUT_MS;
+  }
+  return RAINY_AGENT_REQUEST_TIMEOUT_MS;
 }
 
 async function getPrivacyFirewall() {
@@ -110,11 +128,23 @@ let cachedLaunches: {
 } | null = null;
 
 async function createRainyClient(apiKey: string): Promise<OpenAI> {
-  const { default: OpenAI } = await loadOpenAIModule();
-  return new OpenAI({
+  const cached = rainyClientCache.get(apiKey);
+  if (cached) {
+    return cached;
+  }
+
+  const { default: OpenAICtor } = await loadOpenAIModule();
+  const client = new OpenAICtor({
     apiKey,
     baseURL: RAINY_API_ROOT_URL,
   });
+  rainyClientCache.set(apiKey, client);
+  return client;
+}
+
+/** Test/helper: drop cached clients (e.g. after key rotation). */
+export function clearRainyClientCache() {
+  rainyClientCache.clear();
 }
 
 function buildChatCompletionsInput(userContext: string) {
@@ -832,8 +862,11 @@ export async function requestRainyChatCompletionStream(params: {
   maxTokens?: number;
   serviceTier?: RainyServiceTier;
   signal?: AbortSignal;
+  /** Override request timeout (agent loops use longer budgets). */
+  timeoutMs?: number;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = await createRainyClient(params.apiKey);
+  const requestTimeoutMs = params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS;
   const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
     messages: params.messages,
     tools: params.tools,
@@ -864,7 +897,7 @@ export async function requestRainyChatCompletionStream(params: {
   try {
     stream = (await client.chat.completions.create(
       { ...request, stream: true } as any,
-      { signal: params.signal, timeout: RAINY_REQUEST_TIMEOUT_MS },
+      { signal: params.signal, timeout: requestTimeoutMs },
     )) as unknown as AsyncIterable<any>;
   } catch (error) {
     if (!params.toolChoice || !isUnsupportedToolChoiceError(error)) {
@@ -886,7 +919,7 @@ export async function requestRainyChatCompletionStream(params: {
         }),
         stream: true,
       } as any,
-      { signal: params.signal, timeout: RAINY_REQUEST_TIMEOUT_MS },
+      { signal: params.signal, timeout: requestTimeoutMs },
     )) as unknown as AsyncIterable<any>;
   }
 
@@ -925,7 +958,7 @@ export async function requestRainyChatCompletionStream(params: {
     }
 
     const response = await client.chat.completions.create(request as any, {
-      timeout: RAINY_REQUEST_TIMEOUT_MS,
+      timeout: requestTimeoutMs,
     });
     const message = response.choices?.[0]?.message;
     const content = extractTextFromChatPayload(response);
@@ -971,6 +1004,8 @@ export async function requestRainyResponsesCompletion(params: {
   toolChoice?: "auto" | "required" | "none";
   serviceTier?: RainyServiceTier;
   signal?: AbortSignal;
+  /** Override request timeout (agent loops use longer budgets). */
+  timeoutMs?: number;
 }): Promise<OpenAIResponse> {
   const client = await createRainyClient(params.apiKey);
   const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
@@ -983,6 +1018,7 @@ export async function requestRainyResponsesCompletion(params: {
   }
 
   const serviceTier = normalizeRainyServiceTier(params.serviceTier);
+  // store: false — do not retain agent turns on the provider for privacy/local-first.
   return client.responses.create(
     {
       model: params.model,
@@ -996,7 +1032,7 @@ export async function requestRainyResponsesCompletion(params: {
     } as any,
     {
       signal: params.signal,
-      timeout: RAINY_REQUEST_TIMEOUT_MS,
+      timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
     },
   );
 }

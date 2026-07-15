@@ -1,5 +1,56 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.14 (2) [Agent Speed, Accuracy, and Tool-Loop Optimization]
+
+Made the agent tool loop faster and more accurate: scoped tool catalogs by runbook, enforced safe parallel tool batches, tightened model-facing output budgets, improved OpenAI/Rainy client usage, and reduced system-prompt noise for simple tasks.
+
+### Mission-scoped tool catalogs
+
+* Added `getAgentToolAllowlist(runbook, pathKind)` with a compact core set (`rg`, `read`, `read_many`, `repo_graph`, `git_diag`, `glob`, `ls`, `pwd`, `find_similar_failures`) plus runbook-specific extras for inspect, review, patch, validate, audit, scan/report, trace, and evidence-only workflows.
+* Wired allowlists into both chat-completions and Responses agent runners so each model request advertises only the mission tool set instead of the full ~61-tool catalog.
+* Scoped `chat_help` to core tools and `verify_only` to validation-focused tools regardless of runbook drift.
+* When the model requests a tool outside the mission set, the loop skips it and nudges with the available tool list rather than failing silently or expanding the full catalog.
+* Emitted a technical Mission tool set step event with allowlist size and runbook/pathKind for run transparency.
+
+### Faster tool definition loading
+
+* Extended `ToolService.getChatToolDefinitions` / `getResponsesToolDefinitions` to accept optional `{ names }` filters and load only those tools, avoiding cold-start import of unused scanners (browser, fuzzer, etc.).
+* Cached filtered definition sets by sorted name key; full-catalog cache behavior remains for unfiltered callers.
+* Registered canonical loader aliases for `plan_validation`, `verify_validation_persistence`, and `detect_workspace_capabilities` so filtered resolution matches advertised tool names.
+* Chat function definitions now request `strict: true` (with type cast for provider compatibility); Responses definitions already used strict schemas.
+
+### Parallel-safe tool batching
+
+* Added `executeToolBatchWithSafety`: parallel-safe tools still run with concurrency up to 8; tools marked `exclusive` or `parallelSafe: false` run serially after reads complete.
+* Replaced flat `mapWithConcurrency` batches in both `chat-runner` and `responses-runner` with the safety-aware scheduler so mutators such as `file_editor` and `sandbox_run` no longer race.
+* Added `isToolBatchExclusive` and regression coverage proving exclusive tools never overlap and run after parallel reads.
+
+### Model output budgets and Responses context hygiene
+
+* Added `getToolModelOutputBudgetChars` and `truncateToolOutputForModel` so model-facing tool results use tighter limits for noisy search/scan tools (~16–20k) while keeping a hard 80k ceiling.
+* Tool executor now truncates for model context by tool metadata rather than only the global ceiling.
+* Added `compressResponsesInputItems` for the Responses path: large `function_call_output` and long message text items are head/tail truncated before the next turn (chat path already had mid-loop compression).
+
+### OpenAI SDK / Rainy client quality
+
+* Reused one OpenAI client per API key via an in-process cache (`clearRainyClientCache` for rotation/tests); kept lazy `import("openai")` to avoid startup weight.
+* Added agent-generation timeouts separate from catalog/list/embedding defaults: 90s for agent loops, 120s for `xhigh` reasoning (`RAINY_AGENT_REQUEST_TIMEOUT_MS` / `RAINY_AGENT_XHIGH_REQUEST_TIMEOUT_MS`).
+* Passed agent timeouts into chat stream and Responses completion requests from both runners.
+* Chat path now sets `tool_choice: "none"` when the tool budget is exhausted (parity with Responses).
+* Documented Responses `store: false` as intentional local-first privacy (do not retain agent turns on the provider).
+
+### System prompt and canonical naming
+
+* Split long security, validation, reproduction, and review playbooks into runbook-conditional sections so simple inspect/answer runs no longer carry full audit playbooks every pass.
+* Canonicalized tool expectations (`git_diag` not `git`, and related pairs) and alias normalization for allowlist/expectation construction.
+* Added `scan_contain_report` expectation coverage and expanded allowlist extras aligned with Work Engine runbooks.
+
+### Tests and documentation
+
+* Added unit tests for allowlists, registry aliases, batch safety, model output budgets, and Responses input compression.
+* Extended tool-metadata and tool-registry tests for exclusive scheduling and validation aliases.
+* Added `docs/agent-runtime.md` describing the custom OpenAI tool loop, allowlists, batch safety, dual-path parity, and timeouts (local docs tree).
+
 ## Unreleased - 2026.07.14 (1) [Agent Loop and Tool Feedback Reliability]
 
 Improved conversational runs so agents progress from user intent through tool evidence without restarting, while activity timing and Git diagnostics now report useful, accurate results.
@@ -25,15 +76,6 @@ Improved conversational runs so agents progress from user intent through tool ev
 * Added explicit patch metadata (`totalChars`, `returnedChars`, and `truncated`) plus a recommended follow-up call when a patch exceeds the output limit.
 * Rejected absolute paths and parent traversal, preserved top-level clean-diff statistics for runtime compatibility, and made path-filtered statistics describe only the selected file.
 * Verified real tool output contains a valid `diff --git` patch header; focused tool tests, typecheck, lint, and diff safety checks pass.
-
-### Focused tool selection and context use
-
-* Added a compact core tool set for repository grounding and runbook-specific allowlists so models receive the tools relevant to the current workflow instead of carrying the full catalog on every request.
-* Added focused tool sets for explanation, review, patching, validation, security remediation, containment reporting, source-to-sink tracing, and evidence-only runs.
-* Canonicalized historical tool aliases before building model definitions, including Git, security, metadata, validation-plan, validation-persistence, and workspace-capability names.
-* Registered canonical validation aliases alongside their historical loader keys so advertised names resolve to the same real tool implementation.
-* Added per-tool model-output budgets: noisy search tools and scanners receive tighter limits while normal tools keep a larger default, reducing context waste without discarding stored evidence.
-* Added exclusive-batch metadata so tools marked exclusive or unsafe for parallel execution can be scheduled without competing workspace operations.
 
 ## Unreleased - 2026.07.13 (3) [Theme Colors Customization]
 

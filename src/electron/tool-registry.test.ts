@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
 import { lazyToolLoaders } from "./tool-registry";
+import { ToolService } from "./tool-service";
 
 describe("tool registry", () => {
   test("has no duplicate registry keys", () => {
@@ -23,6 +24,12 @@ describe("tool registry", () => {
       "dependency_check",
       "pdf_report",
       "pdf_security_report",
+      "validation_plan",
+      "plan_validation",
+      "validation_persistence",
+      "verify_validation_persistence",
+      "validation_profile",
+      "detect_workspace_capabilities",
     ];
     for (const key of required) {
       assert.equal(keys.has(key), true, `missing registry key: ${key}`);
@@ -40,5 +47,20 @@ describe("tool registry", () => {
     const secrets = await byKey.get("secrets")!();
     const secretScan = await byKey.get("secret_scan")!();
     assert.equal(secrets.name, secretScan.name);
+  });
+
+  test("keeps explicit empty tool-definition filters empty", async () => {
+    const service = new ToolService();
+
+    assert.deepEqual(await service.getChatToolDefinitions({ names: [] }), []);
+    assert.deepEqual(await service.getResponsesToolDefinitions({ names: [] }), []);
+  });
+
+  test("keeps blank-only tool-definition filters empty", async () => {
+    const service = new ToolService();
+    const names = ["", "   ", "\t"];
+
+    assert.deepEqual(await service.getChatToolDefinitions({ names }), []);
+    assert.deepEqual(await service.getResponsesToolDefinitions({ names }), []);
   });
 });

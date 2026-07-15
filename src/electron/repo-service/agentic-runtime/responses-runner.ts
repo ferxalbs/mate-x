@@ -2,7 +2,14 @@ import type { ToolExecutionRecord } from "../../evidence-pack";
 import type { RepoSnapshot } from "../workspace";
 import type { AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
 import type { AppSettings } from "../../../contracts/settings";
-import { buildResponsesMessageInput, extractResponseThought, extractResponseFunctionCalls, requestRainyResponsesCompletion } from "../../rainy-service";
+import {
+  buildResponsesMessageInput,
+  extractResponseThought,
+  extractResponseFunctionCalls,
+  requestRainyResponsesCompletion,
+  resolveRainyAgentTimeoutMs,
+} from "../../rainy-service";
+import { compressResponsesInputItems } from "../../context-compression";
 import { toolService } from "../../tool-service";
 import type { AgentToolCall } from "./types";
 import {
@@ -18,7 +25,7 @@ import {
   isCleanCurrentChangeReview,
   isCleanGitDiffToolResult,
   isCurrentChangeReviewPrompt,
-  mapWithConcurrency,
+  executeToolBatchWithSafety,
   summarizeCheckpoint,
   appendAssistantPass,
 } from "./helpers";
@@ -43,6 +50,7 @@ export async function requestRainyResponsesAgenticResponse({
   signal,
   engineeringTaskStatus,
   planningPhase: _planningPhase,
+  allowedToolNames,
 }: {
   apiKey: string;
   history: string[];
@@ -60,6 +68,8 @@ export async function requestRainyResponsesAgenticResponse({
   signal?: AbortSignal;
   engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
   planningPhase?: boolean;
+  /** When set, only these tools are advertised to the model. */
+  allowedToolNames?: string[] | null;
 }): Promise<{
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
@@ -70,7 +80,13 @@ export async function requestRainyResponsesAgenticResponse({
     ...buildHistoryMessages(history),
     { role: "user", content: prompt },
   ]);
-  const responseTools = await toolService.getResponsesToolDefinitions();
+  const responseTools = await toolService.getResponsesToolDefinitions(
+    allowedToolNames ? { names: allowedToolNames } : undefined,
+  );
+  const allowedToolSet =
+    allowedToolNames && allowedToolNames.length > 0
+      ? new Set(allowedToolNames)
+      : null;
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
@@ -108,6 +124,12 @@ export async function requestRainyResponsesAgenticResponse({
     });
     emitProgress();
 
+    // Truncate large function_call_output items before the next Responses turn
+    // (chat path has applyContextCompressionChat; Responses needs local parity).
+    if (Array.isArray(nextInput)) {
+      nextInput = compressResponsesInputItems(nextInput);
+    }
+
     const response = await requestRainyResponsesCompletion({
       apiKey,
       model,
@@ -125,6 +147,10 @@ export async function requestRainyResponsesAgenticResponse({
             : "auto",
       serviceTier,
       signal,
+      timeoutMs: resolveRainyAgentTimeoutMs({
+        reasoningEnabled: options.reasoningEnabled,
+        reasoning: options.reasoning,
+      }),
     });
 
     previousResponseId = response.id;
@@ -247,14 +273,36 @@ export async function requestRainyResponsesAgenticResponse({
     const remainingBudget = runtime.maxToolCalls - totalToolCalls;
     const currentChangeReview = isCurrentChangeReviewPrompt(prompt.toLowerCase());
     const cleanCurrentChangeReview = isCleanCurrentChangeReview(prompt, snapshot);
-    const executableToolCalls = toolCalls.slice(
+    const budgetedToolCalls = toolCalls.slice(
       0,
       Math.max(remainingBudget, 0),
-    ).filter((toolCall: AgentToolCall) =>
-      cleanCurrentChangeReview
-        ? isAllowedCleanReviewToolCall(toolCall)
-        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall),
     );
+    const executableToolCalls = budgetedToolCalls.filter((toolCall: AgentToolCall) => {
+      if (allowedToolSet && !allowedToolSet.has(toolCall.name)) {
+        return false;
+      }
+      return cleanCurrentChangeReview
+        ? isAllowedCleanReviewToolCall(toolCall)
+        : !currentChangeReview || isAllowedCurrentChangeReviewToolCall(toolCall);
+    });
+    const executableToolCallIds = new Set(
+      executableToolCalls.map((toolCall: AgentToolCall) => toolCall.id),
+    );
+    const rejectedToolCalls = toolCalls.filter(
+      (toolCall: AgentToolCall) => !executableToolCallIds.has(toolCall.id),
+    );
+    const rejectedToolCallContent = (toolCall: AgentToolCall) =>
+      allowedToolSet && !allowedToolSet.has(toolCall.name)
+        ? `Tool ${toolCall.name} was not executed because it is outside this mission's tool set. Available tools: ${allowedToolNames?.join(", ") ?? "core tools"}.`
+        : currentChangeReview
+          ? `Tool ${toolCall.name} was not executed because it is outside current-change review scope.`
+          : `Tool ${toolCall.name} was not executed because the tool-call budget is exhausted.`;
+    const buildRejectedToolResults = () =>
+      rejectedToolCalls.map((toolCall: AgentToolCall) => ({
+        type: "function_call_output" as const,
+        call_id: toolCall.id,
+        output: rejectedToolCallContent(toolCall),
+      }));
 
     if (executableToolCalls.length === 0) {
       if (cleanCurrentChangeReview) {
@@ -275,6 +323,7 @@ export async function requestRainyResponsesAgenticResponse({
 
       if (currentChangeReview) {
         nextInput = [
+          ...buildRejectedToolResults(),
           {
             type: "message",
             role: "user",
@@ -290,13 +339,19 @@ export async function requestRainyResponsesAgenticResponse({
       }
 
       nextInput = [
+        ...buildRejectedToolResults(),
         {
           type: "message",
           role: "user",
           content: [
             {
               type: "input_text",
-              text: "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
+              text: rejectedToolCalls.some(
+                (toolCall: AgentToolCall) =>
+                  allowedToolSet && !allowedToolSet.has(toolCall.name),
+              )
+                ? `Use only the available mission tools: ${allowedToolNames?.join(", ") ?? "core tools"}.`
+                : "Tool budget is exhausted. Synthesize the evidence you already collected and conclude.",
             },
           ],
         },
@@ -312,7 +367,7 @@ export async function requestRainyResponsesAgenticResponse({
     });
     emitProgress();
 
-    const toolResults = await mapWithConcurrency(
+    const toolResults = await executeToolBatchWithSafety(
       executableToolCalls,
       TOOL_BATCH_MAX_CONCURRENCY,
       (toolCall: AgentToolCall, toolIndex: number) =>
@@ -350,11 +405,17 @@ export async function requestRainyResponsesAgenticResponse({
         content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
       };
     }
-    nextInput = toolResults.map((result: any) => ({
-      type: "function_call_output" as const,
-      call_id: result.toolCallId,
-      output: result.content,
-    }));
+    const toolResultsByCallId = new Map(
+      toolResults.map((result: any) => [result.toolCallId, result]),
+    );
+    nextInput = toolCalls.map((toolCall: AgentToolCall) => {
+      const result = toolResultsByCallId.get(toolCall.id) as any;
+      return {
+        type: "function_call_output" as const,
+        call_id: toolCall.id,
+        output: result?.content ?? rejectedToolCallContent(toolCall),
+      };
+    });
 
     if (totalToolCalls >= runtime.maxToolCalls) {
       nextInput.push({
