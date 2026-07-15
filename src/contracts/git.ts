@@ -37,3 +37,10 @@ export interface GitDiff {
   insertions: number;
   deletions: number;
 }
+
+export interface GitDiffPatch {
+  patch: string;
+  totalChars: number;
+  returnedChars: number;
+  truncated: boolean;
+}

@@ -87,6 +87,15 @@ export class GitService {
     };
   }
 
+  async getDiffPatch(options: { path?: string; contextLines?: number } = {}): Promise<string> {
+    const args = [
+      "--no-ext-diff",
+      `--unified=${options.contextLines ?? 3}`,
+    ];
+    if (options.path) args.push("--", options.path);
+    return this.git.diff(args);
+  }
+
   async getBranch(): Promise<string> {
     const status = await this.git.status();
     return status.current || "unknown";
