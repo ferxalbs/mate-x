@@ -1,19 +1,19 @@
 # Repository Guidelines — MaTE X
 
-## Token Budget Rules (MANDATORY — Read First)
+## Context & Token Efficiency (MANDATORY — Read First)
 
-**You are operating under a strict token budget. Follow these rules before every action:**
+**Optimize context use without limiting the work required for a correct result. Apply these rules before every action:**
 
-1. **Read only what the task explicitly requires.** Do not explore the repo to "understand context." If you need a file, name it in the task.
-2. **Never read a file you will not modify or directly reference.** Curiosity reads are forbidden.
-3. **Do not run `find`, `ls -R`, `tree`, or any recursive directory listing** unless the task is explicitly about the file system.
-4. **Do not read `package.json`, `tsconfig.json`, `vite.config.ts`, or similar config files** unless the task directly involves them.
-5. **Do not read test files** unless the task is to write or fix tests.
-6. **Max 5 files read per task.** If you think you need more, stop and ask for clarification.
-7. **Use `grep`/`rg` with exact patterns** instead of reading full files to locate symbols or imports.
-8. **Never re-read a file you already loaded in the same session.**
-9. **Summarize what you will read and why before reading anything.** Format: "Reading X because Y."
-10. **If the task is 20 lines of change or fewer, confirm your plan in one sentence before executing.**
+1. **Start with the smallest useful context.** Read files directly named by the task, known from the directory map, or located with a targeted `rg` query. Expand only when evidence shows that more context is needed.
+2. **Every read must have a purpose.** A file may be read when it will be modified, cited, used to understand a dependency or contract, or needed to validate the change. Avoid broad exploratory reading without a concrete question.
+3. **Prefer targeted discovery.** Use `rg`, `rg --files`, or narrow path filters before opening full files. Avoid `find`, `ls -R`, and `tree` when a targeted query can answer the same question.
+4. **Treat configuration and tests as on-demand context.** Read them when behavior, dependencies, build tooling, types, validation, or regressions may depend on them; do not read them by default for unrelated tasks.
+5. **Use a five-file initial context budget, not a hard cap.** If more files are necessary, continue without asking when the reason is evident; briefly state why the scope expanded. Ask only when expansion reveals material ambiguity or risk.
+6. **Read the smallest relevant range first.** Open the exact symbol, section, or surrounding lines. Expand to the full file only when local context is insufficient.
+7. **Avoid redundant reads.** Reuse already captured context, but re-read changed files or precise sections when verification, concurrent edits, or uncertainty makes it useful.
+8. **Scale planning to the task.** For small, low-risk changes, give a one-sentence plan and execute. For larger or riskier work, provide concise progress updates without narrating routine tool calls.
+9. **Preserve system capability.** Token efficiency must never prevent root-cause analysis, security review, contract tracing, implementation, or proportionate verification. Correctness and safety take priority over the initial context budget.
+10. **Stop expanding when evidence is sufficient.** Do not keep exploring once the requested outcome can be implemented and verified confidently.
 
 ***
 
@@ -35,7 +35,7 @@ MaTE X is a desktop security review agent for local repositories.
 - **Release Automation**: Release automation belongs under `scripts/release/`.
 - **Ignored Artifacts**: Generated artifacts and local reports must remain gitignored (`artifacts/`, `out/`).
 
-**Directory map — memorize this, do not re-read it:**
+**Directory map — use this as the first routing reference:**
 
 | Path | Purpose |
 | --- | --- |
@@ -53,11 +53,11 @@ MaTE X is a desktop security review agent for local repositories.
 | `qa/` | Packaged, platform, migration, and performance qualification layer |
 | `scripts/release/` | Release automation and package verification |
 
-**Rule:** If you already know where a symbol lives from this map, go directly to that file. Do not scan adjacent directories.
+**Rule:** If this map identifies the likely location, go there first. Scan adjacent directories only when targeted evidence indicates the symbol or dependency lives elsewhere.
 
 ***
 
-## Always Ignore — Never Read These
+## Ignore by Default
 
 ```text
 node_modules/
@@ -73,7 +73,7 @@ coverage/
 .git/
 ```
 
-Do not glob-read or stat these paths for any reason.
+Do not glob-read these paths. Access a specific file only when the task explicitly requires generated output, dependency internals, build artifacts, or Git metadata and no safer source can answer the question. Never expose secrets or ingest large generated files into context.
 
 ***
 
