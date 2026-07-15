@@ -4,6 +4,7 @@ import type { SignalTone, TrustGateState } from "./enhancement-panel-utils";
 import { cn } from "../../../lib/utils";
 import { Card, CardContent } from "../../../components/ui/card";
 import { TonePill } from "./enhancement-panel-primitives";
+import type { OutcomeMap } from "../../../contracts/engineering-task";
 import {
   toneSurfaceClassName,
   toneValueClassName,
@@ -14,12 +15,14 @@ export function TrustGateCard({
   onMakeTrustworthy,
   onReviewChanges,
   showOverride = false,
+  outcomeMap,
   state,
 }: {
   isRunning?: boolean;
   onMakeTrustworthy?: () => void;
   onReviewChanges?: () => void;
   showOverride?: boolean;
+  outcomeMap?: OutcomeMap;
   state: TrustGateState;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -41,6 +44,7 @@ export function TrustGateCard({
     >
       <CardContent className="p-3">
         <TrustGateHeader state={state} />
+        {outcomeMap ? <OutcomeCheck map={outcomeMap} /> : null}
         <TrustGateFactGrid facts={statusFacts} />
         <TrustGateRecommendation state={state} />
         <TrustGateActions
@@ -56,6 +60,20 @@ export function TrustGateCard({
         {detailsOpen ? <TrustGateDetails state={state} /> : null}
       </CardContent>
     </Card>
+  );
+}
+
+function OutcomeCheck({ map }: { map: OutcomeMap }) {
+  const proven = map.entries.filter((entry) => entry.state === "proven").length;
+  const critical = map.entries.filter((entry) => entry.state === "missing" || entry.state === "violated" || entry.state === "weak").slice(0, 2);
+  const drift = map.scopeDrift.slice(0, 1);
+  return (
+    <div className="mt-3 rounded-2xl border border-border/70 bg-[var(--panel)]/35 px-3 py-2 text-[11px]">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Outcome check</p>
+      <p className="mt-1 font-medium text-foreground">{proven} proven{critical.length ? ` · ${critical.length} needs check` : " · Ready"}</p>
+      {critical.map((entry) => <p className="mt-1 break-words text-muted-foreground" key={entry.outcomeId}><span className="font-medium text-foreground">{entry.state === "violated" ? "Blocked" : entry.state === "weak" ? "Evidence is weak" : "Missing"}</span> {entry.statement}</p>)}
+      {drift.map((item) => <p className="mt-1 break-words text-muted-foreground" key={item}><span className="font-medium text-foreground">Scope drift</span> {item}</p>)}
+    </div>
   );
 }
 

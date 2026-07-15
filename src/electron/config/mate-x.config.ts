@@ -205,7 +205,7 @@ async function failMissingPolicyApproval() {
   return false;
 }
 
-function formatConfigIssues(issues: z.core.$ZodIssue[]) {
+function formatConfigIssues(issues: z.ZodIssue[]) {
   const lines = issues.map((issue) => {
     const field = issue.path.length > 0 ? issue.path.join(".") : "<root>";
     return ` - ${field}: ${normalizeIssueMessage(issue)}`;
@@ -213,7 +213,7 @@ function formatConfigIssues(issues: z.core.$ZodIssue[]) {
   return ["MaTE X config validation failed:", ...lines].join("\n");
 }
 
-function normalizeIssueMessage(issue: z.core.$ZodIssue) {
+function normalizeIssueMessage(issue: z.ZodIssue) {
   if (issue.message.includes("undefined") || issue.message.includes("received undefined")) {
     return "Required";
   }

@@ -173,6 +173,10 @@ export const ERR_CODES = {
   ERR_WORKSPACE_REQUIRED: "ERR_WORKSPACE_REQUIRED",
   ERR_APPROVAL_REQUIRED: "ERR_APPROVAL_REQUIRED",
   ERR_AGENT_CANNOT_APPROVE: "ERR_AGENT_CANNOT_APPROVE",
+  ERR_OUTCOME_REQUIRED: "ERR_OUTCOME_REQUIRED",
+  ERR_OUTCOME_UNPROVEN: "ERR_OUTCOME_UNPROVEN",
+  ERR_PROOF_CHALLENGE_REQUIRED: "ERR_PROOF_CHALLENGE_REQUIRED",
+  ERR_PROOF_CHALLENGE_INSENSITIVE: "ERR_PROOF_CHALLENGE_INSENSITIVE",
 } as const;
 
 export type ErrorCode = (typeof ERR_CODES)[keyof typeof ERR_CODES];
@@ -404,10 +408,130 @@ export interface EngineeringTask {
   blockedReasonCode: ErrorCode | null;
   lastExecutionId: string | null;
   lastProofId: string | null;
+  /** Canonical product contract. Optional only for tasks created before outcome checks. */
+  changeContract?: ChangeContract;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
   cancelledAt: IsoDateTime | null;
   readyAt: IsoDateTime | null;
+}
+
+export type OutcomeState = "proven" | "weak" | "missing" | "violated" | "out_of_scope";
+export type ProofChallengeResult = "sensitive" | "insensitive" | "inconclusive" | "not_applicable";
+
+export interface ChangeContractOutcome {
+  outcomeId: string;
+  statement: string;
+  requiredEvidence: string[];
+  challengeRequired: boolean;
+}
+
+export interface ChangeContract {
+  contractId: string;
+  sourceObjective: string;
+  requiredOutcomes: ChangeContractOutcome[];
+  forbiddenChanges: string[];
+  requiredEvidence: string[];
+  unresolvedAmbiguities: string[];
+  generatedAt: IsoDateTime;
+}
+
+/** Conservative prompt conversion. Ambiguities remain explicit; no guessed proof. */
+export function deriveChangeContract(input: {
+  objective: string;
+  now?: IsoDateTime;
+  forbiddenChanges?: string[];
+  unresolvedAmbiguities?: string[];
+}): ChangeContract {
+  const statements = input.objective
+    .split(/(?:\n+|(?<=[.!?])\s+)/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  return {
+    contractId: `contract_${crypto.randomUUID()}`,
+    sourceObjective: input.objective,
+    requiredOutcomes: statements.map((statement, index) => ({
+      outcomeId: `outcome_${index + 1}`,
+      statement,
+      requiredEvidence: ["targeted deterministic validation"],
+      challengeRequired: false,
+    })),
+    forbiddenChanges: input.forbiddenChanges ?? [],
+    requiredEvidence: ["targeted deterministic validation"],
+    unresolvedAmbiguities: input.unresolvedAmbiguities ?? [],
+    generatedAt: input.now ?? new Date().toISOString(),
+  };
+}
+
+export interface OutcomeEvidence {
+  validationRunIds: string[];
+  affectedFiles: string[];
+  affectedSymbols: string[];
+  challenge: ProofChallengeResult;
+}
+
+export interface OutcomeMapEntry {
+  outcomeId: string;
+  statement: string;
+  state: OutcomeState;
+  evidence: OutcomeEvidence;
+  reason?: string;
+}
+
+export interface OutcomeMap {
+  contractId: string;
+  diffHash: Sha256Hex;
+  generatedAt: IsoDateTime;
+  entries: OutcomeMapEntry[];
+  scopeDrift: string[];
+}
+
+/** Deterministic only: no model prose may turn an outcome into proven. */
+export function deriveOutcomeMap(input: {
+  contract: ChangeContract;
+  diffHash: Sha256Hex;
+  validationRuns: ValidationRun[];
+  scopeDrift?: string[];
+  challenges?: Record<string, ProofChallengeResult>;
+}): OutcomeMap {
+  const currentRuns = input.validationRuns.filter((run) => run.diffHash === input.diffHash);
+  return {
+    contractId: input.contract.contractId,
+    diffHash: input.diffHash,
+    generatedAt: new Date().toISOString(),
+    scopeDrift: input.scopeDrift ?? [],
+    entries: input.contract.requiredOutcomes.map((outcome) => {
+      const runs = currentRuns.filter((run) => run.relatedReqIds.includes(outcome.outcomeId));
+      const challenge = input.challenges?.[outcome.outcomeId] ?? "not_applicable";
+      const passed = runs.some((run) => run.passed === true);
+      const failed = runs.some((run) => run.passed === false);
+      const state: OutcomeState = failed || challenge === "insensitive"
+        ? "violated"
+        : !passed
+          ? "missing"
+          : outcome.challengeRequired && challenge !== "sensitive"
+            ? "weak"
+            : "proven";
+      return {
+        outcomeId: outcome.outcomeId,
+        statement: outcome.statement,
+        state,
+        evidence: {
+          validationRunIds: runs.map((run) => run.validationRunId),
+          affectedFiles: [],
+          affectedSymbols: [],
+          challenge,
+        },
+      };
+    }),
+  };
+}
+
+export function outcomeMapAllowsGitWrite(map: OutcomeMap | undefined): boolean {
+  if (!map) return false;
+  return map.scopeDrift.length === 0 && map.entries.every(
+    (entry) => entry.state === "proven" || entry.state === "out_of_scope",
+  );
 }
 
 export interface EngineeringTaskSummary {
@@ -776,6 +900,7 @@ export interface ShipProof {
     taskIds: string[];
     validationRunIds: string[];
   }>;
+  outcomeMap?: OutcomeMap;
 }
 
 export interface PolicyRule {

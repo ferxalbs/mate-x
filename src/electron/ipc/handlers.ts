@@ -23,7 +23,7 @@ const agentActionSchema = z.object({
   actionType: z.string().trim().min(1).max(120),
   payload: z.unknown(),
   allowHighImpact: z.boolean().optional(),
-}) satisfies z.ZodType<AgentActionRequest>;
+});
 
 const evidencePackPublishSchema = z.object({
   workspaceId: z.string().transform(parseWorkspaceId),
@@ -103,7 +103,7 @@ function guardIpc<T>(
 
 export function registerMaTeXStackIpcHandlers() {
   ipcMain.handle(IPC.ORCHESTRATOR_RUN, guardIpc(IPC.ORCHESTRATOR_RUN, (_event, payload) =>
-    getStack().orchestrator.execute(agentActionSchema.parse(payload)),
+    getStack().orchestrator.execute(agentActionSchema.parse(payload) as AgentActionRequest),
   ));
 
   ipcMain.handle(IPC.ORCHESTRATOR_ROUTING, guardIpc(IPC.ORCHESTRATOR_ROUTING, () =>

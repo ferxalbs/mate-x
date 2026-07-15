@@ -7,10 +7,11 @@ import type {
   CoverageConvergenceReport,
   EngineeringTask,
   FreshnessAnchors,
+  OutcomeMap,
   ShipProof,
   ValidationRun,
 } from '../../contracts/engineering-task';
-import { ERR_CODES } from '../../contracts/engineering-task';
+import { deriveOutcomeMap, ERR_CODES } from '../../contracts/engineering-task';
 import { newNamespacedId, newProofHandle, nowIso } from './ids';
 import type { EngineeringRepository } from './repository';
 
@@ -21,6 +22,7 @@ export function issueShipProof(input: {
   validationRuns: ValidationRun[];
   coverage: CoverageConvergenceReport;
   readiness: string;
+  outcomeMap?: OutcomeMap;
 }):
   | { ok: true; proof: ShipProof }
   | { ok: false; code: string; message: string } {
@@ -45,6 +47,31 @@ export function issueShipProof(input: {
       message: 'ShipProof requires Ready readiness',
     };
   }
+  const outcomeMap = input.outcomeMap ?? (input.task.changeContract
+    ? deriveOutcomeMap({
+        contract: input.task.changeContract,
+        diffHash: input.anchors.diffHash,
+        validationRuns: input.validationRuns,
+      })
+    : undefined);
+  if (input.task.changeContract && !outcomeMap) {
+    return { ok: false, code: ERR_CODES.ERR_OUTCOME_REQUIRED, message: 'ShipProof requires an outcome check' };
+  }
+  if (outcomeMap?.diffHash !== input.anchors.diffHash) {
+    return {
+      ok: false,
+      code: ERR_CODES.ERR_PROOF_STALE_DIFF,
+      message: 'Outcome check does not match current diff',
+    };
+  }
+  if (outcomeMap && outcomeMap.entries.some((entry) => entry.state !== 'proven' && entry.state !== 'out_of_scope')) {
+    const insensitive = outcomeMap.entries.some((entry) => entry.evidence.challenge === 'insensitive');
+    return {
+      ok: false,
+      code: insensitive ? ERR_CODES.ERR_PROOF_CHALLENGE_INSENSITIVE : ERR_CODES.ERR_OUTCOME_UNPROVEN,
+      message: insensitive ? 'Proof challenge is insensitive' : 'Required outcome is not proven',
+    };
+  }
 
   const proof: ShipProof = {
     proofId: newNamespacedId('proof'),
@@ -58,6 +85,7 @@ export function issueShipProof(input: {
     status: 'valid',
     generatedAt: nowIso(),
     traces: [],
+    outcomeMap,
   };
 
   input.repo.applyTransaction({

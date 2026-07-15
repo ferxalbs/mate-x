@@ -3,7 +3,7 @@
  * Applied via CREATE TABLE IF NOT EXISTS — idempotent.
  */
 
-export const ENGINEERING_SCHEMA_VERSION = 1;
+export const ENGINEERING_SCHEMA_VERSION = 2;
 
 export const ENGINEERING_SCHEMA_SQL: string[] = [
   `CREATE TABLE IF NOT EXISTS engineering_schema_meta (
@@ -28,6 +28,7 @@ export const ENGINEERING_SCHEMA_SQL: string[] = [
     blocked_reason_code TEXT,
     last_execution_id TEXT,
     last_proof_id TEXT,
+    change_contract_json TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     cancelled_at TEXT,
