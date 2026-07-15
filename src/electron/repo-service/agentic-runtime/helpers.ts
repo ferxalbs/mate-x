@@ -3,8 +3,14 @@ import type { RepoSnapshot } from "../workspace";
 import type { AgentToolCall } from "./types";
 import type { AssistantRunOptions, MessageArtifact, ToolEvent } from "../../../contracts/chat";
 import type { WorkspaceMemoryProposedUpdate } from "../../../contracts/workspace";
+import {
+  getToolModelOutputBudgetChars,
+  isToolBatchExclusive,
+} from "../../tool-metadata";
 
 export const MAX_TOOL_OUTPUT_CHARS = 80_000;
+
+export { getToolModelOutputBudgetChars, isToolBatchExclusive };
 
 export function isExecutionIntentPrompt(prompt: string): boolean {
   const normalized = prompt.toLowerCase();
@@ -321,11 +327,68 @@ export function extractFirstBalancedJsonObject(value: string): string | null {
   return null;
 }
 
-export function truncateToolOutput(content: string): string {
-  if (content.length <= MAX_TOOL_OUTPUT_CHARS) {
+export function truncateToolOutput(content: string, maxChars = MAX_TOOL_OUTPUT_CHARS): string {
+  if (content.length <= maxChars) {
     return content;
   }
-  return `${content.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n... (truncated ${content.length - MAX_TOOL_OUTPUT_CHARS} characters)`;
+  return `${content.slice(0, maxChars)}\n... (truncated ${content.length - maxChars} characters)`;
+}
+
+/**
+ * Truncate tool output for model context using per-tool budgets, never exceeding
+ * the hard MAX_TOOL_OUTPUT_CHARS ceiling.
+ */
+export function truncateToolOutputForModel(
+  toolName: string,
+  content: string,
+): string {
+  const budget = Math.min(
+    getToolModelOutputBudgetChars(toolName),
+    MAX_TOOL_OUTPUT_CHARS,
+  );
+  return truncateToolOutput(content, budget);
+}
+
+/**
+ * Execute a tool batch with parallel-safe concurrency and serial exclusive tools.
+ * Order of results matches input order.
+ */
+export async function executeToolBatchWithSafety<T extends { name: string }, R>(
+  toolCalls: T[],
+  maxParallel: number,
+  mapper: (toolCall: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(toolCalls.length);
+  let parallelIndices: number[] = [];
+
+  const flushParallelRun = async () => {
+    if (parallelIndices.length === 0) return;
+    const parallelResults = await mapWithConcurrency(
+      parallelIndices,
+      maxParallel,
+      async (index) => {
+        const value = await mapper(toolCalls[index], index);
+        return { index, value };
+      },
+    );
+    for (const item of parallelResults) {
+      results[item.index] = item.value;
+    }
+    parallelIndices = [];
+  };
+
+  for (let index = 0; index < toolCalls.length; index += 1) {
+    if (!isToolBatchExclusive(toolCalls[index].name)) {
+      parallelIndices.push(index);
+      continue;
+    }
+
+    await flushParallelRun();
+    results[index] = await mapper(toolCalls[index], index);
+  }
+  await flushParallelRun();
+
+  return results;
 }
 
 /**

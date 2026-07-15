@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
 import {
+  getToolModelOutputBudgetChars,
   getToolOperationalMeta,
+  isToolBatchExclusive,
   resolveToolTimeoutMs,
 } from "./tool-metadata";
 import { resolveToolExecutionTimeoutMs } from "./repo-service/agentic-runtime/config";
@@ -42,5 +44,17 @@ describe("tool metadata catalog", () => {
       resolveToolTimeoutMs("sandbox_run", { timeoutSeconds: 999 }),
       30_000 + 5_000,
     );
+  });
+
+  test("marks exclusive tools for serial batching", () => {
+    assert.equal(isToolBatchExclusive("file_editor"), true);
+    assert.equal(isToolBatchExclusive("sandbox_run"), true);
+    assert.equal(isToolBatchExclusive("read"), false);
+    assert.equal(isToolBatchExclusive("rg"), false);
+  });
+
+  test("noisy search tools get tighter model output budgets", () => {
+    assert.ok(getToolModelOutputBudgetChars("rg") < getToolModelOutputBudgetChars("file_editor") || getToolModelOutputBudgetChars("rg") <= 20_000);
+    assert.ok(getToolModelOutputBudgetChars("rg") <= 20_000);
   });
 });

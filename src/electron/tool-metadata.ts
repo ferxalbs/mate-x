@@ -39,7 +39,17 @@ export interface ToolOperationalMeta {
   timeoutMs: number;
   /** Prefer exclusive access to workspace resources when true. */
   exclusive?: boolean;
+  /**
+   * Max characters of tool output returned to the model (not evidence store).
+   * Hard ceiling is still enforced by the agent runtime (80k).
+   */
+  modelOutputBudgetChars?: number;
 }
+
+/** Default model-facing output budgets by category. */
+const DEFAULT_MODEL_OUTPUT_BUDGET_CHARS = 40_000;
+const NOISY_MODEL_OUTPUT_BUDGET_CHARS = 16_000;
+const SCAN_MODEL_OUTPUT_BUDGET_CHARS = 20_000;
 
 const DEFAULT_READ_TIMEOUT_MS = 15_000;
 const DEFAULT_ANALYSIS_TIMEOUT_MS = 60_000;
@@ -788,4 +798,43 @@ export function resolveToolTimeoutMs(
 
 export function listCataloguedToolNames(): string[] {
   return Object.keys(TOOL_META);
+}
+
+/**
+ * Characters of tool output to feed back into the model.
+ * Noisy scanners/search tools get a tighter budget to protect context.
+ */
+export function getToolModelOutputBudgetChars(toolName: string): number {
+  const meta = getToolOperationalMeta(toolName);
+  if (typeof meta.modelOutputBudgetChars === "number" && meta.modelOutputBudgetChars > 0) {
+    return meta.modelOutputBudgetChars;
+  }
+
+  if (
+    meta.categories.includes("search") ||
+    toolName === "rg" ||
+    toolName === "tree" ||
+    toolName === "find" ||
+    toolName === "glob" ||
+    toolName === "ls"
+  ) {
+    return NOISY_MODEL_OUTPUT_BUDGET_CHARS;
+  }
+
+  if (
+    meta.categories.includes("analysis") ||
+    toolName.includes("scan") ||
+    toolName.includes("audit") ||
+    toolName.includes("fuzzer")
+  ) {
+    return SCAN_MODEL_OUTPUT_BUDGET_CHARS;
+  }
+
+  return DEFAULT_MODEL_OUTPUT_BUDGET_CHARS;
+}
+
+/** True when this tool must not run concurrent with other exclusive/non-parallel tools. */
+export function isToolBatchExclusive(toolName: string): boolean {
+  const meta = getToolOperationalMeta(toolName);
+  return meta.exclusive === true || meta.parallelSafe === false;
 }

@@ -6,7 +6,7 @@ import type { AppSettings } from "../../../contracts/settings";
 import { policyService } from "../../policy-service";
 import { toolService } from "../../tool-service";
 import { failureMemoryEngine } from "../../failure-memory-engine";
-import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateToolOutput, withTimeout } from "./helpers";
+import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateToolOutputForModel, withTimeout } from "./helpers";
 import { resolveToolExecutionTimeoutMs } from "./config";
 import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
 import { authorizeToolForEngineeringStatus } from "../../engineering/tool-phase-auth";
@@ -183,13 +183,13 @@ export async function executeAgentToolCall({
       { abortController },
     );
 
-    const normalizedResult = truncateToolOutput(String(result ?? ""));
-    const parsedOutput = tryParseJsonObject(normalizedResult);
-    const outputIndicatesFailure = isToolFailureOutput(normalizedResult);
+    const rawResult = String(result ?? "");
+    const parsedOutput = tryParseJsonObject(rawResult);
+    const outputIndicatesFailure = isToolFailureOutput(rawResult);
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
       toolEvent.status = outputIndicatesFailure ? "error" : "done";
-      toolEvent.detail = summarizeToolOutput(normalizedResult);
+      toolEvent.detail = summarizeToolOutput(rawResult);
     }
     if (policyStop) {
       if (outputIndicatesFailure) {
@@ -202,7 +202,7 @@ export async function executeAgentToolCall({
       await failureMemoryEngine.recordFailure({
         workspaceId: snapshot.workspace.id,
         command: String(toolArgs.command ?? toolArgs.script ?? toolName),
-        output: normalizedResult,
+        output: rawResult,
       }).catch((error) => {
         console.warn("Failure memory record failed:", error);
       });
@@ -223,15 +223,16 @@ export async function executeAgentToolCall({
     // into buildEvidencePack, VTS, filesModified rescue, commandsExecuted, and the on-disk
     // attestation / compliance ZIP. This is the primary mechanism that makes packs "real"
     // instead of model-narrative only.
-    const enrichedParsed = enrichParsedForEvidence(toolName, parsedOutput, toolArgs, normalizedResult, !outputIndicatesFailure);
+    const enrichedParsed = enrichParsedForEvidence(toolName, parsedOutput, toolArgs, rawResult, !outputIndicatesFailure);
+    const modelContent = truncateToolOutputForModel(toolName, rawResult);
 
     return {
       toolCallId: toolCall.id,
-      content: normalizedResult,
+      content: modelContent,
       toolExecution: {
         toolName,
         args: toolArgs,
-        output: normalizedResult,
+        output: rawResult,
         parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
       } satisfies ToolExecutionRecord,
     };

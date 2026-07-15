@@ -30,14 +30,32 @@ export class ToolService {
   /** Canonical tool.name -> registry key(s) that load it. */
   private nameIndex: Map<string, string> = new Map();
   private governedDescriptionCache: Map<string, string> = new Map();
+  /** Full catalog chat definitions (null filter). */
   private chatToolDefinitionsCache: OpenAI.Chat.Completions.ChatCompletionTool[] =
     [];
   private chatToolDefinitionsPromise: Promise<
     OpenAI.Chat.Completions.ChatCompletionTool[]
   > | null = null;
+  /** Filtered definition caches keyed by sorted tool names. */
+  private chatToolDefinitionsByFilter = new Map<
+    string,
+    OpenAI.Chat.Completions.ChatCompletionTool[]
+  >();
+  private chatToolDefinitionsFilterPromises = new Map<
+    string,
+    Promise<OpenAI.Chat.Completions.ChatCompletionTool[]>
+  >();
   private responsesToolDefinitionsCache: ResponsesFunctionTool[] = [];
   private responsesToolDefinitionsPromise: Promise<ResponsesFunctionTool[]> | null =
     null;
+  private responsesToolDefinitionsByFilter = new Map<
+    string,
+    ResponsesFunctionTool[]
+  >();
+  private responsesToolDefinitionsFilterPromises = new Map<
+    string,
+    Promise<ResponsesFunctionTool[]>
+  >();
   private perfSamples: ToolPerfSample[] = [];
 
   constructor() {
@@ -101,7 +119,41 @@ export class ToolService {
     );
   }
 
-  async getChatToolDefinitions(): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
+  /**
+   * OpenAI Chat Completions tool definitions.
+   * Pass `names` to load only those tools (avoids importing unused scanners).
+   */
+  async getChatToolDefinitions(filter?: {
+    names?: string[];
+  }): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> {
+    const names = normalizeFilterNames(filter?.names);
+    if (names) {
+      const cacheKey = names.join("\0");
+      const cached = this.chatToolDefinitionsByFilter.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const inflight = this.chatToolDefinitionsFilterPromises.get(cacheKey);
+      if (inflight) {
+        return inflight;
+      }
+
+      const promise = this.getToolsByNames(names)
+        .then((tools) =>
+          tools.map((tool) => this.toChatDefinition(tool)),
+        )
+        .then((definitions) => {
+          this.chatToolDefinitionsByFilter.set(cacheKey, definitions);
+          return definitions;
+        })
+        .finally(() => {
+          this.chatToolDefinitionsFilterPromises.delete(cacheKey);
+        });
+      this.chatToolDefinitionsFilterPromises.set(cacheKey, promise);
+      return promise;
+    }
+
     if (this.chatToolDefinitionsCache.length > 0) {
       return this.chatToolDefinitionsCache;
     }
@@ -109,21 +161,7 @@ export class ToolService {
     if (!this.chatToolDefinitionsPromise) {
       // Load real tools once, then cache. Single source of truth = tool modules.
       this.chatToolDefinitionsPromise = this.getAllTools()
-        .then((allTools) => {
-          const definitions: OpenAI.Chat.Completions.ChatCompletionTool[] =
-            allTools.map((tool) => ({
-              type: "function" as const,
-              function: {
-                name: tool.name,
-                description: this.getGovernedToolDescription(tool),
-                parameters: toStrictObjectSchema(tool.parameters) as Record<
-                  string,
-                  unknown
-                >,
-              },
-            }));
-          return definitions;
-        })
+        .then((allTools) => allTools.map((tool) => this.toChatDefinition(tool)))
         .then((definitions) => {
           this.chatToolDefinitionsCache = definitions;
           return definitions;
@@ -136,25 +174,50 @@ export class ToolService {
     return this.chatToolDefinitionsPromise;
   }
 
-  async getResponsesToolDefinitions(): Promise<ResponsesFunctionTool[]> {
+  /**
+   * OpenAI Responses function tool definitions.
+   * Pass `names` to load only those tools (avoids importing unused scanners).
+   */
+  async getResponsesToolDefinitions(filter?: {
+    names?: string[];
+  }): Promise<ResponsesFunctionTool[]> {
+    const names = normalizeFilterNames(filter?.names);
+    if (names) {
+      const cacheKey = names.join("\0");
+      const cached = this.responsesToolDefinitionsByFilter.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const inflight = this.responsesToolDefinitionsFilterPromises.get(cacheKey);
+      if (inflight) {
+        return inflight;
+      }
+
+      const promise = this.getToolsByNames(names)
+        .then((tools) =>
+          tools.map((tool) => this.toResponsesDefinition(tool)),
+        )
+        .then((definitions) => {
+          this.responsesToolDefinitionsByFilter.set(cacheKey, definitions);
+          return definitions;
+        })
+        .finally(() => {
+          this.responsesToolDefinitionsFilterPromises.delete(cacheKey);
+        });
+      this.responsesToolDefinitionsFilterPromises.set(cacheKey, promise);
+      return promise;
+    }
+
     if (this.responsesToolDefinitionsCache.length > 0) {
       return this.responsesToolDefinitionsCache;
     }
 
     if (!this.responsesToolDefinitionsPromise) {
       this.responsesToolDefinitionsPromise = this.getAllTools()
-        .then((allTools) => {
-          const definitions: ResponsesFunctionTool[] = allTools.map((tool) => ({
-            type: "function" as const,
-            name: tool.name,
-            description: this.getGovernedToolDescription(tool),
-            parameters: toStrictObjectSchema(tool.parameters) as {
-              [key: string]: unknown;
-            },
-            strict: true,
-          }));
-          return definitions;
-        })
+        .then((allTools) =>
+          allTools.map((tool) => this.toResponsesDefinition(tool)),
+        )
         .then((definitions) => {
           this.responsesToolDefinitionsCache = definitions;
           return definitions;
@@ -404,8 +467,12 @@ export class ToolService {
   private invalidateDefinitionCaches(toolName?: string) {
     this.chatToolDefinitionsCache = [];
     this.chatToolDefinitionsPromise = null;
+    this.chatToolDefinitionsByFilter.clear();
+    this.chatToolDefinitionsFilterPromises.clear();
     this.responsesToolDefinitionsCache = [];
     this.responsesToolDefinitionsPromise = null;
+    this.responsesToolDefinitionsByFilter.clear();
+    this.responsesToolDefinitionsFilterPromises.clear();
     if (toolName) {
       this.governedDescriptionCache.delete(toolName);
     } else {
@@ -422,6 +489,54 @@ export class ToolService {
     const description = buildGovernedToolDescription(tool);
     this.governedDescriptionCache.set(tool.name, description);
     return description;
+  }
+
+  private toChatDefinition(
+    tool: Tool,
+  ): OpenAI.Chat.Completions.ChatCompletionTool {
+    // Cast: OpenAI types may lag Rainy-compatible `strict` on chat function tools.
+    return {
+      type: "function" as const,
+      function: {
+        name: tool.name,
+        description: this.getGovernedToolDescription(tool),
+        parameters: toStrictObjectSchema(tool.parameters) as Record<
+          string,
+          unknown
+        >,
+        strict: true,
+      },
+    } as OpenAI.Chat.Completions.ChatCompletionTool;
+  }
+
+  private toResponsesDefinition(tool: Tool): ResponsesFunctionTool {
+    return {
+      type: "function" as const,
+      name: tool.name,
+      description: this.getGovernedToolDescription(tool),
+      parameters: toStrictObjectSchema(tool.parameters) as {
+        [key: string]: unknown;
+      },
+      strict: true,
+    };
+  }
+
+  /** Load only the named tools (by registry key or canonical name). */
+  private async getToolsByNames(names: string[]): Promise<Tool[]> {
+    const byCanonicalName = new Map<string, Tool>();
+    await Promise.all(
+      names.map(async (name) => {
+        try {
+          const tool = await this.getTool(name);
+          byCanonicalName.set(tool.name, tool);
+        } catch {
+          // Skip missing optional tools so allowlists stay resilient.
+        }
+      }),
+    );
+    return Array.from(byCanonicalName.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
   }
 
   private async getAllTools(): Promise<Tool[]> {
@@ -460,6 +575,16 @@ function isAbortError(error: unknown): boolean {
   }
   const name = (error as { name?: string }).name;
   return name === "AbortError";
+}
+
+function normalizeFilterNames(names?: string[]): string[] | null {
+  if (!names) {
+    return null;
+  }
+  const unique = Array.from(
+    new Set(names.map((name) => name.trim()).filter(Boolean)),
+  );
+  return unique.sort((a, b) => a.localeCompare(b));
 }
 
 export const toolService = new ToolService();

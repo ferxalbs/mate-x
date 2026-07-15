@@ -4,7 +4,7 @@ import { failureMemoryEngine } from "../failure-memory-engine";
 import { renderWorkingSetForPrompt } from "../working-set-compiler";
 import { renderWorkPlanForPrompt } from "../work-engine/work-engine";
 import { renderFailureMemoryInstruction } from "../work-engine/failure-memory-gate";
-import type { WorkPlan } from "../work-engine/types";
+import type { WorkPlan, WorkRunbook } from "../work-engine/types";
 import type { AssistantRunbookDefinition, AssistantRunOptions, ToolEvent } from "../../contracts/chat";
 import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } from "../../contracts/rainy";
 import { supportsTools } from "../../lib/rainy-model-capabilities";
@@ -20,6 +20,7 @@ import { buildAgentRuntimeConfig } from "./agentic-runtime/config";
 import { appendAttachmentContext } from "./agentic-runtime/helpers";
 import { requestRainyResponsesAgenticResponse } from "./agentic-runtime/responses-runner";
 import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
+import { getAgentToolAllowlist } from "../work-engine/tool-expectations";
 
 // Re-exports for absolute backward-compatibility
 export * from "./agentic-runtime/types";
@@ -30,6 +31,64 @@ export * from "./agentic-runtime/synthesis";
 export * from "./agentic-runtime/critic";
 export * from "./agentic-runtime/chat-runner";
 export * from "./agentic-runtime/responses-runner";
+
+/** Runbook-conditional playbooks keep the system prompt smaller for simple tasks. */
+function buildRunbookPlaybookSection(runbook: WorkRunbook): string {
+  const sections: string[] = [];
+
+  sections.push(`Fast search/read playbook:
+- Use rg before read when you need exact symbols, text, imports, config keys, or error strings. Prefer path/paths and include to keep search scoped.
+- Use rg maxResults and maxOutputChars for broad terms; raise them only after narrowing. Use contextLines 1-3 for nearby evidence.
+- Use read_many after rg when you need several files or line ranges. Prefer one read_many call over many read calls.
+- Avoid ls/tree/find for code discovery when rg, RepoGraph, glob, or read_many can answer faster.`);
+
+  if (
+    runbook === "audit_reproduce_remediate" ||
+    runbook === "scan_contain_report" ||
+    runbook === "trace_source_to_sink"
+  ) {
+    sections.push(`Security tool playbook:
+- For secret exposure, call secret_scan first. Keep evidence redacted; use source_map_analyzer for built bundles/maps and client env leakage.
+- For broad repo triage, use attack_surface_scan or deep_analysis_pipeline, then candidate_revalidator before calling a finding confirmed.
+- For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
+- For auth, secret, rate-limit, session, token, Redis revocation, or availability claims, call candidate_revalidator or security_path_trace before wording like vulnerable, high-severity, exploit, or disables. Without proof, say candidate/potential.
+- When evidence contains Privacy Sentinel placeholders, base conclusions on surrounding syntax and tool evidence only.
+- For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.`);
+  }
+
+  if (
+    runbook === "patch_test_verify" ||
+    runbook === "validate_only" ||
+    runbook === "audit_reproduce_remediate"
+  ) {
+    sections.push(`Validation playbook:
+- Before running validation for code changes, create a validation plan with plan_validation. plan_validation only plans; never report PROVEN/GO from it alone.
+- When a validation plan exists, use it; do not choose commands ad hoc. After run_tests, call verify_validation_persistence before claiming persistence.
+- Before retrying a failed command/validation/patch, call find_similar_failures unless known failures already match. After new failures call record_failure; after a retry clears a failure call record_resolution.
+Sandbox timeout facts:
+- sandbox_run accepts timeoutSeconds 30, 45, 60, 120, or 240 plus grace; do not claim a fixed 20s wrapper kills sandbox_run without current code evidence.`);
+  }
+
+  if (
+    runbook === "patch_test_verify" ||
+    runbook === "audit_reproduce_remediate"
+  ) {
+    sections.push(`Reproduction harness contract:
+- Before patching suspicious behavior, attempt the smallest useful reproduction first.
+- Prefer non-invasive checks: existing test, validation run, minimal script, HTTP/browser, then static proof.
+- Do not invent temp paths, commands, exit codes, or pre/post outcomes. Only report a command when a tool result exists for that exact command.
+- If sandbox_run executed, do not say runtime was blocked.`);
+  }
+
+  if (runbook === "review_classify_summarize") {
+    sections.push(`Review playbook:
+- Stay read-only: inspect git diff/status and needed file context, classify risk, then stop.
+- Do not call plan_validation, run_tests, sandbox_run, evidence_pack, or patch tools for a pure current-change review.
+- For clean git status and zero diff churn, stop after git status/diff evidence.`);
+  }
+
+  return sections.join("\n");
+}
 
 export async function requestRainyAgenticResponse({
   apiKey,
@@ -213,40 +272,7 @@ Repo Intelligence efficiency contract:
 - Change or re-index concern: call detect_changes before refresh; avoid refresh when unchanged.
 - Patch planning: combine semantic_search with get_impacted_files and get_tests_for_file so validation targets affected behavior, not the whole repo by default.
 - Evidence standard: graph results guide exploration; confirmed claims still require source, diff, command, or security-tool evidence.
-Security tool playbook:
-- For secret exposure, call secret_scan first. Keep evidence redacted; use source_map_analyzer for built bundles/maps and client env leakage.
-- For broad repo triage, use attack_surface_scan or deep_analysis_pipeline, then candidate_revalidator before calling a finding confirmed.
-- For exploitability, use security_path_trace for source-to-sink proof; use flow_trace only for narrow named variable/term tracing.
-- For auth, secret, rate-limit, session, token, Redis revocation, or availability claims, call candidate_revalidator or security_path_trace before using wording like vulnerable, high-severity, brute-force, resource exhaustion, auth bypass, exploit, or disables. Without that proof, final answer must say candidate/potential and name missing proof.
-- When evidence contains Privacy Sentinel placeholders, base conclusions on surrounding syntax, data flow, and tool evidence only. If a risk depends on the redacted value, mark it unknown and state that Privacy Sentinel withheld the private value.
-- For container configs, use container_audit. For dependency CVEs, use cve_audit. For ReDoS, use redos_analyzer.
-- For locating files, prefer RepoGraph, then glob/find; use ast_grep when you need exact code-block evidence around a risky pattern.
-Fast search/read playbook:
-- Use rg before read when you need exact symbols, text, imports, config keys, or error strings. Prefer path/paths and include to keep search scoped.
-- Use rg maxResults and maxOutputChars for broad terms; raise them only after narrowing. Use contextLines 1-3 for nearby evidence, sort path only when stable output matters.
-- Use rg paths for multiple likely directories/files in one call instead of repeated single-path searches.
-- Use read_many after rg when you need several files or line ranges. Prefer one read_many call over many read calls.
-- Avoid ls/tree/find for code discovery when rg, RepoGraph, glob, or read_many can answer faster.
-For review_classify_summarize, stay read-only: inspect git diff/status and needed file context, classify risk, then stop. Do not call plan_validation, run_tests, sandbox_run, evidence_pack, or patch tools for a pure current-change review.
-Before running validation for code changes, create a validation plan with plan_validation using the task objective, changed files, RepoGraph impacted files, package scripts, detected framework, and previous failure context already available. plan_validation only plans and its executionState is not_run/not_verified; never report primary run, fallback run, persistence, PROVEN, GO, production-ready, or validation complete from plan_validation alone. When a validation plan exists, use it; do not choose validation commands ad hoc. If run_tests returns nextRequiredAction, perform it before finalizing. After run_tests, call verify_validation_persistence before claiming the plan was persisted with a run or validation is complete.
-For review current changes/classify risk tasks with a clean git status and zero diff churn, stop after git status/diff evidence. Do not call plan_validation, run_tests, sandbox_run, git show, or extra ls/read tools for clean current-change review.
-Before retrying a failed command, validation, or patch loop, call find_similar_failures unless the "Known similar failure from this workspace" section already gives an exact match. If the same failure repeats, warn the user and change approach. After new failures call record_failure; after a retry clears a known failure call record_resolution.
-Reproduction harness contract:
-- Before patching suspicious behavior or a bug, attempt the smallest useful reproduction first.
-- Prefer non-invasive checks in this order when practical: existing unit/integration test, validation run, new temporary or repo-local minimal test/script, HTTP request, browser scenario, static proof.
-- Use repo-local locations only when they match project conventions; otherwise use a temporary workspace-safe path and record it.
-- For runtime repros, record whether the check existed before patch, pre-patch outcome, and post-patch outcome after remediation.
-- If runtime repro is impossible, provide a static proof with exact code/config references and mark pre/post outcomes blocked or unknown.
-- Do not claim root cause unless reproduction failed before patch and passed after patch, or strong static proof exists.
-Reproduction evidence integrity:
-- If no runtime tool call actually executed, do not report "Type: minimal script", "unit test", "integration test", "HTTP request", "browser scenario", or "validation run"; use "static proof" and explain why runtime was unavailable.
-- If the runtime evidence is a validation command such as typecheck, lint, test, build, package, or make, report "Type: validation run" rather than "minimal script".
-- Do not invent temp paths, commands, exit codes, timings, or pre/post outcomes. Only report a command as executed when a tool result exists for that exact command.
-- If multiple tool calls executed separate commands, list each command separately. Do not combine them into a shell-looking command with ;, &&, ||, or pipes unless that exact command string was accepted and executed by a tool.
-- When multiple commands are part of one reproduction, format the Command field as separate lines: "Command:\n- first command\n- second command". Never compress separate tool calls into one semicolon-separated command.
-- If sandbox_run executed, final answer must not say runtime execution was blocked. If runtime was blocked, name the blocker and avoid fabricated runtime evidence.
-Sandbox timeout facts:
-- sandbox_run accepts timeoutSeconds 30, 45, 60, 120, or 240. The orchestration wrapper allows the requested sandbox timeout plus grace; do not claim a fixed 20s wrapper kills sandbox_run without current code evidence.
+${buildRunbookPlaybookSection(workPlan.runbook)}
 If that context is enough for the user's request, answer directly without calling tools.
 If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
 Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
@@ -260,6 +286,21 @@ Structured runbook contract (must follow):
 ${renderRunbookForPrompt(runbookDefinition)}`;
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
   const serviceTier = options.serviceTier;
+  const allowedToolNames = getAgentToolAllowlist(
+    workPlan.runbook,
+    options.pathKind,
+  );
+
+  if (allowedToolNames) {
+    events.push({
+      id: "step-tool-allowlist",
+      label: "Mission tool set",
+      detail: `Advertising ${allowedToolNames.length} tools for runbook ${workPlan.runbook} (pathKind=${options.pathKind ?? "full"}).`,
+      status: "done",
+      segmentKind: "tool",
+      visibility: "technical",
+    });
+  }
 
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({
@@ -279,6 +320,7 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
       signal,
       engineeringTaskStatus,
       planningPhase,
+      allowedToolNames,
     });
   }
 
@@ -301,5 +343,6 @@ ${renderRunbookForPrompt(runbookDefinition)}`;
     signal,
     engineeringTaskStatus,
     planningPhase,
+    allowedToolNames,
   });
 }

@@ -6,6 +6,9 @@ const CONTEXT_TRUNCATE_THRESHOLD = 60000;
 const CONTEXT_COMPACT_THRESHOLD = 75000;
 const CONTEXT_MAX_LIMIT = 80000;
 
+/** Per-item character budget for Responses function_call_output / long text. */
+const RESPONSES_ITEM_TRUNCATE_CHARS = 4000;
+
 function estimateMessagesTokens(
   messages: any[],
   estimator: TokenEstimator,
@@ -175,4 +178,63 @@ export async function applyContextCompressionChat(
 
   events[events.length - 1].status = "done";
   return compressedMessages;
+}
+
+/**
+ * Cheap Responses-path context hygiene: shrink large function_call_output and
+ * message text items so multi-turn tool loops do not grow without bound.
+ * Does not call the LLM (chat path still owns LLM compaction).
+ */
+export function compressResponsesInputItems<T>(items: T[]): T[] {
+  return items.map((raw) => {
+    const item = raw as {
+      type?: string;
+      output?: unknown;
+      content?: unknown;
+    };
+
+    if (
+      item.type === "function_call_output" &&
+      typeof item.output === "string" &&
+      item.output.length > RESPONSES_ITEM_TRUNCATE_CHARS
+    ) {
+      const output = item.output;
+      const head = Math.floor(RESPONSES_ITEM_TRUNCATE_CHARS / 2);
+      const tail = Math.floor(RESPONSES_ITEM_TRUNCATE_CHARS / 2);
+      return {
+        ...(raw as object),
+        output:
+          output.slice(0, head) +
+          "\n...[TRUNCATED BY CONTEXT COMPRESSION]...\n" +
+          output.slice(-tail),
+      } as T;
+    }
+
+    if (item.type === "message" && Array.isArray(item.content)) {
+      const content = (item.content as Array<Record<string, unknown>>).map(
+        (part) => {
+          if (
+            (part.type === "input_text" || part.type === "output_text") &&
+            typeof part.text === "string" &&
+            part.text.length > RESPONSES_ITEM_TRUNCATE_CHARS
+          ) {
+            const text = part.text as string;
+            const head = Math.floor(RESPONSES_ITEM_TRUNCATE_CHARS / 2);
+            const tail = Math.floor(RESPONSES_ITEM_TRUNCATE_CHARS / 2);
+            return {
+              ...part,
+              text:
+                text.slice(0, head) +
+                "\n...[TRUNCATED BY CONTEXT COMPRESSION]...\n" +
+                text.slice(-tail),
+            };
+          }
+          return part;
+        },
+      );
+      return { ...(raw as object), content } as T;
+    }
+
+    return raw;
+  });
 }
