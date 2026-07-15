@@ -21,6 +21,7 @@ import type {
   TechnicalApproachDocument,
   ValidationRun,
 } from '../../contracts/engineering-task';
+import { deriveChangeContract } from '../../contracts/engineering-task';
 import { ENGINEERING_SCHEMA_SQL, ENGINEERING_SCHEMA_VERSION } from './schema';
 import { sha256Hex } from './ids';
 import {
@@ -79,6 +80,10 @@ function taskFromRow(row: Record<string, unknown>): EngineeringTask {
     lastExecutionId:
       row.last_execution_id == null ? null : String(row.last_execution_id),
     lastProofId: row.last_proof_id == null ? null : String(row.last_proof_id),
+    changeContract:
+      row.change_contract_json == null
+        ? deriveChangeContract({ objective: String(row.objective_seed) })
+        : parseJson(String(row.change_contract_json), 'change_contract'),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     cancelledAt: row.cancelled_at == null ? null : String(row.cancelled_at),
@@ -119,6 +124,10 @@ export class LibSqlEngineeringRepository implements EngineeringRepository {
     try {
       for (const sql of ENGINEERING_SCHEMA_SQL) {
         this.db.exec(sql);
+      }
+      const taskColumns = this.db.prepare(`PRAGMA table_info(engineering_tasks)`).all() as Array<{ name: string }>;
+      if (!taskColumns.some((column) => column.name === 'change_contract_json')) {
+        this.db.exec(`ALTER TABLE engineering_tasks ADD COLUMN change_contract_json TEXT`);
       }
       // Applied-command idempotency ledger
       this.db.exec(`
@@ -528,8 +537,8 @@ export class LibSqlEngineeringRepository implements EngineeringRepository {
             objective_seed, status, aggregate_version, active_specification_version,
             active_plan_version, active_task_graph_version, policy_pack_ref_json,
             readiness, prior_legal_status, blocked_reason_code, last_execution_id,
-            last_proof_id, created_at, updated_at, cancelled_at, ready_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            last_proof_id, change_contract_json, created_at, updated_at, cancelled_at, ready_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(engineering_task_id) DO UPDATE SET
             workspace_id = excluded.workspace_id,
             conversation_id = excluded.conversation_id,
@@ -547,6 +556,7 @@ export class LibSqlEngineeringRepository implements EngineeringRepository {
             blocked_reason_code = excluded.blocked_reason_code,
             last_execution_id = excluded.last_execution_id,
             last_proof_id = excluded.last_proof_id,
+            change_contract_json = excluded.change_contract_json,
             updated_at = excluded.updated_at,
             cancelled_at = excluded.cancelled_at,
             ready_at = excluded.ready_at`,
@@ -569,6 +579,7 @@ export class LibSqlEngineeringRepository implements EngineeringRepository {
           t.blockedReasonCode,
           t.lastExecutionId,
           t.lastProofId,
+          t.changeContract ? JSON.stringify(t.changeContract) : null,
           t.createdAt,
           t.updatedAt,
           t.cancelledAt,

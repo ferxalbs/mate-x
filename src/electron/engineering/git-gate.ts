@@ -4,7 +4,7 @@
  * NES-6.2
  */
 
-import type { FreshnessAnchors, ShipProof } from '../../contracts/engineering-task';
+import { outcomeMapAllowsGitWrite, type FreshnessAnchors, type ShipProof } from '../../contracts/engineering-task';
 import { ERR_CODES } from '../../contracts/engineering-task';
 import type { EngineeringRepository } from './repository';
 import { evaluateProofFreshness } from './ship-proof';
@@ -44,6 +44,20 @@ export function evaluateGitGate(input: {
       allowed: false,
       code: fresh.code,
       message: fresh.message,
+      proofId: proof.proofId,
+    };
+  }
+
+  if (proof.outcomeMap && !outcomeMapAllowsGitWrite(proof.outcomeMap)) {
+    const insensitive = proof.outcomeMap.entries.some(
+      (entry) => entry.evidence.challenge === 'insensitive',
+    );
+    return {
+      allowed: false,
+      code: insensitive ? ERR_CODES.ERR_PROOF_CHALLENGE_INSENSITIVE : ERR_CODES.ERR_OUTCOME_UNPROVEN,
+      message: insensitive
+        ? 'Evidence did not fail when claimed behavior was removed'
+        : 'Required outcome missing, weak, violated, or outside approved scope',
       proofId: proof.proofId,
     };
   }
