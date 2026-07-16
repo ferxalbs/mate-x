@@ -73,6 +73,9 @@ export function PanelHeader({
             onClick={onCollapse}
             transition={RESPONSIVE_SPRING}
             type="button"
+            whileHover={
+              reducedMotion ? undefined : { transform: "scale(1.05)" }
+            }
             whileTap={
               reducedMotion ? undefined : { transform: "scale(0.9)" }
             }
@@ -121,6 +124,9 @@ export function PanelTabs({
             onClick={() => onChange(view.id)}
             transition={RESPONSIVE_SPRING}
             type="button"
+            whileHover={
+              reducedMotion ? undefined : { transform: "scale(1.02)" }
+            }
             whileTap={
               reducedMotion ? undefined : { transform: "scale(0.95)" }
             }

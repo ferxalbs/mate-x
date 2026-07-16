@@ -32,6 +32,7 @@ import type { AppSettings, AppearancePreference, ThemePreference, TimeFormat } f
 import type { PrivacyModelDownloadProgress } from "../../contracts/privacy";
 import type { WorkspaceTrustAutonomy, WorkspaceTrustContract } from "../../contracts/workspace";
 import { useTheme } from "../../hooks/use-theme";
+import { RESPONSIVE_SPRING } from "../../lib/motion";
 
 const steps = [
   { id: "welcome", title: "Welcome", description: "Secure code from day one.", cta: "Continue" },
@@ -170,7 +171,7 @@ export function OnboardingFlow() {
             animate="center"
             exit="exit"
             transition={{
-              x: { type: "spring", stiffness: 300, damping: 30 },
+              x: RESPONSIVE_SPRING,
               opacity: { duration: 0.3 }
             }}
             className="w-full"
