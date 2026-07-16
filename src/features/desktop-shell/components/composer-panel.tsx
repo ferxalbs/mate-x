@@ -620,6 +620,11 @@ export function ComposerPanel({
               title="Attach files"
               transition={RESPONSIVE_SPRING}
               type="button"
+              whileHover={
+                !hasWorkspace || reducedMotion
+                  ? undefined
+                  : { transform: "scale(1.05)" }
+              }
               whileTap={
                 !hasWorkspace || reducedMotion
                   ? undefined
