@@ -108,7 +108,7 @@ export function ChatTopbar({
         : "Ready";
   const liveTone =
     runStatus === "running"
-      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-[0_0_12px_-3px_rgba(59,130,246,0.3)] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
       : eventCount > 0
         ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
         : !isSpecialMode
@@ -129,7 +129,7 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-linear",
+        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
         isSpecialMode
           ? "bg-transparent border-b border-[var(--titlebar-border)]/40"
           : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
@@ -173,7 +173,7 @@ export function ChatTopbar({
             {runStatus === "running" ? (
               <Loader2Icon className="size-3.5 animate-spin text-blue-400" />
             ) : eventCount > 0 ? (
-              <div className="size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+              <div className="size-2 rounded-full bg-emerald-400" />
             ) : (
               <ActivityIcon className="size-3.5 opacity-70" />
             )}

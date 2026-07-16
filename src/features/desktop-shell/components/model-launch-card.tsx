@@ -380,7 +380,7 @@ export function ModelLaunchCardContent({
             size="sm"
             className={cn(
               "h-11 w-full rounded-full border-0 sm:h-[38px] sm:w-[160px] font-semibold transition-[background-color,color,opacity,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
-              "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)] shadow-lg shadow-black/20",
+              "focus-visible:ring-2 focus-visible:ring-[var(--launch-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--launch-surface)] shadow-none",
               ctaDisabled && "opacity-50",
             )}
             style={{
@@ -453,7 +453,7 @@ export function ModelLaunchCardView({
       <DialogPopup
         showCloseButton
         className={cn(
-          "overflow-hidden border-0 p-0 shadow-2xl transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
+          "overflow-hidden border-0 p-0 shadow-none transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
           isMobile
             ? "max-w-none w-full max-sm:rounded-t-[32px] max-sm:rounded-b-none sm:max-w-[420px]"
             : "w-full max-w-[420px] rounded-[32px]",

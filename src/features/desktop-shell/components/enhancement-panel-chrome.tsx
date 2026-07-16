@@ -45,11 +45,11 @@ export function PanelHeader({
               className={cn(
                 "size-1.5 rounded-full",
                 hasError || runFailed
-                  ? "bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+                  ? "bg-destructive"
                   : isLoading || isRunning
-                    ? "animate-pulse bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                    ? "animate-pulse bg-blue-500"
                     : hasHealth
-                      ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+                      ? "bg-emerald-500"
                       : "bg-muted-foreground/50",
               )}
             />

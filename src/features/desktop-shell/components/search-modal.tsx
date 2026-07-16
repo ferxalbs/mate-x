@@ -56,7 +56,7 @@ export function SearchModal({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandDialogPopup className="max-w-[520px] rounded-[24px] border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] text-foreground shadow-2xl shadow-black/20 backdrop-blur-2xl before:hidden">
+      <CommandDialogPopup className="max-w-[520px] border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] text-foreground shadow-none backdrop-blur-2xl before:hidden">
         <Command>
           <CommandInput
             placeholder="Search chats"
