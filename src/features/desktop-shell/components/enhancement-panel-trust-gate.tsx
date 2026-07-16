@@ -68,7 +68,7 @@ function OutcomeCheck({ map }: { map: OutcomeMap }) {
   const critical = map.entries.filter((entry) => entry.state === "missing" || entry.state === "violated" || entry.state === "weak").slice(0, 2);
   const drift = map.scopeDrift.slice(0, 1);
   return (
-    <div className="mt-3 rounded-2xl border border-border/70 bg-[var(--panel)]/35 px-3 py-2 text-[11px]">
+    <div className="mt-3 rounded-2xl border border-border/70 bg-panel/35 px-3 py-2 text-[11px]">
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Outcome check</p>
       <p className="mt-1 font-medium text-foreground">{proven} proven{critical.length ? ` · ${critical.length} needs check` : " · Ready"}</p>
       {critical.map((entry) => <p className="mt-1 break-words text-muted-foreground" key={entry.outcomeId}><span className="font-medium text-foreground">{entry.state === "violated" ? "Blocked" : entry.state === "weak" ? "Evidence is weak" : "Missing"}</span> {entry.statement}</p>)}
@@ -105,7 +105,7 @@ export function ShipStatusStrip({
   return (
     <div
       className={cn(
-        "mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-[var(--panel)]/55 px-3 py-2 shadow-none backdrop-blur-xl",
+        "mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-panel/55 px-3 py-2 shadow-none backdrop-blur-xl",
       )}
     >
       <div className="min-w-0">
@@ -161,7 +161,7 @@ function TrustGateFactGrid({ facts }: { facts: TrustGateFact[] }) {
   return (
     <dl className="mt-3 grid grid-cols-2 gap-2">
       {facts.map((fact) => (
-        <div className="rounded-2xl border border-border/60 bg-[var(--panel)]/35 px-2.5 py-2" key={fact.label}>
+        <div className="rounded-2xl border border-border/60 bg-panel/35 px-2.5 py-2" key={fact.label}>
           <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
             {fact.label}
           </dt>
@@ -208,7 +208,7 @@ function TrustGateActions({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <button
-        className="inline-flex flex-1 items-center justify-center rounded-xl border border-border/70 bg-[var(--panel)]/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--panel)] disabled:cursor-default disabled:opacity-60"
+        className="inline-flex flex-1 items-center justify-center rounded-xl border border-border/70 bg-panel/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-panel disabled:cursor-default disabled:opacity-60"
         disabled={isRunning}
         onClick={primaryShowsDetails ? onToggleDetails : canMakeTrustworthy ? onMakeTrustworthy : undefined}
         type="button"

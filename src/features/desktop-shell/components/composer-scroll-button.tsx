@@ -7,7 +7,7 @@ export function ComposerScrollButton() {
       direction="end"
       placement="composer"
       title="Scroll to latest message"
-      className="rounded-full border-[var(--panel-border)]/60 bg-[var(--panel)]/42 shadow-none backdrop-blur-xl hover:bg-[var(--panel)]"
+      className="rounded-full border-panel-border/60 bg-panel/42 shadow-none backdrop-blur-xl hover:bg-panel"
     />
   );
 }

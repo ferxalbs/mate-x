@@ -133,7 +133,7 @@ export function PanelTabs({
           >
             {activeView === view.id && (
               <m.div
-                className="absolute inset-0 rounded-full border border-[var(--panel-border)]/50 bg-[var(--mate-control-bg)]/20"
+                className="absolute inset-0 rounded-full border border-panel-border/50 bg-mate-control-bg/20"
                 layoutId="activeTabEnhancement"
                 transition={
                   reducedMotion ? { duration: 0 } : RESPONSIVE_SPRING

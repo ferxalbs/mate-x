@@ -51,6 +51,12 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-panel: var(--panel);
+  --color-panel-border: var(--panel-border);
+  --color-mate-page-bg: var(--background);
+  --color-mate-panel-bg: var(--panel);
+  --color-mate-surface-bg: var(--surface);
+  --color-mate-control-bg: var(--input);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

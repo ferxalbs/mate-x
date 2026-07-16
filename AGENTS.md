@@ -249,7 +249,7 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - **Evidence Before Questions**: Inspect repository evidence first. Ask only for material ambiguity, risk, credentials, destructive action, or required approval. Internal specification and planning are never mandatory UI ceremony.
 - **Conversational Projection**: Project workflow state through compact status, inline activity, optional task details, and concise results. Large persistent workflow cards are prohibited in primary conversation.
 - **Action Integrity**: Every visible CTA must match canonical state and have a real handler. Never show duplicate or already-running actions.
-- **Development Loop**: macOS is current primary founder-testing platform. `bun run start` is normal UX iteration loop. Packaging is reserved for release qualification.
+- **Development Loop**: macOS is current primary founder-testing platform. `bun run start` is the normal UX iteration loop when explicitly requested by the user. Agents MUST NOT run `bun run start` autonomously: it launches an Electron instance and may create a second visible app window alongside an existing instance. Packaging is reserved for release qualification.
 - **Runtime Purity**: Test and QA infrastructure must remain outside production runtime.
 - **Spec & Git Constraints**: No prompt-as-spec, regex stage authority, renderer Git authorization, or model-generated evidence.
 - **Self-Correction Policy**: `AGENTS.md` must be updated whenever behavior modes, workflow authority, architecture, test organization, platform policy, release commands, or canonical namespaces change.
