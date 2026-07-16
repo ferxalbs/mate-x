@@ -10,6 +10,7 @@ import {
   GitBranchIcon,
   ChevronDownIcon,
 } from "lucide-react";
+import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 
 import {
   startTransition,
@@ -21,6 +22,7 @@ import {
 } from "react";
 
 import { Button } from "../../../components/ui/button";
+import { RESPONSIVE_SPRING } from "../../../lib/motion";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -118,6 +120,7 @@ export function ComposerPanel({
   onBehaviorChange,
   onTrustChange,
 }: ComposerPanelProps) {
+  const reducedMotion = useReducedMotion();
   const [prompt, setPrompt] = useState(externalPrompt ?? "");
 
   useEffect(() => {
@@ -480,8 +483,12 @@ export function ComposerPanel({
     }
   }
 
+  const sendDisabled =
+    (!prompt.trim() && attachments.length === 0 && !isRunning) ||
+    isModelSaving;
+
   return (
-    <>
+    <LazyMotion features={domMax} strict>
       <div
         className={cn(
           "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20 focus-within:bg-[var(--panel)]/85",
@@ -605,16 +612,22 @@ export function ComposerPanel({
               ref={fileInputRef}
               type="file"
             />
-            <button
+            <m.button
               aria-label="Attach files"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-[background-color,color,transform] duration-[180ms] ease-out hover:bg-foreground/15 hover:text-foreground active:scale-95"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-[background-color,color] duration-[180ms] ease-out hover:bg-foreground/15 hover:text-foreground"
               disabled={!hasWorkspace}
               onClick={() => fileInputRef.current?.click()}
               title="Attach files"
+              transition={RESPONSIVE_SPRING}
               type="button"
+              whileTap={
+                !hasWorkspace || reducedMotion
+                  ? undefined
+                  : { transform: "scale(0.95)" }
+              }
             >
               <span className="text-xl font-light leading-none">+</span>
-            </button>
+            </m.button>
             <TrustSelector
               disabled={!trustContract || isRunning || isTrustSaving}
               label={isTrustSaving ? "Trust: saving…" : trustLabel}
@@ -665,21 +678,18 @@ export function ComposerPanel({
                 <line x1="12" x2="12" y1="19" y2="22" />
               </svg>
             </button>
-            <button
+            <m.button
               aria-label="Send"
               className={cn(
-                "flex size-8 items-center justify-center rounded-full transition-[background-color,color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-none active:scale-95",
+                "flex size-8 items-center justify-center rounded-full transition-[background-color,color] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-none",
                 isRunning
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   : (!prompt.trim() && attachments.length === 0) ||
                       isModelSaving
                     ? "bg-foreground/5 text-foreground/30 shadow-none cursor-not-allowed"
-                    : "bg-foreground text-background hover:scale-105 hover:bg-foreground/90",
+                    : "bg-foreground text-background hover:bg-foreground/90",
               )}
-              disabled={
-                (!prompt.trim() && attachments.length === 0 && !isRunning) ||
-                isModelSaving
-              }
+              disabled={sendDisabled}
               onClick={() => {
                 if (isRunning) {
                   void handleCancelRun();
@@ -687,18 +697,29 @@ export function ComposerPanel({
                   void handleSubmit();
                 }
               }}
+              transition={RESPONSIVE_SPRING}
               type="button"
+              whileHover={
+                !sendDisabled && !isRunning && !reducedMotion
+                  ? { transform: "scale(1.05)" }
+                  : undefined
+              }
+              whileTap={
+                !sendDisabled && !reducedMotion
+                  ? { transform: "scale(0.95)" }
+                  : undefined
+              }
             >
               {isRunning ? (
                 <XIcon className="size-4" strokeWidth={2.5} />
               ) : (
                 <ArrowUpIcon className="size-4" strokeWidth={2.5} />
               )}
-            </button>
+            </m.button>
           </div>
         </div>
       </div>
-    </>
+    </LazyMotion>
   );
 }
 
