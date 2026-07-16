@@ -491,12 +491,12 @@ export function ComposerPanel({
     <LazyMotion features={domMax} strict>
       <div
         className={cn(
-          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20 focus-within:bg-[var(--panel)]/85",
+          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20 focus-within:bg-panel/85",
           settings.blurEnabled
-            ? "border-[var(--panel-border)]/40 bg-[var(--panel)]/70 backdrop-blur-2xl shadow-none"
-            : "border-[var(--panel-border)]/40 bg-[var(--panel)] shadow-none",
+            ? "border-panel-border/40 bg-panel/70 backdrop-blur-2xl shadow-none"
+            : "border-panel-border/40 bg-panel shadow-none",
           isDraggingFile
-            ? "ring-2 ring-foreground/20 bg-[var(--panel)]/90"
+            ? "ring-2 ring-foreground/20 bg-panel/90"
             : "",
         )}
         onDragEnter={(event) => {
@@ -822,7 +822,7 @@ function TrustSelector({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="w-72 rounded-2xl border-border/70 bg-[var(--panel)]/92 p-1.5 shadow-none backdrop-blur-xl"
+          className="w-72 rounded-2xl border-border/70 bg-panel/92 p-1.5 shadow-none backdrop-blur-xl"
           sideOffset={6}
         >
           <div className="px-2.5 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
@@ -898,7 +898,7 @@ function BehaviorSelector({
       >
         {BEHAVIOR_MODE_LABELS[value.mode]}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 rounded-2xl border-border/70 bg-[var(--panel)]/92 shadow-none backdrop-blur-xl">
+      <DropdownMenuContent align="end" className="w-64 rounded-2xl border-border/70 bg-panel/92 shadow-none backdrop-blur-xl">
         <DropdownMenuRadioGroup
           value={value.mode}
           onValueChange={(mode) => onChange({ ...value, mode: mode as BehaviorMode })}
@@ -959,7 +959,7 @@ function AttachmentChip({
         "flex h-7 max-w-[180px] items-center gap-1.5 rounded-xl border px-2.5 text-[11px] transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
         unsupported
           ? "border-amber-400/40 bg-amber-400/5 text-amber-600 dark:text-amber-300"
-          : "border-border/40 bg-[var(--mate-control-bg)]/50 text-muted-foreground hover:border-border/60",
+          : "border-border/40 bg-mate-control-bg/50 text-muted-foreground hover:border-border/60",
       )}
       title={`${attachment.name} (${formatBytes(attachment.size)})`}
     >
@@ -1082,7 +1082,7 @@ function PermissionPrompt({
               Approval required
             </span>
             <span className="text-muted-foreground/80">{toolName}</span>
-            <span className="truncate rounded-md bg-[var(--mate-control-bg)]/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            <span className="truncate rounded-md bg-mate-control-bg/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
               {target}
             </span>
           </div>
@@ -1210,7 +1210,7 @@ function ModelConfigurationMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="w-76 overflow-hidden rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-2 shadow-none backdrop-blur-2xl flex flex-col gap-1.5 min-h-0"
+        className="w-76 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel/70 p-2 shadow-none backdrop-blur-2xl flex flex-col gap-1.5 min-h-0"
       >
         {!advancedOpen && (
           <>
@@ -1304,7 +1304,7 @@ function ModelConfigurationMenu({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         sideOffset={4}
-                        className="w-44 overflow-hidden rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-1.5 shadow-none backdrop-blur-2xl"
+                        className="w-44 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel/70 p-1.5 shadow-none backdrop-blur-2xl"
                       >
                         <DropdownMenuRadioGroup
                           value={reasoningValue}
@@ -1334,7 +1334,7 @@ function ModelConfigurationMenu({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         sideOffset={4}
-                        className="w-44 overflow-hidden rounded-2xl border border-[var(--panel-border)]/40 bg-[var(--panel)]/70 p-1.5 shadow-none backdrop-blur-2xl"
+                        className="w-44 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel/70 p-1.5 shadow-none backdrop-blur-2xl"
                       >
                         <DropdownMenuRadioGroup
                           value={serviceTier}
