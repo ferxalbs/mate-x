@@ -4,8 +4,10 @@ import {
   RefreshCcwIcon,
   BugIcon,
 } from "lucide-react";
+import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
+import { RESPONSIVE_SPRING } from "../../../lib/motion";
 import { cn } from "../../../lib/utils";
 
 interface QuickActionCardProps {
@@ -21,15 +23,28 @@ function QuickActionCard({
   onClick,
   disabled,
 }: QuickActionCardProps) {
+  const reducedMotion = useReducedMotion();
+
   return (
-    <button
+    <m.button
       type="button"
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "group relative flex min-h-[108px] w-full flex-col justify-between rounded-[20px] bg-foreground/[0.03] p-4 text-left transition-[transform,background-color] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-0.5 hover:bg-foreground/[0.06] active:translate-y-0 active:scale-[0.985]",
+        "group relative flex min-h-[108px] w-full flex-col justify-between rounded-[20px] bg-foreground/[0.03] p-4 text-left transition-colors duration-200 hover:bg-foreground/[0.06]",
         disabled && "cursor-not-allowed opacity-50",
       )}
+      transition={RESPONSIVE_SPRING}
+      whileHover={
+        !disabled && !reducedMotion
+          ? { transform: "translateY(-2px) scale(1)" }
+          : undefined
+      }
+      whileTap={
+        !disabled && !reducedMotion
+          ? { transform: "translateY(0) scale(0.985)" }
+          : undefined
+      }
     >
       <div className="text-foreground/75 transition-colors duration-200 group-hover:text-foreground">
         {icon}
@@ -39,7 +54,7 @@ function QuickActionCard({
           {title}
         </div>
       </div>
-    </button>
+    </m.button>
   );
 }
 
@@ -104,16 +119,18 @@ export function QuickActionCards({
   }, [disabled]);
 
   return (
-    <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-4">
-      {QUICK_ACTIONS.map((action) => (
-        <QuickActionCard
-          key={action.id}
-          title={action.title}
-          icon={action.icon}
-          disabled={disabled}
-          onClick={() => onSelectAction(action.prompt)}
-        />
-      ))}
-    </div>
+    <LazyMotion features={domMax} strict>
+      <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {QUICK_ACTIONS.map((action) => (
+          <QuickActionCard
+            key={action.id}
+            title={action.title}
+            icon={action.icon}
+            disabled={disabled}
+            onClick={() => onSelectAction(action.prompt)}
+          />
+        ))}
+      </div>
+    </LazyMotion>
   );
 }
