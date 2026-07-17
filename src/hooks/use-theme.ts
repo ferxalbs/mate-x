@@ -54,7 +54,8 @@ function getStoredTheme(): Theme {
 
 function getStoredBlur(): boolean {
   const raw = localStorage.getItem(BLUR_KEY);
-  return raw !== 'false';
+  // Default off — matches DEFAULT_APP_SETTINGS.blurEnabled (was true when unset).
+  return raw === 'true';
 }
 
 function applyTheme(appearance: Appearance, theme: Theme, blurEnabled: boolean, suppressTransitions = false) {
@@ -66,12 +67,8 @@ function applyTheme(appearance: Appearance, theme: Theme, blurEnabled: boolean, 
   document.documentElement.classList.toggle('dark', isDark);
   document.documentElement.classList.toggle('blur-enabled', blurEnabled);
 
-  // Set blur opacity based on mode
-  if (isDark) {
-    document.documentElement.style.setProperty('--blur-opacity', '0.3');
-  } else {
-    document.documentElement.style.setProperty('--blur-opacity', '0.65');
-  }
+  // Theme CSS owns glass tokens; clear legacy inline overrides that forced washout.
+  document.documentElement.style.removeProperty('--blur-opacity');
 
   const themes: Theme[] = ['default', 'oled', 'blue', 'deepblue', 'deeppurple', 'casimiri', 'greenspace', 'midnight'];
   for (const t of themes) {

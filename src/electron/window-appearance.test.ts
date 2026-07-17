@@ -39,22 +39,26 @@ describe('window appearance policy', () => {
     );
   });
 
-  it('uses transparent backing and one native material per supported platform', () => {
+  it('never enables native materials — CSS glass owns all blur', () => {
     assert.deepEqual(
       resolveWindowAppearance(settings({ vibrancyMode: 'sidebar' }), 'darwin', true),
       {
-        backgroundColor: '#00000000',
+        backgroundColor: '#111111',
         backgroundMaterial: undefined,
-        nativeMaterialEnabled: true,
-        vibrancy: 'under-window',
+        nativeMaterialEnabled: false,
+        vibrancy: undefined,
       },
     );
     assert.deepEqual(
-      resolveWindowAppearance(settings({ vibrancyMode: 'special' }), 'win32', true),
+      resolveWindowAppearance(
+        settings({ appearance: 'light', vibrancyMode: 'special' }),
+        'win32',
+        true,
+      ),
       {
-        backgroundColor: '#00000000',
-        backgroundMaterial: 'mica',
-        nativeMaterialEnabled: true,
+        backgroundColor: '#ffffff',
+        backgroundMaterial: 'none',
+        nativeMaterialEnabled: false,
         vibrancy: undefined,
       },
     );
@@ -72,12 +76,12 @@ describe('window appearance policy', () => {
     );
   });
 
-  it('restores opaque backing when native material is removed at runtime', () => {
+  it('clears native materials and keeps an opaque backing at runtime', () => {
     const calls: string[] = [];
     const window = {
       setBackgroundColor: (color: string) => calls.push(`background:${color}`),
-      setBackgroundMaterial: (material: 'mica' | 'none') => calls.push(`material:${material}`),
-      setVibrancy: (type: 'under-window' | null) => calls.push(`vibrancy:${type}`),
+      setBackgroundMaterial: (material: 'none') => calls.push(`material:${material}`),
+      setVibrancy: (type: null) => calls.push(`vibrancy:${type}`),
     };
 
     applyWindowAppearance(
@@ -92,12 +96,20 @@ describe('window appearance policy', () => {
       'darwin',
       false,
     );
+    applyWindowAppearance(
+      window,
+      settings({ appearance: 'light', vibrancyMode: 'special' }),
+      'win32',
+      false,
+    );
 
     assert.deepEqual(calls, [
-      'vibrancy:under-window',
-      'background:#00000000',
       'vibrancy:null',
       'background:#111111',
+      'vibrancy:null',
+      'background:#111111',
+      'material:none',
+      'background:#ffffff',
     ]);
   });
 });

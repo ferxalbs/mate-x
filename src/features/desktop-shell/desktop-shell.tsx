@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
@@ -49,7 +49,7 @@ export function DesktopShell() {
   const activeThreadId = activeWorkspaceId
     ? (activeThreadIds[activeWorkspaceId] ?? "")
     : "";
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme, setBlurEnabled } = useTheme();
   const platform = usePlatform();
   // Stable identity — never rebuild an empty style object each render (effect deps).
   // Dynamic --mate-shell-* vars currently come from CSS themes, not React state.
@@ -99,8 +99,10 @@ export function DesktopShell() {
     void getAppSettings()
       .then((settings) => {
         if (!cancelled) {
-          setTheme(settings.theme);
           applyRendererSettings(settings);
+          setTheme(settings.theme);
+          // Keep CSS glass class in sync with stored transparency mode.
+          setBlurEnabled(settings.blurEnabled || settings.vibrancyMode !== 'solid');
         }
       })
       .catch(() => {
@@ -110,7 +112,7 @@ export function DesktopShell() {
     return () => {
       cancelled = true;
     };
-  }, [setTheme]);
+  }, [setTheme, setBlurEnabled]);
 
   // Mirror --mate-shell-* variables onto :root so CSS portal elements
   // (e.g. Base UI Select popup teleported to document.body) can inherit them.
@@ -127,20 +129,7 @@ export function DesktopShell() {
   }, [shellStyle]);
 
   const vibrancyMode = settings.vibrancyMode || 'solid';
-
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    const nativeMaterialEnabled =
-      vibrancyMode !== "solid" && (platform === "mac" || platform === "windows");
-
-    root.dataset.vibrancyMode = vibrancyMode;
-    root.classList.toggle("native-window-material", nativeMaterialEnabled);
-
-    return () => {
-      delete root.dataset.vibrancyMode;
-      root.classList.remove("native-window-material");
-    };
-  }, [platform, vibrancyMode]);
+  const usesCssGlass = vibrancyMode === "sidebar" || vibrancyMode === "special";
 
   return (
     <SidebarProvider defaultOpen>
@@ -154,10 +143,13 @@ export function DesktopShell() {
         )}
         style={shellStyle}
       >
+        {/* Ambient mesh gives CSS backdrop-filter something real to blur
+            (native mica/vibrancy are intentionally disabled). */}
+        {usesCssGlass ? <div aria-hidden className="app-ambient" /> : null}
 
         <div
           className={cn(
-            "relative flex h-full w-full overflow-hidden bg-transparent",
+            "relative z-10 flex h-full w-full overflow-hidden bg-transparent",
           )}
         >
           <AppSidebar

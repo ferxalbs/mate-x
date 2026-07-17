@@ -72,24 +72,45 @@
 }
 
 @layer utilities {
+  /*
+   * Single-layer CSS glass. Apply only on the surface that floats over content.
+   * Never put backdrop-filter on a layout ancestor of another glass surface —
+   * Chromium collapses nested filters and child controls go fully transparent.
+   */
   .glass {
-    background-color: color-mix(in srgb, var(--glass-bg, var(--background)) calc(var(--blur-opacity) * 100%), transparent);
+    background-color: color-mix(
+      in srgb,
+      var(--glass-bg, var(--panel)) calc(var(--glass-tint, var(--blur-opacity)) * 100%),
+      transparent
+    );
   }
-  :root.blur-enabled .glass {
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-  }
-}
 
-/* Native Vibrancy/Mica owns window blur. Disable descendant CSS blur, including portals. */
-:root.native-window-material :where(
-  .glass,
-  .app-sidebar-container,
-  .app-main-content-container,
-  [class*="backdrop-blur"]
-) {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  :root.blur-enabled .glass,
+  .glass-force {
+    backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
+  }
+
+  .glass-strong {
+    background-color: color-mix(
+      in srgb,
+      var(--glass-bg, var(--panel)) calc(var(--glass-tint-strong, 0.9) * 100%),
+      transparent
+    );
+  }
+
+  :root.blur-enabled .glass-strong,
+  .glass-strong.glass-force {
+    backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
+  }
+
+  /* Opaque form control surface — immune to glass/ambient washout. */
+  .control-surface {
+    background-color: var(--control) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 @layer base {
@@ -549,40 +570,118 @@ label:has(> select#reasoning-effort) select {
   animation: ultrathink-rainbow 10s linear infinite;
 }
 
-/* Platform-specific Vibrancy, Mica, and Acrylic Overrides */
+/*
+ * CSS-only transparency modes (no mica / native vibrancy).
+ *
+ * Architecture:
+ * 1. Opaque Electron window background.
+ * 2. Optional ambient mesh (blur sample source) behind chrome.
+ * 3. Glass ONLY on leaf chrome (sidebar, floating composer, menus).
+ * 4. Main content NEVER uses backdrop-filter — nested inputs stay solid.
+ */
 
-/* Sidebar transparency in vibrancy modes */
-.vibrancy-sidebar.platform-mac .app-sidebar-container,
-.vibrancy-special.platform-mac .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 28%, transparent) !important;
-  backdrop-filter: blur(40px) saturate(210%) !important;
-  border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent) !important;
+/* Ambient mesh — what glass blurs when native desktop materials are off. */
+.app-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 8% 12%, var(--ambient-a) 0%, transparent 55%),
+    radial-gradient(100% 70% at 92% 18%, var(--ambient-b) 0%, transparent 50%),
+    radial-gradient(90% 90% at 50% 100%, var(--ambient-c) 0%, transparent 60%),
+    var(--background);
+  opacity: 1;
 }
 
-:root.dark .vibrancy-sidebar.platform-mac .app-sidebar-container,
-:root.dark .vibrancy-special.platform-mac .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 52%, transparent) !important;
+.vibrancy-solid .app-ambient {
+  display: none;
 }
 
-.vibrancy-sidebar.platform-windows .app-sidebar-container,
-.vibrancy-special.platform-windows .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 50%, transparent) !important;
-  backdrop-filter: blur(30px) !important;
-  border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent) !important;
-}
-
-:root.dark .vibrancy-sidebar.platform-windows .app-sidebar-container,
-:root.dark .vibrancy-special.platform-windows .app-sidebar-container {
-  background-color: color-mix(in srgb, var(--sidebar) 76%, transparent) !important;
-}
-
-/* Sidebar solid fallback in solid mode */
+/* Solid mode — fully opaque chrome */
 .vibrancy-solid .app-sidebar-container {
   background-color: var(--sidebar) !important;
   backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-/* Sidebar List Item Hover/Active Transitions */
+.vibrancy-solid .app-main-content-container {
+  background-color: var(--background) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/*
+ * Sidebar mode: glass on sidebar only (single layer over ambient).
+ * Main stays fully opaque so form controls never wash out.
+ */
+.vibrancy-sidebar .app-sidebar-container {
+  background-color: color-mix(
+    in srgb,
+    var(--sidebar) calc(var(--glass-tint-strong, 0.9) * 100%),
+    transparent
+  ) !important;
+  backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur, 28px))
+    saturate(var(--glass-saturate, 1.55)) !important;
+  border-right: 1px solid var(--glass-border, color-mix(in srgb, var(--border) 70%, transparent)) !important;
+}
+
+.vibrancy-sidebar .app-main-content-container {
+  background-color: var(--background) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/*
+ * Special mode: glass sidebar + translucent main FILL only.
+ * Critical: no backdrop-filter on main — that killed nested composer/input glass.
+ * Floating surfaces (composer, menus) apply their own single-layer blur.
+ */
+.vibrancy-special .app-sidebar-container {
+  background-color: color-mix(
+    in srgb,
+    var(--sidebar) calc(var(--glass-tint, 0.78) * 100%),
+    transparent
+  ) !important;
+  backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur, 28px))
+    saturate(var(--glass-saturate, 1.55)) !important;
+  border-right: 1px solid var(--glass-border, color-mix(in srgb, var(--border) 70%, transparent)) !important;
+}
+
+.vibrancy-special .app-main-content-container {
+  /* High-opacity tint over ambient — readable, no filter stacking. */
+  background-color: color-mix(in srgb, var(--background) 92%, transparent) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root.dark .vibrancy-special .app-main-content-container {
+  background-color: color-mix(in srgb, var(--background) 94%, transparent) !important;
+}
+
+/* Floating glass chrome used by composer / docks when blur is on */
+:root.blur-enabled .mate-glass-float {
+  background-color: color-mix(
+    in srgb,
+    var(--glass-bg, var(--panel)) calc(var(--glass-tint-strong, 0.9) * 100%),
+    transparent
+  ) !important;
+  backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur, 28px))
+    saturate(var(--glass-saturate, 1.55)) !important;
+}
+
+/* Inputs / textareas: always solid, never inherit glass transparency */
+[data-slot="input-control"],
+[data-slot="textarea-control"] {
+  background-color: var(--control) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Sidebar list item motion */
 .platform-mac .app-sidebar-container button,
 .platform-mac .app-sidebar-container a {
   transition:
@@ -593,7 +692,6 @@ label:has(> select#reasoning-effort) select {
     transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* Make sure active states feel native to macOS/Windows */
 .platform-mac .app-sidebar-container [data-active="true"] {
   background-color: color-mix(in srgb, var(--foreground) 8%, transparent) !important;
   color: var(--foreground) !important;
@@ -604,29 +702,4 @@ label:has(> select#reasoning-effort) select {
   border-left: 3px solid var(--primary);
   border-radius: 0 4px 4px 0;
   padding-left: 12px !important;
-}
-
-/* Make sure main content areas are opaque and readable in solid/sidebar modes */
-.vibrancy-solid .app-main-content-container,
-.vibrancy-sidebar .app-main-content-container {
-  background-color: var(--background) !important;
-}
-
-/* Special (full app) vibrancy: make main content areas translucent too! */
-.vibrancy-special.platform-mac .app-main-content-container {
-  background-color: color-mix(in srgb, var(--background) 28%, transparent) !important;
-  backdrop-filter: blur(40px) saturate(210%) !important;
-}
-
-:root.dark .vibrancy-special.platform-mac .app-main-content-container {
-  background-color: color-mix(in srgb, var(--background) 52%, transparent) !important;
-}
-
-.vibrancy-special.platform-windows .app-main-content-container {
-  background-color: color-mix(in srgb, var(--background) 50%, transparent) !important;
-  backdrop-filter: blur(30px) !important;
-}
-
-:root.dark .vibrancy-special.platform-windows .app-main-content-container {
-  background-color: color-mix(in srgb, var(--background) 76%, transparent) !important;
 }
