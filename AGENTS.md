@@ -14,6 +14,7 @@
 8. **Scale planning to the task.** For small, low-risk changes, give a one-sentence plan and execute. For larger or riskier work, provide concise progress updates without narrating routine tool calls.
 9. **Preserve system capability.** Token efficiency must never prevent root-cause analysis, security review, contract tracing, implementation, or proportionate verification. Correctness and safety take priority over the initial context budget.
 10. **Stop expanding when evidence is sufficient.** Do not keep exploring once the requested outcome can be implemented and verified confidently.
+11. **No Unauthorised Subagents**: Never spawn subagents or invoke multiple parallel agent instances without express user consent.
 
 ***
 
