@@ -85,6 +85,7 @@ import {
   listModels,
   setModel,
 } from "../../../services/settings-client";
+import { useTheme } from "../../../hooks/use-theme";
 import { useChatStore } from "../../../store/chat-store";
 import type { BehaviorPreference, BehaviorMode } from "../../../contracts/behavior-mode";
 
@@ -150,7 +151,7 @@ export function ComposerPanel({
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
   const [isCancellingRun, setIsCancellingRun] = useState(false);
   const [isTrustSaving, setIsTrustSaving] = useState(false);
-  const settings = useChatStore((state) => state.settings);
+  const { blurEnabled } = useTheme();
   const cancelActiveRun = useChatStore((state) => state.cancelActiveRun);
   const hasWorkspace = Boolean(workspace);
   const trustLabel =
@@ -492,8 +493,8 @@ export function ComposerPanel({
       <div
         className={cn(
           "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border border-panel-border/40 shadow-none transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20",
-          // Single-layer glass only — parent main content has no backdrop-filter.
-          settings.blurEnabled
+          // Interface blur (live theme class) drives glass; parent main never filters.
+          blurEnabled
             ? "mate-glass-float focus-within:border-foreground/25"
             : "bg-panel focus-within:bg-panel",
           isDraggingFile ? "ring-2 ring-foreground/20" : "",

@@ -31,9 +31,18 @@ MaTE X is a local-first desktop security review agent for developers working acr
 ## Motion
 
 - Motion is functional and interruptible.
-- Interactive transitions: 200–250ms with `cubic-bezier(0.2, 0.8, 0.2, 1)`.
+- Interactive transitions: 150–250ms with `cubic-bezier(0.2, 0.8, 0.2, 1)`.
 - Prefer transform and opacity. Avoid layout animation and persistent decorative motion.
-- Respect reduced-motion preferences through the application animation utilities.
+- Never animate `backdrop-filter`.
+- Respect reduced-motion preferences (including lower glass blur radii).
+
+## Glass and materials
+
+- CSS-only glass. No native mica, acrylic, or vibrancy.
+- Opaque Electron window backing; ambient mesh supplies blur samples for layout glass.
+- Single-layer `backdrop-filter` only — never on main content ancestors of form controls.
+- Settings: **Interface blur** (`blurEnabled`) for controls/overlays; **Transparency Mode** (`vibrancyMode`) for layout chrome. Independent switches.
+- Tokens: `--control`, `--control-glass-blur`, `--overlay-glass-blur`, `--glass-*` in theme CSS; utilities in `src/index.css`.
 
 ## Layout
 
@@ -46,3 +55,5 @@ MaTE X is a local-first desktop security review agent for developers working acr
 | Date | Decision | Rationale |
 | --- | --- | --- |
 | 2026-07-10 | Refined utility system | Matches a security tool where speed, trust, and clarity matter more than decoration. |
+| 2026-07-16 | CSS-only glass; no mica/vibrancy | Nested native + CSS blur washed out inputs; single-layer CSS glass is stable and portable. |
+| 2026-07-16 | Independent Interface blur setting | Control/overlay glass is opt-in and separate from layout transparency mode. |

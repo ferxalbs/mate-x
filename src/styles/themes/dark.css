@@ -26,11 +26,15 @@
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-400);
 
-  --blur-opacity: 0.72;
-  --glass-blur: 32px;
-  --glass-saturate: 1.7;
-  --glass-tint: 0.72;
+  --blur-opacity: 0.74;
+  --glass-blur: 24px;
+  --glass-saturate: 1.5;
+  --glass-tint: 0.76;
   --glass-tint-strong: 0.88;
+  --control-glass-blur: 14px;
+  --control-glass-tint: 0.78;
+  --overlay-glass-blur: 22px;
+  --overlay-glass-tint: 0.68;
   --glass-bg: var(--panel);
   --ambient-a: color-mix(in srgb, var(--primary) 22%, #0a0a0c);
   --ambient-b: color-mix(in srgb, #6366f1 16%, #0c0d12);

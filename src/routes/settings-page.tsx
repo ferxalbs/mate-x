@@ -539,6 +539,7 @@ export function SettingsPage() {
     () => [
       ...(appSettings.appearance !== savedAppSettings.appearance ? ['Appearance'] : []),
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
+      ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Interface blur'] : []),
       ...(appSettings.vibrancyMode !== savedAppSettings.vibrancyMode ? ['Transparency Mode'] : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
@@ -725,20 +726,35 @@ export function SettingsPage() {
                     }
                   />
                   <SettingsRow
+                    title="Interface blur"
+                    description="Premium CSS glass on inputs, selects, menus, dialogs, and floating chrome. Independent of transparency mode."
+                    control={
+                      <Switch
+                        checked={appSettings.blurEnabled}
+                        onCheckedChange={(value) => {
+                          setBlurEnabled(value);
+                          setAppSettings((current) => ({
+                            ...current,
+                            blurEnabled: value,
+                          }));
+                          if (saveState === 'saved') {
+                            setSaveState('idle');
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <SettingsRow
                     title="Transparency Mode"
-                    description="CSS glass only — native mica/vibrancy stay off. Sidebar or floating chrome blurs the ambient layer; inputs stay solid."
+                    description="Layout glass: solid chrome, sidebar glass over ambient, or floating glass chrome. Native mica/vibrancy stay off."
                     control={
                       <Select
                         value={appSettings.vibrancyMode || 'solid'}
                         onValueChange={(value) => {
                           const mode = value as VibrancyMode;
-                          // Any non-solid mode enables single-layer CSS glass.
-                          const isBlurEnabled = mode !== 'solid';
-                          setBlurEnabled(isBlurEnabled);
                           setAppSettings((current) => ({
                             ...current,
                             vibrancyMode: mode,
-                            blurEnabled: isBlurEnabled,
                           }));
                           if (saveState === 'saved') {
                             setSaveState('idle');

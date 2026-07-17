@@ -176,32 +176,72 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - Route-driven subsections: `/settings/<section>`.
 - T3 Code density: compact sidebar nav, 52px titlebar rhythm, restrained settings sections, no marketing hero blocks inside product settings.
 
+### Glass, Blur & Window Materials (MANDATORY)
+
+MaTE X uses **CSS-only glass**. Native window materials are permanently disabled.
+
+1. **No native mica / acrylic / vibrancy**
+   - Never enable Electron `vibrancy`, Windows `backgroundMaterial: 'mica'`, or similar OS materials for product surfaces.
+   - Window backing stays opaque (`#ffffff` light / `#111111` dark). Clear leftover native materials via `src/electron/window-appearance.ts`.
+   - Rationale: native under-window blur cannot sample DOM content and fights CSS `backdrop-filter`, washing out inputs and nested chrome.
+
+2. **Two independent settings**
+   - **`blurEnabled` (Interface blur)** — toggles `:root.blur-enabled`. Applies premium glass to inputs, selects, menus, dialogs, tooltips, composer, and other control/overlay surfaces. Live preview via `useTheme().setBlurEnabled`; persist in app settings.
+   - **`vibrancyMode` (Transparency Mode)** — layout chrome only: `solid` | `sidebar` | `special`. Does **not** force `blurEnabled` on or off.
+   - Do not couple these again. Layout glass and control glass are separate products of the two switches.
+
+3. **Single-layer `backdrop-filter` rule**
+   - Apply `backdrop-filter` only on the **leaf surface** that should look like glass.
+   - **Never** put `backdrop-filter` on layout ancestors that wrap other glass or form controls (especially `.app-main-content-container`). Nested filters collapse in Chromium and make children look fully transparent.
+   - Main content must remain filter-free. Ambient mesh (`.app-ambient`) provides blur sample content when layout glass is on.
+
+4. **Tokens & utilities (source of truth)**
+   - Theme tokens in `src/styles/themes/base.css` / `dark.css`: `--glass-blur`, `--control-glass-blur`, `--overlay-glass-blur`, `--glass-tint*`, `--control`, `--glass-bg`, ambient vars.
+   - Utilities / global rules in `src/index.css`: `.glass`, `.glass-strong`, `.mate-glass-float`, `.control-surface`, and `:root.blur-enabled [data-slot=…]` selectors.
+   - Prefer `data-slot` hooks (`input-control`, `textarea-control`, `select-trigger`, `select-content`, `menu-popup`, `popover-popup`, `dialog-popup`, etc.) over scattering one-off `backdrop-blur-*` classes.
+   - When blur is **off**, force solid fills and `backdrop-filter: none` on those surfaces.
+
+5. **Control readability**
+   - Form controls use opaque `--control` when blur is off (`bg-mate-control-bg` / `.control-surface`).
+   - When blur is on, controls use **high tint + small blur** (`--control-glass-blur` ~12–14px). Overlays use stronger blur (`--overlay-glass-blur` ~20–22px).
+   - Never make inputs pure transparent with no fill. Text fields must stay legible over any background.
+
+6. **Performance**
+   - Do **not** animate `backdrop-filter`. Animate only `transform` and `opacity`.
+   - Prefer smaller blur on always-visible controls; reserve larger blur for portaled overlays.
+   - Use `isolation: isolate` on glass surfaces; avoid `will-change` on every control.
+   - Respect `prefers-reduced-motion` (lower blur radii already wired in `index.css`).
+   - Keep blur opt-in (`blurEnabled` default false) for low-power machines.
+
 ***
 
 ## User Design & Aesthetic Preferences
 
 **MANDATORY: Follow these rules for all UI-related tasks to maintain a premium, cohesive aesthetic:**
 
-1. **Ultra-Minimalist & Flat**: Avoid heavy box-shadows. Prefer "flat" designs where boundaries are defined by borders (`border-border/70`) or subtle background differences rather than depth.
+1. **Ultra-Minimalist & Flat**: Avoid heavy box-shadows. Prefer "flat" designs where boundaries are defined by borders (`border-border/70`) or subtle background differences rather than depth. Prefer `shadow-none` on product chrome.
 2. **Organic Rounding**: Avoid `rounded-md` or `rounded-xl` for main containers. Use "super rounded" shapes:
     - **Main Input/Panels**: `rounded-[32px]`
     - **Cards/Popovers/Tooltips**: `rounded-2xl`
     - **Buttons**: `rounded-full` or `rounded-xl` depending on context.
     - **NEVER** use full capsule shapes for rectangular inputs unless explicitly asked.
 3. **Transparency & Glassmorphism**:
-    - Use `bg-transparent` for main layout sections (e.g., `home-page.tsx` section) to allow theme backgrounds to flow.
-    - Use semi-transparent backgrounds for panels: `bg-[var(--panel)]/92` combined with `backdrop-blur-xl` and `glass` utility.
+    - CSS glass only — see **Glass, Blur & Window Materials** above. No mica/native vibrancy.
+    - Layout sections may use `bg-transparent` over ambient/theme flow; main content must stay readable (high-opacity or solid), never a full-tree `backdrop-filter`.
+    - Floating chrome (composer, menus, dialogs): use `mate-glass-float` / overlay glass tokens when `blurEnabled`, solid `bg-panel` / `bg-popover` when off.
+    - Do not reintroduce ad-hoc `bg-panel/70 backdrop-blur-2xl` stacks that nest under another filter.
 4. **Seamless Integration**:
     - Eliminate visual "cuts" or solid blocks behind floating elements.
     - Match `max-width` and `padding` between related components (e.g., Message Stream and Composer) to maintain a unified vertical column.
     - Composer prefers a "narrow" minimalist look: `max-w-[820px]` in non-compact mode.
 5. **Theme-Aware Contrast**:
     - Never use hardcoded light/dark inverse colors (like `bg-foreground` for tooltips).
-    - Always use theme variables: `bg-[var(--panel)]`, `text-foreground`, `border-[var(--panel-border)]/40`.
+    - Always use theme variables: `bg-[var(--panel)]`, `bg-mate-control-bg`, `text-foreground`, `border-[var(--panel-border)]/40`.
 6. **Snappy & Fluid Transitions**:
     - Avoid slow, sluggish, or purely linear CSS transitions (e.g., `ease-linear`).
-    - Use fast, elegant, Apple-style animations that feel fluid and highly responsive.
-    - Prefer short durations like `duration-[250ms]` paired with snappy easing functions such as `ease-[cubic-bezier(0.2,0.8,0.2,1)]` for interactive elements like sidebars and menus.
+    - Prefer `duration-150`–`duration-[250ms]` with `ease-[cubic-bezier(0.2,0.8,0.2,1)]` for interactive UI.
+    - Prefer transform + opacity only; never transition `backdrop-filter` or large layout properties for routine hover/open.
+    - Motion must be interruptible and reduced-motion aware.
 7. **Cards & Data Panels**:
     - Always use `border-border/70` and `shadow-none` for `Card` components to maintain the flat, minimalist aesthetic.
     - Leverage scrollable constraints (`min-h-0`, `flex-1`) combined with `ScrollArea` to construct clean layouts without stretching the entire view.
