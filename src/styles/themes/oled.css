@@ -1,36 +1,43 @@
 @variant theme-oled {
+  /* Light OLED keeps pure white canvas. */
   --background: #ffffff;
   --app-chrome-background: #ffffff;
   --foreground: #000000;
-  --card: #f8f9fa;
-  --popover: #f8f9fa;
-  --sidebar: #f8f9fa;
-  --surface: #f1f3f5;
-  --surface-soft: #e9ecef;
-  --panel: #f8f9fa;
-  --titlebar: #f8f9fa;
-  --control: #eef0f2;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --sidebar: #ffffff;
+  --surface: #ffffff;
+  --surface-soft: color-mix(in srgb, black 3%, #ffffff);
+  --panel: #ffffff;
+  --titlebar: #ffffff;
+  --control: #f2f3f5;
   --border: color-mix(in srgb, black 10%, transparent);
   --input: color-mix(in srgb, black 12%, transparent);
   --code-bg: #f8f9fa;
+  --ambient-a: #ffffff;
+  --ambient-b: #ffffff;
+  --ambient-c: #ffffff;
+  --glass-bg: var(--control);
 
   @variant dark {
+    /* True black OLED exception — still elevated #1a controls. */
     --background: #000000;
     --app-chrome-background: #000000;
     --foreground: #f8f9fa;
-    --card: #080808;
-    --popover: #080808;
-    --sidebar: #020202;
-    --surface: #050505;
-    --surface-soft: #0a0a0a;
-    --panel: #050505;
-    --titlebar: #020202;
-    --control: #121212;
+    --card: #000000;
+    --popover: #000000;
+    --sidebar: #000000;
+    --surface: #000000;
+    --surface-soft: #050505;
+    --panel: #000000;
+    --titlebar: #000000;
+    --control: #1a1a1a;
     --border: color-mix(in srgb, white 6%, transparent);
     --input: color-mix(in srgb, white 7%, transparent);
     --code-bg: #000000;
-    --ambient-a: #0a0a12;
-    --ambient-b: #101018;
+    --ambient-a: #000000;
+    --ambient-b: #000000;
     --ambient-c: #000000;
+    --glass-bg: var(--control);
   }
 }

@@ -229,7 +229,7 @@ export function EnhancementPanel({
   }
 
   return (
-    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] lg:flex 2xl:w-[316px]">
+    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-background lg:flex 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
         <div className="border-b border-[var(--panel-border)]/45 px-4 py-4">
           <PanelHeader

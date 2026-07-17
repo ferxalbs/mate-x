@@ -1,10 +1,11 @@
 @variant dark {
   color-scheme: dark;
+  /* Canonical dark canvas — entire app chrome uses pure #111111. */
   --background: #111111;
   --foreground: color-mix(in srgb, white 92%, #c8cbd4 8%);
-  --card: color-mix(in srgb, #1d1d1f 96%, black 4%);
+  --card: #111111;
   --card-foreground: var(--color-neutral-100);
-  --popover: color-mix(in srgb, #1d1d1f 96%, black 4%);
+  --popover: #111111;
   --popover-foreground: var(--color-neutral-100);
   --primary: oklch(0.588 0.217 264);
   --primary-foreground: var(--color-white);
@@ -26,21 +27,22 @@
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-400);
 
-  --blur-opacity: 0.74;
-  --glass-blur: 24px;
-  --glass-saturate: 1.5;
-  --glass-tint: 0.76;
-  --glass-tint-strong: 0.88;
-  --control-glass-blur: 14px;
-  --control-glass-tint: 0.78;
-  --overlay-glass-blur: 22px;
-  --overlay-glass-tint: 0.68;
-  --glass-bg: var(--panel);
-  --ambient-a: color-mix(in srgb, var(--primary) 22%, #0a0a0c);
-  --ambient-b: color-mix(in srgb, #6366f1 16%, #0c0d12);
-  --ambient-c: #0e0f14;
+  /* Stronger glass on elevated controls over flat #111 canvas. */
+  --blur-opacity: 0.7;
+  --glass-blur: 30px;
+  --glass-saturate: 1.65;
+  --glass-tint: 0.7;
+  --glass-tint-strong: 0.82;
+  --control-glass-blur: 22px;
+  --control-glass-tint: 0.68;
+  --overlay-glass-blur: 30px;
+  --overlay-glass-tint: 0.62;
+  --glass-bg: var(--control);
+  --ambient-a: color-mix(in srgb, var(--primary) 14%, #111111);
+  --ambient-b: color-mix(in srgb, #6366f1 10%, #111111);
+  --ambient-c: #111111;
 
-  /* Refined Code Highlighting (Dark) - Matched to Screenshot */
+  /* Refined Code Highlighting (Dark) */
   --code-bg: #0d0e11;
   --code-keyword: #ff6188;
   --code-string: #a9dc76;
@@ -51,18 +53,23 @@
   --code-constant: #fc9867;
   --code-tag: #ff6188;
   --code-class: #78dce8;
-  --app-chrome-background: #111112;
+
+  /* Flat #111 app chrome — matches window backing. */
+  --app-chrome-background: #111111;
   --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
-  --sidebar: color-mix(in srgb, #161618 97%, black 3%);
+  --sidebar: #111111;
   --sidebar-foreground: var(--foreground);
   --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
-  --sidebar-accent: color-mix(in srgb, white 4%, #1a1c20 96%);
-  --surface: color-mix(in srgb, #1d1e21 97%, black 3%);
-  --surface-soft: color-mix(in srgb, white 2%, #141518 98%);
-  --panel: color-mix(in srgb, #191a1d 97%, black 3%);
+  --sidebar-accent: color-mix(in srgb, white 6%, #111111);
+  --surface: #111111;
+  --surface-soft: color-mix(in srgb, white 3%, #111111);
+  --panel: #111111;
   --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
-  /* Opaque control fill — inputs must never wash out over glass/ambient. */
-  --control: #1c1d21;
-  --titlebar: color-mix(in srgb, #17181a 97%, black 3%);
+  /*
+   * Elevated control exception (~#1a1a1a family from screenshot).
+   * Inputs / selects / composer fill sit above the flat canvas.
+   */
+  --control: #1a1a1a;
+  --titlebar: #111111;
   --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 }

@@ -70,7 +70,7 @@ function TitlebarButton({
       variant="outline"
       className={cn(
         "h-8 rounded-full border-border/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none backdrop-blur-md hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
-        liquidGlassEnabled ? "bg-[var(--mate-panel-bg)]" : "bg-mate-control-bg",
+        "bg-mate-control-bg",
         className,
       )}
       onClick={onClick}
@@ -129,9 +129,10 @@ export function ChatTopbar({
     <header
       className={cn(
         "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+        // Flat canvas titlebar — matches #111 / #fff; glass only if blur + special.
         isSpecialMode
-          ? "mate-glass-float border-b border-[var(--titlebar-border)]/50"
-          : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
+          ? "border-b border-[var(--titlebar-border)]/50 bg-background"
+          : "border-b border-[var(--titlebar-border)] bg-background",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]",
       )}
@@ -142,7 +143,7 @@ export function ChatTopbar({
           {title}
         </h2>
         {workspace ? (
-          <span className="hidden rounded-full border border-border/60 bg-[var(--mate-panel-bg)] px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-md min-[1180px]:inline-flex">
+          <span className="hidden rounded-full border border-border/60 bg-mate-control-bg px-2.5 py-1 text-[11px] text-muted-foreground min-[1180px]:inline-flex">
             {workspace.name}
           </span>
         ) : null}
@@ -152,7 +153,7 @@ export function ChatTopbar({
           </span>
         ) : null}
         {workspace ? (
-          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-panel-bg)] px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md 2xl:inline-flex">
+          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-mate-control-bg px-2 py-1 text-[10px] font-medium text-muted-foreground 2xl:inline-flex">
             {repoSafetyLabel}
           </span>
         ) : null}

@@ -493,10 +493,10 @@ export function ComposerPanel({
       <div
         className={cn(
           "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border border-panel-border/40 shadow-none transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20",
-          // Interface blur (live theme class) drives glass; parent main never filters.
+          // Elevated exception over flat #111/#fff canvas; glass when Interface blur is on.
           blurEnabled
             ? "mate-glass-float focus-within:border-foreground/25"
-            : "bg-panel focus-within:bg-panel",
+            : "bg-mate-control-bg focus-within:bg-mate-control-bg",
           isDraggingFile ? "ring-2 ring-foreground/20" : "",
         )}
         onDragEnter={(event) => {
