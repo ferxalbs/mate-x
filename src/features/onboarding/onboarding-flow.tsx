@@ -1,25 +1,25 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { LazyMotion, AnimatePresence, domAnimation, m } from "framer-motion";
 import { 
-  ChevronRight, 
-  Shield, 
-  FolderOpen,
-  GitBranch,
-  Key,
-  Lock,
-  Route,
-  CheckCircle2, 
-  Download,
-  ExternalLink,
-  Settings,
-  FileCheck2,
-  Terminal,
-  Pencil,
-  Eye,
-  PlayCircle,
-  Database,
-  Activity,
-} from "lucide-react";
+  CaretRightIcon, 
+  ShieldIcon, 
+  FolderOpenIcon,
+  GitBranchIcon,
+  KeyIcon,
+  LockIcon,
+  SignpostIcon,
+  CheckCircleIcon, 
+  DownloadIcon,
+  ArrowSquareOutIcon,
+  GearIcon,
+  FileTextIcon,
+  TerminalIcon,
+  PencilIcon,
+  EyeIcon,
+  PlayCircleIcon,
+  DatabaseIcon,
+  ActivityIcon,
+} from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "../../components/ui/button";
@@ -137,10 +137,10 @@ export function OnboardingFlow() {
           <div key={step.id} className="flex items-center gap-3">
             <div 
               className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
-                idx <= currentStep ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "border-border bg-muted/40 text-muted-foreground"
+                idx <= currentStep ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground"
               }`}
             >
-              {idx < currentStep ? <CheckCircle2 className="h-5 w-5" /> : idx + 1}
+              {idx < currentStep ? <CheckCircleIcon className="h-5 w-5" /> : idx + 1}
             </div>
             {idx < steps.length - 1 && (
               <div className={`h-0.5 w-12 transition-colors ${idx < currentStep ? "bg-primary" : "bg-muted"}`} />
@@ -199,9 +199,9 @@ export function OnboardingFlow() {
         <Button variant="ghost" onClick={handleBack} disabled={currentStep === 0} className="hover:bg-accent/10">
           Back
         </Button>
-        <Button onClick={handlePrimaryAction} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-full px-6">
+        <Button onClick={handlePrimaryAction} className="bg-primary hover:bg-primary/90 rounded-xl px-6">
           {steps[currentStep].cta}
-          <ChevronRight className="ml-2 h-4 w-4" />
+          <CaretRightIcon className="ml-2 h-4 w-4" />
         </Button>
       </div>
 
@@ -278,11 +278,10 @@ function IntroStep() {
 
 function PreferencesStep({ settings, setSettings, setAppearance, setTheme }: any) {
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
       <CardHeader>
         <div className="flex items-center gap-2 relative z-10">
-          <Settings className="h-5 w-5 text-primary" />
+          <GearIcon className="h-5 w-5 text-primary" />
           <CardTitle>Set your workspace controls</CardTitle>
         </div>
         <CardDescription className="relative z-10">
@@ -386,11 +385,10 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
   const inferenceLabel = isReady ? "Ready" : "Not ready";
 
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
       <CardHeader>
         <div className="flex items-center gap-2 relative z-10">
-          <Shield className="h-5 w-5 text-primary" />
+          <ShieldIcon className="h-5 w-5 text-primary" />
           <CardTitle>Install Privacy Sentinel</CardTitle>
         </div>
         <CardDescription className="relative z-10">
@@ -403,7 +401,7 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
             <span className="text-sm font-medium">ONNX model status</span>
             {isReady ? (
               <span className="text-xs text-emerald-500 flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Ready
+                <CheckCircleIcon className="h-3 w-3" /> Ready
               </span>
             ) : (
               <span className="text-xs text-amber-500">{statusLabel}</span>
@@ -448,7 +446,7 @@ function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
             <Button variant="outline" className="w-full" disabled={isReady} onClick={handleDownload}>
               {isReady ? "Model installed" : (
                 <>
-                  <Download className="mr-2 h-4 w-4" />
+                  <DownloadIcon className="mr-2 h-4 w-4" />
                   Download Privacy Model (340MB)
                 </>
               )}
@@ -464,11 +462,10 @@ function ApiKeyStep({ apiKey, setApiKey, apiKeyConfigured }: any) {
   const isConfigured = apiKeyConfigured || (apiKey && apiKey.length > 5);
 
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
       <CardHeader>
         <div className="flex items-center gap-2 relative z-10">
-          <Key className="h-5 w-5 text-primary" />
+          <KeyIcon className="h-5 w-5 text-primary" />
           <CardTitle>Connect Rainy API</CardTitle>
         </div>
         <CardDescription className="relative z-10">
@@ -481,7 +478,7 @@ function ApiKeyStep({ apiKey, setApiKey, apiKeyConfigured }: any) {
             <span className="text-sm font-medium">Connection status</span>
             {isConfigured ? (
               <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium">
-                <CheckCircle2 className="h-3 w-3" /> Configured
+                <CheckCircleIcon className="h-3 w-3" /> Configured
               </span>
             ) : (
               <span className="text-xs text-amber-500 font-medium">Required for first verification test</span>
@@ -511,7 +508,7 @@ function ApiKeyStep({ apiKey, setApiKey, apiKeyConfigured }: any) {
               className="flex items-center"
             >
               Go to app.rainy-mate.com to get your key
-              <ExternalLink className="ml-1 h-3 w-3" />
+              <ArrowSquareOutIcon className="ml-1 h-3 w-3" />
             </a>
           )}
         />
@@ -522,11 +519,10 @@ function ApiKeyStep({ apiKey, setApiKey, apiKeyConfigured }: any) {
 
 function WorkspaceStep({ selectedWorkspace }: { selectedWorkspace: string | null }) {
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
       <CardHeader>
         <div className="flex items-center gap-2 relative z-10">
-          <FolderOpen className="h-5 w-5 text-primary" />
+          <FolderOpenIcon className="h-5 w-5 text-primary" />
           <CardTitle>Choose a repo to verify</CardTitle>
         </div>
         <CardDescription className="relative z-10">
@@ -535,9 +531,9 @@ function WorkspaceStep({ selectedWorkspace }: { selectedWorkspace: string | null
       </CardHeader>
       <CardContent className="space-y-4 relative z-10">
         <div className="grid gap-3 sm:grid-cols-3">
-          <OnboardingPillar icon={<GitBranch className="h-4 w-4" />} title="Repo graph" body="Map changed files, imports, IPC, and risky surfaces." />
-          <OnboardingPillar icon={<Shield className="h-4 w-4" />} title="Privacy Sentinel" body="Screen secrets and sensitive spans locally first." />
-          <OnboardingPillar icon={<Database className="h-4 w-4" />} title="Context ready" body="Keep validation evidence tied to workspace state." />
+          <OnboardingPillar icon={<GitBranchIcon className="h-4 w-4" />} title="Repo graph" body="Map changed files, imports, IPC, and risky surfaces." />
+          <OnboardingPillar icon={<ShieldIcon className="h-4 w-4" />} title="Privacy Sentinel" body="Screen secrets and sensitive spans locally first." />
+          <OnboardingPillar icon={<DatabaseIcon className="h-4 w-4" />} title="Context ready" body="Keep validation evidence tied to workspace state." />
         </div>
         <div className="rounded-xl border border-border/40 bg-muted/40 p-4 text-sm">
           <span className="font-medium">Selected workspace: </span>
@@ -564,11 +560,10 @@ function TrustBoundaryStep({ trustDraft, setTrustDraft }: {
   };
 
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
       <CardHeader>
         <div className="flex items-center gap-2 relative z-10">
-          <Lock className="h-5 w-5 text-primary" />
+          <LockIcon className="h-5 w-5 text-primary" />
           <CardTitle>Define what MaTE X can touch</CardTitle>
         </div>
         <CardDescription className="relative z-10">
@@ -607,28 +602,28 @@ function TrustBoundaryStep({ trustDraft, setTrustDraft }: {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <TrustListField
-                icon={<Eye className="h-4 w-4" />}
+                icon={<EyeIcon className="h-4 w-4" />}
                 title="Scope"
                 description="Paths the agent can inspect or modify."
                 value={trustDraft.allowedPaths}
                 onChange={(value) => updateList("allowedPaths", value)}
               />
               <TrustListField
-                icon={<Lock className="h-4 w-4" />}
+                icon={<LockIcon className="h-4 w-4" />}
                 title="Forbidden"
                 description="Paths blocked even inside allowed scope."
                 value={trustDraft.forbiddenPaths}
                 onChange={(value) => updateList("forbiddenPaths", value)}
               />
               <TrustListField
-                icon={<Terminal className="h-4 w-4" />}
+                icon={<TerminalIcon className="h-4 w-4" />}
                 title="Commands"
                 description="Exact command prefixes allowed."
                 value={trustDraft.allowedCommands}
                 onChange={(value) => updateList("allowedCommands", value)}
               />
               <TrustListField
-                icon={<Pencil className="h-4 w-4" />}
+                icon={<PencilIcon className="h-4 w-4" />}
                 title="Actions"
                 description="Allowed and blocked action classes."
                 value={[
@@ -687,11 +682,10 @@ function TrustListField({ icon, title, description, value, onChange }: {
 
 function VerificationStep() {
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card/80 to-muted/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group rounded-2xl">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
       <CardHeader>
         <div className="flex items-center gap-2 relative z-10">
-          <FileCheck2 className="h-5 w-5 text-primary" />
+          <FileTextIcon className="h-5 w-5 text-primary" />
           <CardTitle>Run your first evidence pack</CardTitle>
         </div>
         <CardDescription className="relative z-10">
@@ -700,10 +694,10 @@ function VerificationStep() {
       </CardHeader>
       <CardContent className="space-y-4 relative z-10">
         <div className="grid gap-3 sm:grid-cols-2">
-          <OnboardingPillar icon={<Shield className="h-4 w-4" />} title="Secret detection" body="Privacy Sentinel checks exposed credentials and PII." />
-          <OnboardingPillar icon={<Route className="h-4 w-4" />} title="Path trace" body="Trace risky input, IPC, shell, network, and storage flows." />
-          <OnboardingPillar icon={<Activity className="h-4 w-4" />} title="Validation" body="Run selected checks and capture pass/fail evidence." />
-          <OnboardingPillar icon={<PlayCircle className="h-4 w-4" />} title="Go/no-go" body="Produce decision plus replayable evidence pack." />
+          <OnboardingPillar icon={<ShieldIcon className="h-4 w-4" />} title="Secret detection" body="Privacy Sentinel checks exposed credentials and PII." />
+          <OnboardingPillar icon={<SignpostIcon className="h-4 w-4" />} title="Path trace" body="Trace risky input, IPC, shell, network, and storage flows." />
+          <OnboardingPillar icon={<ActivityIcon className="h-4 w-4" />} title="Validation" body="Run selected checks and capture pass/fail evidence." />
+          <OnboardingPillar icon={<PlayCircleIcon className="h-4 w-4" />} title="Go/no-go" body="Produce decision plus replayable evidence pack." />
         </div>
       </CardContent>
     </Card>

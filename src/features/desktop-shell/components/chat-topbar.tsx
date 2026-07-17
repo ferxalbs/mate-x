@@ -1,15 +1,15 @@
 import {
   ActivityIcon,
-  ChevronDownIcon,
-  ExternalLinkIcon,
+  CaretDownIcon,
+  ArrowSquareOutIcon,
   FileSearchIcon,
   GitBranchIcon,
-  Loader2Icon,
-  MapIcon,
-  PanelRightIcon,
+  CircleNotchIcon,
+  MapTrifoldIcon,
+  SidebarIcon,
   PlusIcon,
   TargetIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "../../../components/ui/button";
@@ -56,7 +56,7 @@ function sendLiveCommand(detail: {
 function TitlebarButton({
   children,
   onClick,
-  liquidGlassEnabled = false,
+  liquidGlassEnabled: _liquidGlassEnabled = false,
   className,
 }: {
   children?: ReactNode;
@@ -171,7 +171,7 @@ export function ChatTopbar({
             }
           >
             {runStatus === "running" ? (
-              <Loader2Icon className="size-3.5 animate-spin text-blue-400" />
+              <CircleNotchIcon className="size-3.5 animate-spin text-blue-400" />
             ) : eventCount > 0 ? (
               <div className="size-2 rounded-full bg-emerald-400" />
             ) : (
@@ -183,11 +183,11 @@ export function ChatTopbar({
                 {eventCount}
               </span>
             )}
-            <ChevronDownIcon className="size-3.5 opacity-50 transition-transform duration-200" />
+            <CaretDownIcon className="size-3.5 opacity-50 transition-transform duration-200" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem onClick={() => sendLiveCommand({ action: "open" })}>
-              <PanelRightIcon className="size-3.5" />
+              <SidebarIcon className="size-3.5" />
               Open panel
             </MenuItem>
             <MenuItem onClick={() => sendLiveCommand({ action: "scan" })}>
@@ -199,7 +199,7 @@ export function ChatTopbar({
               TRACE
             </MenuItem>
             <MenuItem onClick={() => sendLiveCommand({ view: "impact" })}>
-              <MapIcon className="size-3.5" />
+              <MapTrifoldIcon className="size-3.5" />
               Impact
             </MenuItem>
             <MenuItem onClick={() => sendLiveCommand({ view: "validation" })}>
@@ -221,13 +221,13 @@ export function ChatTopbar({
               />
             }
           >
-            <ExternalLinkIcon className="size-3.5" />
+            <ArrowSquareOutIcon className="size-3.5" />
             {openTarget === "folder"
               ? "Open"
               : openTarget === "vscode"
                 ? "VS Code"
                 : "Terminal"}
-            <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+            <CaretDownIcon className="size-3.5 text-muted-foreground" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
@@ -266,7 +266,7 @@ export function ChatTopbar({
           >
             <GitBranchIcon className="size-3.5" />
             Git
-            <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+            <CaretDownIcon className="size-3.5 text-muted-foreground" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
