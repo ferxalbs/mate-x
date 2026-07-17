@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 
 import type { AssistantRunOptions, Conversation, EvidencePack } from "../contracts/chat";
 import { validateAssistantRunOptions } from "../contracts/assistant-run-options";
@@ -36,6 +36,7 @@ import {
 } from "./repo-service/workspace";
 import { tursoService } from "./turso-service";
 import { checkForUpdates } from "./updater";
+import { applyWindowAppearance } from "./window-appearance";
 import { getStack } from "./main-stack";
 
 // ── Lazy service loaders (keep main-process cold start free of assistant/SDK bulk) ──
@@ -1416,13 +1417,12 @@ export function registerIpcHandlers() {
       const updatedSettings = await tursoService.updateAppSettings(validateAppSettings(settings));
       const [win] = BrowserWindow.getAllWindows();
       if (win) {
-        const mode = updatedSettings.vibrancyMode || 'solid';
-        const isVibrancyEnabled = mode === 'sidebar' || mode === 'special';
-        if (process.platform === 'darwin') {
-          win.setVibrancy(isVibrancyEnabled ? 'under-window' : null);
-        } else if (process.platform === 'win32') {
-          win.setBackgroundMaterial(isVibrancyEnabled ? 'mica' : 'none');
-        }
+        applyWindowAppearance(
+          win,
+          updatedSettings,
+          process.platform,
+          nativeTheme.shouldUseDarkColors,
+        );
       }
       return updatedSettings;
     }

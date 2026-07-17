@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 
 import { SidebarProvider } from "../../components/ui/sidebar";
@@ -127,6 +127,20 @@ export function DesktopShell() {
   }, [shellStyle]);
 
   const vibrancyMode = settings.vibrancyMode || 'solid';
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const nativeMaterialEnabled =
+      vibrancyMode !== "solid" && (platform === "mac" || platform === "windows");
+
+    root.dataset.vibrancyMode = vibrancyMode;
+    root.classList.toggle("native-window-material", nativeMaterialEnabled);
+
+    return () => {
+      delete root.dataset.vibrancyMode;
+      root.classList.remove("native-window-material");
+    };
+  }, [platform, vibrancyMode]);
 
   return (
     <SidebarProvider defaultOpen>

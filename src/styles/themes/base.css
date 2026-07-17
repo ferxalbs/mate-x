@@ -51,6 +51,7 @@
   --surface-soft: color-mix(in srgb, var(--muted) 84%, white 16%);
   --panel: color-mix(in srgb, var(--background) 96%, #f6f6f8);
   --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --control: color-mix(in srgb, var(--panel) 94%, var(--background));
   --titlebar: color-mix(in srgb, var(--background) 98%, #f7f7f9);
   --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 }
