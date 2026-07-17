@@ -26,6 +26,16 @@
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-400);
 
+  --blur-opacity: 0.72;
+  --glass-blur: 32px;
+  --glass-saturate: 1.7;
+  --glass-tint: 0.72;
+  --glass-tint-strong: 0.88;
+  --glass-bg: var(--panel);
+  --ambient-a: color-mix(in srgb, var(--primary) 22%, #0a0a0c);
+  --ambient-b: color-mix(in srgb, #6366f1 16%, #0c0d12);
+  --ambient-c: #0e0f14;
+
   /* Refined Code Highlighting (Dark) - Matched to Screenshot */
   --code-bg: #0d0e11;
   --code-keyword: #ff6188;
@@ -47,6 +57,8 @@
   --surface-soft: color-mix(in srgb, white 2%, #141518 98%);
   --panel: color-mix(in srgb, #191a1d 97%, black 3%);
   --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
+  /* Opaque control fill — inputs must never wash out over glass/ambient. */
+  --control: #1c1d21;
   --titlebar: color-mix(in srgb, #17181a 97%, black 3%);
   --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 }

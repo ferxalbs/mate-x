@@ -12,6 +12,7 @@
   --surface-soft: #dfe9fb;
   --panel: #f8faff;
   --titlebar: #f8fafc;
+  --control: #eef2f8;
   --border: color-mix(in srgb, black 8%, transparent);
   --input: color-mix(in srgb, black 10%, transparent);
   --muted: color-mix(in srgb, black 4%, transparent);
@@ -32,8 +33,12 @@
     --surface-soft: #0f172a;
     --panel: #020617;
     --titlebar: #010204;
+    --control: #0b1220;
     --border: color-mix(in srgb, #38bdf8 8%, transparent);
     --input: color-mix(in srgb, #38bdf8 12%, transparent);
+    --ambient-a: color-mix(in srgb, #38bdf8 14%, #020408);
+    --ambient-b: color-mix(in srgb, #6366f1 12%, #020617);
+    --ambient-c: #010204;
     --muted: color-mix(in srgb, #38bdf8 4%, transparent);
     --accent: color-mix(in srgb, #38bdf8 6%, transparent);
     --code-bg: #000000;

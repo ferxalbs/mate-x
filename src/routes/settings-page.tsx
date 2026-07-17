@@ -636,7 +636,7 @@ export function SettingsPage() {
           className={cn(
             "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 px-4 transition-[padding-left] duration-200 ease-linear",
             appSettings.vibrancyMode === 'special'
-              ? "bg-transparent border-b border-border/70"
+              ? "mate-glass-float border-b border-border/70"
               : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
             state === "collapsed" && platform === "mac" && "pl-[88px]",
             platform === "windows" && "pr-[138px]"
@@ -726,13 +726,14 @@ export function SettingsPage() {
                   />
                   <SettingsRow
                     title="Transparency Mode"
-                    description="Configure native visual transparency effects (macOS Vibrancy / Windows Mica)."
+                    description="CSS glass only — native mica/vibrancy stay off. Sidebar or floating chrome blurs the ambient layer; inputs stay solid."
                     control={
                       <Select
                         value={appSettings.vibrancyMode || 'solid'}
                         onValueChange={(value) => {
                           const mode = value as VibrancyMode;
-                          const isBlurEnabled = mode === 'special';
+                          // Any non-solid mode enables single-layer CSS glass.
+                          const isBlurEnabled = mode !== 'solid';
                           setBlurEnabled(isBlurEnabled);
                           setAppSettings((current) => ({
                             ...current,
@@ -749,8 +750,8 @@ export function SettingsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="solid">Solid (Default)</SelectItem>
-                          <SelectItem value="sidebar">Normal (Sidebar Blur)</SelectItem>
-                          <SelectItem value="special">Special (Full App Blur)</SelectItem>
+                          <SelectItem value="sidebar">Sidebar glass</SelectItem>
+                          <SelectItem value="special">Floating glass</SelectItem>
                         </SelectContent>
                       </Select>
                     }
@@ -845,7 +846,7 @@ export function SettingsPage() {
                     control={
                       <div className="flex items-center gap-2">
                         {currentKeyPrefix && !isEditingKey ? (
-                          <div className="flex h-10 w-[220px] items-center rounded-md border border-input bg-[var(--mate-control-bg)] px-3 text-xs text-muted-foreground backdrop-blur-md">
+                          <div className="control-surface flex h-10 w-[220px] items-center rounded-md border border-input bg-mate-control-bg px-3 text-xs text-muted-foreground">
                             Saved: {currentKeyPrefix}
                           </div>
                         ) : (

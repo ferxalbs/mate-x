@@ -30,7 +30,7 @@ export function TrustTextareaRow({
       description={description}
       control={
         <textarea
-          className="min-h-20 w-full rounded-md border border-input bg-[var(--mate-control-bg)] px-3 py-2 text-xs leading-5 text-foreground outline-none backdrop-blur-md placeholder:text-muted-foreground/50 focus-visible:border-ring sm:w-[360px]"
+          className="control-surface min-h-20 w-full rounded-md border border-input bg-mate-control-bg px-3 py-2 text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/50 focus-visible:border-ring sm:w-[360px]"
           value={value.join('\n')}
           placeholder={placeholder}
           onChange={(event) => onChange(parseLines(event.target.value))}

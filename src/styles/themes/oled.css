@@ -9,6 +9,7 @@
   --surface-soft: #e9ecef;
   --panel: #f8f9fa;
   --titlebar: #f8f9fa;
+  --control: #eef0f2;
   --border: color-mix(in srgb, black 10%, transparent);
   --input: color-mix(in srgb, black 12%, transparent);
   --code-bg: #f8f9fa;
@@ -24,8 +25,12 @@
     --surface-soft: #0a0a0a;
     --panel: #050505;
     --titlebar: #020202;
+    --control: #121212;
     --border: color-mix(in srgb, white 6%, transparent);
     --input: color-mix(in srgb, white 7%, transparent);
     --code-bg: #000000;
+    --ambient-a: #0a0a12;
+    --ambient-b: #101018;
+    --ambient-c: #000000;
   }
 }

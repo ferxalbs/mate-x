@@ -70,7 +70,7 @@ function TitlebarButton({
       variant="outline"
       className={cn(
         "h-8 rounded-full border-border/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none backdrop-blur-md hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
-        liquidGlassEnabled ? "bg-[var(--mate-panel-bg)]" : "bg-background/55",
+        liquidGlassEnabled ? "bg-[var(--mate-panel-bg)]" : "bg-mate-control-bg",
         className,
       )}
       onClick={onClick}
@@ -91,7 +91,8 @@ export function ChatTopbar({
   const settings = useChatStore((state) => state.settings);
   const vibrancyMode = settings?.vibrancyMode ?? 'solid';
   const isSpecialMode = vibrancyMode === 'special';
-  const liquidGlassEnabled = !isSpecialMode;
+  // Solid panel fills for chrome controls; glass is reserved for floating surfaces.
+  const liquidGlassEnabled = vibrancyMode === 'solid' || vibrancyMode === 'sidebar';
 
   const [openTarget, setOpenTarget] = useState<string>("folder");
   const [repoSafetyLabel, setRepoSafetyLabel] = useState<string>("Workspace safe");
@@ -111,9 +112,7 @@ export function ChatTopbar({
       ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
       : eventCount > 0
         ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-        : !isSpecialMode
-          ? "border-transparent bg-[var(--mate-panel-bg)] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-          : "border-transparent bg-background/40 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
+        : "border-transparent bg-mate-control-bg text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
   const openSelectedTarget = () => {
     void openWorkspacePath(openTarget as "folder" | "vscode" | "terminal");
   };
@@ -131,7 +130,7 @@ export function ChatTopbar({
       className={cn(
         "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
         isSpecialMode
-          ? "bg-transparent border-b border-[var(--titlebar-border)]/40"
+          ? "mate-glass-float border-b border-[var(--titlebar-border)]/50"
           : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]",
@@ -312,10 +311,7 @@ export function ChatTopbar({
           size="icon-xs"
           variant="outline"
           className={cn(
-            "size-8 rounded-full border-border/70 shadow-none backdrop-blur-md hover:bg-accent",
-            liquidGlassEnabled
-              ? "bg-[var(--mate-panel-bg)]"
-              : "bg-background/65",
+            "size-8 rounded-full border-border/70 bg-mate-control-bg shadow-none hover:bg-accent",
           )}
           onClick={onCreateThread}
         >

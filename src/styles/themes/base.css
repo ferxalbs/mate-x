@@ -27,7 +27,21 @@
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-700);
 
-  --blur-opacity: 0.65;
+  /*
+   * CSS glass system (no native mica/vibrancy).
+   * Single-layer rule: only the glass surface itself may use backdrop-filter.
+   * Layout ancestors must stay filter-free so nested controls stay opaque.
+   */
+  --blur-opacity: 0.78;
+  --glass-blur: 28px;
+  --glass-saturate: 1.55;
+  --glass-tint: 0.78;
+  --glass-tint-strong: 0.9;
+  --glass-border: color-mix(in srgb, var(--border) 70%, transparent);
+  --glass-bg: var(--panel);
+  --ambient-a: color-mix(in srgb, var(--primary) 18%, var(--background));
+  --ambient-b: color-mix(in srgb, #6366f1 12%, var(--background));
+  --ambient-c: color-mix(in srgb, var(--background) 88%, #e2e8f0);
 
   /* Code Syntax Highlighting (Light) */
   --code-bg: #f8f9fa;
@@ -51,7 +65,8 @@
   --surface-soft: color-mix(in srgb, var(--muted) 84%, white 16%);
   --panel: color-mix(in srgb, var(--background) 96%, #f6f6f8);
   --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
-  --control: color-mix(in srgb, var(--panel) 94%, var(--background));
+  /* Form controls must stay fully opaque — never glass, never translucent. */
+  --control: #f3f4f6;
   --titlebar: color-mix(in srgb, var(--background) 98%, #f7f7f9);
   --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
 }

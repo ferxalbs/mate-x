@@ -491,13 +491,12 @@ export function ComposerPanel({
     <LazyMotion features={domMax} strict>
       <div
         className={cn(
-          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20 focus-within:bg-panel/85",
+          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border border-panel-border/40 shadow-none transition-[background-color,border-color,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20",
+          // Single-layer glass only — parent main content has no backdrop-filter.
           settings.blurEnabled
-            ? "border-panel-border/40 bg-panel/70 backdrop-blur-2xl shadow-none"
-            : "border-panel-border/40 bg-panel shadow-none",
-          isDraggingFile
-            ? "ring-2 ring-foreground/20 bg-panel/90"
-            : "",
+            ? "mate-glass-float focus-within:border-foreground/25"
+            : "bg-panel focus-within:bg-panel",
+          isDraggingFile ? "ring-2 ring-foreground/20" : "",
         )}
         onDragEnter={(event) => {
           event.preventDefault();
@@ -518,7 +517,7 @@ export function ComposerPanel({
         onDrop={handleDrop}
       >
         {pendingPolicyStop ? (
-          <div className="bg-background/40 backdrop-blur-md">
+          <div className="bg-mate-control-bg">
             <PermissionPrompt
               disabled={isResolvingPolicyStop}
               onAction={handlePolicyAction}
@@ -822,7 +821,7 @@ function TrustSelector({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="w-72 rounded-2xl border-border/70 bg-panel/92 p-1.5 shadow-none backdrop-blur-xl"
+          className="mate-glass-float w-72 rounded-2xl border-border/70 bg-panel p-1.5 shadow-none"
           sideOffset={6}
         >
           <div className="px-2.5 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
@@ -898,7 +897,7 @@ function BehaviorSelector({
       >
         {BEHAVIOR_MODE_LABELS[value.mode]}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 rounded-2xl border-border/70 bg-panel/92 shadow-none backdrop-blur-xl">
+      <DropdownMenuContent align="end" className="mate-glass-float w-64 rounded-2xl border-border/70 bg-panel shadow-none">
         <DropdownMenuRadioGroup
           value={value.mode}
           onValueChange={(mode) => onChange({ ...value, mode: mode as BehaviorMode })}
@@ -1210,7 +1209,7 @@ function ModelConfigurationMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="w-76 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel/70 p-2 shadow-none backdrop-blur-2xl flex flex-col gap-1.5 min-h-0"
+        className="mate-glass-float flex w-76 min-h-0 flex-col gap-1.5 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel p-2 shadow-none"
       >
         {!advancedOpen && (
           <>
@@ -1304,7 +1303,7 @@ function ModelConfigurationMenu({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         sideOffset={4}
-                        className="w-44 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel/70 p-1.5 shadow-none backdrop-blur-2xl"
+                        className="mate-glass-float w-44 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel p-1.5 shadow-none"
                       >
                         <DropdownMenuRadioGroup
                           value={reasoningValue}
@@ -1334,7 +1333,7 @@ function ModelConfigurationMenu({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         sideOffset={4}
-                        className="w-44 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel/70 p-1.5 shadow-none backdrop-blur-2xl"
+                        className="mate-glass-float w-44 overflow-hidden rounded-2xl border border-panel-border/40 bg-panel p-1.5 shadow-none"
                       >
                         <DropdownMenuRadioGroup
                           value={serviceTier}
