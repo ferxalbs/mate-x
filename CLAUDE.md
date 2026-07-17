@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> [!IMPORTANT]
+> **Subagent Rule**: You must never spawn subagents or run multiple parallel agent/subagent instances without express user consent.
+
 ## Project overview
 
 MaTE X is an Electron desktop application that verifies AI-written repository changes and produces deterministic Ship Proof evidence. It is a verification layer, not an IDE or a general-purpose autonomous coding environment.
@@ -130,6 +133,7 @@ tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
 The skill has specialized workflows that produce better results than ad-hoc answers.
 
 Key routing rules:
+
 - Product ideas, "is this worth building", brainstorming → invoke office-hours
 - Bugs, errors, "why is this broken", 500 errors → invoke investigate
 - Ship, deploy, push, create PR → invoke ship
