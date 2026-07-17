@@ -21,7 +21,7 @@ const selectTriggerVariants = cva(
     variants: {
       variant: {
         default:
-          "w-full min-w-36 bg-transparent text-foreground shadow-none ring-ring/24 focus-visible:border-ring focus-visible:ring-[3px] aria-invalid:border-destructive/36 focus-visible:aria-invalid:border-destructive/64 focus-visible:aria-invalid:ring-destructive/16 dark:aria-invalid:ring-destructive/24 [&_svg:not([class*='opacity-'])]:opacity-80",
+          "w-full min-w-36 bg-mate-control-bg text-foreground shadow-none ring-ring/24 focus-visible:border-ring focus-visible:ring-[3px] aria-invalid:border-destructive/36 focus-visible:aria-invalid:border-destructive/64 focus-visible:aria-invalid:ring-destructive/16 dark:aria-invalid:ring-destructive/24 [&_svg:not([class*='opacity-'])]:opacity-80",
         ghost:
           "border-transparent text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground/80",
       },
@@ -83,6 +83,7 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       className={cn(selectTriggerVariants({ size, variant }), className)}
       data-slot="select-trigger"
+      data-variant={variant}
       {...props}
     >
       {children}
@@ -144,7 +145,10 @@ function SelectPopup({
           >
             <ChevronUpIcon className="relative size-4.5 sm:size-4" />
           </SelectPrimitive.ScrollUpArrow>
-          <div className="relative h-full min-w-(--anchor-width) rounded-[16px] border border-border/30 bg-popover/50 backdrop-blur-3xl not-dark:bg-clip-padding shadow-[0_12px_40px_rgba(0,0,0,0.12)] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]">
+          <div
+            className="relative h-full min-w-(--anchor-width) rounded-[16px] border border-border/30 bg-popover/50 not-dark:bg-clip-padding shadow-[0_12px_40px_rgba(0,0,0,0.12)] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]"
+            data-slot="select-content"
+          >
             <SelectPrimitive.List
               className={cn("max-h-(--available-height) overflow-y-auto p-1", className)}
               data-slot="select-list"

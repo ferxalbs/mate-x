@@ -59,7 +59,7 @@ function CommandDialogPopup({ className, children, ...props }: CommandDialogPrim
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup
           className={cn(
-            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-105 min-h-0 w-full min-w-0 max-w-xl scale-[calc(1-0.1*var(--nested-dialogs))] flex-col rounded-2xl border border-border/40 bg-popover/80 backdrop-blur-3xl text-popover-foreground opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-none outline-none data-nested-dialog-open:origin-top **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-105 min-h-0 w-full min-w-0 max-w-xl scale-[calc(1-0.1*var(--nested-dialogs))] flex-col rounded-2xl border border-border/40 bg-popover/80 text-popover-foreground opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-none outline-none transition-[scale,opacity] duration-150 ease-[cubic-bezier(0.2,0.8,0.2,1)] data-nested-dialog-open:origin-top **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
             className,
           )}
           data-slot="command-dialog-popup"

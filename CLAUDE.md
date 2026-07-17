@@ -108,9 +108,20 @@ Compliance artifacts are local-first and reproducible. Preserve in-toto/SLSA att
 
 ## UI work
 
-Read `DESIGN.md` before UI changes. Preserve one `DesktopShell`; settings and subsections replace shell content rather than creating detached chrome or a separate mini-app.
+Read `DESIGN.md` and the design sections in `AGENTS.md` before UI changes. Preserve one `DesktopShell`; settings and subsections replace shell content rather than creating detached chrome or a separate mini-app.
 
-Design direction: compact native-macOS utility, flat translucent surfaces, subtle borders, rare semantic color, no heavy shadows. Use theme variables instead of hardcoded inverse colors. Main command panels use 32px radius, cards/popovers 16px, and primary content uses an 820px maximum width. Motion should be functional, interruptible, reduced-motion aware, and normally 200–250ms using `cubic-bezier(0.2, 0.8, 0.2, 1)`.
+Design direction: compact native-macOS utility, flat translucent surfaces, subtle borders, rare semantic color, no heavy shadows. Use theme variables instead of hardcoded inverse colors. Main command panels use 32px radius, cards/popovers 16px (`rounded-2xl`), and primary content uses an 820px maximum width. Prefer `shadow-none` and border-defined surfaces.
+
+### Glass / blur (mandatory)
+
+- **CSS-only glass.** Never re-enable native Electron vibrancy, Windows mica/acrylic, or other OS window materials. Window background stays opaque; see `src/electron/window-appearance.ts`.
+- **`blurEnabled` (Interface blur)** and **`vibrancyMode` (Transparency Mode)** are independent. Do not couple them. Interface blur toggles `:root.blur-enabled` for controls and overlays; transparency mode only changes layout chrome (`solid` | `sidebar` | `special`).
+- **Single-layer rule:** only the glass leaf may use `backdrop-filter`. Never put `backdrop-filter` on `.app-main-content-container` or other ancestors of inputs/composer/menus — nested filters make children look transparent.
+- Prefer global glass tokens and `data-slot` rules in `src/index.css` / theme CSS (`--control-glass-blur`, `--overlay-glass-blur`, `.mate-glass-float`, `.control-surface`) over one-off `backdrop-blur-*` classes.
+- Controls stay solid/`--control` when blur is off; high-tint small blur when on. Overlays use stronger blur only when portaled.
+- **Performance:** do not animate `backdrop-filter`; animate transform/opacity only (~150–250ms, `cubic-bezier(0.2, 0.8, 0.2, 1)`). Respect reduced motion. Keep blur opt-in by default.
+
+Motion should be functional, interruptible, and reduced-motion aware.
 
 Renderer files conventionally use double quotes; main-process files use single quotes. Match surrounding code when conventions differ.
 

@@ -87,8 +87,8 @@
 
   :root.blur-enabled .glass,
   .glass-force {
-    backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
-    -webkit-backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
+    backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-saturate, 1.4));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-saturate, 1.4));
   }
 
   .glass-strong {
@@ -101,15 +101,13 @@
 
   :root.blur-enabled .glass-strong,
   .glass-strong.glass-force {
-    backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
-    -webkit-backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55));
+    backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-saturate, 1.4));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-saturate, 1.4));
   }
 
-  /* Opaque form control surface — immune to glass/ambient washout. */
+  /* Form control base — solid by default; glass when .blur-enabled */
   .control-surface {
-    background-color: var(--control) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    background-color: var(--control);
   }
 }
 
@@ -668,17 +666,101 @@ label:has(> select#reasoning-effort) select {
     var(--glass-bg, var(--panel)) calc(var(--glass-tint-strong, 0.9) * 100%),
     transparent
   ) !important;
-  backdrop-filter: blur(var(--glass-blur, 28px)) saturate(var(--glass-saturate, 1.55)) !important;
-  -webkit-backdrop-filter: blur(var(--glass-blur, 28px))
-    saturate(var(--glass-saturate, 1.55)) !important;
+  backdrop-filter: blur(var(--overlay-glass-blur, 20px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  -webkit-backdrop-filter: blur(var(--overlay-glass-blur, 20px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  isolation: isolate;
 }
 
-/* Inputs / textareas: always solid, never inherit glass transparency */
-[data-slot="input-control"],
-[data-slot="textarea-control"] {
-  background-color: var(--control) !important;
+/*
+ * Interface blur (settings: blurEnabled → :root.blur-enabled)
+ * Premium glass on controls + overlays. Cheap radii on always-visible
+ * fields; stronger blur only on portaled menus/selects/dialogs.
+ */
+
+/* Solid defaults when blur is off */
+:root:not(.blur-enabled) [data-slot="input-control"],
+:root:not(.blur-enabled) [data-slot="textarea-control"],
+:root:not(.blur-enabled) .control-surface {
+  background-color: var(--control);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root:not(.blur-enabled) [data-slot="menu-popup"],
+:root:not(.blur-enabled) [data-slot="menu-sub-content"],
+:root:not(.blur-enabled) [data-slot="popover-popup"],
+:root:not(.blur-enabled) [data-slot="select-content"],
+:root:not(.blur-enabled) [data-slot="combobox-content"],
+:root:not(.blur-enabled) [data-slot="tooltip-content"],
+:root:not(.blur-enabled) [data-slot="alert-dialog-popup"],
+:root:not(.blur-enabled) [data-slot="dialog-popup"],
+:root:not(.blur-enabled) [data-slot="command-dialog-popup"] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* Always-visible controls — small blur, high tint (readable + cheap) */
+:root.blur-enabled [data-slot="input-control"],
+:root.blur-enabled [data-slot="textarea-control"],
+:root.blur-enabled .control-surface {
+  background-color: color-mix(
+    in srgb,
+    var(--control) calc(var(--control-glass-tint, 0.82) * 100%),
+    transparent
+  ) !important;
+  backdrop-filter: blur(var(--control-glass-blur, 12px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  -webkit-backdrop-filter: blur(var(--control-glass-blur, 12px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  isolation: isolate;
+}
+
+:root.blur-enabled [data-slot="select-trigger"]:not([data-variant="ghost"]),
+:root.blur-enabled [data-slot="select-button"]:not([data-variant="ghost"]),
+:root.blur-enabled [data-slot="combobox-chips"] {
+  background-color: color-mix(
+    in srgb,
+    var(--control) calc(var(--control-glass-tint, 0.82) * 100%),
+    transparent
+  ) !important;
+  backdrop-filter: blur(var(--control-glass-blur, 12px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  -webkit-backdrop-filter: blur(var(--control-glass-blur, 12px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  isolation: isolate;
+}
+
+/* Portaled overlays — stronger glass, still single-layer */
+:root.blur-enabled [data-slot="menu-popup"],
+:root.blur-enabled [data-slot="menu-sub-content"],
+:root.blur-enabled [data-slot="popover-popup"],
+:root.blur-enabled [data-slot="select-content"],
+:root.blur-enabled [data-slot="tooltip-content"],
+:root.blur-enabled [data-slot="alert-dialog-popup"],
+:root.blur-enabled [data-slot="dialog-popup"],
+:root.blur-enabled [data-slot="command-dialog-popup"],
+:root.blur-enabled [data-slot="combobox-content"] {
+  background-color: color-mix(
+    in srgb,
+    var(--popover) calc(var(--overlay-glass-tint, 0.72) * 100%),
+    transparent
+  ) !important;
+  backdrop-filter: blur(var(--overlay-glass-blur, 20px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  -webkit-backdrop-filter: blur(var(--overlay-glass-blur, 20px))
+    saturate(var(--glass-saturate, 1.4)) !important;
+  isolation: isolate;
+}
+
+/* Prefer less GPU work when the user asks for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --control-glass-blur: 8px;
+    --overlay-glass-blur: 12px;
+    --glass-blur: 12px;
+  }
 }
 
 /* Sidebar list item motion */

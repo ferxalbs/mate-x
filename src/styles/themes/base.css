@@ -30,13 +30,20 @@
   /*
    * CSS glass system (no native mica/vibrancy).
    * Single-layer rule: only the glass surface itself may use backdrop-filter.
-   * Layout ancestors must stay filter-free so nested controls stay opaque.
+   * Layout ancestors stay filter-free so nested controls stay readable.
+   *
+   * Performance: small blur on always-visible controls, larger on overlays.
+   * Never animate backdrop-filter; prefer transform/opacity for motion.
    */
   --blur-opacity: 0.78;
-  --glass-blur: 28px;
-  --glass-saturate: 1.55;
-  --glass-tint: 0.78;
+  --glass-blur: 22px;
+  --glass-saturate: 1.4;
+  --glass-tint: 0.8;
   --glass-tint-strong: 0.9;
+  --control-glass-blur: 12px;
+  --control-glass-tint: 0.82;
+  --overlay-glass-blur: 20px;
+  --overlay-glass-tint: 0.72;
   --glass-border: color-mix(in srgb, var(--border) 70%, transparent);
   --glass-bg: var(--panel);
   --ambient-a: color-mix(in srgb, var(--primary) 18%, var(--background));

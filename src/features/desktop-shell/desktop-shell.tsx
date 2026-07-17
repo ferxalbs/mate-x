@@ -101,8 +101,8 @@ export function DesktopShell() {
         if (!cancelled) {
           applyRendererSettings(settings);
           setTheme(settings.theme);
-          // Keep CSS glass class in sync with stored transparency mode.
-          setBlurEnabled(settings.blurEnabled || settings.vibrancyMode !== 'solid');
+          // Interface blur is independent of transparency mode.
+          setBlurEnabled(settings.blurEnabled);
         }
       })
       .catch(() => {
