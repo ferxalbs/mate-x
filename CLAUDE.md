@@ -110,7 +110,7 @@ Compliance artifacts are local-first and reproducible. Preserve in-toto/SLSA att
 
 Read `DESIGN.md` and the design sections in `AGENTS.md` before UI changes. Preserve one `DesktopShell`; settings and subsections replace shell content rather than creating detached chrome or a separate mini-app.
 
-Design direction: compact native-macOS utility, flat translucent surfaces, subtle borders, rare semantic color, no heavy shadows. Use theme variables instead of hardcoded inverse colors. Main command panels use 32px radius, cards/popovers 16px (`rounded-2xl`), and primary content uses an 820px maximum width. Prefer `shadow-none` and border-defined surfaces.
+Design direction: compact native-macOS utility, flat canvas, subtle borders, rare semantic color, no heavy shadows. **Default canvas:** light `#ffffff`, dark `#111111` for sidebar/main/titlebar/panel. **Elevated exception:** inputs, selects, composer, menus use `--control` (`#f2f3f5` / `#1a1a1a`) and optional stronger Interface blur. Use theme variables instead of hardcoded inverse colors. Main command panels use 32px radius, cards/popovers 16px (`rounded-2xl`), and primary content uses an 820px maximum width. Prefer `shadow-none` and border-defined surfaces.
 
 ### Glass / blur (mandatory)
 

@@ -1,46 +1,57 @@
 @variant theme-midnight {
-  --background: #fdfdfe;
-  --app-chrome-background: #f8fafc;
+  /* Default product theme: pure white canvas + accent accents only. */
+  --background: #ffffff;
+  --app-chrome-background: #ffffff;
   --foreground: #020617;
-  --card: #f8faff;
-  --popover: #f8faff;
+  --card: #ffffff;
+  --popover: #ffffff;
   --primary: oklch(0.45 0.15 255);
   --ring: oklch(0.45 0.15 255);
-  --sidebar: #f8fafc;
-  --sidebar-accent: #f1f5f9;
-  --surface: #eef4ff;
-  --surface-soft: #dfe9fb;
-  --panel: #f8faff;
-  --titlebar: #f8fafc;
-  --control: #eef2f8;
+  --sidebar: #ffffff;
+  --sidebar-accent: color-mix(in srgb, black 4%, #ffffff);
+  --surface: #ffffff;
+  --surface-soft: color-mix(in srgb, black 3%, #ffffff);
+  --panel: #ffffff;
+  --titlebar: #ffffff;
+  --control: #f2f3f5;
   --border: color-mix(in srgb, black 8%, transparent);
   --input: color-mix(in srgb, black 10%, transparent);
   --muted: color-mix(in srgb, black 4%, transparent);
   --accent: color-mix(in srgb, black 6%, transparent);
-  --code-bg: #fdfdfe;
+  --code-bg: #f8f9fa;
+  --ambient-a: color-mix(in srgb, #38bdf8 8%, #ffffff);
+  --ambient-b: color-mix(in srgb, #6366f1 6%, #ffffff);
+  --ambient-c: #ffffff;
+  --glass-bg: var(--control);
 
   @variant dark {
-    --background: #020408;
-    --app-chrome-background: #010204;
+    /* Default dark product theme: pure #111111 canvas. */
+    --background: #111111;
+    --app-chrome-background: #111111;
     --foreground: #f8fafc;
-    --card: #030712;
-    --popover: #030712;
+    --card: #111111;
+    --popover: #111111;
     --primary: oklch(0.5 0.15 255);
     --ring: oklch(0.5 0.15 255);
-    --sidebar: #010204;
-    --sidebar-accent: #0f172a;
-    --surface: #020617;
-    --surface-soft: #0f172a;
-    --panel: #020617;
-    --titlebar: #010204;
-    --control: #0b1220;
-    --border: color-mix(in srgb, #38bdf8 8%, transparent);
-    --input: color-mix(in srgb, #38bdf8 12%, transparent);
-    --ambient-a: color-mix(in srgb, #38bdf8 14%, #020408);
-    --ambient-b: color-mix(in srgb, #6366f1 12%, #020617);
-    --ambient-c: #010204;
+    --sidebar: #111111;
+    --sidebar-accent: color-mix(in srgb, white 6%, #111111);
+    --surface: #111111;
+    --surface-soft: color-mix(in srgb, white 3%, #111111);
+    --panel: #111111;
+    --titlebar: #111111;
+    --control: #1a1a1a;
+    --border: color-mix(in srgb, white 8%, transparent);
+    --input: color-mix(in srgb, white 9%, transparent);
+    --ambient-a: color-mix(in srgb, #38bdf8 12%, #111111);
+    --ambient-b: color-mix(in srgb, #6366f1 10%, #111111);
+    --ambient-c: #111111;
     --muted: color-mix(in srgb, #38bdf8 4%, transparent);
     --accent: color-mix(in srgb, #38bdf8 6%, transparent);
-    --code-bg: #000000;
+    --code-bg: #0d0e11;
+    --glass-bg: var(--control);
+    --control-glass-blur: 22px;
+    --control-glass-tint: 0.68;
+    --overlay-glass-blur: 30px;
+    --overlay-glass-tint: 0.62;
   }
 }

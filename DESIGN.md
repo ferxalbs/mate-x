@@ -39,7 +39,9 @@ MaTE X is a local-first desktop security review agent for developers working acr
 ## Glass and materials
 
 - CSS-only glass. No native mica, acrylic, or vibrancy.
-- Opaque Electron window backing; ambient mesh supplies blur samples for layout glass.
+- **Default canvas:** light `#ffffff`, dark `#111111` for all layout chrome (sidebar, main, titlebar, panel).
+- **Elevated exception:** inputs, selects, composer, menus, dialogs use `--control` (`#f2f3f5` / `#1a1a1a`) and optional stronger Interface blur.
+- Opaque Electron window backing matches canvas; ambient mesh only when layout glass modes are on.
 - Single-layer `backdrop-filter` only — never on main content ancestors of form controls.
 - Settings: **Interface blur** (`blurEnabled`) for controls/overlays; **Transparency Mode** (`vibrancyMode`) for layout chrome. Independent switches.
 - Tokens: `--control`, `--control-glass-blur`, `--overlay-glass-blur`, `--glass-*` in theme CSS; utilities in `src/index.css`.
@@ -57,3 +59,4 @@ MaTE X is a local-first desktop security review agent for developers working acr
 | 2026-07-10 | Refined utility system | Matches a security tool where speed, trust, and clarity matter more than decoration. |
 | 2026-07-16 | CSS-only glass; no mica/vibrancy | Nested native + CSS blur washed out inputs; single-layer CSS glass is stable and portable. |
 | 2026-07-16 | Independent Interface blur setting | Control/overlay glass is opt-in and separate from layout transparency mode. |
+| 2026-07-16 | Flat #fff / #111 canvas | Matches product screenshot: full-app pure canvas; only controls elevate. |

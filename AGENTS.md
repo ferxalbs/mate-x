@@ -201,10 +201,10 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
    - Prefer `data-slot` hooks (`input-control`, `textarea-control`, `select-trigger`, `select-content`, `menu-popup`, `popover-popup`, `dialog-popup`, etc.) over scattering one-off `backdrop-blur-*` classes.
    - When blur is **off**, force solid fills and `backdrop-filter: none` on those surfaces.
 
-5. **Control readability**
-   - Form controls use opaque `--control` when blur is off (`bg-mate-control-bg` / `.control-surface`).
-   - When blur is on, controls use **high tint + small blur** (`--control-glass-blur` ~12–14px). Overlays use stronger blur (`--overlay-glass-blur` ~20–22px).
-   - Never make inputs pure transparent with no fill. Text fields must stay legible over any background.
+5. **Flat canvas + elevated controls**
+   - Default app canvas is pure **`#ffffff` (light)** and **`#111111` (dark)** for `background`, `sidebar`, `panel`, `titlebar`, `surface`, `card`, and `popover`.
+   - Exception: inputs, selects, composer, menus, dialogs use elevated `--control` (`#f2f3f5` light / `#1a1a1a` dark) so they read on the flat canvas.
+   - When Interface blur is on, those elevated surfaces get stronger glass (`--control-glass-blur` ~20–22px, overlays ~28–30px). Never make inputs pure transparent with no fill.
 
 6. **Performance**
    - Do **not** animate `backdrop-filter`. Animate only `transform` and `opacity`.
