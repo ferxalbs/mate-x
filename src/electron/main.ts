@@ -1,6 +1,7 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, nativeTheme, shell } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
 import { initializeUpdater } from './updater';
 
 import { registerIpcHandlers } from './ipc-handlers';
@@ -8,6 +9,7 @@ import { initStack, teardownStack } from './main-stack';
 import { setSDKOrchestratorInitializationError } from './sdk-orchestrator-state';
 import { startupPerfBegin, startupPerfMark } from './startup-perf';
 import { tursoService } from './turso-service';
+import { resolveWindowAppearance } from './window-appearance';
 
 // Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
 // Ignore that single deprecation noise so actual app warnings stay visible.
@@ -98,8 +100,12 @@ const hardenWindow = (window: BrowserWindow) => {
 };
 
 
-const createWindow = (vibrancyMode: string) => {
-  const isVibrancyEnabled = vibrancyMode === 'sidebar' || vibrancyMode === 'special';
+const createWindow = (settings: AppSettings) => {
+  const windowAppearance = resolveWindowAppearance(
+    settings,
+    process.platform,
+    nativeTheme.shouldUseDarkColors,
+  );
   const mainWindow = new BrowserWindow({
     width: 1275,
     height: 825,
@@ -110,9 +116,9 @@ const createWindow = (vibrancyMode: string) => {
     title: 'MaTE X',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
-    vibrancy: isVibrancyEnabled ? 'under-window' : undefined,
-    backgroundMaterial: isVibrancyEnabled ? 'mica' : 'none',
-    backgroundColor: isVibrancyEnabled ? '#00000000' : undefined,
+    vibrancy: windowAppearance.vibrancy,
+    backgroundMaterial: windowAppearance.backgroundMaterial,
+    backgroundColor: windowAppearance.backgroundColor,
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -153,13 +159,12 @@ app.on('ready', async () => {
     console.error('Turso initialization failed during startup:', error);
   }
 
-  let vibrancyMode = 'solid';
+  let appSettings = DEFAULT_APP_SETTINGS;
   try {
-    const settings = await tursoService.getAppSettings();
-    vibrancyMode = settings.vibrancyMode || 'solid';
+    appSettings = await tursoService.getAppSettings();
     startupPerfMark('settings-loaded');
   } catch (error) {
-    console.warn('Failed to load settings for vibrancy on startup, using solid default:', error);
+    console.warn('Failed to load window appearance settings on startup, using defaults:', error);
   }
 
   // Full stack (engineering repo, storage adapter, orchestrator). Window creation
@@ -176,7 +181,7 @@ app.on('ready', async () => {
   registerIpcHandlers();
   startupPerfMark('ipc-registered');
 
-  createWindow(vibrancyMode);
+  createWindow(appSettings);
   startupPerfMark('window-created');
 });
 
@@ -206,12 +211,11 @@ app.on('window-all-closed', () => {
 
 app.on('activate', async () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    let vibrancyMode = 'solid';
+    let appSettings = DEFAULT_APP_SETTINGS;
     try {
-      const settings = await tursoService.getAppSettings();
-      vibrancyMode = settings.vibrancyMode || 'solid';
-    } catch { /* use solid default */ }
-    createWindow(vibrancyMode);
+      appSettings = await tursoService.getAppSettings();
+    } catch { /* use default window appearance */ }
+    createWindow(appSettings);
   }
 });
 

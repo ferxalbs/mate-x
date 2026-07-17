@@ -56,7 +56,7 @@
   --color-mate-page-bg: var(--background);
   --color-mate-panel-bg: var(--panel);
   --color-mate-surface-bg: var(--surface);
-  --color-mate-control-bg: var(--input);
+  --color-mate-control-bg: var(--control);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -79,6 +79,17 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
+}
+
+/* Native Vibrancy/Mica owns window blur. Disable descendant CSS blur, including portals. */
+:root.native-window-material :where(
+  .glass,
+  .app-sidebar-container,
+  .app-main-content-container,
+  [class*="backdrop-blur"]
+) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 @layer base {
