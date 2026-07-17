@@ -1,5 +1,5 @@
 import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
-import { ChevronRightIcon, GitBranchIcon } from "lucide-react";
+import { CaretRightIcon, GitBranchIcon } from "@phosphor-icons/react";
 
 import { Button } from "../../../components/ui/button";
 import { RESPONSIVE_SPRING } from "../../../lib/motion";
@@ -80,7 +80,7 @@ export function PanelHeader({
               reducedMotion ? undefined : { transform: "scale(0.9)" }
             }
           >
-            <ChevronRightIcon className="size-4" />
+            <CaretRightIcon className="size-4" />
           </m.button>
           <Button
             className="h-7 rounded-full border-transparent bg-transparent px-2.5 text-[11px] font-medium text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground active:scale-95 disabled:opacity-60"

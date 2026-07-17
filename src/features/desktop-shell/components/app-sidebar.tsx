@@ -4,15 +4,13 @@ import {
   ArrowLeftIcon,
   FileTextIcon,
   ListChecksIcon,
-  RouteIcon,
+  SignpostIcon,
   ShieldIcon,
   ShieldCheckIcon,
-  SettingsIcon,
-  WaypointsIcon,
-  PuzzleIcon,
-  Trash2Icon,
-} from "lucide-react";
-import {
+  GearIcon,
+  PlugsIcon,
+  PuzzlePieceIcon,
+  TrashIcon,
   CaretDownIcon,
   FolderIcon,
   FolderPlusIcon,
@@ -202,7 +200,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <SettingsIcon className="size-4 shrink-0 opacity-80" />
+                    <GearIcon className="size-4 shrink-0 opacity-80" />
                     <span>General</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -223,7 +221,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <WaypointsIcon className="size-4 shrink-0 opacity-80" />
+                    <PlugsIcon className="size-4 shrink-0 opacity-80" />
                     <span>Connections</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -307,7 +305,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <RouteIcon className="size-4 shrink-0 opacity-80" />
+                    <SignpostIcon className="size-4 shrink-0 opacity-80" />
                     <span>Agent Profiler</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -328,7 +326,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <PuzzleIcon className="size-4 shrink-0 opacity-80" />
+                    <PuzzlePieceIcon className="size-4 shrink-0 opacity-80" />
                     <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -349,7 +347,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <Trash2Icon className="size-4 shrink-0 opacity-80" />
+                    <TrashIcon className="size-4 shrink-0 opacity-80" />
                     <span>Archive</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -484,7 +482,7 @@ export function AppSidebar({
                             aria-label={`Remove project ${project.name}`}
                             type="button"
                           >
-                            <Trash2Icon className="size-3" />
+                            <TrashIcon className="size-3" />
                           </button>
                         ) : null}
                       </div>
@@ -576,7 +574,7 @@ export function AppSidebar({
                     className="flex min-w-0 flex-1 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
-                    <SettingsIcon className="size-4 text-muted-foreground/75" />
+                    <GearIcon className="size-4 text-muted-foreground/75" />
                     <span className="text-[12px] font-medium">Settings</span>
                   </SettingsLink>
                   <span

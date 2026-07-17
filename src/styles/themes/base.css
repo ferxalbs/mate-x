@@ -8,7 +8,7 @@
   --card-foreground: var(--foreground);
   --popover: #ffffff;
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.488 0.217 264);
+  --primary: oklch(0.48 0.07 145);
   --primary-foreground: var(--color-white);
   --secondary: --alpha(var(--color-black) / 4%);
   --secondary-foreground: var(--foreground);
@@ -19,7 +19,7 @@
   --destructive: var(--color-red-500);
   --border: --alpha(var(--color-black) / 8%);
   --input: --alpha(var(--color-black) / 10%);
-  --ring: oklch(0.488 0.217 264);
+  --ring: oklch(0.48 0.07 145);
   --destructive-foreground: var(--color-red-700);
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-700);
