@@ -47,7 +47,7 @@ function PopoverPopup({
       >
         <PopoverPrimitive.Popup
           className={cn(
-            "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-2xl border border-border/40 bg-popover/80 text-popover-foreground shadow-none outline-none transition-[width,height,scale,opacity] duration-150 ease-[cubic-bezier(0.2,0.8,0.2,1)] has-data-[slot=calendar]:rounded-2xl data-starting-style:scale-98 data-starting-style:opacity-0",
+            "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-2xl border border-border/40 bg-popover/80 text-popover-foreground shadow-none outline-none transition-[width,height,scale,opacity] duration-250 ease-[cubic-bezier(0.32,0.72,0,1)] has-data-[slot=calendar]:rounded-2xl data-starting-style:scale-98 data-starting-style:opacity-0",
             tooltipStyle &&
               "w-fit text-balance rounded-md text-xs shadow-none",
             className,

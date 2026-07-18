@@ -12,7 +12,7 @@
   --secondary: --alpha(var(--color-white) / 4%);
   --secondary-foreground: var(--color-neutral-100);
   --muted: --alpha(var(--color-white) / 4%);
-  --muted-foreground: color-mix(in srgb, #7e828c 88%, white 12%);
+  --muted-foreground: color-mix(in srgb, #9499a6 88%, white 15%);
   --accent: --alpha(var(--color-white) / 4%);
   --accent-foreground: var(--color-neutral-100);
   --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
