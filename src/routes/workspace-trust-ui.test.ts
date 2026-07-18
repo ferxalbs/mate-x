@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "bun:test";
 
 const TRUST_SELECTOR_SOURCES = [
-  new URL("../features/desktop-shell/components/composer-panel.tsx", import.meta.url),
+  new URL("../features/desktop-shell/components/composer-run-settings.tsx", import.meta.url),
   new URL("../features/onboarding/onboarding-step-content.tsx", import.meta.url),
   new URL("./settings-trust-section.tsx", import.meta.url),
 ];
