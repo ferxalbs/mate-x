@@ -4,7 +4,7 @@ import { test } from "bun:test";
 
 const TRUST_SELECTOR_SOURCES = [
   new URL("../features/desktop-shell/components/composer-panel.tsx", import.meta.url),
-  new URL("../features/onboarding/onboarding-flow.tsx", import.meta.url),
+  new URL("../features/onboarding/onboarding-step-content.tsx", import.meta.url),
   new URL("./settings-trust-section.tsx", import.meta.url),
 ];
 

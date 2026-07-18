@@ -1,716 +1,442 @@
-import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { LazyMotion, AnimatePresence, domAnimation, m } from "framer-motion";
-import { 
-  CaretRightIcon, 
-  ShieldIcon, 
-  FolderOpenIcon,
-  GitBranchIcon,
-  KeyIcon,
-  LockIcon,
-  SignpostIcon,
-  CheckCircleIcon, 
-  DownloadIcon,
-  ArrowSquareOutIcon,
-  GearIcon,
-  FileTextIcon,
-  TerminalIcon,
-  PencilIcon,
-  EyeIcon,
-  PlayCircleIcon,
-  DatabaseIcon,
-  ActivityIcon,
-} from "@phosphor-icons/react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  AnimatePresence,
+  LazyMotion,
+  domAnimation,
+  m,
+  useReducedMotion,
+} from "framer-motion";
+import { CaretRightIcon, SpinnerGapIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Label } from "../../components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { getAppSettings, updateAppSettings, getApiKeyStatus } from "../../services/settings-client";
-import type { AppSettings, AppearancePreference, ThemePreference, TimeFormat } from "../../contracts/settings";
-import type { PrivacyModelDownloadProgress } from "../../contracts/privacy";
-import type { WorkspaceTrustAutonomy, WorkspaceTrustContract } from "../../contracts/workspace";
+import type { ApiKeyStatus } from "../../contracts/ipc";
+import type {
+  PrivacyModelDownloadProgress,
+  PrivacyModelStatus,
+} from "../../contracts/privacy";
+import type {
+  AppearancePreference,
+  AppSettings,
+} from "../../contracts/settings";
+import type {
+  WorkspaceSnapshot,
+  WorkspaceTrustAutonomy,
+  WorkspaceTrustContract,
+} from "../../contracts/workspace";
 import { useTheme } from "../../hooks/use-theme";
-import { RESPONSIVE_SPRING } from "../../lib/motion";
+import {
+  getApiKeyStatus,
+  getAppSettings,
+  updateAppSettings,
+} from "../../services/settings-client";
+import {
+  ApiKeyStep,
+  InlineError,
+  PreferencesStep,
+  PrivacyStep,
+  TrustBoundaryStep,
+  VerificationStep,
+  WelcomeStep,
+  WorkspaceStep,
+} from "./onboarding-step-content";
+import {
+  getOnboardingMotion,
+  ONBOARDING_STEPS,
+  type OnboardingOperationState,
+  type OnboardingStepId,
+} from "./onboarding-steps";
 
-const steps = [
-  { id: "welcome", title: "Welcome", description: "Secure code from day one.", cta: "Continue" },
-  { id: "preferences", title: "General setup", description: "Make the interface feel controlled.", cta: "Save preferences" },
-  { id: "privacy", title: "Privacy Sentinel", description: "Prepare local secret and PII checks.", cta: "Continue" },
-  { id: "api-key", title: "Rainy API", description: "Enable AI reasoning and repo embeddings.", cta: "Continue" },
-  { id: "workspace", title: "Connect workspace", description: "Build repo graph and validation context.", cta: "Select repository" },
-  { id: "trust", title: "Set trust boundary", description: "Define what MaTE X can touch.", cta: "Save policy" },
-  { id: "verification", title: "First verification run", description: "Generate first evidence pack.", cta: "Start verification" },
-];
+export interface OnboardingServices {
+  getAppSettings: () => Promise<AppSettings>;
+  updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
+  getApiKeyStatus: () => Promise<ApiKeyStatus>;
+  setApiKey: (apiKey: string) => Promise<void>;
+  openWorkspacePicker: () => Promise<WorkspaceSnapshot | null>;
+  updateWorkspaceTrustContract: (
+    contract: WorkspaceTrustContract,
+  ) => Promise<WorkspaceTrustContract>;
+  getPrivacyModelStatus: () => Promise<PrivacyModelStatus>;
+  downloadPrivacyModel: () => Promise<PrivacyModelStatus>;
+  onPrivacyModelDownloadProgress: (
+    callback: (progress: PrivacyModelDownloadProgress) => void,
+  ) => () => void;
+}
 
-const capabilityLine = ["Risk-first review", "Safe patching", "Fix validation", "Evidence Pack"];
+const DEFAULT_ONBOARDING_SERVICES: OnboardingServices = {
+  getAppSettings,
+  updateAppSettings,
+  getApiKeyStatus,
+  setApiKey: (apiKey) => window.mate.settings.setApiKey(apiKey),
+  openWorkspacePicker: () => window.mate.repo.openWorkspacePicker(),
+  updateWorkspaceTrustContract: (contract) =>
+    window.mate.repo.updateWorkspaceTrustContract(contract),
+  getPrivacyModelStatus: () => window.mate.privacy.getModelStatus(),
+  downloadPrivacyModel: () => window.mate.privacy.downloadModel(),
+  onPrivacyModelDownloadProgress: (callback) =>
+    window.mate.privacy.onModelDownloadProgress(callback),
+};
+
+const NOOP_APPEARANCE_PREVIEW = () => undefined;
 
 export function OnboardingFlow() {
+  const navigate = useNavigate();
+  const { setAppearance } = useTheme();
+
+  return (
+    <OnboardingFlowContent
+      onAppearancePreview={setAppearance}
+      onComplete={() => navigate({ to: "/", replace: true })}
+    />
+  );
+}
+
+export function OnboardingFlowContent({
+  onAppearancePreview = NOOP_APPEARANCE_PREVIEW,
+  onComplete,
+  services = DEFAULT_ONBOARDING_SERVICES,
+}: {
+  onAppearancePreview?: (appearance: AppearancePreference) => void;
+  onComplete: () => Promise<void> | void;
+  services?: OnboardingServices;
+}) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [direction, setDirection] = useState(0);
+  const [direction, setDirection] = useState(1);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
-  const [privacyProgress, setPrivacyProgress] = useState<PrivacyModelDownloadProgress | null>(null);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
-  const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
-  const navigate = useNavigate();
-  const { setAppearance, setTheme } = useTheme();
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(
+    null,
+  );
+  const [trustDraft, setTrustDraft] =
+    useState<WorkspaceTrustContract | null>(null);
+  const [operationState, setOperationState] =
+    useState<OnboardingOperationState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const reducedMotion = Boolean(useReducedMotion());
 
   useEffect(() => {
-    void getAppSettings().then(setSettings);
-    void getApiKeyStatus().then((status) => setApiKeyConfigured(status.configured));
-  }, []);
+    let cancelled = false;
+    setOperationState("saving");
+    setErrorMessage("");
 
-  const handleNext = useCallback(() => {
-    if (currentStep < steps.length - 1) {
-      setDirection(1);
-      setCurrentStep((s) => s + 1);
-    } else {
-      void handleFinish();
-    }
-  }, [currentStep]);
+    void Promise.all([services.getAppSettings(), services.getApiKeyStatus()])
+      .then(([storedSettings, keyStatus]) => {
+        if (cancelled) return;
+        const onboardingSettings = {
+          ...storedSettings,
+          appearance: "system" as const,
+        };
+        setSettings(onboardingSettings);
+        setApiKeyConfigured(keyStatus.configured);
+        onAppearancePreview(onboardingSettings.appearance);
+        setOperationState("idle");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setErrorMessage(
+          toErrorMessage(error, "Could not load onboarding settings."),
+        );
+        setOperationState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt, onAppearancePreview, services]);
+
+  useEffect(() => {
+    if (settings) headingRef.current?.focus();
+  }, [currentStep, settings]);
+
+  const step = ONBOARDING_STEPS[currentStep];
+  const motion = useMemo(
+    () => getOnboardingMotion(reducedMotion, direction),
+    [direction, reducedMotion],
+  );
+  const isSaving = operationState === "saving";
+
+  const advance = useCallback(() => {
+    setDirection(1);
+    setCurrentStep((index) => Math.min(index + 1, ONBOARDING_STEPS.length - 1));
+  }, []);
 
   const handleBack = useCallback(() => {
-    if (currentStep > 0) {
-      setDirection(-1);
-      setCurrentStep((s) => s - 1);
-    }
-  }, [currentStep]);
+    if (isSaving || currentStep === 0) return;
+    setErrorMessage("");
+    setOperationState("idle");
+    setDirection(-1);
+    setCurrentStep((index) => Math.max(0, index - 1));
+  }, [currentStep, isSaving]);
 
-  const handleWorkspaceSelect = useCallback(async () => {
+  const handlePrimaryAction = useCallback(async () => {
+    if (!settings || isSaving) return;
+
+    setErrorMessage("");
+    setOperationState("saving");
+
     try {
-      const workspace = await window.mate.repo.openWorkspacePicker();
-      if (workspace?.workspace) {
-        setSelectedWorkspace(workspace.workspace.name || workspace.workspace.path || workspace.workspace.id);
+      if (step.id === "preferences") {
+        const savedSettings = await services.updateAppSettings(settings);
+        setSettings(savedSettings);
+      } else if (step.id === "api-key" && apiKey.trim()) {
+        await services.setApiKey(apiKey.trim());
+        setApiKeyConfigured(true);
+      } else if (step.id === "workspace") {
+        const workspace = await services.openWorkspacePicker();
+        if (!workspace) {
+          setOperationState("idle");
+          return;
+        }
+        if (!workspace.workspace || !workspace.trustContract) {
+          throw new Error("Could not load the selected repository boundary.");
+        }
+        setSelectedWorkspace(
+          workspace.workspace.name ||
+            workspace.workspace.path ||
+            workspace.workspace.id,
+        );
         setTrustDraft(workspace.trustContract);
+      } else if (step.id === "trust") {
+        if (!trustDraft) {
+          throw new Error("Select a repository before saving its boundary.");
+        }
+        const savedContract =
+          await services.updateWorkspaceTrustContract(trustDraft);
+        setTrustDraft(savedContract);
+      } else if (step.id === "verification") {
+        const completedSettings = await services.updateAppSettings({
+          ...settings,
+          onboardingCompleted: true,
+        });
+        setSettings(completedSettings);
+        await onComplete();
+        setOperationState("idle");
+        return;
       }
-    } catch {
-      setSelectedWorkspace(null);
-      setTrustDraft(null);
-    }
-    setDirection(1);
-    setCurrentStep(5);
-  }, []);
 
-  const handlePrimaryAction = useCallback(() => {
-    if (currentStep === 1 && settings) {
-      void updateAppSettings(settings);
+      advance();
+      setOperationState("idle");
+    } catch (error) {
+      setErrorMessage(toErrorMessage(error, "Could not save this step."));
+      setOperationState("error");
     }
-    if (currentStep === 3 && apiKey) {
-      void window.mate.settings.setApiKey(apiKey);
-    }
-    if (currentStep === 4) {
-      void handleWorkspaceSelect();
-      return;
-    }
-    if (currentStep === 5 && trustDraft) {
-      void window.mate.repo.updateWorkspaceTrustContract(trustDraft);
-    }
-    handleNext();
-  }, [apiKey, currentStep, handleNext, handleWorkspaceSelect, settings, trustDraft]);
+  }, [
+    advance,
+    apiKey,
+    isSaving,
+    onComplete,
+    services,
+    settings,
+    step.id,
+    trustDraft,
+  ]);
 
-  const handleFinish = async () => {
-    if (!settings) return;
-    
-    const updatedSettings: AppSettings = {
-      ...settings,
-      onboardingCompleted: true,
-    };
+  function handleAppearanceChange(appearance: AppearancePreference) {
+    setSettings((current) =>
+      current ? { ...current, appearance } : current,
+    );
+    onAppearancePreview(appearance);
+  }
 
-    if (apiKey) {
-      await window.mate.settings.setApiKey(apiKey);
-    }
+  function handleTrustChange(autonomy: WorkspaceTrustAutonomy) {
+    setTrustDraft((current) =>
+      current ? { ...current, autonomy } : current,
+    );
+  }
 
-    await updateAppSettings(updatedSettings);
-    void navigate({ to: "/", replace: true });
-  };
+  if (!settings) {
+    return (
+      <div className="mx-auto flex min-h-80 w-full max-w-2xl flex-col items-center justify-center px-5 text-center">
+        <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">
+          MaTE X
+        </p>
+        {operationState === "error" ? (
+          <>
+            <InlineError message={errorMessage} />
+            <Button
+              className="mt-4"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              type="button"
+              variant="outline"
+            >
+              Try again
+            </Button>
+          </>
+        ) : (
+          <div
+            aria-live="polite"
+            className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            <SpinnerGapIcon className="size-4" />
+            Loading setup…
+          </div>
+        )}
+      </div>
+    );
+  }
 
-  if (!settings) return null;
+  const progress = ((currentStep + 1) / ONBOARDING_STEPS.length) * 100;
 
   return (
     <LazyMotion features={domAnimation} strict>
-    <div className="relative flex min-h-[560px] flex-col items-center justify-center py-10">
-      <div className="mb-4 flex items-center gap-3">
-        {steps.map((step, idx) => (
-          <div key={step.id} className="flex items-center gap-3">
-            <div 
-              className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
-                idx <= currentStep ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground"
-              }`}
-            >
-              {idx < currentStep ? <CheckCircleIcon className="h-5 w-5" /> : idx + 1}
-            </div>
-            {idx < steps.length - 1 && (
-              <div className={`h-0.5 w-12 transition-colors ${idx < currentStep ? "bg-primary" : "bg-muted"}`} />
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="mb-8 text-center">
-        <p className="text-sm font-semibold text-foreground">{steps[currentStep].title}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{steps[currentStep].description}</p>
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {capabilityLine.map((item) => (
-            <span key={item} className="rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-[10px] font-bold uppercase text-muted-foreground">
-              {item}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="relative w-full max-w-2xl">
-        <AnimatePresence initial={false} mode="wait" custom={direction}>
-          <m.div
-            key={currentStep}
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{
-              x: RESPONSIVE_SPRING,
-              opacity: { duration: 0.3 }
-            }}
-            className="w-full"
-          >
-            {renderStep(currentStep, { 
-              selectedWorkspace,
-              trustDraft,
-              setTrustDraft,
-              settings,
-              setSettings,
-              apiKey,
-              setApiKey,
-              apiKeyConfigured,
-              privacyProgress,
-              setPrivacyProgress,
-              setAppearance,
-              setTheme,
-              handleNext,
-            })}
-          </m.div>
-        </AnimatePresence>
-      </div>
-
-      <div className="mt-10 flex w-full max-w-2xl justify-between items-center">
-        <Button variant="ghost" onClick={handleBack} disabled={currentStep === 0} className="hover:bg-accent/10">
-          Back
-        </Button>
-        <Button onClick={handlePrimaryAction} className="bg-primary hover:bg-primary/90 rounded-xl px-6">
-          {steps[currentStep].cta}
-          <CaretRightIcon className="ml-2 h-4 w-4" />
-        </Button>
-      </div>
-
-      <m.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.25 }}
-        transition={{ delay: 1, duration: 1 }}
-        className="mt-auto pt-16 pb-2 text-center select-none pointer-events-none"
+      <form
+        className="mx-auto flex w-full max-w-[680px] flex-col py-6 sm:py-8"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handlePrimaryAction();
+        }}
       >
-        <p className="text-[9px] tracking-[0.2em] uppercase font-bold text-muted-foreground max-w-md mx-auto leading-relaxed">
-          See risk earlier, patch with review, validate remediation, and keep local-first evidence.
-        </p>
-      </m.div>
-    </div>
+        <header>
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="font-medium text-foreground">
+              Step {currentStep + 1} of {ONBOARDING_STEPS.length}
+            </span>
+            <span className="text-muted-foreground">MaTE X setup</span>
+          </div>
+          <div
+            aria-label={`Onboarding progress: step ${currentStep + 1} of ${ONBOARDING_STEPS.length}`}
+            aria-valuemax={ONBOARDING_STEPS.length}
+            aria-valuemin={1}
+            aria-valuenow={currentStep + 1}
+            className="mt-3 h-1 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+          >
+            <div
+              className="h-full origin-left bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none"
+              style={{ transform: `scaleX(${progress / 100})` }}
+            />
+          </div>
+          <h1
+            className="mt-7 text-xl font-semibold tracking-[-0.02em] text-foreground outline-none"
+            ref={headingRef}
+            tabIndex={-1}
+          >
+            {step.title}
+          </h1>
+          <p className="mt-1.5 text-[15px] leading-6 text-muted-foreground">
+            {step.description}
+          </p>
+        </header>
+
+        <div className="relative mt-6 min-h-64">
+          <AnimatePresence initial={false} mode="wait">
+            <m.div
+              animate="center"
+              className="w-full"
+              exit="exit"
+              initial="enter"
+              key={step.id}
+              transition={motion.transition}
+              variants={motion.variants}
+            >
+              <StepContent
+                apiKey={apiKey}
+                apiKeyConfigured={apiKeyConfigured}
+                onApiKeyChange={setApiKey}
+                onAppearanceChange={handleAppearanceChange}
+                onTrustChange={handleTrustChange}
+                selectedWorkspace={selectedWorkspace}
+                services={services}
+                settings={settings}
+                stepId={step.id}
+                trustDraft={trustDraft}
+              />
+            </m.div>
+          </AnimatePresence>
+        </div>
+
+        {errorMessage ? <InlineError message={errorMessage} /> : null}
+
+        <footer className="mt-7 flex items-center justify-between gap-4 border-t border-border/70 pt-5">
+          <Button
+            disabled={currentStep === 0 || isSaving}
+            onClick={handleBack}
+            type="button"
+            variant="ghost"
+          >
+            Back
+          </Button>
+          <Button disabled={isSaving} type="submit">
+            {isSaving ? (
+              <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" />
+            ) : null}
+            {isSaving ? "Saving…" : step.cta}
+            {!isSaving ? <CaretRightIcon className="size-4" /> : null}
+          </Button>
+        </footer>
+      </form>
     </LazyMotion>
   );
 }
 
-const variants = {
-  enter: (direction: number) => ({
-    x: direction > 0 ? 50 : -50,
-    opacity: 0
-  }),
-  center: {
-    zIndex: 1,
-    x: 0,
-    opacity: 1
-  },
-  exit: (direction: number) => ({
-    zIndex: 0,
-    x: direction < 0 ? 50 : -50,
-    opacity: 0
-  })
-};
+interface StepContentProps {
+  apiKey: string;
+  apiKeyConfigured: boolean;
+  onApiKeyChange: (value: string) => void;
+  onAppearanceChange: (appearance: AppearancePreference) => void;
+  onTrustChange: (autonomy: WorkspaceTrustAutonomy) => void;
+  selectedWorkspace: string | null;
+  services: OnboardingServices;
+  settings: AppSettings;
+  stepId: OnboardingStepId;
+  trustDraft: WorkspaceTrustContract | null;
+}
 
-function renderStep(step: number, props: any) {
-  switch (step) {
-    case 0: return <IntroStep />;
-    case 1: return <PreferencesStep {...props} />;
-    case 2: return <PrivacyStep {...props} />;
-    case 3: return <ApiKeyStep {...props} />;
-    case 4: return <WorkspaceStep {...props} />;
-    case 5: return <TrustBoundaryStep {...props} />;
-    case 6: return <VerificationStep {...props} />;
-    default: return null;
+function StepContent(props: StepContentProps) {
+  switch (props.stepId) {
+    case "welcome":
+      return <WelcomeStep />;
+    case "preferences":
+      return (
+        <PreferencesStep
+          onAppearanceChange={props.onAppearanceChange}
+          settings={props.settings}
+        />
+      );
+    case "privacy":
+      return (
+        <PrivacyStep
+          downloadModel={props.services.downloadPrivacyModel}
+          getModelStatus={props.services.getPrivacyModelStatus}
+          onModelDownloadProgress={
+            props.services.onPrivacyModelDownloadProgress
+          }
+        />
+      );
+    case "api-key":
+      return (
+        <ApiKeyStep
+          apiKey={props.apiKey}
+          apiKeyConfigured={props.apiKeyConfigured}
+          onApiKeyChange={props.onApiKeyChange}
+        />
+      );
+    case "workspace":
+      return <WorkspaceStep selectedWorkspace={props.selectedWorkspace} />;
+    case "trust":
+      return (
+        <TrustBoundaryStep
+          onTrustChange={props.onTrustChange}
+          trustDraft={props.trustDraft}
+        />
+      );
+    case "verification":
+      return <VerificationStep />;
   }
 }
 
-function IntroStep() {
-  return (
-    <div className="flex flex-col items-center justify-center text-center space-y-8 py-12">
-      <m.div 
-        initial={{ y: 10, opacity: 0, filter: "blur(10px)" }}
-        animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-        transition={{ duration: 1, ease: "easeOut" }}
-        className="space-y-6"
-      >
-        <h1 className="text-[5.5rem] leading-none font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/30 pb-2">
-          MaTE X
-        </h1>
-        <m.p 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="text-3xl text-foreground font-bold max-w-lg mx-auto tracking-tight"
-        >
-          Write secure code from day one.
-        </m.p>
-
-      </m.div>
-    </div>
-  );
-}
-
-function PreferencesStep({ settings, setSettings, setAppearance, setTheme }: any) {
-  return (
-    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
-      <CardHeader>
-        <div className="flex items-center gap-2 relative z-10">
-          <GearIcon className="h-5 w-5 text-primary" />
-          <CardTitle>Set your workspace controls</CardTitle>
-        </div>
-        <CardDescription className="relative z-10">
-          Choose appearance and time format before moving into product verification.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-2">
-            <Label>Appearance</Label>
-            <Select
-              value={settings.appearance}
-              onValueChange={(value) => {
-                setSettings({ ...settings, appearance: value as AppearancePreference });
-                setAppearance(value as AppearancePreference);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="system">System</SelectItem>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Theme</Label>
-            <Select
-              value={settings.theme}
-              onValueChange={(value) => {
-                setSettings({ ...settings, theme: value as ThemePreference });
-                setTheme(value as ThemePreference);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">Default</SelectItem>
-                <SelectItem value="oled">OLED</SelectItem>
-                <SelectItem value="midnight">Midnight</SelectItem>
-                <SelectItem value="blue">Deep Blue</SelectItem>
-                <SelectItem value="deepblue">Ocean Abyss</SelectItem>
-                <SelectItem value="deeppurple">Royal Purple</SelectItem>
-                <SelectItem value="casimiri">Casimiri</SelectItem>
-                <SelectItem value="greenspace">Green Space</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Time Format</Label>
-            <Select
-              value={settings.timeFormat}
-              onValueChange={(value) => setSettings({ ...settings, timeFormat: value as TimeFormat })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="system">System</SelectItem>
-                <SelectItem value="12h">12h</SelectItem>
-                <SelectItem value="24h">24h</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function PrivacyStep({ privacyProgress, setPrivacyProgress }: any) {
-  const [status, setStatus] = useState<any>(null);
-  
-  useEffect(() => {
-    void window.mate.privacy.getModelStatus().then(setStatus);
-    return window.mate.privacy.onModelDownloadProgress((progress) => {
-      setPrivacyProgress(progress);
-    });
-  }, [setPrivacyProgress]);
-
-  const handleDownload = async () => {
-    await window.mate.privacy.downloadModel();
-  };
-
-  const isDownloading = privacyProgress?.state === "downloading" || privacyProgress?.state === "verifying";
-  const isReady = status?.inferenceReady || privacyProgress?.state === "ready";
-  const loaded = privacyProgress?.loaded ?? 0;
-  const total = privacyProgress?.total ?? 0;
-  const hasProgressTotal = total > 0;
-  const progressPercent = hasProgressTotal ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-  const progressLabel = isReady ? "Installed" : hasProgressTotal ? `${progressPercent}%` : "Preparing...";
-  const statusLabel = isReady
-    ? "Ready"
-    : isDownloading
-      ? privacyProgress?.state === "verifying" ? "Verifying model" : "Downloading model"
-      : "Required for first verification test";
-  const runtimeLabel = isReady || status?.runtimeAvailable ? "Available" : "Pending";
-  const inferenceLabel = isReady ? "Ready" : "Not ready";
-
-  return (
-    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
-      <CardHeader>
-        <div className="flex items-center gap-2 relative z-10">
-          <ShieldIcon className="h-5 w-5 text-primary" />
-          <CardTitle>Install Privacy Sentinel</CardTitle>
-        </div>
-        <CardDescription className="relative z-10">
-          MaTE X uses a local ONNX model to scan code for secrets and PII before cloud reasoning.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
-        <div className="rounded-xl border border-border/40 bg-muted/40 p-4 backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">ONNX model status</span>
-            {isReady ? (
-              <span className="text-xs text-emerald-500 flex items-center gap-1">
-                <CheckCircleIcon className="h-3 w-3" /> Ready
-              </span>
-            ) : (
-              <span className="text-xs text-amber-500">{statusLabel}</span>
-            )}
-          </div>
-          <div className="mb-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-            <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2">
-              <span className="block text-[10px] uppercase tracking-wide">Runtime</span>
-              <span className="font-medium text-foreground">{runtimeLabel}</span>
-            </div>
-            <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2">
-              <span className="block text-[10px] uppercase tracking-wide">Inference</span>
-              <span className="font-medium text-foreground">{inferenceLabel}</span>
-            </div>
-            <div className="rounded-lg border border-border/40 bg-background/50 px-3 py-2">
-              <span className="block text-[10px] uppercase tracking-wide">Progress</span>
-              <span className="font-medium text-foreground">{progressLabel}</span>
-            </div>
-          </div>
-          {!isReady && isDownloading ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <span>{privacyProgress.file || "Downloading..."}</span>
-                <span>{progressLabel}</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <m.div
-                  className="h-full w-full origin-left bg-primary"
-                  initial={{ scaleX: 0 }}
-                  animate={{
-                    scaleX: hasProgressTotal ? Math.max(progressPercent, 0) / 100 : 0.18,
-                  }}
-                  transition={{
-                    repeat: hasProgressTotal ? 0 : Infinity,
-                    repeatType: "reverse",
-                    duration: 0.9,
-                  }}
-                />
-              </div>
-            </div>
-          ) : (
-            <Button variant="outline" className="w-full" disabled={isReady} onClick={handleDownload}>
-              {isReady ? "Model installed" : (
-                <>
-                  <DownloadIcon className="mr-2 h-4 w-4" />
-                  Download Privacy Model (340MB)
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ApiKeyStep({ apiKey, setApiKey, apiKeyConfigured }: any) {
-  const isConfigured = apiKeyConfigured || (apiKey && apiKey.length > 5);
-
-  return (
-    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
-      <CardHeader>
-        <div className="flex items-center gap-2 relative z-10">
-          <KeyIcon className="h-5 w-5 text-primary" />
-          <CardTitle>Connect Rainy API</CardTitle>
-        </div>
-        <CardDescription className="relative z-10">
-          API key is required to test AI reasoning, RepoGraph embeddings, and verification runs.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
-        <div className="rounded-xl border border-border/40 bg-muted/40 p-4 backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium">Connection status</span>
-            {isConfigured ? (
-              <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium">
-                <CheckCircleIcon className="h-3 w-3" /> Configured
-              </span>
-            ) : (
-              <span className="text-xs text-amber-500 font-medium">Required for first verification test</span>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="apiKey" className="text-xs text-muted-foreground">Rainy API Key</Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder="ra-..."
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              className={isConfigured ? "border-emerald-500/30 focus-visible:ring-emerald-500" : ""}
-            />
-          </div>
-        </div>
-        <Button
-          variant="link"
-          className="h-auto p-0 text-xs text-muted-foreground hover:text-primary"
-          render={(props) => (
-            <a
-              {...props}
-              href="https://app.rainy-mate.com"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center"
-            >
-              Go to app.rainy-mate.com to get your key
-              <ArrowSquareOutIcon className="ml-1 h-3 w-3" />
-            </a>
-          )}
-        />
-      </CardContent>
-    </Card>
-  );
-}
-
-function WorkspaceStep({ selectedWorkspace }: { selectedWorkspace: string | null }) {
-  return (
-    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
-      <CardHeader>
-        <div className="flex items-center gap-2 relative z-10">
-          <FolderOpenIcon className="h-5 w-5 text-primary" />
-          <CardTitle>Choose a repo to verify</CardTitle>
-        </div>
-        <CardDescription className="relative z-10">
-          MaTE X builds a local repo graph, detects risky surfaces, and prepares validation context without uploading your code.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <OnboardingPillar icon={<GitBranchIcon className="h-4 w-4" />} title="Repo graph" body="Map changed files, imports, IPC, and risky surfaces." />
-          <OnboardingPillar icon={<ShieldIcon className="h-4 w-4" />} title="Privacy Sentinel" body="Screen secrets and sensitive spans locally first." />
-          <OnboardingPillar icon={<DatabaseIcon className="h-4 w-4" />} title="Context ready" body="Keep validation evidence tied to workspace state." />
-        </div>
-        <div className="rounded-xl border border-border/40 bg-muted/40 p-4 text-sm">
-          <span className="font-medium">Selected workspace: </span>
-          <span className={selectedWorkspace ? "text-foreground" : "text-muted-foreground"}>
-            {selectedWorkspace || "Choose repository with Select repository."}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TrustBoundaryStep({ trustDraft, setTrustDraft }: {
-  trustDraft: WorkspaceTrustContract | null;
-  setTrustDraft: (updater: WorkspaceTrustContract | ((draft: WorkspaceTrustContract | null) => WorkspaceTrustContract | null)) => void;
-}) {
-  const updateList = (key: keyof Pick<WorkspaceTrustContract, "allowedPaths" | "forbiddenPaths" | "allowedCommands" | "allowedDomains" | "allowedSecrets" | "allowedActions" | "blockedActions">, value: string) => {
-    const nextValue = value
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    setTrustDraft((draft) => draft ? { ...draft, [key]: nextValue } : draft);
-  };
-
-  return (
-    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
-      <CardHeader>
-        <div className="flex items-center gap-2 relative z-10">
-          <LockIcon className="h-5 w-5 text-primary" />
-          <CardTitle>Define what MaTE X can touch</CardTitle>
-        </div>
-        <CardDescription className="relative z-10">
-          Choose whether the agent can read, patch, run commands, or pause for approval before high-risk actions.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
-        {trustDraft ? (
-          <>
-            <div className="grid gap-3 sm:grid-cols-[1fr_190px]">
-              <div className="rounded-xl border border-border/40 bg-background/60 p-4">
-                <p className="text-sm font-semibold">{trustDraft.name} v{trustDraft.version}</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Real workspace contract. Saved here, enforced before tool execution.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Operational profile</Label>
-                <Select
-                  value={trustDraft.autonomy}
-                  onValueChange={(value) =>
-                    setTrustDraft((draft) => draft ? { ...draft, autonomy: value as WorkspaceTrustAutonomy } : draft)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="plan-only">Plan only</SelectItem>
-                    <SelectItem value="approval-required">Ask before changes</SelectItem>
-                    <SelectItem value="trusted-patch">Scoped changes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TrustListField
-                icon={<EyeIcon className="h-4 w-4" />}
-                title="Scope"
-                description="Paths the agent can inspect or modify."
-                value={trustDraft.allowedPaths}
-                onChange={(value) => updateList("allowedPaths", value)}
-              />
-              <TrustListField
-                icon={<LockIcon className="h-4 w-4" />}
-                title="Forbidden"
-                description="Paths blocked even inside allowed scope."
-                value={trustDraft.forbiddenPaths}
-                onChange={(value) => updateList("forbiddenPaths", value)}
-              />
-              <TrustListField
-                icon={<TerminalIcon className="h-4 w-4" />}
-                title="Commands"
-                description="Exact command prefixes allowed."
-                value={trustDraft.allowedCommands}
-                onChange={(value) => updateList("allowedCommands", value)}
-              />
-              <TrustListField
-                icon={<PencilIcon className="h-4 w-4" />}
-                title="Actions"
-                description="Allowed and blocked action classes."
-                value={[
-                  ...trustDraft.allowedActions.map((action) => `allow:${action}`),
-                  ...trustDraft.blockedActions.map((action) => `block:${action}`),
-                ]}
-                onChange={(value) => {
-                  const items = value.split("\n").map((item) => item.trim()).filter(Boolean);
-                  setTrustDraft((draft) =>
-                    draft
-                      ? {
-                          ...draft,
-                          allowedActions: items.filter((item) => item.startsWith("allow:")).map((item) => item.slice(6)),
-                          blockedActions: items.filter((item) => item.startsWith("block:")).map((item) => item.slice(6)),
-                        }
-                      : draft,
-                  );
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-            Select repository first. Trust contract loads from active workspace.
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TrustListField({ icon, title, description, value, onChange }: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  value: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="rounded-xl border border-border/40 bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold">
-        <span className="text-primary">{icon}</span>
-        {title}
-      </div>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
-      <textarea
-        value={value.join("\n")}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label={title}
-        className="mt-3 h-24 w-full resize-none rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs outline-none focus:border-primary"
-        spellCheck={false}
-      />
-    </div>
-  );
-}
-
-function VerificationStep() {
-  return (
-    <Card className="border border-border/70 bg-card shadow-none relative overflow-hidden group rounded-[24px]">
-      <CardHeader>
-        <div className="flex items-center gap-2 relative z-10">
-          <FileTextIcon className="h-5 w-5 text-primary" />
-          <CardTitle>Run your first evidence pack</CardTitle>
-        </div>
-        <CardDescription className="relative z-10">
-          Detect secrets, trace risky flows, run validation, and get a go/no-go decision for your current repo changes.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <OnboardingPillar icon={<ShieldIcon className="h-4 w-4" />} title="Secret detection" body="Privacy Sentinel checks exposed credentials and PII." />
-          <OnboardingPillar icon={<SignpostIcon className="h-4 w-4" />} title="Path trace" body="Trace risky input, IPC, shell, network, and storage flows." />
-          <OnboardingPillar icon={<ActivityIcon className="h-4 w-4" />} title="Validation" body="Run selected checks and capture pass/fail evidence." />
-          <OnboardingPillar icon={<PlayCircleIcon className="h-4 w-4" />} title="Go/no-go" body="Produce decision plus replayable evidence pack." />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function OnboardingPillar({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-border/40 bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold">
-        <span className="text-primary">{icon}</span>
-        {title}
-      </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">{body}</p>
-    </div>
-  );
+function toErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
 }
