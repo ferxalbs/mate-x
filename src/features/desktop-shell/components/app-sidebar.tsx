@@ -193,7 +193,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "general"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "general"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -214,7 +214,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "connections"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "connections"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -235,7 +235,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "trust"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "trust"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -256,7 +256,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "privacy"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "privacy"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -277,7 +277,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "workspace-memory"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "workspace-memory"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -298,7 +298,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "agent-profiler"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "agent-profiler"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -319,7 +319,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "integrations"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "integrations"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -340,7 +340,7 @@ export function AppSidebar({
                     size="sm"
                     isActive={settingsSection === "archive"}
                     className={cn(
-                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-all duration-200 w-full",
+                      "gap-2 px-3 py-2 text-left text-xs rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] w-full",
                       settingsSection === "archive"
                         ? "bg-foreground/[0.06] text-foreground font-medium"
                         : "text-muted-foreground hover:bg-foreground/[0.02] hover:text-foreground"
@@ -366,7 +366,7 @@ export function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="sm"
-                  className="gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground rounded-xl transition-all duration-200"
+                  className="gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)]"
                   render={<Link to="/" />}
                 >
                   <ArrowLeftIcon className="size-4" />
@@ -383,7 +383,7 @@ export function AppSidebar({
               <div className="mb-4 px-1">
                 <button
                   onClick={onOpenSearch}
-                  className="mate-text-compact flex h-[34px] w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/35 bg-foreground/[0.03] px-3 transition-all duration-200 hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+                  className="mate-text-compact flex h-[34px] w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/35 bg-foreground/[0.03] px-3 transition-[background-color,border-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                   type="button"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -428,7 +428,7 @@ export function AppSidebar({
                   return (
                     <SidebarMenuItem key={project.id}>
                       <div className={cn(
-                        "group/project flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-all duration-200",
+                        "group/project flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)]",
                         isWorkspaceActive ? "bg-foreground/[0.04]" : "hover:bg-foreground/[0.02]"
                       )}>
                         <button
@@ -453,7 +453,7 @@ export function AppSidebar({
                         >
                           <CaretDownIcon
                             className={cn(
-                              "size-3 transition-transform duration-200",
+                              "size-3 transition-transform duration-[var(--motion-press)] ease-[var(--ease-out)] motion-reduce:transition-none",
                               isProjectOpen ? "rotate-0" : "-rotate-90",
                             )}
                             weight="regular"
@@ -562,7 +562,7 @@ export function AppSidebar({
           <SidebarFooter className="no-drag p-2">
             <SidebarMenu className="gap-1">
               <SidebarMenuItem>
-                <div className="rounded-xl px-3 py-1.5 transition-all duration-200 hover:bg-foreground/[0.04]">
+                <div className="rounded-xl px-3 py-1.5 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-foreground/[0.04]">
                   <Link
                     to="/runs"
                     className="flex min-w-0 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
@@ -572,7 +572,7 @@ export function AppSidebar({
                     <span className="text-[13px] font-medium">Mission Log</span>
                   </Link>
                 </div>
-                <div className="flex items-center justify-between rounded-xl px-3 py-1.5 transition-all duration-200 hover:bg-foreground/[0.04]">
+                <div className="flex items-center justify-between rounded-xl px-3 py-1.5 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-foreground/[0.04]">
                   <SettingsLink
                     params={{ section: "general" }}
                     to="/settings/$section"

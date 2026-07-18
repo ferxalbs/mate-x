@@ -3,7 +3,6 @@ import {
   PaperclipIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 import {
   startTransition,
   useEffect,
@@ -44,7 +43,6 @@ import {
   getAppControl,
   isAppControlAvailable,
 } from "../../../lib/rainy-model-launches";
-import { RESPONSIVE_SPRING } from "../../../lib/motion";
 import { cn } from "../../../lib/utils";
 import {
   getModel,
@@ -95,7 +93,6 @@ export function ComposerPanel({
   onBehaviorChange,
   onTrustChange,
 }: ComposerPanelProps) {
-  const reducedMotion = Boolean(useReducedMotion());
   const [prompt, setPrompt] = useState(externalPrompt ?? "");
   const [modelValue, setModelValue] = useState("");
   const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
@@ -367,10 +364,9 @@ export function ComposerPanel({
     : (!prompt.trim() && attachments.length === 0) || isModelSaving;
 
   return (
-    <LazyMotion features={domMax} strict>
       <div
         className={cn(
-          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border border-panel-border/40 shadow-none transition-[background-color,border-color,transform] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:border-foreground/20",
+          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border border-panel-border/40 shadow-none transition-[background-color,border-color] duration-[var(--motion-menu)] ease-[var(--ease-out)] focus-within:border-foreground/20",
           blurEnabled
             ? "mate-glass-float focus-within:border-foreground/25"
             : "bg-mate-control-bg focus-within:bg-mate-control-bg",
@@ -435,19 +431,15 @@ export function ComposerPanel({
               ref={fileInputRef}
               type="file"
             />
-            <m.button
+            <button
               aria-label="Attach files"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-[background-color,color] duration-[180ms] ease-out hover:bg-foreground/15 hover:text-foreground disabled:opacity-40"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-foreground/60 transition-[background-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-foreground/15 hover:text-foreground active:scale-[0.97] disabled:opacity-40 motion-reduce:transform-none"
               disabled={!hasWorkspace}
               onClick={() => fileInputRef.current?.click()}
-              transition={RESPONSIVE_SPRING}
               type="button"
-              whileTap={
-                !hasWorkspace || reducedMotion ? undefined : { scale: 0.96 }
-              }
             >
               <PaperclipIcon className="size-4" />
-            </m.button>
+            </button>
             <ComposerRunSettings
               behavior={behavior}
               catalog={catalog}
@@ -472,10 +464,10 @@ export function ComposerPanel({
             />
           </div>
 
-          <m.button
+          <button
             aria-label={isRunning ? "Stop" : "Run"}
             className={cn(
-              "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold shadow-none transition-[background-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+              "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold shadow-none transition-[background-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] active:scale-[0.97] motion-reduce:transform-none",
               isRunning
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 : actionDisabled
@@ -486,16 +478,13 @@ export function ComposerPanel({
             onClick={() =>
               void (isRunning ? handleCancelRun() : handleSubmit())
             }
-            transition={RESPONSIVE_SPRING}
             type="button"
-            whileTap={actionDisabled || reducedMotion ? undefined : { scale: 0.97 }}
           >
             {isRunning ? <XIcon className="size-3.5" /> : <ArrowUpIcon className="size-3.5" />}
             {isRunning ? "Stop" : "Run"}
-          </m.button>
+          </button>
         </div>
       </div>
-    </LazyMotion>
   );
 }
 

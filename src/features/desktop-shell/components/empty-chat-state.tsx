@@ -72,7 +72,7 @@ export function EmptyChatState({
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center px-4 py-8 sm:px-8">
-      <div className="w-full max-w-[820px] animate-in fade-in slide-in-from-bottom-1 duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:slide-in-from-bottom-0 motion-reduce:duration-150">
+      <div className="w-full max-w-[820px]">
         <div className="mb-8 flex flex-col items-center text-center sm:mb-10">
           <h1 className="max-w-[680px] text-balance text-[28px] font-medium leading-[1.08] tracking-[-0.035em] text-foreground sm:text-[38px]">
             {title}

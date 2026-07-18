@@ -132,7 +132,7 @@ export function ThreadMenuItem({
         }}
         data-active={isActive}
         className={cn(
-          "group relative grid min-h-8 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-xl px-2 text-left text-[13px] outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring/45",
+          "group relative grid min-h-8 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-xl px-2 text-left text-[13px] outline-none transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring/45",
           isActive
             ? "bg-foreground/[0.06] text-foreground font-medium"
             : "text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground",
@@ -144,7 +144,7 @@ export function ThreadMenuItem({
             className={cn(
               "size-1.5 shrink-0 rounded-full",
               status.dotClass,
-              status.pulse ? "animate-pulse" : "",
+              status.pulse ? "animate-pulse motion-reduce:animate-none" : "",
             )}
           />
           <span className="min-w-0 flex-1 truncate">

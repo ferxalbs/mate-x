@@ -4,10 +4,8 @@ import {
   GitDiffIcon,
   PathIcon,
 } from "@phosphor-icons/react";
-import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
-import { RESPONSIVE_SPRING } from "../../../lib/motion";
 import { cn } from "../../../lib/utils";
 
 interface QuickActionCardProps {
@@ -25,30 +23,17 @@ function QuickActionCard({
   onClick,
   disabled,
 }: QuickActionCardProps) {
-  const reducedMotion = useReducedMotion();
-
   return (
-    <m.button
+    <button
       type="button"
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "group relative flex min-h-[104px] w-full flex-col justify-between rounded-2xl border border-border/70 bg-transparent p-4 text-left shadow-none transition-[background-color,border-color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-foreground/15 hover:bg-foreground/[0.03]",
+        "group relative flex min-h-[104px] w-full flex-col justify-between rounded-2xl border border-border/70 bg-transparent p-4 text-left shadow-none transition-[background-color,border-color,transform] duration-[var(--motion-menu)] ease-[var(--ease-out)] hover:border-foreground/15 hover:bg-foreground/[0.03] active:scale-[0.97] motion-reduce:transform-none [@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-0.5",
         disabled && "cursor-not-allowed opacity-50",
       )}
-      transition={RESPONSIVE_SPRING}
-      whileHover={
-        !disabled && !reducedMotion
-          ? { transform: "translateY(-2px) scale(1)" }
-          : undefined
-      }
-      whileTap={
-        !disabled && !reducedMotion
-          ? { transform: "translateY(0) scale(0.985)" }
-          : undefined
-      }
     >
-      <div className="text-foreground/75 transition-colors duration-200 group-hover:text-foreground">
+      <div className="text-foreground/75 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] group-hover:text-foreground">
         {icon}
       </div>
       <div className="mt-4">
@@ -59,7 +44,7 @@ function QuickActionCard({
           {evidence}
         </div>
       </div>
-    </m.button>
+    </button>
   );
 }
 
@@ -129,7 +114,6 @@ export function QuickActionCards({
   }, [disabled]);
 
   return (
-    <LazyMotion features={domMax} strict>
       <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
         {QUICK_ACTIONS.map((action) => (
           <QuickActionCard
@@ -142,6 +126,5 @@ export function QuickActionCards({
           />
         ))}
       </div>
-    </LazyMotion>
   );
 }

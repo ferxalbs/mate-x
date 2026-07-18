@@ -83,7 +83,7 @@ function AttachmentChip({
   return (
     <div
       className={cn(
-        "flex h-7 max-w-[180px] items-center gap-1.5 rounded-xl border px-2.5 text-[11px] transition-[background-color,border-color,color] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+        "flex h-7 max-w-[180px] items-center gap-1.5 rounded-xl border px-2.5 text-[11px] transition-[background-color,border-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)]",
         unsupported
           ? "border-amber-400/40 bg-amber-400/5 text-amber-600 dark:text-amber-300"
           : "border-border/40 bg-mate-control-bg/50 text-muted-foreground hover:border-border/60",
