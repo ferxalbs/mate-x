@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.18 (1) [Premium Workspace, Trust, and Motion System]
+
+Completed the end-to-end product polish pass for MaTE X: the first run is now dependable, the primary workspace is verification-first and easier to scan, scoped autonomy is enforced consistently, and the interface uses a unified responsive and reduced-motion-aware foundation.
+
+### Product experience
+
+* Rebuilt the primary workspace around one clear path: open a repository, describe the objective, choose the run policy when needed, and start or stop work from a direct primary action.
+* Replaced the visually dense composer implementation with focused attachment, core input, permission, policy, and run-settings components, preserving behavior while making future changes safer and easier to review.
+* Added verification-oriented starter actions and clearer empty states so users understand the product's value and next step immediately instead of encountering generic assistant prompts.
+* Refined the top bar, message stream, side panels, Git surface, evidence views, and execution trace so verdicts, active work, repository state, and supporting details follow a more precise information hierarchy.
+* Kept settings and task details inside the shared desktop shell, with compact navigation and responsive layouts that remain usable on narrower windows.
+
+### Reliable onboarding
+
+* Rebuilt first-run onboarding into focused, testable steps with a restrained MaTE X presentation, concise copy, clear progress, and a single dominant action per screen.
+* Made repository selection, workspace persistence, Rainy configuration, cancellation, and completion await their underlying writes before advancing, preventing false-success screens and partially saved setup.
+* Added visible loading, disabled, retry, and error states so slow or failed operations never look complete or leave users guessing.
+* Improved keyboard focus, accessible labels, screen-reader status updates, and reduced-motion behavior throughout the onboarding flow.
+
+### Scoped autonomy and trust
+
+* Removed the unrestricted workspace-trust path and standardized automatic work on scoped repository-local autonomy.
+* Migrated persisted trust data to the new scoped schema while preserving compatibility with older evidence and stored settings.
+* Enforced the same trust vocabulary across contracts, settings normalization, IPC, policy evaluation, evidence packs, and every workspace mutation tool.
+* Added regression coverage for trust migration, policy decisions, workspace boundaries, and the renderer's trust controls.
+
+### Visual foundation and accessibility
+
+* Established a consistent semantic typography scale, stronger foreground contrast, compact section labels, and predictable text wrapping for long repository data, hashes, and dynamic content.
+* Unified interactive targets, border treatment, control fills, organic corner radii, and icon weight across buttons, menus, selectors, settings, run history, and workspace chrome.
+* Preserved the flat `#ffffff` / `#111111` canvas and CSS-only glass architecture: layout ancestors remain filter-free, controls stay legible with elevated fills, and interface blur remains independent from transparency mode.
+* Restored the active Phosphor, Lucide, and React Icons dependencies required by the current component set and lockfile.
+* Added visual-foundation and workspace characterization tests to protect contrast, responsive structure, control sizing, and the premium flat aesthetic from regression.
+
+### Motion and performance
+
+* Unified interaction timing around short, interruptible transform-and-opacity transitions with a consistent premium easing curve.
+* Removed broad `transition-all` behavior and unnecessary layout animation from streaming content, history rows, commands, overlays, and frequently updated controls.
+* Standardized tactile press feedback without introducing render-time animation state or animating expensive blur and layout properties.
+* Strengthened `prefers-reduced-motion` behavior across drawers, onboarding, menus, dialogs, toasts, tooltips, and other animated surfaces while preserving correct open and closed geometry.
+* Added motion-foundation regression coverage for transition scope, reduced-motion fallbacks, and responsive drawer behavior.
+
+### Engineering quality
+
+* Split the largest UI flows into focused modules with explicit contracts and co-located tests, reducing mixed responsibilities and improving maintainability.
+* Expanded coverage for onboarding persistence, composer behavior, primary workspace presentation, trust enforcement, responsive layouts, visual tokens, and motion rules.
+* Preserved macOS-first behavior, Windows architectural compatibility, workspace boundaries, Git authorization, and the separation between interface blur and layout transparency.
+
 ## Unreleased - 2026.07.14 (2) [Agent Speed, Accuracy, and Tool-Loop Optimization]
 
 Made the agent tool loop faster and more accurate: **full tool catalog** for capable models, **system-prompt tool preference** (not hard allowlists), parallel-safe batching, OpenAI/Rainy client improvements, and runbook-conditional playbooks.
