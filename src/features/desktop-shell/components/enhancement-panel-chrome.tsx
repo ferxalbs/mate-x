@@ -57,7 +57,7 @@ export function PanelHeader({
                         : "bg-muted-foreground/50",
                 )}
               />
-              <span className="text-[10px] font-medium text-muted-foreground">
+              <span className="mate-text-metadata normal-case tracking-normal">
                 {eventCount} events
               </span>
             </div>
@@ -69,7 +69,7 @@ export function PanelHeader({
         <div className="flex shrink-0 items-center gap-1">
           <m.button
             aria-label="Hide enhancement panel"
-            className="flex size-7 items-center justify-center rounded-full border border-transparent bg-transparent text-muted-foreground transition-[background-color,border-color,color] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground"
+            className="flex size-8 items-center justify-center rounded-xl border border-transparent bg-transparent text-muted-foreground transition-[background-color,border-color,color] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
             onClick={onCollapse}
             transition={RESPONSIVE_SPRING}
             type="button"
@@ -83,7 +83,7 @@ export function PanelHeader({
             <CaretRightIcon className="size-4" />
           </m.button>
           <Button
-            className="h-7 rounded-full border-transparent bg-transparent px-2.5 text-[11px] font-medium text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground active:scale-95 disabled:opacity-60"
+            className="h-8 rounded-xl border-transparent bg-transparent px-2.5 text-[12px] font-medium text-muted-foreground shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-95 disabled:opacity-60"
             disabled={isLoading}
             onClick={onScan}
             size="xs"
@@ -115,7 +115,7 @@ export function PanelTabs({
         {tabs.map((view) => (
           <m.button
             className={cn(
-              "relative flex h-7 flex-1 items-center justify-center rounded-full text-[10.5px] font-medium transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+              "relative flex h-8 flex-1 items-center justify-center rounded-xl text-[12px] font-medium transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
               activeView === view.id
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -133,7 +133,7 @@ export function PanelTabs({
           >
             {activeView === view.id && (
               <m.div
-                className="absolute inset-0 rounded-full border border-panel-border/50 bg-mate-control-bg/20"
+                className="absolute inset-0 rounded-xl border border-panel-border/50 bg-mate-control-bg/20"
                 layoutId="activeTabEnhancement"
                 transition={
                   reducedMotion ? { duration: 0 } : RESPONSIVE_SPRING

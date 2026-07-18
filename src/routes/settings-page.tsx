@@ -2,20 +2,20 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'r
 import { useRouterState } from '@tanstack/react-router';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  ArrowClockwiseIcon,
   CheckIcon,
-  DownloadIcon,
-  FolderArchiveIcon,
-  KeyRoundIcon,
-  Loader2Icon,
-  PencilIcon,
-  PuzzleIcon,
-  RefreshCcwIcon,
-  ServerIcon,
-  Settings2Icon,
+  DownloadSimpleIcon,
+  FolderOpenIcon,
+  GearIcon,
+  KeyIcon,
+  MonitorIcon,
+  NotePencilIcon,
+  PuzzlePieceIcon,
   ShieldCheckIcon,
   ShieldIcon,
-  WaypointsIcon,
-} from 'lucide-react';
+  SignpostIcon,
+  SpinnerGapIcon,
+} from '@phosphor-icons/react';
 
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -644,7 +644,7 @@ export function SettingsPage() {
         >
           <div className="flex min-w-0 items-center gap-3">
             <span className="text-sm font-medium tracking-tight text-foreground">Settings</span>
-            <span className="rounded-full bg-muted/45 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
+            <span className="mate-text-metadata rounded-full bg-muted/45 px-2 py-0.5">
               {section}
             </span>
           </div>
@@ -656,7 +656,7 @@ export function SettingsPage() {
               onClick={handleRestoreDefaults}
               disabled={isBusy || changedSettingLabels.length === 0}
             >
-              <RefreshCcwIcon className="size-3.5" />
+              <ArrowClockwiseIcon className="size-4" weight="regular" />
               Restore defaults
             </Button>
           </div>
@@ -665,7 +665,7 @@ export function SettingsPage() {
         <div className="flex-1 overflow-y-auto bg-transparent p-6">
           <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
             {section === 'general' ? (
-              <SettingsSection title="General" icon={<Settings2Icon className="size-3.5" />}>
+              <SettingsSection title="General" icon={<GearIcon className="size-4" weight="regular" />}>
                 <>
                   <SettingsRow
                     title="Appearance"
@@ -682,7 +682,7 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[150px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -708,7 +708,7 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[150px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -760,7 +760,7 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[185px]">
+                        <SelectTrigger className="w-full sm:w-[185px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -788,7 +788,7 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[150px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -849,7 +849,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'connections' ? (
-              <SettingsSection title="Connections" icon={<WaypointsIcon className="size-3.5" />}>
+              <SettingsSection title="Connections" icon={<SignpostIcon className="size-4" weight="regular" />}>
                 <>
                   <SettingsRow
                     title="Rainy API key"
@@ -861,7 +861,7 @@ export function SettingsPage() {
                     control={
                       <div className="flex items-center gap-2">
                         {currentKeyPrefix && !isEditingKey ? (
-                          <div className="control-surface flex h-10 w-[220px] items-center rounded-md border border-input bg-mate-control-bg px-3 text-xs text-muted-foreground">
+                          <div className="control-surface flex min-h-10 w-full items-center rounded-xl border border-input bg-mate-control-bg px-3 text-[13px] text-muted-foreground sm:w-[220px]">
                             Saved: {currentKeyPrefix}
                           </div>
                         ) : (
@@ -877,7 +877,7 @@ export function SettingsPage() {
                             }}
                             onKeyDown={handleKeyDown}
                             placeholder="ra-••••••••••••••••"
-                            className="w-[220px]"
+                            className="w-full sm:w-[220px]"
                             disabled={isBusy}
                           />
                         )}
@@ -905,7 +905,7 @@ export function SettingsPage() {
                             }}
                             disabled={isBusy}
                           >
-                            <PencilIcon className="size-3.5" />
+                            <NotePencilIcon className="size-4" weight="regular" />
                             Replace
                           </Button>
                         ) : null}
@@ -917,7 +917,7 @@ export function SettingsPage() {
                     description="Main-process credentials are isolated from the renderer."
                     control={
                       <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
-                        <ServerIcon className="size-3.5" />
+                        <MonitorIcon className="size-4" weight="regular" />
                         {currentKeyPrefix ? 'IPC secured' : 'Waiting for key'}
                       </div>
                     }
@@ -954,7 +954,7 @@ export function SettingsPage() {
                           onClick={() => void handleStartMobilePairing()}
                           disabled={isBusy || isMobileBusy || !savedAppSettings.mobileCompanionEnabled}
                         >
-                          {isMobileBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+                          {isMobileBusy ? <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" /> : null}
                           Start pairing
                         </Button>
                         <Button
@@ -975,7 +975,7 @@ export function SettingsPage() {
                         <div className="rounded-2xl bg-white p-3">
                           <QRCodeSVG value={JSON.stringify(mobilePairingPayload)} size={168} />
                         </div>
-                        <div className="min-w-[220px] flex-1 space-y-2 text-sm">
+                        <div className="min-w-0 w-full flex-1 space-y-2 text-sm">
                           <div className="font-medium text-foreground">Scan with MaTE X Mobile</div>
                           <div className="text-xs text-muted-foreground">
                             Expires {new Date(mobilePairingPayload.expiresAt).toLocaleTimeString()}.
@@ -1020,7 +1020,7 @@ export function SettingsPage() {
                       title="Paired devices"
                       description={`${mobileDevices.length} remembered device${mobileDevices.length === 1 ? '' : 's'}.`}
                       control={
-                        <div className="flex max-w-[360px] flex-col gap-2">
+                        <div className="flex w-full max-w-[360px] flex-col gap-2">
                           {mobileDevices.map((device) => (
                             <div key={device.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--panel-border)]/40 px-3 py-2 text-xs">
                               <span className="truncate">{device.deviceName}</span>
@@ -1084,7 +1084,7 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[150px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1130,7 +1130,7 @@ export function SettingsPage() {
                           onClick={() => void refreshPrivacyModelStatus()}
                           disabled={isPrivacyModelBusy}
                         >
-                          <RefreshCcwIcon className="size-3.5" />
+                          <ArrowClockwiseIcon className="size-4" weight="regular" />
                           Refresh
                         </Button>
                         <Button
@@ -1141,9 +1141,9 @@ export function SettingsPage() {
                           disabled={isPrivacyModelBusy || !privacyModelStatus?.downloadUrl}
                         >
                           {isPrivacyModelBusy ? (
-                            <Loader2Icon className="size-3.5 animate-spin" />
+                            <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
                           ) : (
-                            <DownloadIcon className="size-3.5" />
+                            <DownloadSimpleIcon className="size-4" weight="regular" />
                           )}
                           Download
                         </Button>
@@ -1240,7 +1240,7 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[150px]">
+                        <SelectTrigger className="w-full sm:w-[150px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1271,7 +1271,7 @@ export function SettingsPage() {
                             setSaveState('idle');
                           }
                         }}
-                        className="w-[110px]"
+                        className="w-full sm:w-[110px]"
                         disabled={isBusy}
                       />
                     }
@@ -1292,7 +1292,7 @@ export function SettingsPage() {
                         disabled={isPrivacyActionBusy}
                       >
                         {isPrivacyActionBusy ? (
-                          <Loader2Icon className="size-3.5 animate-spin" />
+                          <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
                         ) : (
                           <ShieldIcon className="size-3.5" />
                         )}
@@ -1311,7 +1311,7 @@ export function SettingsPage() {
                         onClick={() => void handleClearPrivacyVault()}
                         disabled={isPrivacyActionBusy}
                       >
-                        <RefreshCcwIcon className="size-3.5" />
+                        <ArrowClockwiseIcon className="size-4" weight="regular" />
                         Clear vault
                       </Button>
                     }
@@ -1337,7 +1337,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'integrations' ? (
-              <SettingsSection title="Integrations" icon={<PuzzleIcon className="size-3.5" />}>
+              <SettingsSection title="Integrations" icon={<PuzzlePieceIcon className="size-4" weight="regular" />}>
                 <>
                   <SettingsRow
                     title="Codex"
@@ -1413,7 +1413,7 @@ export function SettingsPage() {
                         }}
                         disabled={isBusy}
                       >
-                        <SelectTrigger className="w-[220px]">
+                        <SelectTrigger className="w-full sm:w-[220px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1451,7 +1451,7 @@ export function SettingsPage() {
                           }}
                           onKeyDown={handleKeyDown}
                           placeholder="sm-••••••••"
-                          className="w-[220px]"
+                          className="w-full sm:w-[220px]"
                           disabled={isBusy}
                         />
                         {appSettings.supermemoryApiKey && (
@@ -1496,9 +1496,9 @@ export function SettingsPage() {
                           disabled={isBusy || isGithubStatusBusy}
                         >
                           {isGithubStatusBusy ? (
-                            <Loader2Icon className="size-3.5 animate-spin" />
+                            <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
                           ) : (
-                            <ServerIcon className="size-3.5" />
+                            <MonitorIcon className="size-4" weight="regular" />
                           )}
                           Detect
                         </Button>
@@ -1510,7 +1510,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'archive' ? (
-              <SettingsSection title="Archive" icon={<FolderArchiveIcon className="size-3.5" />}>
+              <SettingsSection title="Archive" icon={<FolderOpenIcon className="size-4" weight="regular" />}>
                 <>
                   <SettingsRow
                     title="Archive confirmation"
@@ -1605,15 +1605,15 @@ export function SettingsPage() {
                   }
                 >
                   {isBusy ? (
-                    <Loader2Icon className="size-4 animate-spin" />
+                    <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
                   ) : saveState === 'saved' ? (
                     <CheckIcon className="size-4" />
                   ) : section === 'trust' ? (
                     <ShieldCheckIcon className="size-4" />
                   ) : section === 'general' || section === 'archive' || section === 'integrations' || section === 'agent-profiler' || section === 'privacy' ? (
-                    <Settings2Icon className="size-4" />
+                    <GearIcon className="size-4" weight="regular" />
                   ) : (
-                    <KeyRoundIcon className="size-4" />
+                    <KeyIcon className="size-4" weight="regular" />
                   )}
                   {saveLabel}
                 </Button>

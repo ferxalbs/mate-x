@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { ShieldCheckIcon } from 'lucide-react';
+import { ShieldCheckIcon } from '@phosphor-icons/react';
 
 import { SettingsRow, SettingsSection } from '../components/ui/settings-layout';
 import {
@@ -27,7 +27,7 @@ export function SettingsTrustSection({
   setTrustDraft,
 }: SettingsTrustSectionProps) {
   return (
-    <SettingsSection title="Workspace Trust Contract" icon={<ShieldCheckIcon className="size-3.5" />}>
+    <SettingsSection title="Workspace Trust Contract" icon={<ShieldCheckIcon className="size-4" weight="regular" />}>
       {trustDraft ? (
         <>
           <SettingsRow
@@ -49,7 +49,7 @@ export function SettingsTrustSection({
                   );
                 }}
               >
-                <SelectTrigger className="w-[190px]">
+                <SelectTrigger className="w-full sm:w-[190px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

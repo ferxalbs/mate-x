@@ -1,4 +1,4 @@
-import { TerminalIcon } from "lucide-react";
+import { TerminalWindowIcon } from "@phosphor-icons/react";
 
 import type { EvidencePack } from "../../../contracts/chat";
 import { Card, CardContent } from "../../../components/ui/card";
@@ -19,9 +19,9 @@ export function ValidationSection({
 
   return (
     <section className="space-y-3">
-      <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
+      <PanelTitle icon={TerminalWindowIcon} title="Validation Terminal" />
       {isLoading ? <SkeletonStack /> : null}
-      <Card className="border-border/70 shadow-none bg-transparent font-mono text-[10px]">
+      <Card className="border-border/70 bg-transparent font-mono text-[12px] shadow-none">
         <CardContent className="p-3">
           <div className="mb-3 flex items-center gap-1.5 border-b border-border/70 pb-2 text-muted-foreground">
             <span className="size-2 rounded-full bg-border" />
@@ -51,7 +51,7 @@ export function ValidationSection({
           </div>
         </CardContent>
       </Card>
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
+      <div className="grid grid-cols-2 gap-2 text-[13px]">
         <Metric label="Mapped tests" value={tests.length} />
         <Metric label="Commands" value={visibleCommands.length} />
       </div>

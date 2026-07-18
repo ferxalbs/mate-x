@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardCheckIcon } from "lucide-react";
+import { ListChecksIcon } from "@phosphor-icons/react";
 
 import { Card, CardContent } from "../../../components/ui/card";
 import { ScrollArea } from "../../../components/ui/scroll-area";
@@ -308,14 +308,14 @@ export function EnhancementPanel({
 
           {error ? (
             <Card className="mt-3 border-destructive/40 shadow-none bg-destructive/5">
-              <CardContent className="px-3 py-2 text-[11px] text-destructive">
+              <CardContent className="px-3 py-2 text-[12px] text-destructive">
                 {error}
               </CardContent>
             </Card>
           ) : !runtime.evidencePack && activeGroup === "advanced" ? (
             <Card className="mt-3 border-border/70 bg-[var(--mate-control-bg)] shadow-none">
-              <CardContent className="px-3 py-2 text-[11px] text-muted-foreground">
-                <ClipboardCheckIcon className="mr-1 inline size-3.5" />
+              <CardContent className="mate-text-secondary px-3 py-2">
+                <ListChecksIcon className="mr-1 inline size-4" weight="regular" />
                 Ship Proof appears after verified run completes.
               </CardContent>
             </Card>

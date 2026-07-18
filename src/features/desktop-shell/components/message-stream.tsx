@@ -1,12 +1,13 @@
 import {
-  AlertCircleIcon,
+  ArrowCounterClockwiseIcon,
+  CaretDownIcon,
+  CaretRightIcon,
   CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   CopyIcon,
   FileTextIcon,
-  LoaderCircle,
-} from "lucide-react";
+  SpinnerGapIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
 import {
   memo,
   useDeferredValue,
@@ -197,7 +198,7 @@ const MessageEntry = memo(function MessageEntry({
           {canUndo ? (
             <MessageActionButton
               ariaLabel="Undo last turn"
-              icon={<RotateUndoIcon />}
+              icon={<ArrowCounterClockwiseIcon className="size-4" weight="regular" />}
               onClick={() => void onUndo()}
             />
           ) : null}
@@ -275,7 +276,7 @@ const MessageEntry = memo(function MessageEntry({
         ) : null}
       </div>
       <div className="mt-2 flex items-center gap-1.5">
-        <p className="text-[11px] text-muted-foreground/55">
+        <p className="mate-text-secondary">
           {formatTimestamp(message.createdAt)}
         </p>
         <MessageActionButton
@@ -350,31 +351,12 @@ function MessageActionButton({
   return (
     <button
       aria-label={ariaLabel}
-      className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground/45 opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+      className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover:opacity-100"
       onClick={onClick}
       type="button"
     >
       {icon}
     </button>
-  );
-}
-
-function RotateUndoIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-3.5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M9 10H4V5M4 10a8 8 0 1 1-2 5.2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
   );
 }
 
@@ -403,13 +385,13 @@ function ThinkingRow({
         type="button"
       >
         {isStreaming && hasErrorEvent ? (
-          <AlertCircleIcon className="size-3.5 text-warning" />
+          <WarningCircleIcon className="size-4 text-warning" weight="regular" />
         ) : isStreaming ? (
-          <LoaderCircle className="size-3.5 animate-spin text-primary/60" />
+          <SpinnerGapIcon className="size-4 animate-spin text-primary motion-reduce:animate-none" weight="regular" />
         ) : expanded ? (
-          <ChevronDownIcon className="size-3.5" />
+          <CaretDownIcon className="size-4" weight="regular" />
         ) : (
-          <ChevronRightIcon className="size-3.5" />
+          <CaretRightIcon className="size-4" weight="regular" />
         )}
         {isStreaming && hasErrorEvent
           ? "Recovering after tool error"
