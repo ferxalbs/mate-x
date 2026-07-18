@@ -229,7 +229,7 @@ export function EnhancementPanel({
   }
 
   return (
-    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-background lg:flex 2xl:w-[316px]">
+    <aside className="fixed inset-y-0 right-0 z-[60] flex h-full w-[min(316px,calc(100vw-32px))] shrink-0 border-l border-[var(--panel-border)]/45 bg-background min-[1275px]:static min-[1275px]:z-auto min-[1275px]:w-[292px] 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
         <div className="border-b border-[var(--panel-border)]/45 px-4 py-4">
           <PanelHeader
@@ -313,7 +313,7 @@ export function EnhancementPanel({
               </CardContent>
             </Card>
           ) : !runtime.evidencePack && activeGroup === "advanced" ? (
-            <Card className="mt-3 border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
+            <Card className="mt-3 border-border/70 bg-[var(--mate-control-bg)] shadow-none">
               <CardContent className="px-3 py-2 text-[11px] text-muted-foreground">
                 <ClipboardCheckIcon className="mr-1 inline size-3.5" />
                 Ship Proof appears after verified run completes.

@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
+import { FolderOpenIcon } from "@phosphor-icons/react";
 
+import { Button } from "../../../components/ui/button";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
 import type { AssistantRunOptions } from "../../../contracts/chat";
 import { QuickActionCards } from "./quick-action-cards";
@@ -14,9 +16,8 @@ interface EmptyChatStateProps {
   ) => Promise<void> | void;
   workspace: WorkspaceSummary | null;
   composer?: ReactNode;
+  onOpenRepository: () => Promise<void> | void;
 }
-
-
 
 export function EmptyChatState({
   isBootstrapped,
@@ -25,14 +26,15 @@ export function EmptyChatState({
   onSelectPrompt,
   workspace,
   composer,
+  onOpenRepository,
 }: EmptyChatStateProps) {
   const title = lastError
     ? "Something needs attention"
     : !isBootstrapped
       ? "Loading workspace"
       : workspace
-        ? `What should we build in ${workspace.name}?`
-        : "What should we build today?";
+        ? `What do you want to verify in ${workspace.name}?`
+        : "Open a repository to begin";
   const statusText =
     lastError ??
     "MaTE X is restoring your previous session and checking local workspace state.";
@@ -70,23 +72,37 @@ export function EmptyChatState({
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center px-4 py-8 sm:px-8">
-      <div className="w-full max-w-[820px] animate-in fade-in slide-in-from-bottom-2 duration-[350ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]">
+      <div className="w-full max-w-[820px] animate-in fade-in slide-in-from-bottom-1 duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:slide-in-from-bottom-0 motion-reduce:duration-150">
         <div className="mb-8 flex flex-col items-center text-center sm:mb-10">
           <h1 className="max-w-[680px] text-balance text-[28px] font-medium leading-[1.08] tracking-[-0.035em] text-foreground sm:text-[38px]">
             {title}
           </h1>
           <p className="mt-3 max-w-[520px] text-[13px] leading-relaxed text-muted-foreground/65 sm:text-sm">
-            Choose a workflow or describe what you need.
+            {workspace
+              ? "Choose a verification objective or describe your own."
+              : "Repository context keeps analysis precise and tools inside a clear boundary."}
           </p>
         </div>
 
-        <QuickActionCards
-          disabled={actionsDisabled}
-          onSelectAction={(prompt) => void handlePromptAction(prompt)}
-        />
+        {workspace ? (
+          <QuickActionCards
+            disabled={actionsDisabled}
+            onSelectAction={(prompt) => void handlePromptAction(prompt)}
+          />
+        ) : (
+          <div className="flex justify-center">
+            <Button
+              className="rounded-full px-5 shadow-none"
+              onClick={() => void onOpenRepository()}
+            >
+              <FolderOpenIcon className="size-4" />
+              Open repository
+            </Button>
+          </div>
+        )}
 
-        {composer ? (
-          <div className="mt-4 overflow-hidden rounded-[32px] bg-foreground/[0.03] transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-within:bg-foreground/[0.06]">
+        {composer && workspace ? (
+          <div className="mt-4 rounded-[32px]">
             {composer}
           </div>
         ) : null}

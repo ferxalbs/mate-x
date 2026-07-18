@@ -1,14 +1,10 @@
 import {
-  ActivityIcon,
   CaretDownIcon,
   ArrowSquareOutIcon,
-  FileSearchIcon,
   GitBranchIcon,
   CircleNotchIcon,
-  MapTrifoldIcon,
-  SidebarIcon,
   PlusIcon,
-  TargetIcon,
+  ShieldCheckIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -44,15 +40,6 @@ function toggleLivePanel() {
   window.dispatchEvent(new Event("mate:toggle-enhancement-panel"));
 }
 
-function sendLiveCommand(detail: {
-  action?: "open" | "scan";
-  view?: "trace" | "impact" | "validation" | "evidence";
-}) {
-  window.dispatchEvent(
-    new CustomEvent("mate:enhancement-panel-command", { detail }),
-  );
-}
-
 function TitlebarButton({
   children,
   onClick,
@@ -69,7 +56,7 @@ function TitlebarButton({
       size="xs"
       variant="outline"
       className={cn(
-        "h-8 rounded-full border-border/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none backdrop-blur-md hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
+        "h-8 rounded-full border-border/55 px-3 text-[12px] font-medium text-foreground/85 shadow-none hover:border-primary/35 hover:bg-primary/10 hover:text-primary",
         "bg-mate-control-bg",
         className,
       )}
@@ -89,33 +76,21 @@ export function ChatTopbar({
 }: ChatTopbarProps) {
   const { state } = useSidebar();
   const settings = useChatStore((state) => state.settings);
-  const vibrancyMode = settings?.vibrancyMode ?? 'solid';
-  const isSpecialMode = vibrancyMode === 'special';
+  const vibrancyMode = settings?.vibrancyMode ?? "solid";
+  const isSpecialMode = vibrancyMode === "special";
   // Solid panel fills for chrome controls; glass is reserved for floating surfaces.
-  const liquidGlassEnabled = vibrancyMode === 'solid' || vibrancyMode === 'sidebar';
+  const liquidGlassEnabled = vibrancyMode === "solid" || vibrancyMode === "sidebar";
 
   const [openTarget, setOpenTarget] = useState<string>("folder");
-  const [repoSafetyLabel, setRepoSafetyLabel] = useState<string>("Workspace safe");
+  const [repoSafetyLabel, setRepoSafetyLabel] = useState<string>("Not proven");
 
   const platform = usePlatform();
 
   const title = conversation?.title ?? "No active thread";
-  const eventCount = conversation?.messages.length ?? 0;
-  const liveLabel =
-    runStatus === "running"
-      ? "Running"
-      : eventCount > 0
-        ? "Live"
-        : "Ready";
   const liveTone =
     runStatus === "running"
-      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-      : eventCount > 0
-        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-        : "border-transparent bg-mate-control-bg text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
-  const openSelectedTarget = () => {
-    void openWorkspacePath(openTarget as "folder" | "vscode" | "terminal");
-  };
+      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-[background-color,border-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+      : "border-transparent bg-mate-control-bg text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-[background-color,border-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
   useEffect(() => {
     const handleRepoSafety = (event: Event) => {
       const label = (event as CustomEvent<{ label?: string }>).detail?.label;
@@ -142,92 +117,40 @@ export function ChatTopbar({
         <h2 className="max-w-[300px] truncate text-[13px] font-semibold tracking-[-0.01em] text-foreground/92 lg:max-w-[400px]">
           {title}
         </h2>
-        {workspace ? (
-          <span className="hidden rounded-full border border-border/60 bg-mate-control-bg px-2.5 py-1 text-[11px] text-muted-foreground min-[1180px]:inline-flex">
-            {workspace.name}
-          </span>
-        ) : null}
-        {runStatus === "running" ? (
-          <span className="rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Running
-          </span>
-        ) : null}
-        {workspace ? (
-          <span className="hidden rounded-full border border-[var(--panel-border)]/45 bg-mate-control-bg px-2 py-1 text-[10px] font-medium text-muted-foreground 2xl:inline-flex">
-            {repoSafetyLabel}
-          </span>
-        ) : null}
       </div>
 
-      <div className="no-drag relative z-10 flex shrink-0 items-center gap-2">
-        <Menu>
-          <MenuTrigger
-            render={
-              <TitlebarButton
-                className={liveTone}
-                liquidGlassEnabled={liquidGlassEnabled}
-                onClick={toggleLivePanel}
-              />
-            }
+      <div className="no-drag relative z-10 flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {workspace ? (
+          <TitlebarButton
+            className={liveTone}
+            liquidGlassEnabled={liquidGlassEnabled}
+            onClick={toggleLivePanel}
           >
             {runStatus === "running" ? (
-              <CircleNotchIcon className="size-3.5 animate-spin text-blue-400" />
-            ) : eventCount > 0 ? (
-              <div className="size-2 rounded-full bg-emerald-400" />
+              <CircleNotchIcon className="size-3.5 animate-spin text-blue-400 motion-reduce:animate-none" />
             ) : (
-              <ActivityIcon className="size-3.5 opacity-70" />
+              <ShieldCheckIcon className="size-3.5 opacity-70" />
             )}
-            <span className="font-medium tracking-tight">{liveLabel}</span>
-            {eventCount > 0 && (
-              <span className="rounded-full bg-current/15 px-1.5 py-0.5 text-[10px] font-semibold text-current">
-                {eventCount}
-              </span>
-            )}
-            <CaretDownIcon className="size-3.5 opacity-50 transition-transform duration-200" />
-          </MenuTrigger>
-          <MenuPopup align="end">
-            <MenuItem onClick={() => sendLiveCommand({ action: "open" })}>
-              <SidebarIcon className="size-3.5" />
-              Open panel
-            </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ action: "scan" })}>
-              <GitBranchIcon className="size-3.5" />
-              Scan impact
-            </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: "trace" })}>
-              <ActivityIcon className="size-3.5" />
-              TRACE
-            </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: "impact" })}>
-              <MapTrifoldIcon className="size-3.5" />
-              Impact
-            </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: "validation" })}>
-              <TargetIcon className="size-3.5" />
-              Validation
-            </MenuItem>
-            <MenuItem onClick={() => sendLiveCommand({ view: "evidence" })}>
-              <FileSearchIcon className="size-3.5" />
-              Evidence
-            </MenuItem>
-          </MenuPopup>
-        </Menu>
+            <span className="font-medium tracking-tight max-[1024px]:sr-only">
+              {runStatus === "running" ? "Running" : repoSafetyLabel}
+            </span>
+          </TitlebarButton>
+        ) : null}
         <Menu>
           <MenuTrigger
             render={
-              <TitlebarButton
-                liquidGlassEnabled={liquidGlassEnabled}
-                onClick={openSelectedTarget}
-              />
+              <TitlebarButton liquidGlassEnabled={liquidGlassEnabled} />
             }
           >
             <ArrowSquareOutIcon className="size-3.5" />
-            {openTarget === "folder"
-              ? "Open"
-              : openTarget === "vscode"
-                ? "VS Code"
-                : "Terminal"}
-            <CaretDownIcon className="size-3.5 text-muted-foreground" />
+            <span className="max-[1100px]:sr-only">
+              {openTarget === "folder"
+                ? "Open"
+                : openTarget === "vscode"
+                  ? "VS Code"
+                  : "Terminal"}
+            </span>
+            <CaretDownIcon className="size-3.5 text-muted-foreground max-[900px]:hidden" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
@@ -265,8 +188,8 @@ export function ChatTopbar({
             }
           >
             <GitBranchIcon className="size-3.5" />
-            Git
-            <CaretDownIcon className="size-3.5 text-muted-foreground" />
+            <span className="max-[1100px]:sr-only">Git</span>
+            <CaretDownIcon className="size-3.5 text-muted-foreground max-[900px]:hidden" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
