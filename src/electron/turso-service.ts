@@ -33,6 +33,7 @@ import { createId } from '../lib/id';
 import {
   createDefaultWorkspaceTrustContract,
   normalizeWorkspaceTrustContract,
+  type PersistedWorkspaceTrustContract,
 } from './workspace-trust';
 import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
 
@@ -1467,8 +1468,20 @@ export class TursoService {
       args: [workspaceId],
     });
 
-    const raw = result.rows[0]?.contract_json;
-    return safeParseTrustContract(String(raw ?? ''), workspaceId);
+    const raw = String(result.rows[0]?.contract_json ?? '');
+    const contract = safeParseTrustContract(raw, workspaceId);
+    const normalizedJson = JSON.stringify(contract);
+
+    if (raw && raw !== normalizedJson) {
+      await this.getClient().execute({
+        sql: `UPDATE workspace_trust_contracts
+              SET contract_json = ?, updated_at = ?
+              WHERE workspace_id = ?`,
+        args: [normalizedJson, contract.updatedAt, workspaceId],
+      });
+    }
+
+    return contract;
   }
 
   async setWorkspaceTrustContract(
@@ -1669,7 +1682,7 @@ function safeParseNumberArray(raw: string): number[] {
 
 function safeParseTrustContract(raw: string, workspaceId: string): WorkspaceTrustContract {
   try {
-    const parsed = JSON.parse(raw) as WorkspaceTrustContract;
+    const parsed = JSON.parse(raw) as PersistedWorkspaceTrustContract;
     if (parsed && parsed.workspaceId === workspaceId) {
       return normalizeWorkspaceTrustContract(parsed);
     }

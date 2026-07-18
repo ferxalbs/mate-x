@@ -53,7 +53,7 @@ export function ComposerDock({
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-[left,right,padding] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] sm:px-8",
+        "pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8",
         sidebarState === "expanded" ? "md:left-(--sidebar-width)" : "md:left-0",
       )}
       data-testid="composer-dock"
@@ -61,7 +61,7 @@ export function ComposerDock({
       <div
         ref={measureRef}
         className={cn(
-          "relative mx-auto w-full min-w-0 bg-transparent transition-all duration-300 pointer-events-auto",
+          "pointer-events-auto relative mx-auto w-full min-w-0 bg-transparent",
           settings.compactMode ? "max-w-[680px]" : "max-w-[820px]",
         )}
       >

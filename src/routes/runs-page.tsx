@@ -1,14 +1,14 @@
 import {
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  CircleDotIcon,
-  FileCode2Icon,
+  ActivityIcon,
+  ChatTextIcon,
+  CheckCircleIcon,
+  CircleIcon,
+  FileCodeIcon,
   GitBranchIcon,
   ListChecksIcon,
-  MessageSquareTextIcon,
-  TerminalSquareIcon,
-  ActivityIcon,
-} from "lucide-react";
+  TerminalWindowIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 
 import type { ChatMessage, Conversation, ReproducibleRun, ToolEvent } from "@/contracts/chat";
@@ -60,27 +60,27 @@ function StandalonePackItem({
   return (
     <Card
       className={cn(
-        "w-[280px] shrink-0 cursor-pointer transition-colors",
+        "w-[min(280px,calc(100vw-3rem))] shrink-0 cursor-pointer rounded-2xl transition-colors",
         isSelected ? "border-sky-500 bg-sky-500/5" : "hover:border-border",
       )}
       onClick={() => onSelect(pack.taskId)}
     >
       <CardContent className="p-3">
-        <div className="truncate font-mono text-[10px] text-muted-foreground">{pack.taskId}</div>
+        <div className="mate-text-secondary truncate font-mono">{pack.taskId}</div>
         <div className="mt-1 flex items-center gap-2">
           <span className="font-medium">{pack.verdict?.label || pack.status}</span>
           {pack.verifiedTaskScore && (
             <span className="text-muted-foreground">· {pack.verifiedTaskScore.score}/100</span>
           )}
         </div>
-        <div className="mt-1 text-[10px] text-muted-foreground">
+        <div className="mate-text-secondary mt-1">
           {pack.filesModifiedCount ?? 0} files · {pack.attestationStatus}
         </div>
         <div className="mt-3 flex gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="h-6 rounded-full px-2 text-[10px]"
+            className="h-8 rounded-xl px-3 text-[12px]"
             onClick={(e) => {
               e.stopPropagation();
               onVerify(pack.taskId);
@@ -91,7 +91,7 @@ function StandalonePackItem({
           <Button
             variant="outline"
             size="sm"
-            className="h-6 rounded-full px-2 text-[10px]"
+            className="h-8 rounded-xl px-3 text-[12px]"
             onClick={(e) => {
               e.stopPropagation();
               onExport(pack.taskId);
@@ -180,11 +180,11 @@ function statusVariant(status: MissionRun["status"]): "default" | "secondary" | 
 
 function getEventIcon(event: ToolEvent) {
   const text = `${event.label} ${event.detail}`.toLowerCase();
-  if (event.status === "error") return AlertCircleIcon;
-  if (text.includes("command") || text.includes("tool")) return TerminalSquareIcon;
-  if (text.includes("file") || text.includes("diff") || text.includes("patch")) return FileCode2Icon;
+  if (event.status === "error") return WarningCircleIcon;
+  if (text.includes("command") || text.includes("tool")) return TerminalWindowIcon;
+  if (text.includes("file") || text.includes("diff") || text.includes("patch")) return FileCodeIcon;
   if (text.includes("check") || text.includes("test") || text.includes("lint")) return ListChecksIcon;
-  return CircleDotIcon;
+  return CircleIcon;
 }
 
 function getSemanticEventLabel(event: ToolEvent) {
@@ -368,7 +368,7 @@ export function RunsPage() {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
       <header className={cn(
-        "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5 transition-[padding-left] duration-200 ease-linear",
+        "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]"
       )}>
@@ -376,16 +376,16 @@ export function RunsPage() {
           <SidebarTrigger className="-ml-1" />
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold text-foreground">Mission Log</h1>
-            <p className="truncate text-[11px] text-muted-foreground">
+            <p className="mate-text-secondary truncate">
               Real assistant runs from current workspace, shown as reviewable execution history.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="mate-text-secondary flex min-w-0 items-center gap-2 overflow-x-auto">
           <Button
             variant="outline"
             size="sm"
-            className="h-7 rounded-full px-3 text-xs"
+            className="h-8 shrink-0 rounded-xl px-3 text-xs focus-visible:ring-2 focus-visible:ring-ring/45"
             disabled={!selectedRun?.record}
             onClick={() => void handleExportRun()}
           >
@@ -394,7 +394,7 @@ export function RunsPage() {
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 rounded-full px-3 text-xs text-sky-600 dark:text-sky-300"
+            className="h-8 shrink-0 rounded-xl px-3 text-xs text-sky-600 focus-visible:ring-2 focus-visible:ring-ring/45 dark:text-sky-300"
             onClick={() => void loadStandalonePacks()}
           >
             Browse Proof Receipts
@@ -433,11 +433,11 @@ export function RunsPage() {
           {localPackDetail && (
             <Card className="mt-3 bg-background/60">
               <CardContent className="p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Loaded from disk • {selectedLocalTaskId}</div>
+                <div className="mate-text-metadata break-all">Loaded from disk • {selectedLocalTaskId}</div>
                 <div className="mt-1 text-sm font-medium">{localPackDetail.verdict?.label}</div>
                 <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{localPackDetail.verdict?.summary}</div>
-                <div className="mt-2 text-[10px]">Score: {localPackDetail.verifiedTaskScore?.score ?? "n/a"} • Attestation: {localPackDetail.attestation?.status || "n/a"}</div>
-                <div className="mt-1 text-[10px] text-muted-foreground">Files: {(localPackDetail.filesModified || []).length} • Commands: {(localPackDetail.commandsExecuted || []).length}</div>
+                <div className="mate-text-secondary mt-2">Score: {localPackDetail.verifiedTaskScore?.score ?? "n/a"} • Attestation: {localPackDetail.attestation?.status || "n/a"}</div>
+                <div className="mate-text-secondary mt-1">Files: {(localPackDetail.filesModified || []).length} • Commands: {(localPackDetail.commandsExecuted || []).length}</div>
               </CardContent>
             </Card>
           )}
@@ -445,10 +445,10 @@ export function RunsPage() {
       )}
 
       {selectedRun ? (
-        <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)_320px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto min-[1100px]:grid-cols-[260px_minmax(0,1fr)] min-[1100px]:overflow-hidden 2xl:grid-cols-[280px_minmax(0,1fr)_300px]">
           <aside className="min-h-0 border-r border-border/70 flex flex-col">
             <div className="border-b border-border/70 px-4 py-3">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              <div className="mate-text-metadata">
                 Captured Runs
               </div>
             </div>
@@ -459,7 +459,7 @@ export function RunsPage() {
                   return (
                     <button
                       className={cn(
-                        "rounded-xl px-3 py-2 text-left transition-colors",
+                        "min-h-8 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
                         run.id === selectedRun.id
                           ? "bg-accent text-foreground"
                           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
@@ -470,14 +470,14 @@ export function RunsPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-medium">{run.title}</div>
-                          <div className="mt-1 truncate text-[10px] opacity-70">{run.threadTitle}</div>
+                          <div className="truncate text-[13px] font-medium">{run.title}</div>
+                          <div className="mate-text-secondary mt-1 truncate">{run.threadTitle}</div>
                         </div>
-                        <Badge variant={statusVariant(status)} className="px-2 py-0.5 text-[9px]">
+                        <Badge variant={statusVariant(status)} className="px-2 py-0.5 text-[10px]">
                           {status}
                         </Badge>
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-[10px] opacity-70">
+                      <div className="mate-text-secondary mt-2 flex items-center justify-between">
                         <span>{formatTimestamp(run.startedAt)}</span>
                         <span>{run.events.length} events</span>
                       </div>
@@ -514,8 +514,8 @@ export function RunsPage() {
 
                 <Card className="mb-5 border-border/70">
                   <CardContent className="px-5 py-4">
-                    <div className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-                      <MessageSquareTextIcon className="size-3.5" />
+                    <div className="mate-text-metadata mb-2 flex items-center gap-2">
+                      <ChatTextIcon className="size-4" weight="regular" />
                       Initial Intent
                     </div>
                     <p className="whitespace-pre-wrap text-xs leading-5 text-foreground">{selectedRun.userIntent}</p>
@@ -528,7 +528,7 @@ export function RunsPage() {
                       const Icon = getEventIcon(event);
                       return (
                         <article className="grid grid-cols-[42px_24px_minmax(0,1fr)] gap-3" key={event.id}>
-                          <div className="pt-1 text-right text-[11px] text-muted-foreground">{index + 1}</div>
+                          <div className="mate-text-secondary pt-1 text-right">{index + 1}</div>
                           <div className="flex flex-col items-center">
                             <div className="flex size-6 items-center justify-center rounded-full border border-border bg-[var(--mate-control-bg)] backdrop-blur-md z-10">
                               <Icon className="size-3.5 text-muted-foreground" />
@@ -541,12 +541,12 @@ export function RunsPage() {
                                 <h2 className="text-xs font-semibold text-foreground">{getSemanticEventLabel(event)}</h2>
                                 <Badge 
                                   variant={event.status === "error" ? "destructive" : event.status === "active" ? "default" : "secondary"}
-                                  className="px-2 py-0.5 text-[9px] uppercase tracking-wider"
+                                  className="px-2 py-0.5 text-[10px] uppercase tracking-wider"
                                 >
                                   {event.status}
                                 </Badge>
                               </div>
-                              <div className="mt-1 text-[11px] font-medium text-foreground/80 break-words">{event.label}</div>
+                              <div className="mt-1 break-words text-[13px] font-medium text-foreground">{event.label}</div>
                               <p className="mt-1 whitespace-pre-wrap break-all text-xs leading-5 text-muted-foreground">
                                 {event.detail || "No detail captured for this event."}
                               </p>
@@ -566,10 +566,10 @@ export function RunsPage() {
             </ScrollArea>
           </main>
 
-          <aside className="min-h-0 border-l border-border/70 flex flex-col">
+          <aside className="min-h-0 border-l border-border/70 flex flex-col min-[1100px]:col-span-2 2xl:col-span-1">
             <ScrollArea className="flex-1 min-h-0">
               <div className="p-5">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                <div className="mate-text-metadata">
                   Run Evidence
                 </div>
                 <h2 className="mt-2 text-sm font-semibold text-foreground">{selectedRun.title}</h2>
@@ -586,7 +586,7 @@ export function RunsPage() {
                         <Card key={`${decision.label}:${decision.detail}`} className="border-border/60 shadow-none">
                           <CardContent className="px-2.5 py-2">
                             <div className="font-medium text-foreground break-words">{decision.label}</div>
-                            <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground break-all">{decision.detail}</div>
+                            <div className="mate-text-secondary mt-0.5 break-all">{decision.detail}</div>
                           </CardContent>
                         </Card>
                       ))}
@@ -600,15 +600,15 @@ export function RunsPage() {
                           {selectedRun.record?.integrity ? (
                             <>
                               <div className="font-medium text-emerald-600 dark:text-emerald-300">Sealed run</div>
-                              <div className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                              <div className="mate-text-secondary mt-1 break-all font-mono">
                                 {selectedRun.record.integrity.rootHash}
                               </div>
-                              <div className="mt-1 text-[11px] text-muted-foreground">Exportable proof receipt · replay material preserved</div>
+                              <div className="mate-text-secondary mt-1">Exportable proof receipt · replay material preserved</div>
                             </>
                           ) : (
                             <>
                               <div className="font-medium text-sky-600 dark:text-sky-300">Sealing pending</div>
-                              <div className="mt-1 text-[11px] text-muted-foreground">
+                              <div className="mate-text-secondary mt-1">
                                 Run is still active or from legacy history. Final export will seal artifact.
                               </div>
                             </>
@@ -628,16 +628,16 @@ export function RunsPage() {
                           <Card key={`${command.tool}:${command.target}:${command.result}`} className="border-border/60 shadow-none">
                             <CardContent className="px-2.5 py-2">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-[11px] font-medium text-foreground">{command.tool}</span>
+                                <span className="font-mono text-[13px] font-medium text-foreground">{command.tool}</span>
                                 <Badge variant="secondary" className="px-1.5 py-0.5 text-[10px] rounded">{command.result}</Badge>
                               </div>
-                              <div className="mt-1 text-[11px] text-muted-foreground">{command.action}</div>
-                              <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/75">{command.target}</div>
+                              <div className="mate-text-secondary mt-1">{command.action}</div>
+                              <div className="mate-text-secondary mt-1 truncate font-mono">{command.target}</div>
                             </CardContent>
                           </Card>
                         ))
                       ) : (
-                        <div className="rounded-xl border border-border/60 px-2.5 py-2 text-[11px] text-muted-foreground">
+                        <div className="mate-text-secondary rounded-xl border border-border/60 px-2.5 py-2">
                           No command artifacts reported. Tool activity remains available in timeline.
                         </div>
                       )}
@@ -649,8 +649,8 @@ export function RunsPage() {
                 
                 <Card className="border-border/70 shadow-none">
                   <CardContent className="px-4 py-3">
-                    <div className="mb-1 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-                      <CheckCircle2Icon className="size-3.5" />
+                    <div className="mate-text-metadata mb-1 flex items-center gap-2">
+                      <CheckCircleIcon className="size-4" weight="regular" />
                       Final Result
                     </div>
                     <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
@@ -686,7 +686,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <Card className="border-border/70 shadow-none">
       <CardContent className="px-4 py-3">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60">{label}</div>
+        <div className="mate-text-metadata">{label}</div>
         <div className="mt-1 truncate text-sm font-semibold">{value}</div>
       </CardContent>
     </Card>

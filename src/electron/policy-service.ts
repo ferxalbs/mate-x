@@ -335,8 +335,7 @@ class PolicyService {
     const command = this.extractCommand(input.args);
     if (
       input.toolName === "sandbox_run" &&
-      input.args.executionMode === "direct" &&
-      input.contract?.autonomy !== "unrestricted"
+      input.args.executionMode === "direct"
     ) {
       return {
         severity: "warning",
@@ -354,8 +353,7 @@ class PolicyService {
 
     if (
       input.toolName === "sandbox_run" &&
-      Number(input.args.timeoutSeconds) >= 60 &&
-      input.contract?.autonomy !== "unrestricted"
+      Number(input.args.timeoutSeconds) >= 60
     ) {
       return {
         severity: "warning",
@@ -373,8 +371,7 @@ class PolicyService {
 
     if (
       command &&
-      this.isNetworkCapableCommand(command) &&
-      input.contract?.autonomy !== "unrestricted"
+      this.isNetworkCapableCommand(command)
     ) {
       return {
         severity: "warning",
@@ -391,8 +388,7 @@ class PolicyService {
 
     if (
       command &&
-      this.isPackageManagerMutation(command) &&
-      input.contract?.autonomy !== "unrestricted"
+      this.isPackageManagerMutation(command)
     ) {
       return {
         severity: "warning",
@@ -449,8 +445,7 @@ class PolicyService {
     const highImpactPath = this.findHighImpactPath(input.args);
     if (
       highImpactPath &&
-      this.isWriteTool(input.toolName) &&
-      input.contract?.autonomy !== "unrestricted"
+      this.isWriteTool(input.toolName)
     ) {
       return {
         severity: "warning",
@@ -638,7 +633,7 @@ class PolicyService {
   }
 
   private isAllowedByContract(action: string, contract?: WorkspaceTrustContract) {
-    if (!contract || contract.autonomy === "unrestricted") {
+    if (!contract) {
       return true;
     }
 

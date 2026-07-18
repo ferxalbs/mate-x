@@ -59,7 +59,7 @@ const MAX_IPC_TEXT_LENGTH = 200_000;
 const MAX_IPC_ARRAY_LENGTH = 500;
 const WORKSPACE_MEMORY_FILE_KINDS = new Set<WorkspaceMemoryFileKind>(["memory", "guardrails", "workstate"]);
 const POLICY_STOP_ACTIONS = new Set(["approve_once", "expand_scope", "abort", "safer_alternative"]);
-const TRUST_AUTONOMY_VALUES = new Set(["plan-only", "approval-required", "trusted-patch", "unrestricted"]);
+const TRUST_AUTONOMY_VALUES = new Set(["plan-only", "approval-required", "trusted-patch"]);
 const APP_SETTING_KEYS = new Set([
   "appearance",
   "theme",

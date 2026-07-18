@@ -44,7 +44,7 @@ export const autoPatchTool: Tool = {
     },
     required: ["path", "searchString", "replacementString"],
   },
-  async execute(args, { workspacePath, trustContract }) {
+  async execute(args, { workspacePath }) {
     const { path, searchString, replacementString, replaceAll = false, allowHighImpact = false } = args;
     const targetFile = resolveWorkspacePath(workspacePath, path);
 
@@ -68,20 +68,18 @@ export const autoPatchTool: Tool = {
         if (allowHighImpact !== true) {
           return formatPatchImpactBlocked(impactBefore.targetFile, decision, impactBefore.summary);
         }
-        if (trustContract?.autonomy !== "unrestricted") {
-          const approval = await requestHighImpactPatchApproval({
-            workspacePath,
+        const approval = await requestHighImpactPatchApproval({
+          workspacePath,
+          target: String(path),
+          summary: `Replace ${replaceAll ? replacementCount : 1} occurrence(s).`,
+          riskScore: decision.level,
+        });
+        if (!approval) {
+          return JSON.stringify({
+            status: "refused",
+            reason: "USER_DECLINED_HIGH_IMPACT_PATCH",
             target: String(path),
-            summary: `Replace ${replaceAll ? replacementCount : 1} occurrence(s).`,
-            riskScore: decision.level,
           });
-          if (!approval) {
-            return JSON.stringify({
-              status: "refused",
-              reason: "USER_DECLINED_HIGH_IMPACT_PATCH",
-              target: String(path),
-            });
-          }
         }
       }
 

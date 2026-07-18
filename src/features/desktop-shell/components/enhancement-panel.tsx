@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardCheckIcon } from "lucide-react";
+import { ListChecksIcon } from "@phosphor-icons/react";
 
 import { Card, CardContent } from "../../../components/ui/card";
 import { ScrollArea } from "../../../components/ui/scroll-area";
@@ -229,7 +229,7 @@ export function EnhancementPanel({
   }
 
   return (
-    <aside className="hidden h-full w-[292px] shrink-0 border-l border-[var(--panel-border)]/45 bg-background lg:flex 2xl:w-[316px]">
+    <aside className="fixed inset-y-0 right-0 z-[60] flex h-full w-[min(316px,calc(100vw-32px))] shrink-0 border-l border-[var(--panel-border)]/45 bg-background min-[1275px]:static min-[1275px]:z-auto min-[1275px]:w-[292px] 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
         <div className="border-b border-[var(--panel-border)]/45 px-4 py-4">
           <PanelHeader
@@ -246,7 +246,7 @@ export function EnhancementPanel({
           />
           {loading ? (
             <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--mate-control-bg)]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70 motion-reduce:animate-none" />
             </div>
           ) : null}
           <PanelTabs activeView={activeView} onChange={setActiveView} tabs={views} />
@@ -308,14 +308,14 @@ export function EnhancementPanel({
 
           {error ? (
             <Card className="mt-3 border-destructive/40 shadow-none bg-destructive/5">
-              <CardContent className="px-3 py-2 text-[11px] text-destructive">
+              <CardContent className="px-3 py-2 text-[12px] text-destructive">
                 {error}
               </CardContent>
             </Card>
           ) : !runtime.evidencePack && activeGroup === "advanced" ? (
-            <Card className="mt-3 border-border/70 shadow-none bg-[var(--mate-control-bg)] backdrop-blur-md">
-              <CardContent className="px-3 py-2 text-[11px] text-muted-foreground">
-                <ClipboardCheckIcon className="mr-1 inline size-3.5" />
+            <Card className="mt-3 border-border/70 bg-[var(--mate-control-bg)] shadow-none">
+              <CardContent className="mate-text-secondary px-3 py-2">
+                <ListChecksIcon className="mr-1 inline size-4" weight="regular" />
                 Ship Proof appears after verified run completes.
               </CardContent>
             </Card>

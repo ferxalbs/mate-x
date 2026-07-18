@@ -24,3 +24,29 @@ test("dependency installation pauses with concise context and resumes the same r
   assert.equal(resumed.runId, "run-same-context");
   assert.equal(resumed.status, "approved");
 });
+
+test("scoped changes cannot bypass high-impact or out-of-workspace policy", () => {
+  const contract = createDefaultWorkspaceTrustContract("scoped-policy", "Repo", {
+    packageManager: "bun",
+    hasPackageJson: true,
+  });
+  contract.autonomy = "trusted-patch";
+
+  const highImpactStop = policyService.evaluateToolCall({
+    runId: "run-high-impact",
+    workspacePath: "/tmp/scoped-policy",
+    toolName: "file_editor",
+    args: { path: "src/electron/policy-service.ts" },
+    contract,
+  });
+  assert.equal(highImpactStop?.policyId, "change.high_impact");
+
+  const outsideStop = policyService.evaluateToolCall({
+    runId: "run-outside",
+    workspacePath: "/tmp/scoped-policy",
+    toolName: "file_editor",
+    args: { path: "../outside.ts" },
+    contract,
+  });
+  assert.equal(outsideStop?.policyId, "workspace.scope.write");
+});

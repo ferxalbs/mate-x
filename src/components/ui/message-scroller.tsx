@@ -115,7 +115,7 @@ function MessageScrollerButton({
       direction={direction}
       className={cn(
         placementClassName,
-        "border-border bg-background text-foreground transition-[translate,scale,opacity] duration-200 hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=false]:duration-400 data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] data-[direction=end]:data-[active=false]:translate-y-full data-[direction=start]:data-[active=false]:-translate-y-full rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180",
+        "border-border bg-background text-foreground transition-[translate,scale,opacity,background-color,color] duration-[var(--motion-menu)] ease-[var(--ease-out)] hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[direction=end]:data-[active=false]:translate-y-2 data-[direction=start]:data-[active=false]:-translate-y-2 motion-reduce:data-[active=false]:translate-y-0 motion-reduce:data-[active=false]:scale-100 rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180",
         className
       )}
       render={render ?? <Button variant={variant} size={size} />}

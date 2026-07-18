@@ -23,6 +23,7 @@ interface ChatWorkspaceProps {
     overrides?: Partial<AssistantRunOptions>,
   ) => Promise<void> | void;
   onUndoLastTurn: () => Promise<string | null>;
+  onOpenRepository: () => Promise<void> | void;
   workspace: WorkspaceSummary | null;
 }
 
@@ -36,6 +37,7 @@ export function ChatWorkspace({
   onSelectPrompt,
   onSubmitPrompt,
   onUndoLastTurn,
+  onOpenRepository,
   workspace,
 }: ChatWorkspaceProps) {
   const hasMessages = messages.length > 0;
@@ -59,6 +61,7 @@ export function ChatWorkspace({
             isRunning={isRunning}
             lastError={lastError}
             onSelectPrompt={onSubmitPrompt ?? onSelectPrompt}
+            onOpenRepository={onOpenRepository}
             workspace={workspace}
           />
         )}

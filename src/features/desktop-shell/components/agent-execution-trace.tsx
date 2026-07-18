@@ -35,14 +35,14 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
       <button
         type="button"
         disabled={isRunning}
-        className="flex w-full items-center gap-2 border-b border-border/60 pb-2 text-left text-[12px] text-muted-foreground/75 transition-colors duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] enabled:hover:text-foreground disabled:cursor-default"
+        className="flex w-full items-center gap-2 border-b border-border/60 pb-2 text-left text-[12px] text-muted-foreground/75 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] enabled:hover:text-foreground disabled:cursor-default"
         aria-expanded={isRunning ? undefined : expanded}
         onClick={() => !isRunning && setExpanded((value) => !value)}
       >
         <span className="min-w-0 flex-1">
           {isRunning ? "Working" : "Worked"} for {formatDuration(duration)}
         </span>
-        {isRunning ? <LoaderCircleIcon className="size-3.5 animate-spin" /> : expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+        {isRunning ? <LoaderCircleIcon className="size-3.5 animate-spin motion-reduce:animate-none" /> : expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
       </button>
 
       <div className="min-w-0 max-w-full space-y-2 overflow-hidden">
@@ -91,7 +91,7 @@ function TimelineRow({ event }: { event: ToolEvent }) {
         className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-left disabled:cursor-default"
         onClick={() => hasDetails && setDetailsOpen((value) => !value)}
       >
-        {isActive ? <LoaderCircleIcon className="size-3.5 shrink-0 animate-spin" /> : <span className="size-3.5 shrink-0 text-center">·</span>}
+        {isActive ? <LoaderCircleIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" /> : <span className="size-3.5 shrink-0 text-center">·</span>}
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">{event.title ?? event.label}</span>
         {hasDetails ? detailsOpen ? <ChevronDownIcon className="size-3" /> : <ChevronRightIcon className="size-3" /> : null}
       </button>
@@ -105,5 +105,5 @@ function TimelineRow({ event }: { event: ToolEvent }) {
 }
 
 function ActivityLabel({ label }: { label: string }) {
-  return <div className="flex items-center gap-2 text-[12px] text-muted-foreground/75"><LoaderCircleIcon className="size-3.5 animate-spin" />{label}</div>;
+  return <div className="flex items-center gap-2 text-[12px] text-muted-foreground/75"><LoaderCircleIcon className="size-3.5 animate-spin motion-reduce:animate-none" />{label}</div>;
 }

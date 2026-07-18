@@ -108,7 +108,7 @@ export const mutationTesterTool: Tool = {
     },
     required: ["path", "searchString", "mutationString", "verificationCommand"],
   },
-  async execute(args, { workspacePath, trustContract }) {
+  async execute(args, { workspacePath }) {
     const { path, searchString, mutationString, verificationCommand } = args;
     let cmd: string;
     let cmdArgs: string[];
@@ -132,19 +132,17 @@ export const mutationTesterTool: Tool = {
         return `Mutation failed: The exact searchString was not found in ${path}.`;
       }
 
-      if (trustContract?.autonomy !== "unrestricted") {
-        const approved = await requestMutationApproval({
-          workspacePath,
+      const approved = await requestMutationApproval({
+        workspacePath,
+        target: String(path),
+        command: `${cmd} ${cmdArgs.join(" ")}`.trim(),
+      });
+      if (!approved) {
+        return JSON.stringify({
+          status: "refused",
+          reason: "USER_DECLINED_MUTATION_EXECUTION",
           target: String(path),
-          command: `${cmd} ${cmdArgs.join(" ")}`.trim(),
         });
-        if (!approved) {
-          return JSON.stringify({
-            status: "refused",
-            reason: "USER_DECLINED_MUTATION_EXECUTION",
-            target: String(path),
-          });
-        }
       }
 
       const mutatedContent = originalContent.split(searchString).join(mutationString);

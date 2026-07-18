@@ -15,7 +15,7 @@ export function SettingsSection({
   return (
     <section className="space-y-4 pb-4">
       <div className="flex items-center justify-between px-1">
-        <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/50">
+        <h2 className="mate-text-metadata flex items-center gap-2">
           <span className="inline-block h-px w-3 bg-border" aria-hidden />
           {icon}
           {title}
@@ -51,10 +51,10 @@ export function SettingsRow({
         children ? "pb-0" : ""
       )}
     >
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1">
+      <div className="flex min-w-0 flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
-            <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-foreground">
+            <h3 className="mate-text-compact break-words font-semibold tracking-[-0.01em]">
               {title}
             </h3>
             {resetAction ? (
@@ -63,17 +63,17 @@ export function SettingsRow({
               </span>
             ) : null}
           </div>
-          <p className="break-words text-xs leading-relaxed text-muted-foreground/80">
+          <p className="mate-text-secondary break-words">
             {description}
           </p>
           {status ? (
-            <div className="pt-0.5 break-all text-[11px] text-muted-foreground">
+            <div className="mate-text-secondary break-all pt-0.5">
               {status}
             </div>
           ) : null}
         </div>
         {control ? (
-          <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end px-1 sm:px-0">
+          <div className="flex min-w-0 w-full items-center gap-2 px-1 sm:w-auto sm:max-w-[min(52%,28rem)] sm:justify-end sm:px-0 [&>*]:min-w-0">
             {control}
           </div>
         ) : null}
