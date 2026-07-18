@@ -19,14 +19,12 @@ interface SettingsTrustSectionProps {
   activeWorkspaceName?: string;
   trustDraft: WorkspaceTrustContract | null;
   setTrustDraft: Dispatch<SetStateAction<WorkspaceTrustContract | null>>;
-  setIsUnrestrictedDialogOpen: (value: boolean) => void;
 }
 
 export function SettingsTrustSection({
   activeWorkspaceName,
   trustDraft,
   setTrustDraft,
-  setIsUnrestrictedDialogOpen,
 }: SettingsTrustSectionProps) {
   return (
     <SettingsSection title="Workspace Trust Contract" icon={<ShieldCheckIcon className="size-3.5" />}>
@@ -41,11 +39,6 @@ export function SettingsTrustSection({
                 value={trustDraft.autonomy}
                 onValueChange={(value) => {
                   const nextAutonomy = value as WorkspaceTrustAutonomy;
-                  if (nextAutonomy === 'unrestricted') {
-                    setIsUnrestrictedDialogOpen(true);
-                    return;
-                  }
-
                   setTrustDraft((draft) =>
                     draft
                       ? {
@@ -61,9 +54,8 @@ export function SettingsTrustSection({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="plan-only">Plan only</SelectItem>
-                  <SelectItem value="approval-required">Approval required</SelectItem>
-                  <SelectItem value="trusted-patch">Trusted patch</SelectItem>
-                  <SelectItem value="unrestricted">Unrestricted</SelectItem>
+                  <SelectItem value="approval-required">Ask before changes</SelectItem>
+                  <SelectItem value="trusted-patch">Scoped changes</SelectItem>
                 </SelectContent>
               </Select>
             }

@@ -111,7 +111,6 @@ export function SettingsPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
-  const [isUnrestrictedDialogOpen, setIsUnrestrictedDialogOpen] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
   const [savedAppSettings, setSavedAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
@@ -1051,7 +1050,6 @@ export function SettingsPage() {
                 activeWorkspaceName={activeWorkspace?.name}
                 trustDraft={trustDraft}
                 setTrustDraft={setTrustDraft}
-                setIsUnrestrictedDialogOpen={setIsUnrestrictedDialogOpen}
               />
             ) : null}
 
@@ -1640,44 +1638,6 @@ export function SettingsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isUnrestrictedDialogOpen} onOpenChange={setIsUnrestrictedDialogOpen}>
-        <AlertDialogContent className="border-destructive/20">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive-foreground">
-              <ShieldCheckIcon className="size-5" />
-              Enable Unrestricted Mode?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-sm leading-relaxed">
-              This mode grants the agent <strong>full access</strong> to your workspace. 
-              The AI will be able to:
-              <ul className="mt-3 list-disc space-y-1.5 ps-5 font-medium">
-                <li>Read and modify any file in the workspace</li>
-                <li>Execute any shell command without approval</li>
-                <li>Access any network domain</li>
-                <li>Bypass all safety guardrails in the Trust Contract</li>
-              </ul>
-              <p className="mt-4 font-bold text-destructive-foreground/90">
-                Only enable this if you fully trust the model and have backups of your data.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="ghost" size="sm" />}>Cancel</AlertDialogClose>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setTrustDraft((draft) =>
-                  draft ? { ...draft, autonomy: 'unrestricted' } : draft,
-                );
-                setIsUnrestrictedDialogOpen(false);
-              }}
-            >
-              Accept risks and enable
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

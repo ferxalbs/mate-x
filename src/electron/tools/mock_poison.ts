@@ -37,7 +37,7 @@ export const mockPoisonerTool: Tool = {
     },
     required: ["action"],
   },
-  async execute(args, { workspacePath, trustContract }) {
+  async execute(args, { workspacePath }) {
     const { action, port = 9999, payloadType = "MALFORMED_JSON" } = args;
     const serverKey = `port_${port}`;
 
@@ -70,18 +70,16 @@ export const mockPoisonerTool: Tool = {
           message: "Maximum concurrent mock_poison servers reached (2).",
         });
       }
-      if (trustContract?.autonomy !== "unrestricted") {
-        const approval = await requestMockPoisonApproval({
-          workspacePath,
-          port,
-          payloadType,
+      const approval = await requestMockPoisonApproval({
+        workspacePath,
+        port,
+        payloadType,
+      });
+      if (!approval) {
+        return JSON.stringify({
+          error: "POLICY_STOP_DECLINED",
+          message: "mock_poison execution requires policy approval.",
         });
-        if (!approval) {
-          return JSON.stringify({
-            error: "POLICY_STOP_DECLINED",
-            message: "mock_poison execution requires policy approval.",
-          });
-        }
       }
 
       return new Promise((resolve, reject) => {

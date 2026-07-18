@@ -593,9 +593,8 @@ function TrustBoundaryStep({ trustDraft, setTrustDraft }: {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="plan-only">Plan only</SelectItem>
-                    <SelectItem value="approval-required">Approval required</SelectItem>
-                    <SelectItem value="trusted-patch">Trusted patch</SelectItem>
-                    <SelectItem value="unrestricted">Unrestricted</SelectItem>
+                    <SelectItem value="approval-required">Ask before changes</SelectItem>
+                    <SelectItem value="trusted-patch">Scoped changes</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
