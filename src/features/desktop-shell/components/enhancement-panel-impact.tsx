@@ -1,4 +1,4 @@
-import { FileSearchIcon, FileTextIcon } from "lucide-react";
+import { FileTextIcon, PathIcon } from "@phosphor-icons/react";
 
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { ImpactSummary } from "./enhancement-panel-utils";
@@ -28,11 +28,11 @@ export function ImpactSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <PanelTitle icon={FileSearchIcon} title="Impact Map" />
+        <PanelTitle icon={PathIcon} title="Impact Map" />
         <RiskPill risk={summary.risk} />
       </div>
       {isLoading ? <SkeletonStack /> : null}
-      <dl className="grid grid-cols-3 gap-2 text-[11px]">
+      <dl className="grid grid-cols-3 gap-2 text-[13px]">
         <Metric label="Changed" value={changedFiles.length} />
         <Metric label="Affected" value={summary.affectedCount} />
         <Metric label="Fan-out" value={summary.toolFanoutCount} />
@@ -42,11 +42,11 @@ export function ImpactSection({
           <p className="text-[10px] tracking-wider font-medium uppercase text-amber-500">
             {sourceIsArtifact ? "Evidence artifact" : "Source of change"}
           </p>
-          <p className="mt-1 break-all font-mono text-[11px] text-foreground" title={source}>
+          <p className="mt-1 break-all font-mono text-[12px] text-foreground" title={source}>
             {source}
           </p>
           {sourceIsArtifact ? (
-            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+            <p className="mate-text-secondary mt-1">
               Artifact captured from run. Source-code paths must come from trace
               or RepoGraph before claiming impact.
             </p>
@@ -72,7 +72,7 @@ export function ImpactSection({
         ) : null}
       </div>
       <Card className="border-blue-500/15 shadow-none bg-blue-500/[0.04]">
-        <CardContent className="px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+        <CardContent className="mate-text-secondary px-3 py-2">
           Optimization: verify impacted paths first, skip unrelated suites when
           RepoGraph proves isolation.
         </CardContent>
@@ -95,17 +95,17 @@ function ImpactNode({
   return (
     <Card
       className={cn(
-        "border-border/70 shadow-none text-center backdrop-blur-md",
+        "border-border/70 text-center shadow-none",
         tone === "good"
           ? "border-emerald-500/20 bg-emerald-500/[0.04]"
           : "bg-[var(--mate-control-bg)]",
       )}
     >
       <CardContent className="p-2.5">
-        <p className="text-[10px] font-medium uppercase text-muted-foreground/70 tracking-wider">
+        <p className="mate-text-metadata">
           {label}
         </p>
-        <p className="mt-1 break-all font-mono text-[10px] text-foreground" title={value}>
+        <p className="mt-1 break-all font-mono text-[12px] text-foreground" title={value}>
           {value}
         </p>
       </CardContent>
@@ -116,11 +116,11 @@ function ImpactNode({
 function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
   return (
     <Card className="border-border/50 shadow-none bg-transparent">
-      <CardContent className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]" title={entry.reason}>
+      <CardContent className="flex items-center gap-2 px-2.5 py-1.5 text-[13px]" title={entry.reason}>
         <span className="shrink-0 text-muted-foreground tabular-nums">
           d{entry.distance}
         </span>
-        <FileTextIcon className="size-3 shrink-0 text-primary" />
+        <FileTextIcon className="size-4 shrink-0 text-primary" weight="regular" />
         <span className="min-w-0 flex-1 truncate text-foreground">
           {entry.group ?? entry.file}
         </span>

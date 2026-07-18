@@ -132,7 +132,7 @@ export function ThreadMenuItem({
         }}
         data-active={isActive}
         className={cn(
-          "group relative grid h-[30px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-[12px] outline-none transition-all duration-200",
+          "group relative grid min-h-8 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-xl px-2 text-left text-[13px] outline-none transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring/45",
           isActive
             ? "bg-foreground/[0.06] text-foreground font-medium"
             : "text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground",
@@ -144,7 +144,7 @@ export function ThreadMenuItem({
             className={cn(
               "size-1.5 shrink-0 rounded-full",
               status.dotClass,
-              status.pulse ? "animate-pulse" : "",
+              status.pulse ? "animate-pulse motion-reduce:animate-none" : "",
             )}
           />
           <span className="min-w-0 flex-1 truncate">
@@ -173,8 +173,8 @@ export function ThreadMenuItem({
         </div>
 
         {!isRenaming && (
-          <div className="flex h-full w-[44px] shrink-0 items-center justify-end pr-1">
-            <span className="text-[10px] text-muted-foreground/35">
+          <div className="flex h-full min-w-12 shrink-0 items-center justify-end pr-1">
+            <span className="text-[12px] text-muted-foreground">
               {formatRelativeTimestamp(thread.lastUpdatedAt)}
             </span>
           </div>

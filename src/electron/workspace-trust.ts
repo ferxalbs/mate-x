@@ -1,10 +1,13 @@
 import { isAbsolute, normalize, relative } from "node:path";
 
 import { RAINY_API_BASE_URL } from "../config/rainy";
-import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type {
+  WorkspaceTrustAutonomy,
+  WorkspaceTrustContract,
+} from "../contracts/workspace";
 import { createId } from "../lib/id";
 
-export const TRUST_CONTRACT_SCHEMA_VERSION = 1;
+export const TRUST_CONTRACT_SCHEMA_VERSION = 2;
 const INTERNAL_READ_PATHS = [".mate-x/evidence"];
 const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
 const LEGACY_RAINY_API_HOSTNAMES = [
@@ -93,15 +96,21 @@ export function createDefaultWorkspaceTrustContract(
 }
 
 export function normalizeWorkspaceTrustContract(
-  contract: WorkspaceTrustContract,
+  contract: PersistedWorkspaceTrustContract,
 ): WorkspaceTrustContract {
   return {
     ...contract,
     name: contract.name.trim() || "Workspace trust contract",
-    version:
+    version: Math.max(
       Number.isInteger(contract.version) && contract.version > 0
         ? contract.version
         : TRUST_CONTRACT_SCHEMA_VERSION,
+      TRUST_CONTRACT_SCHEMA_VERSION,
+    ),
+    autonomy:
+      contract.autonomy === "unrestricted"
+        ? "trusted-patch"
+        : contract.autonomy,
     allowedPaths: appendInternalReadPaths(normalizeList(contract.allowedPaths)),
     forbiddenPaths: normalizeList(contract.forbiddenPaths),
     allowedCommands: normalizeList(contract.allowedCommands),
@@ -112,6 +121,13 @@ export function normalizeWorkspaceTrustContract(
     updatedAt: contract.updatedAt || new Date().toISOString(),
   };
 }
+
+export type PersistedWorkspaceTrustContract = Omit<
+  WorkspaceTrustContract,
+  "autonomy"
+> & {
+  autonomy: WorkspaceTrustAutonomy | "unrestricted";
+};
 
 function appendInternalReadPaths(paths: string[]) {
   if (paths.length === 0 || paths.includes(".")) return paths;
@@ -128,10 +144,6 @@ export function evaluateTrustForToolCall({
   contract: WorkspaceTrustContract;
 }) {
   const normalizedContract = normalizeWorkspaceTrustContract(contract);
-
-  if (normalizedContract.autonomy === "unrestricted") {
-    return null;
-  }
 
   const requiredAction = getRequiredAction(toolName, args);
 
@@ -194,14 +206,14 @@ export function renderTrustContractForPrompt(contract: WorkspaceTrustContract) {
 
   return [
     `Trust contract: ${normalized.name} v${normalized.version}`,
-    `Autonomy: ${normalized.autonomy}${normalized.autonomy === "unrestricted" ? " (FULL ACCESS - all restrictions bypassed)" : ""}`,
-    `Allowed paths: ${normalized.autonomy === "unrestricted" ? "ALL (workspace root and subdirectories)" : formatList(normalized.allowedPaths)}`,
-    `Forbidden paths: ${normalized.autonomy === "unrestricted" ? "NONE (all paths accessible)" : formatList(normalized.forbiddenPaths)}`,
-    `Allowed commands: ${normalized.autonomy === "unrestricted" ? "ALL (any shell command prefix)" : formatList(normalized.allowedCommands)}`,
-    `Allowed domains: ${normalized.autonomy === "unrestricted" ? "ALL (any hostname)" : formatList(normalized.allowedDomains)}`,
+    `Autonomy: ${normalized.autonomy}`,
+    `Allowed paths: ${formatList(normalized.allowedPaths)}`,
+    `Forbidden paths: ${formatList(normalized.forbiddenPaths)}`,
+    `Allowed commands: ${formatList(normalized.allowedCommands)}`,
+    `Allowed domains: ${formatList(normalized.allowedDomains)}`,
     `Allowed secrets: ${formatList(normalized.allowedSecrets)}`,
-    `Allowed actions: ${normalized.autonomy === "unrestricted" ? "ALL (read, search, patch, test, deploy, delete, etc)" : formatList(normalized.allowedActions)}`,
-    `Blocked actions: ${normalized.autonomy === "unrestricted" ? "NONE (no blocks active)" : formatList(normalized.blockedActions)}`,
+    `Allowed actions: ${formatList(normalized.allowedActions)}`,
+    `Blocked actions: ${formatList(normalized.blockedActions)}`,
   ].join("\n");
 }
 

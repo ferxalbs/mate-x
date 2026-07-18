@@ -1,6 +1,14 @@
 :root {
   color-scheme: light;
   --radius: 0.625rem;
+  /* Shared interaction motion: fast, interruptible, and geometry-safe. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-press: 150ms;
+  --motion-tooltip: 150ms;
+  --motion-menu: 180ms;
+  --motion-drawer: 250ms;
   /* Canonical light canvas — entire app chrome uses pure white. */
   --background: #ffffff;
   --foreground: oklch(0.28 0.014 260);
@@ -14,6 +22,13 @@
   --secondary-foreground: var(--foreground);
   --muted: --alpha(var(--color-black) / 4%);
   --muted-foreground: color-mix(in srgb, var(--color-neutral-600) 90%, var(--color-black));
+  /*
+   * Semantic text roles. Operational copy never stacks opacity on these colors:
+   * body 14px, compact rows 13px, secondary copy 12px, metadata 10–11px only.
+   */
+  --text-operational: var(--foreground);
+  --text-secondary: var(--muted-foreground);
+  --text-metadata: var(--muted-foreground);
   --accent: --alpha(var(--color-black) / 4%);
   --accent-foreground: var(--foreground);
   --destructive: var(--color-red-500);

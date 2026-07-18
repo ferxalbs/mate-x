@@ -68,8 +68,8 @@ function OutcomeCheck({ map }: { map: OutcomeMap }) {
   const critical = map.entries.filter((entry) => entry.state === "missing" || entry.state === "violated" || entry.state === "weak").slice(0, 2);
   const drift = map.scopeDrift.slice(0, 1);
   return (
-    <div className="mt-3 rounded-2xl border border-border/70 bg-panel/35 px-3 py-2 text-[11px]">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Outcome check</p>
+    <div className="mt-3 rounded-2xl border border-border/70 bg-panel px-3 py-2 text-[13px]">
+      <p className="mate-text-metadata">Outcome check</p>
       <p className="mt-1 font-medium text-foreground">{proven} proven{critical.length ? ` · ${critical.length} needs check` : " · Ready"}</p>
       {critical.map((entry) => <p className="mt-1 break-words text-muted-foreground" key={entry.outcomeId}><span className="font-medium text-foreground">{entry.state === "violated" ? "Blocked" : entry.state === "weak" ? "Evidence is weak" : "Missing"}</span> {entry.statement}</p>)}
       {drift.map((item) => <p className="mt-1 break-words text-muted-foreground" key={item}><span className="font-medium text-foreground">Scope drift</span> {item}</p>)}
@@ -105,21 +105,21 @@ export function ShipStatusStrip({
   return (
     <div
       className={cn(
-        "mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-panel/55 px-3 py-2 shadow-none backdrop-blur-xl",
+        "mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-panel px-3 py-2 shadow-none",
       )}
     >
       <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        <p className="mate-text-metadata">
           Repo Safety
         </p>
-        <p className="truncate text-[11px] font-medium text-foreground/85">
+        <p className="truncate text-[13px] font-medium text-foreground">
           {message}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {state.status !== "trusted" ? (
           <button
-            className="rounded-full border border-border/60 bg-transparent px-2.5 py-1 text-[10px] font-medium text-foreground/80 transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-8 rounded-xl border border-border/60 bg-transparent px-2.5 py-1 text-[12px] font-medium text-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none"
             disabled={isRunning}
             onClick={onMakeTrustworthy}
             type="button"
@@ -128,7 +128,7 @@ export function ShipStatusStrip({
           </button>
         ) : null}
         <button
-          className="rounded-full border border-transparent bg-transparent px-2 py-1 text-[10px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+          className="min-h-8 rounded-xl border border-transparent bg-transparent px-2 py-1 text-[12px] font-medium text-muted-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] motion-reduce:transform-none"
           onClick={onReviewLater}
           type="button"
         >
@@ -145,7 +145,7 @@ function TrustGateHeader({ state }: { state: TrustGateState }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        <p className="mate-text-metadata">
           Active Gate
         </p>
         <p className={cn("mt-1 break-words text-[16px] font-semibold leading-6", toneValueClassName(state.tone))}>
@@ -162,10 +162,10 @@ function TrustGateFactGrid({ facts }: { facts: TrustGateFact[] }) {
     <dl className="mt-3 grid grid-cols-2 gap-2">
       {facts.map((fact) => (
         <div className="rounded-2xl border border-border/60 bg-panel/35 px-2.5 py-2" key={fact.label}>
-          <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+          <dt className="mate-text-metadata">
             {fact.label}
           </dt>
-          <dd className={cn("mt-1 break-words text-[11px] font-medium", toneValueClassName(fact.tone))}>
+          <dd className={cn("mt-1 break-words text-[13px] font-medium", toneValueClassName(fact.tone))}>
             {fact.value}
           </dd>
         </div>
@@ -176,7 +176,7 @@ function TrustGateFactGrid({ facts }: { facts: TrustGateFact[] }) {
 
 function TrustGateRecommendation({ state }: { state: TrustGateState }) {
   return (
-    <div className="mt-3 rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] leading-4 text-muted-foreground">
+    <div className="mate-text-secondary mt-3 rounded-2xl border border-border/50 bg-transparent px-2.5 py-2">
       <p className="break-words text-foreground">{state.explanation}</p>
       <p className="mt-2 break-words">
         <span className="font-medium text-foreground">Recommended:</span>{" "}
@@ -208,7 +208,7 @@ function TrustGateActions({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <button
-        className="inline-flex flex-1 items-center justify-center rounded-xl border border-border/70 bg-panel/70 px-3 py-2 text-[11px] font-medium text-foreground shadow-none transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-panel disabled:cursor-default disabled:opacity-60"
+        className="inline-flex min-h-8 flex-1 items-center justify-center rounded-xl border border-border/70 bg-panel px-3 py-2 text-[13px] font-medium text-foreground shadow-none transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] disabled:cursor-default disabled:opacity-60 motion-reduce:transform-none"
         disabled={isRunning}
         onClick={primaryShowsDetails ? onToggleDetails : canMakeTrustworthy ? onMakeTrustworthy : undefined}
         type="button"
@@ -217,7 +217,7 @@ function TrustGateActions({
       </button>
       {onReviewChanges ? (
         <button
-          className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[13px] font-medium text-muted-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none"
           disabled={isRunning}
           onClick={onReviewChanges}
           type="button"
@@ -226,7 +226,7 @@ function TrustGateActions({
         </button>
       ) : null}
       <button
-        className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground"
+        className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[13px] font-medium text-muted-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] motion-reduce:transform-none"
         onClick={onToggleDetails}
         type="button"
       >
@@ -234,7 +234,7 @@ function TrustGateActions({
       </button>
       {showOverride ? (
         <button
-          className="inline-flex shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] font-medium text-amber-300 transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-amber-500/15"
+          className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] font-medium text-amber-300 transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-amber-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] motion-reduce:transform-none"
           type="button"
         >
           Push anyway
@@ -246,7 +246,7 @@ function TrustGateActions({
 
 function TrustGateDetails({ state }: { state: TrustGateState }) {
   return (
-    <div className="mt-3 space-y-2 rounded-2xl border border-border/60 bg-transparent p-2.5 text-[10px] leading-4 text-muted-foreground">
+    <div className="mate-text-secondary mt-3 space-y-2 rounded-2xl border border-border/60 bg-transparent p-2.5">
       {state.reasons.slice(0, 3).map((reason) => (
         <p className="break-words" key={reason}>
           {reason}

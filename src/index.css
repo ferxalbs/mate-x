@@ -72,6 +72,34 @@
 }
 
 @layer utilities {
+  /* Semantic typography: use metadata only for non-operational labels. */
+  .mate-text-body {
+    color: var(--text-operational);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .mate-text-compact {
+    color: var(--text-operational);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+
+  .mate-text-secondary {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  .mate-text-metadata {
+    color: var(--text-metadata);
+    font-size: 0.625rem;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   /*
    * Single-layer CSS glass. Apply only on the surface that floats over content.
    * Never put backdrop-filter on a layout ancestor of another glass surface —

@@ -72,7 +72,7 @@ export function LiquidSelectPopup({
             // Base UI provides --transform-origin for the open/close pivot point.
             "origin-(--transform-origin)",
             // Subtle scale + fade entrance / exit via Base UI's data attributes.
-            "transition-[opacity,transform] duration-200 ease-out",
+            "transition-[opacity,transform] duration-[var(--motion-menu)] ease-[var(--ease-out)] motion-reduce:transform-none",
             "data-[starting-style]:scale-[0.96] data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-[0.96] data-[ending-style]:opacity-0",
           )}
@@ -153,8 +153,8 @@ export function LiquidSelectPopup({
                 "[&_[data-slot=select-item]]:my-0.5",
                 "[&_[data-slot=select-item]]:px-3",
                 "[&_[data-slot=select-item]]:py-1.5",
-                "[&_[data-slot=select-item]]:transition-all",
-                "[&_[data-slot=select-item]]:duration-150",
+                "[&_[data-slot=select-item]]:transition-colors [&_[data-slot=select-item]]:duration-[var(--motion-press)] [&_[data-slot=select-item]]:ease-[var(--ease-out)]",
+                "[&_[data-slot=select-item]]:duration-[var(--motion-press)]",
                 "[&_[data-slot=select-item]]:text-foreground/80",
                 
                 // Highlighted state (hover / keyboard focus): soft flat overlay

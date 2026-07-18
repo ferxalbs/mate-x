@@ -30,7 +30,7 @@ export const trafficPoisonerTool: Tool = {
     },
     required: ["url", "attackType"],
   },
-  async execute(args, { workspacePath, trustContract }) {
+  async execute(args, { workspacePath }) {
     const { url, attackType, basePayload } = args;
 
     const localhostError = await validateLoopbackUrl(url);
@@ -38,18 +38,16 @@ export const trafficPoisonerTool: Tool = {
       return JSON.stringify(localhostError);
     }
 
-    if (trustContract?.autonomy !== "unrestricted") {
-      const approval = await requestTrafficPoisonApproval({
-        workspacePath,
-        target: url,
-        attackType,
+    const approval = await requestTrafficPoisonApproval({
+      workspacePath,
+      target: url,
+      attackType,
+    });
+    if (!approval) {
+      return JSON.stringify({
+        error: "POLICY_STOP_DECLINED",
+        message: "traffic_poison execution requires policy approval.",
       });
-      if (!approval) {
-        return JSON.stringify({
-          error: "POLICY_STOP_DECLINED",
-          message: "traffic_poison execution requires policy approval.",
-        });
-      }
     }
 
     let parsedPayload: Record<string, any> = {};

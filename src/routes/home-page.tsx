@@ -314,6 +314,7 @@ export function HomePage() {
         lastError={lastError}
         messages={messages}
         onSelectPrompt={setComposerPrompt}
+        onOpenRepository={importWorkspace}
         onSubmitPrompt={handleSubmitPrompt}
         onUndoLastTurn={undoLastTurn}
         workspace={workspace}
