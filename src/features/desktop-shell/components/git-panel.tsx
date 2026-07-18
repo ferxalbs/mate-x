@@ -246,7 +246,7 @@ export function GitPanel() {
             aria-label="Refresh git status"
             className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ArrowClockwiseIcon className={cn('size-4', loadStatus === 'loading' && 'animate-spin')} weight="regular" />
+            <ArrowClockwiseIcon className={cn('size-4', loadStatus === 'loading' && 'animate-spin motion-reduce:animate-none')} weight="regular" />
           </button>
         </div>
       </div>
@@ -349,7 +349,7 @@ export function GitPanel() {
               disabled={!canCommit}
               aria-label="Commit staged changes"
               className={cn(
-                'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all',
+                'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-[background-color,color,opacity,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] active:scale-[0.97] motion-reduce:transform-none',
                 canCommit
                   ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
                   : 'cursor-not-allowed bg-muted/20 text-muted-foreground',

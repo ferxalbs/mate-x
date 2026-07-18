@@ -246,7 +246,7 @@ export function EnhancementPanel({
           />
           {loading ? (
             <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--mate-control-bg)]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70" />
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary/70 motion-reduce:animate-none" />
             </div>
           ) : null}
           <PanelTabs activeView={activeView} onChange={setActiveView} tabs={views} />

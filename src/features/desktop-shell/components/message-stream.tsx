@@ -65,12 +65,12 @@ export function MessageStream({
       className={cn(
         // Bottom inset tracks actual composer dock height (see ComposerDock CSS var).
         // Never couple scroll padding to blurEnabled — founder incident fix.
-        "px-4 pt-6 transition-all duration-300 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,148px)]",
+        "px-4 pt-6 sm:px-6 lg:px-9 pb-[var(--mate-composer-inset,148px)]",
       )}
     >
       <MessageScrollerContent
         className={cn(
-          "mx-auto flex min-w-0 w-full max-w-full flex-col overflow-x-hidden transition-all duration-300",
+          "mx-auto flex min-w-0 w-full max-w-full flex-col overflow-x-hidden",
           settings.compactMode && messages.length > 0
             ? "max-w-[680px]"
             : "max-w-[820px]",
@@ -171,7 +171,7 @@ const MessageEntry = memo(function MessageEntry({
     return (
       <article
         className={cn(
-          "group ml-auto flex w-full flex-col items-end gap-1.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          "group ml-auto flex w-full flex-col items-end gap-1.5",
           settings.compactMode ? "max-w-[540px]" : "max-w-[680px]",
         )}
       >
@@ -180,7 +180,7 @@ const MessageEntry = memo(function MessageEntry({
             {message.content}
           </p>
         </div>
-        <div className="flex items-center justify-end gap-1.5 pr-2 opacity-0 transition-opacity duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:opacity-100">
+        <div className="flex items-center justify-end gap-1.5 pr-2 opacity-0 transition-opacity duration-[var(--motion-press)] ease-[var(--ease-out)] group-hover:opacity-100">
           <p className="text-[11px] text-muted-foreground/60">
             {formatTimestamp(message.createdAt)}
           </p>
@@ -234,7 +234,7 @@ const MessageEntry = memo(function MessageEntry({
   }
 
   return (
-    <article className="group min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] pl-6">
+    <article className="group min-w-0 max-w-full pl-6">
       <div className="min-w-0 max-w-full space-y-4 overflow-hidden text-[14px] leading-6 text-foreground">
         <AgentExecutionTrace
           events={events}
@@ -249,7 +249,7 @@ const MessageEntry = memo(function MessageEntry({
         {isLast && showAmbientActions ? (
           <div className="mt-2.5 flex items-center gap-2">
             <button
-              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:text-foreground active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none"
               disabled={actionDisabled}
               onClick={() =>
                 void submitAmbientAction(ambientSafetyActions.runSafetyCheck)
@@ -261,7 +261,7 @@ const MessageEntry = memo(function MessageEntry({
                 : ambientSafetyActions.runSafetyCheck.label}
             </button>
             <button
-              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-[11px] font-medium text-muted-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:text-foreground active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none"
               disabled={actionDisabled}
               onClick={() =>
                 void submitAmbientAction(ambientSafetyActions.reviewChanges)
@@ -351,7 +351,7 @@ function MessageActionButton({
   return (
     <button
       aria-label={ariaLabel}
-      className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover:opacity-100"
+      className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground opacity-0 transition-[background-color,color,opacity,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] motion-reduce:transform-none group-hover:opacity-100"
       onClick={onClick}
       type="button"
     >
@@ -378,7 +378,7 @@ function ThinkingRow({
   }, [isStreaming]);
 
   return (
-    <div className="group space-y-2 rounded-2xl border border-border/45 bg-[var(--surface-soft)]/40 p-3 text-xs text-muted-foreground/85 transition-all hover:bg-[var(--surface-soft)]/60">
+    <div className="group space-y-2 rounded-2xl border border-border/45 bg-[var(--surface-soft)]/40 p-3 text-xs text-muted-foreground/85 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-[var(--surface-soft)]/60">
       <button
         className="inline-flex items-center gap-2 font-medium text-foreground/70 transition-colors hover:text-foreground"
         onClick={() => setExpanded(!expanded)}

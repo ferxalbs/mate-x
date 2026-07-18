@@ -634,7 +634,7 @@ export function SettingsPage() {
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--mate-page-bg)] text-foreground">
         <header
           className={cn(
-            "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 px-4 transition-[padding-left] duration-200 ease-linear",
+            "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 px-4",
             appSettings.vibrancyMode === 'special'
               ? "mate-glass-float border-b border-border/70"
               : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
@@ -1171,7 +1171,7 @@ export function SettingsPage() {
                         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                           <div
                             className={cn(
-                              'h-full rounded-full transition-all',
+                              'h-full rounded-full',
                               privacyModelProgress.state === 'failed' ? 'bg-destructive' : 'bg-primary',
                             )}
                             style={{ width: `${privacyModelProgress.percent ?? 10}%` }}

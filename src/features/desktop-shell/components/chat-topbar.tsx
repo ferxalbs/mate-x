@@ -89,8 +89,8 @@ export function ChatTopbar({
   const title = conversation?.title ?? "No active thread";
   const liveTone =
     runStatus === "running"
-      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-[background-color,border-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-      : "border-transparent bg-mate-control-bg text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-[background-color,border-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
+      ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)]"
+      : "border-transparent bg-mate-control-bg text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)]";
   useEffect(() => {
     const handleRepoSafety = (event: Event) => {
       const label = (event as CustomEvent<{ label?: string }>).detail?.label;
@@ -103,7 +103,7 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding-left] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4",
         // Flat canvas titlebar — matches #111 / #fff; glass only if blur + special.
         isSpecialMode
           ? "border-b border-[var(--titlebar-border)]/50 bg-background"

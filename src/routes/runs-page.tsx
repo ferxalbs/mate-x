@@ -368,7 +368,7 @@ export function RunsPage() {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
       <header className={cn(
-        "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5 transition-[padding-left] duration-200 ease-linear",
+        "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]"
       )}>
