@@ -1,4 +1,4 @@
-import { ZapIcon } from "lucide-react";
+import { ActivityIcon } from "@phosphor-icons/react";
 
 import type { RepoHealthSignal } from "./enhancement-panel-utils";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
@@ -31,7 +31,7 @@ export function RepoHealthSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <PanelTitle icon={ZapIcon} title="Repo Health" />
+        <PanelTitle icon={ActivityIcon} title="Repo Health" />
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
       <div
@@ -40,7 +40,7 @@ export function RepoHealthSection({
           toneSurfaceClassName(verdict.tone),
         )}
       >
-        <p className="text-[10px] tracking-wider font-medium uppercase text-muted-foreground/70">
+        <p className="mate-text-metadata">
           {hasProfile ? "Live repo verdict" : "Metadata only"}
         </p>
         <p className="mt-1 break-words text-[12px] font-semibold leading-5">
@@ -49,26 +49,26 @@ export function RepoHealthSection({
       </div>
       {workspace ? (
         <div className="rounded-2xl border border-border/50 bg-transparent px-2.5 py-2">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+          <p className="mate-text-metadata">
             Workspace
           </p>
-          <p className="mt-1 break-words text-[11px] font-semibold text-foreground">
+          <p className="mt-1 break-words text-[13px] font-semibold text-foreground">
             {workspace.name}
           </p>
-          <p className="mt-1 break-all font-mono text-[10px] leading-4 text-muted-foreground">
+          <p className="mate-text-secondary mt-1 break-all font-mono">
             {workspace.path}
           </p>
-          <p className="mt-1 break-words text-[10px] text-muted-foreground">
+          <p className="mate-text-secondary mt-1 break-words">
             {workspace.branch ? `Branch ${workspace.branch}` : "Branch unknown"}
           </p>
         </div>
       ) : null}
-      <dl className="grid grid-cols-2 gap-2 text-[11px]">
+      <dl className="grid grid-cols-2 gap-2 text-[13px]">
         {signals.map((signal) => (
           <HealthSignalCell signal={signal} key={signal.label} />
         ))}
       </dl>
-      <div className="rounded-2xl border border-border/50 bg-transparent px-2.5 py-2 text-[11px] break-words text-muted-foreground">
+      <div className="mate-text-secondary break-words rounded-2xl border border-border/50 bg-transparent px-2.5 py-2">
         {action}
       </div>
     </section>
@@ -101,4 +101,3 @@ function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
     </Card>
   );
 }
-

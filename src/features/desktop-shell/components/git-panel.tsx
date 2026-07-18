@@ -1,14 +1,14 @@
 import { useEffect, useRef } from 'react';
 import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
+  ArrowClockwiseIcon,
+  ArrowLineDownIcon,
+  ArrowLineUpIcon,
   GitBranchIcon,
-  GitCommitHorizontal,
-  Loader2,
-  MinusSquare,
-  PlusSquare,
-  RefreshCwIcon,
-} from 'lucide-react';
+  GitCommitIcon,
+  MinusSquareIcon,
+  PlusSquareIcon,
+  SpinnerGapIcon,
+} from '@phosphor-icons/react';
 
 import { useGitStore } from '../../../store/git-store';
 import { cn } from '../../../lib/utils';
@@ -47,7 +47,7 @@ function requestShipGate() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+    <span className="mate-text-metadata">
       {children}
     </span>
   );
@@ -79,7 +79,7 @@ function FileRow({
       <span className="flex-1 truncate text-xs text-foreground/80" title={path}>
         {basename(path)}
       </span>
-      <span className="hidden truncate text-[9px] text-muted-foreground/30 group-hover:block" title={path}>
+      <span className="hidden truncate text-[10px] text-muted-foreground group-hover:block" title={path}>
         {path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''}
       </span>
       {isStaged ? (
@@ -88,9 +88,9 @@ function FileRow({
           onClick={onUnstage}
           title="Unstage file"
           aria-label={`Unstage ${basename(path)}`}
-          className="ml-1 hidden shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground group-hover:block"
+          className="ml-1 hidden size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover:inline-flex focus:inline-flex"
         >
-          <MinusSquare className="size-3" />
+          <MinusSquareIcon className="size-4" weight="regular" />
         </button>
       ) : (
         <button
@@ -98,9 +98,9 @@ function FileRow({
           onClick={onStage}
           title="Stage file"
           aria-label={`Stage ${basename(path)}`}
-          className="ml-1 hidden shrink-0 text-muted-foreground/40 transition-colors hover:text-emerald-400 group-hover:block"
+          className="ml-1 hidden size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover:inline-flex focus:inline-flex"
         >
-          <PlusSquare className="size-3" />
+          <PlusSquareIcon className="size-4" weight="regular" />
         </button>
       )}
     </div>
@@ -197,12 +197,12 @@ export function GitPanel() {
             {status?.current ?? '—'}
           </span>
           {(status?.ahead ?? 0) > 0 && (
-            <span className="rounded-full bg-sky-500/15 px-1.5 text-[9px] font-semibold text-sky-400">
+            <span className="rounded-full bg-sky-500/15 px-1.5 text-[10px] font-semibold text-sky-400">
               ↑{status!.ahead}
             </span>
           )}
           {(status?.behind ?? 0) > 0 && (
-            <span className="rounded-full bg-amber-500/15 px-1.5 text-[9px] font-semibold text-amber-400">
+            <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-400">
               ↓{status!.behind}
             </span>
           )}
@@ -216,9 +216,9 @@ export function GitPanel() {
             disabled={!canPull}
             title="Pull"
             aria-label="Pull from remote"
-            className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+            className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ArrowDownToLine className="size-3" />
+            <ArrowLineDownIcon className="size-4" weight="regular" />
           </button>
           {/* Push */}
           <button
@@ -233,9 +233,9 @@ export function GitPanel() {
             disabled={!canPush}
             title="Push"
             aria-label="Push to remote"
-            className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+            className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ArrowUpFromLine className="size-3" />
+            <ArrowLineUpIcon className="size-4" weight="regular" />
           </button>
           {/* Refresh */}
           <button
@@ -244,9 +244,9 @@ export function GitPanel() {
             disabled={loadStatus === 'loading'}
             title="Refresh"
             aria-label="Refresh git status"
-            className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+            className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <RefreshCwIcon className={cn('size-3', loadStatus === 'loading' && 'animate-spin')} />
+            <ArrowClockwiseIcon className={cn('size-4', loadStatus === 'loading' && 'animate-spin')} weight="regular" />
           </button>
         </div>
       </div>
@@ -260,8 +260,8 @@ export function GitPanel() {
 
       {/* Loading skeleton */}
       {loadStatus === 'loading' && !status && (
-        <div className="flex items-center justify-center py-6 text-muted-foreground/40">
-          <Loader2 className="size-4 animate-spin" />
+        <div className="flex items-center justify-center py-6 text-muted-foreground">
+          <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
         </div>
       )}
 
@@ -275,7 +275,7 @@ export function GitPanel() {
                 <button
                   type="button"
                   onClick={() => void unstageAll()}
-                  className="text-[9px] text-muted-foreground/40 hover:text-foreground"
+                  className="min-h-8 rounded-xl px-2 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                   title="Unstage all"
                   aria-label="Unstage all files"
                 >
@@ -285,7 +285,7 @@ export function GitPanel() {
             </div>
 
             {staged.length === 0 ? (
-              <p className="px-1 text-[10px] text-muted-foreground/30 italic">No staged changes</p>
+              <p className="mate-text-secondary px-1 italic">No staged changes</p>
             ) : (
               staged.map((f) => (
                 <FileRow
@@ -308,7 +308,7 @@ export function GitPanel() {
                 <button
                   type="button"
                   onClick={() => void stageAll()}
-                  className="text-[9px] text-muted-foreground/40 hover:text-emerald-400"
+                  className="min-h-8 rounded-xl px-2 text-[12px] text-muted-foreground hover:bg-accent hover:text-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                   title="Stage all"
                   aria-label="Stage all files"
                 >
@@ -318,7 +318,7 @@ export function GitPanel() {
             </div>
 
             {unstaged.length === 0 ? (
-              <p className="px-1 text-[10px] text-muted-foreground/30 italic">Working tree clean</p>
+              <p className="mate-text-secondary px-1 italic">Working tree clean</p>
             ) : (
               unstaged.map((f) => (
                 <FileRow
@@ -341,7 +341,7 @@ export function GitPanel() {
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="Commit message…"
               rows={2}
-              className="w-full resize-none rounded-md bg-transparent px-1 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
+              className="w-full resize-none rounded-xl bg-transparent px-1 py-0.5 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
             />
             <button
               type="button"
@@ -352,13 +352,13 @@ export function GitPanel() {
                 'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all',
                 canCommit
                   ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                  : 'cursor-not-allowed bg-muted/20 text-muted-foreground/30',
+                  : 'cursor-not-allowed bg-muted/20 text-muted-foreground',
               )}
             >
               {isRunning ? (
-                <Loader2 className="size-3 animate-spin" />
+                <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
               ) : (
-                <GitCommitHorizontal className="size-3" />
+                <GitCommitIcon className="size-4" weight="regular" />
               )}
               Commit {staged.length > 0 ? `(${staged.length})` : ''}
             </button>
@@ -368,9 +368,9 @@ export function GitPanel() {
           {diff && (diff.insertions > 0 || diff.deletions > 0) && (
             <div className="mx-2 mt-2 flex items-center gap-2 rounded-md bg-muted/20 px-2 py-1.5 text-[10px]">
               <span className="text-emerald-400">+{diff.insertions}</span>
-              <span className="text-muted-foreground/40">/</span>
+              <span className="text-muted-foreground">/</span>
               <span className="text-red-400">-{diff.deletions}</span>
-              <span className="ml-auto text-muted-foreground/30">diff</span>
+              <span className="ml-auto text-muted-foreground">diff</span>
             </div>
           )}
 
@@ -386,10 +386,10 @@ export function GitPanel() {
                     key={entry.hash}
                     className="flex items-start gap-1.5 rounded-md px-1.5 py-[3px] hover:bg-accent/30"
                   >
-                    <GitCommitHorizontal className="mt-[1px] size-3 shrink-0 text-muted-foreground/30" />
+                    <GitCommitIcon className="mt-[1px] size-4 shrink-0 text-muted-foreground" weight="regular" />
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate text-[11px] text-foreground/70">{entry.message}</span>
-                      <span className="text-[9px] text-muted-foreground/30">
+                      <span className="text-[12px] text-muted-foreground">
                         {entry.author_name} · {entry.hash.slice(0, 7)}
                       </span>
                     </div>

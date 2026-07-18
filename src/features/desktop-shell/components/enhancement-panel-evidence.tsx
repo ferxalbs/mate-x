@@ -1,4 +1,4 @@
-import { CheckCircle2Icon, ClipboardCheckIcon, FileArchiveIcon, FileTextIcon } from "lucide-react";
+import { CheckCircleIcon, FileTextIcon, ListChecksIcon } from "@phosphor-icons/react";
 
 import type { EvidencePack, VerifiedTaskScoreSignal } from "../../../contracts/chat";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
@@ -56,7 +56,7 @@ export function EvidencePackSection({
 
   return (
     <section className="space-y-3">
-      <PanelTitle icon={ClipboardCheckIcon} title="Ship Proof" />
+      <PanelTitle icon={ListChecksIcon} title="Ship Proof" />
       {!evidencePack ? <SkeletonStack /> : null}
       <EvidenceConfidenceCard
         commandCount={commandCount}
@@ -91,7 +91,7 @@ export function EvidencePackSection({
       />
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
         <Card className="border-border/70 shadow-none bg-transparent">
-          <CardContent className="px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+          <CardContent className="mate-text-secondary px-3 py-2">
             Local repo signals show {fallbackFileCount} changed file
             {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
             command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
@@ -153,11 +153,11 @@ export function EvidencePackSection({
       />
       <Card className="border-border/70 shadow-none bg-transparent">
         <CardContent className="p-2.5">
-          <p className="text-[10px] tracking-wider uppercase text-muted-foreground/70">
+          <p className="mate-text-metadata">
             Compliance Actions
           </p>
           <button
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
+            className="mt-2 flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[13px] font-medium text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
             disabled={!canExportCompliance}
             onClick={() => {
               const taskId = evidencePack?.attestation?.taskId;
@@ -167,11 +167,11 @@ export function EvidencePackSection({
             title="Export SOC 2 / Procurement Package"
             type="button"
           >
-            <FileArchiveIcon className="size-3.5" />
+            <FileTextIcon className="size-4" weight="regular" />
             Generate Compliance Report
           </button>
           <button
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[11px] font-medium text-foreground/80 backdrop-blur-md transition hover:bg-accent disabled:opacity-55"
+            className="mt-2 flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[13px] font-medium text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
             disabled={!canExportCompliance}
             onClick={() => {
               const taskId = evidencePack?.attestation?.taskId;
@@ -181,7 +181,7 @@ export function EvidencePackSection({
             title="Export Agent Runbook"
             type="button"
           >
-            <FileTextIcon className="size-3.5" />
+            <FileTextIcon className="size-4" weight="regular" />
             Export Agent Runbook
           </button>
         </CardContent>
@@ -223,7 +223,7 @@ function EvidenceConfidenceCard({
       )}
     >
       <CardContent className="p-3">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+        <p className="mate-text-metadata">
           Proof Confidence
         </p>
         <div className="mt-1 flex items-baseline gap-1">
@@ -240,7 +240,7 @@ function EvidenceConfidenceCard({
             <span className="text-[12px] text-muted-foreground">/100</span>
           ) : null}
         </div>
-        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+        <p className="mate-text-secondary mt-2">
           {getEvidenceScoreReason(
             hasVerifiedScore ? score : null,
             verdict,
@@ -269,10 +269,10 @@ function FailureReasonCard({
         <p className="text-[10px] tracking-wider font-medium uppercase text-destructive">
           Blocking issue
         </p>
-        <p className="mt-1 text-[11px] font-semibold text-foreground">
+        <p className="mt-1 text-[13px] font-semibold text-foreground">
           {verdict}: evidence run did not complete cleanly.
         </p>
-        <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+        <p className="mate-text-secondary mt-1">
           Captured {commandCount} command signals and {filesCount} file signal
           {filesCount === 1 ? "" : "s"}, but review cannot be trusted until
           file-level diff evidence completes.
@@ -293,10 +293,10 @@ function EvidenceRow({
 }) {
   return (
     <Card className="border-border/50 shadow-none bg-transparent">
-      <CardContent className="flex items-center justify-between gap-3 px-3 py-2 text-[11px]">
+      <CardContent className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
         <span className="text-muted-foreground">{label}</span>
         <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
-          <CheckCircle2Icon
+          <CheckCircleIcon
             className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
           />
           <span className="truncate text-foreground">{value}</span>

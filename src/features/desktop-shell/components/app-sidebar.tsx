@@ -65,6 +65,7 @@ const expandedWorkspacesCodec: LocalStorageCodec<Record<string, boolean>> = {
   },
   serialize: (value) => JSON.stringify(value),
 };
+const EMPTY_EXPANDED_WORKSPACES: Record<string, boolean> = {};
 
 const SettingsLink = Link as any;
 
@@ -142,7 +143,11 @@ export function AppSidebar({
   const platform = usePlatform();
   const [expandedWorkspaces, setExpandedWorkspaces] = useLocalStorage<
     Record<string, boolean>
-  >("matex-sidebar-expanded-workspaces", {}, expandedWorkspacesCodec);
+  >(
+    "matex-sidebar-expanded-workspaces",
+    EMPTY_EXPANDED_WORKSPACES,
+    expandedWorkspacesCodec,
+  );
   const [showAllThreads, setShowAllThreads] = useState(false);
   const [workspacePendingRemoval, setWorkspacePendingRemoval] =
     useState<WorkspaceEntry | null>(null);
@@ -171,7 +176,7 @@ export function AppSidebar({
             <span className="truncate text-[13px] font-semibold tracking-[-0.015em] text-foreground/90">
               MaTE X
             </span>
-            <span className="rounded-md bg-foreground/[0.05] border border-foreground/[0.03] px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-foreground/50">
+            <span className="mate-text-metadata rounded-md border border-foreground/[0.06] bg-foreground/[0.05] px-1.5 py-0.5">
               ALPHA
             </span>
           </div>
@@ -378,15 +383,15 @@ export function AppSidebar({
               <div className="mb-4 px-1">
                 <button
                   onClick={onOpenSearch}
-                  className="flex h-[34px] w-full items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/35 bg-foreground/[0.03] px-3 text-[12px] text-muted-foreground transition-all duration-200 hover:bg-foreground/[0.06] hover:text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/45"
+                  className="mate-text-compact flex h-[34px] w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/35 bg-foreground/[0.03] px-3 transition-all duration-200 hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                   type="button"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground/80" weight="regular" />
-                    <span className="truncate text-[11px] font-medium tracking-tight">Search...</span>
+                    <span className="truncate font-medium tracking-tight">Search...</span>
                   </div>
                   <KbdGroup className="shrink-0 gap-0.5 opacity-60">
-                    <Kbd className="h-4.5 min-w-[22px] rounded bg-foreground/[0.05] border border-foreground/[0.03] px-1 text-[9px] font-medium">
+                    <Kbd className="h-5 min-w-6 rounded-lg border border-foreground/[0.06] bg-foreground/[0.05] px-1 text-[10px] font-medium">
                       ⌘K
                     </Kbd>
                   </KbdGroup>
@@ -394,12 +399,12 @@ export function AppSidebar({
               </div>
 
               <div className="mb-2.5 flex h-6 items-center justify-between px-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                <span className="mate-text-metadata">
                   Projects
                 </span>
                 <button
                   onClick={onImportWorkspace}
-                  className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
+                  className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                   title="Import folder"
                   aria-label="Import folder"
                   type="button"
@@ -433,7 +438,7 @@ export function AppSidebar({
                               [project.id]: !isProjectOpen,
                             }))
                           }
-                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                           title={
                             isProjectOpen
                               ? "Collapse history"
@@ -456,7 +461,7 @@ export function AppSidebar({
                         </button>
                         <button
                           className={cn(
-                            "flex min-w-0 flex-1 items-center gap-2 text-left text-[12px] font-medium transition-colors",
+                            "mate-text-compact flex min-w-0 flex-1 items-center gap-2 text-left font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
                             isWorkspaceActive
                               ? "text-foreground"
                               : "text-muted-foreground/80 hover:text-foreground",
@@ -477,7 +482,7 @@ export function AppSidebar({
                         {workspaces.length > 1 ? (
                           <button
                             onClick={() => setWorkspacePendingRemoval(project)}
-                            className="hidden shrink-0 rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-foreground/[0.08] hover:text-red-400 group-hover/project:inline-flex"
+                            className="hidden size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover/project:inline-flex focus:inline-flex"
                             title={`Remove ${project.name}`}
                             aria-label={`Remove project ${project.name}`}
                             type="button"
@@ -489,18 +494,18 @@ export function AppSidebar({
 
                       {isProjectOpen ? (
                         <div className="ml-2.5 mt-1 flex flex-col gap-0.5 border-l border-[var(--sidebar-border)]/35 pl-3.5 pr-0.5">
-                          <div className="flex items-start justify-between gap-2 pb-1.5 pt-0.5 text-[10px] text-muted-foreground/40">
-                            <div className="min-w-0 flex-1 font-mono tracking-tight leading-normal">
-                              <div className="truncate text-muted-foreground/45" title={project.path}>
+                          <div className="mate-text-secondary flex items-start justify-between gap-2 pb-1.5 pt-0.5">
+                            <div className="min-w-0 flex-1 font-mono tracking-tight">
+                              <div className="truncate" title={project.path}>
                                 {project.path.replace(/^\/Users\/[^/]+/, "~")}
                               </div>
-                              <div className="text-[9px] text-muted-foreground/35 font-sans font-medium">
+                              <div className="font-sans text-[12px] font-medium">
                                 {activeThreads.length} saved threads
                               </div>
                             </div>
                             <button
                               onClick={onCreateThread}
-                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                              className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                               title="New thread"
                               aria-label="New thread"
                               type="button"
@@ -545,7 +550,7 @@ export function AppSidebar({
                 })}
 
                 {workspaces.length === 0 ? (
-                  <div className="px-2 py-3 text-xs text-muted-foreground/50">
+                  <div className="mate-text-secondary px-2 py-3">
                     Import a folder to start working.
                   </div>
                 ) : null}
@@ -564,7 +569,7 @@ export function AppSidebar({
                     aria-label="Open Mission Log"
                   >
                     <ListChecksIcon className="size-4 text-muted-foreground/75" />
-                    <span className="text-[12px] font-medium">Mission Log</span>
+                    <span className="text-[13px] font-medium">Mission Log</span>
                   </Link>
                 </div>
                 <div className="flex items-center justify-between rounded-xl px-3 py-1.5 transition-all duration-200 hover:bg-foreground/[0.04]">
@@ -575,11 +580,11 @@ export function AppSidebar({
                     aria-label="Open settings"
                   >
                     <GearIcon className="size-4 text-muted-foreground/75" />
-                    <span className="text-[12px] font-medium">Settings</span>
+                    <span className="text-[13px] font-medium">Settings</span>
                   </SettingsLink>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider",
+                      "mate-text-metadata rounded-full px-2 py-0.5",
                       resolvedTheme === "dark"
                         ? "bg-foreground/[0.08] text-foreground/80"
                         : "bg-muted/70 text-muted-foreground/80",
