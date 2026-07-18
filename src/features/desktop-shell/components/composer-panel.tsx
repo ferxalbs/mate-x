@@ -24,15 +24,6 @@ import {
 import { Button } from "../../../components/ui/button";
 import { RESPONSIVE_SPRING } from "../../../lib/motion";
 import {
-  AlertDialog,
-  AlertDialogClose,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../../components/ui/alert-dialog";
-import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -155,15 +146,13 @@ export function ComposerPanel({
   const cancelActiveRun = useChatStore((state) => state.cancelActiveRun);
   const hasWorkspace = Boolean(workspace);
   const trustLabel =
-    trustContract?.autonomy === "unrestricted"
-      ? "Trust: unrestricted"
-      : trustContract?.autonomy === "trusted-patch"
-        ? "Trust: trusted patch"
+    trustContract?.autonomy === "trusted-patch"
+      ? "Trust: scoped changes"
         : trustContract?.autonomy === "plan-only"
           ? "Trust: plan only"
-          : "Trust: approval required";
+          : "Trust: ask before changes";
   const trustTone =
-    trustContract?.autonomy === "unrestricted"
+    trustContract?.autonomy === "trusted-patch"
       ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-700 dark:text-emerald-300"
       : "border-amber-400/20 bg-amber-400/5 text-amber-700 dark:text-amber-300";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -747,18 +736,13 @@ const TRUST_OPTIONS: Array<{
   },
   {
     value: "approval-required",
-    label: "Approval required",
-    description: "Ask before edits, commands, network access, or Git writes.",
+    label: "Ask before changes",
+    description: "Inspect freely, then ask before edits or controlled execution.",
   },
   {
     value: "trusted-patch",
-    label: "Trusted patch",
-    description: "Allow scoped workspace patches; gate riskier actions.",
-  },
-  {
-    value: "unrestricted",
-    label: "Unrestricted",
-    description: "Allow all workspace actions without approval.",
+    label: "Scoped changes",
+    description: "Allow listed workspace edits; keep risky and Git actions gated.",
   },
 ];
 
@@ -775,111 +759,56 @@ function TrustSelector({
   tone: string;
   value: WorkspaceTrustAutonomy;
 }) {
-  const [confirmUnrestricted, setConfirmUnrestricted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const confirmationFrameRef = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (confirmationFrameRef.current !== null) {
-        cancelAnimationFrame(confirmationFrameRef.current);
-      }
-    },
-    [],
-  );
 
   function selectTrust(nextValue: string) {
     const autonomy = nextValue as WorkspaceTrustAutonomy;
-    if (autonomy === "unrestricted" && value !== "unrestricted") {
-      setMenuOpen(false);
-      confirmationFrameRef.current = requestAnimationFrame(() => {
-        confirmationFrameRef.current = requestAnimationFrame(() => {
-          confirmationFrameRef.current = null;
-          setConfirmUnrestricted(true);
-        });
-      });
-      return;
-    }
-
     void onChange(autonomy);
   }
 
   return (
-    <>
-      <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
-        <DropdownMenuTrigger
-          aria-label="Change workspace trust"
-          className={cn(
-            "flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium shadow-none transition-[background-color,border-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-50",
-            tone,
-          )}
-          data-testid="trust-selector"
-          disabled={disabled}
-        >
-          <ShieldCheckIcon className="size-3.5" />
-          <span>{label}</span>
-          <ChevronDownIcon className="size-3 opacity-60" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="mate-glass-float w-72 rounded-2xl border-border/70 bg-panel p-1.5 shadow-none"
-          sideOffset={6}
-        >
-          <div className="px-2.5 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Workspace trust
-          </div>
-          <DropdownMenuRadioGroup value={value} onValueChange={selectTrust}>
-            {TRUST_OPTIONS.map((option) => (
-              <DropdownMenuRadioItem
-                className="items-start rounded-xl py-2.5"
-                key={option.value}
-                value={option.value}
-              >
-                <span className="min-w-0 pr-2">
-                  <span className="block text-xs font-medium text-foreground">
-                    {option.label}
-                  </span>
-                  <span className="mt-0.5 block break-words text-[11px] leading-snug text-muted-foreground">
-                    {option.description}
-                  </span>
-                </span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <AlertDialog
-        onOpenChange={setConfirmUnrestricted}
-        open={confirmUnrestricted}
+    <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+      <DropdownMenuTrigger
+        aria-label="Change workspace trust"
+        className={cn(
+          "flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium shadow-none transition-[background-color,border-color,color,transform] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-50",
+          tone,
+        )}
+        data-testid="trust-selector"
+        disabled={disabled}
       >
-        <AlertDialogContent className="border-destructive/20">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Enable unrestricted access?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This lets the agent edit any workspace file, run commands, and use
-              the network without asking. Git writes still require explicit
-              authorization.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogClose render={<Button size="sm" variant="ghost" />}>
-              Cancel
-            </AlertDialogClose>
-            <Button
-              onClick={() => {
-                setConfirmUnrestricted(false);
-                void onChange("unrestricted");
-              }}
-              size="sm"
-              variant="destructive"
+        <ShieldCheckIcon className="size-3.5" />
+        <span>{label}</span>
+        <ChevronDownIcon className="size-3 opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="mate-glass-float w-72 rounded-2xl border-border/70 bg-panel p-1.5 shadow-none"
+        sideOffset={6}
+      >
+        <div className="px-2.5 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+          Workspace trust
+        </div>
+        <DropdownMenuRadioGroup value={value} onValueChange={selectTrust}>
+          {TRUST_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem
+              className="items-start rounded-xl py-2.5"
+              key={option.value}
+              value={option.value}
             >
-              Accept risks and enable
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+              <span className="min-w-0 pr-2">
+                <span className="block text-xs font-medium text-foreground">
+                  {option.label}
+                </span>
+                <span className="mt-0.5 block break-words text-[11px] leading-snug text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

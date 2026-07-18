@@ -141,7 +141,6 @@ export async function buildEvidencePack(params: {
     events,
     content,
     toolExecutions,
-    trustContract,
     runbookId,
     initialStatusLines,
   } = params;
@@ -265,7 +264,7 @@ export async function buildEvidencePack(params: {
 
   return {
     status,
-    governanceMode: trustContract?.autonomy === "unrestricted" ? "unrestricted" : "governed",
+    governanceMode: "governed",
     verdict,
     verifiedTaskScore,
     filesModified,

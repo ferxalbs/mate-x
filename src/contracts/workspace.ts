@@ -127,8 +127,7 @@ export interface FailureMemory {
 export type WorkspaceTrustAutonomy =
   | "plan-only"
   | "approval-required"
-  | "trusted-patch"
-  | "unrestricted";
+  | "trusted-patch";
 
 export interface WorkspaceTrustContract {
   id: string;
