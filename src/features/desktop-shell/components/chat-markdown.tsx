@@ -13,7 +13,8 @@ type SyntaxHighlighterComponent = ComponentType<{
   style?: { [key: string]: React.CSSProperties };
   PreTag?: string;
   customStyle?: React.CSSProperties;
-  codeTagProps?: { style?: React.CSSProperties };
+  codeTagProps?: { style?: React.CSSProperties; className?: string };
+  className?: string;
   children: string;
 }>;
 
@@ -64,7 +65,70 @@ const customPrismTheme: { [key: string]: React.CSSProperties } = {
   property: { color: "var(--code-variable)" },
   selector: { color: "var(--code-keyword)" },
   builtin: { color: "var(--code-class)" },
+  inserted: {
+    color: "var(--code-inserted, #16a34a)",
+    backgroundColor: "color-mix(in srgb, var(--code-inserted, #16a34a) 15%, transparent)",
+    display: "inline-block",
+    width: "100%",
+  },
+  deleted: {
+    color: "var(--code-deleted, #dc2626)",
+    backgroundColor: "color-mix(in srgb, var(--code-deleted, #dc2626) 15%, transparent)",
+    display: "inline-block",
+    width: "100%",
+  },
+  coord: {
+    color: "var(--code-comment, #8b949e)",
+  },
+  diff: {
+    color: "var(--foreground)",
+  }
 };
+
+export function RawSyntaxHighlighter({ content, language, className }: { content: string; language: string; className?: string }) {
+  const [Highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadSyntaxHighlighter().then((component) => {
+      if (!cancelled) setHighlighter(() => component);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!Highlighter) {
+    return (
+      <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground", className)}>
+        <code style={{ fontFamily: "inherit" }}>
+          {content}
+        </code>
+      </pre>
+    );
+  }
+
+  return (
+    <Highlighter
+      language={language}
+      style={customPrismTheme}
+      PreTag="div"
+      customStyle={{
+        margin: 0,
+        padding: 0,
+        background: "transparent",
+        fontSize: "12.5px",
+        lineHeight: "1.6",
+      }}
+      codeTagProps={{
+        style: { fontFamily: "inherit" }
+      }}
+      className={className}
+    >
+      {content}
+    </Highlighter>
+  );
+}
 
 const markdownComponents: Components = {
   a({ href, children, ...props }) {
