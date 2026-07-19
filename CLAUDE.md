@@ -112,6 +112,8 @@ Read `DESIGN.md` and the design sections in `AGENTS.md` before UI changes. Prese
 
 Design direction: compact native-macOS utility, flat canvas, subtle borders, rare semantic color, no heavy shadows. **Default canvas:** light `#ffffff`, dark `#111111` for sidebar/main/titlebar/panel. **Elevated exception:** inputs, selects, composer, menus use `--control` (`#f2f3f5` / `#1a1a1a`) and optional stronger Interface blur. Use theme variables instead of hardcoded inverse colors. Main command panels use 32px radius, cards/popovers 16px (`rounded-2xl`), and primary content uses an 820px maximum width. Prefer `shadow-none` and border-defined surfaces.
 
+- **Icons**: `lucide-react` and `@phosphor-icons/react` are strictly FORBIDDEN. You MUST use `@hugeicons/react` and `@hugeicons/core-free-icons` for all icons.
+
 ### Glass / blur (mandatory)
 
 - **CSS-only glass.** Never re-enable native Electron vibrancy, Windows mica/acrylic, or other OS window materials. Window background stays opaque; see `src/electron/window-appearance.ts`.

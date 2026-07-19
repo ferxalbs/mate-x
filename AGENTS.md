@@ -125,6 +125,7 @@ bun run test:qa      # bun test qa
 
 - **TypeScript** with React 19.2.7, Electron 43.1.0, Tailwind CSS v4 (specifically 4.3.2). All versions must match `package.json` exactly.
 - **Tailwind CSS v4 Themes**: Use pure CSS `@import` to modularize themes in `src/styles/themes/`. Always register custom variants via `@custom-variant` in `index.css` to avoid Vite transformation errors.
+- **Icons**: `lucide-react` and `@phosphor-icons/react` are strictly FORBIDDEN. You MUST use `@hugeicons/react` and `@hugeicons/core-free-icons` for all icons.
 - Renderer files: double quotes, trailing commas.
 - Main-process files: single quotes.
 - `PascalCase` for components | `camelCase` for functions/store actions | `kebab-case` for feature folders.
