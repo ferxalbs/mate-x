@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useMemo, type ComponentType, type ReactNode } from "react";
+import { memo, useState, useMemo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -6,29 +6,15 @@ import { HugeiconsIcon as HugeIcon } from "@hugeicons/react";
 import { Copy01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { motion, AnimatePresence } from "framer-motion";
 
+import Prism from "prismjs";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-diff";
+
 import { cn } from "../../../lib/utils";
-
-type SyntaxHighlighterComponent = ComponentType<{
-  language?: string;
-  style?: { [key: string]: React.CSSProperties };
-  PreTag?: string;
-  customStyle?: React.CSSProperties;
-  codeTagProps?: { style?: React.CSSProperties; className?: string };
-  wrapLines?: boolean;
-  lineProps?: (lineNumber: number) => React.HTMLProps<HTMLElement> | { className?: string };
-  className?: string;
-  useInlineStyles?: boolean;
-  children: string;
-}>;
-
-let syntaxHighlighterPromise: Promise<SyntaxHighlighterComponent> | null = null;
-
-function loadSyntaxHighlighter() {
-  syntaxHighlighterPromise ??= import("react-syntax-highlighter").then(
-    (mod) => mod.Prism as unknown as SyntaxHighlighterComponent,
-  );
-  return syntaxHighlighterPromise;
-}
 
 interface ChatMarkdownProps {
   content: string;
@@ -41,63 +27,151 @@ interface CodeBlockProps {
   children?: ReactNode;
 }
 
-export function RawSyntaxHighlighter({ content, language, className }: { content: string; language: string; className?: string }) {
-  const [Highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(null);
+interface PrismToken {
+  type?: string;
+  content: string;
+}
 
-  const lines = useMemo(() => content.split('\n'), [content]);
+function splitTokensIntoLines(tokens: Array<string | Prism.Token>): PrismToken[][] {
+  const lines: PrismToken[][] = [[]];
 
-  useEffect(() => {
-    let cancelled = false;
-    void loadSyntaxHighlighter().then((component) => {
-      if (!cancelled) setHighlighter(() => component);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  function processToken(token: string | Prism.Token, type?: string) {
+    if (typeof token === "string") {
+      const parts = token.split("\n");
+      parts.forEach((part, index) => {
+        if (index > 0) {
+          lines.push([]);
+        }
+        if (part) {
+          lines[lines.length - 1].push({ type, content: part });
+        }
+      });
+    } else {
+      const tokenType = token.type;
+      if (typeof token.content === "string") {
+        const parts = token.content.split("\n");
+        parts.forEach((part, index) => {
+          if (index > 0) {
+            lines.push([]);
+          }
+          if (part) {
+            lines[lines.length - 1].push({ type: tokenType, content: part });
+          }
+        });
+      } else if (Array.isArray(token.content)) {
+        token.content.forEach((subToken) => {
+          processToken(subToken, tokenType);
+        });
+      }
+    }
+  }
 
-  if (!Highlighter) {
+  tokens.forEach((token) => processToken(token));
+  return lines;
+}
+
+function getGrammar(language: string) {
+  const lang = language.toLowerCase();
+  if (lang === "typescript" || lang === "ts") return Prism.languages.typescript;
+  if (lang === "tsx") return Prism.languages.tsx;
+  if (lang === "jsx") return Prism.languages.jsx;
+  if (lang === "javascript" || lang === "js") return Prism.languages.javascript;
+  if (lang === "diff") return Prism.languages.diff;
+  if (lang === "bash" || lang === "sh" || lang === "shell") return Prism.languages.bash;
+  if (lang === "json") return Prism.languages.json;
+  return Prism.languages.clike || Prism.languages.markup;
+}
+
+export function CustomSyntaxHighlighter({
+  content,
+  language,
+  className,
+  paddingY = "py-4",
+}: {
+  content: string;
+  language: string;
+  className?: string;
+  paddingY?: string;
+}) {
+  const grammar = getGrammar(language);
+  
+  const tokenLines = useMemo(() => {
+    if (!grammar) return null;
+    try {
+      const tokens = Prism.tokenize(content, grammar);
+      return splitTokensIntoLines(tokens);
+    } catch (e) {
+      console.error("Prism tokenization failed:", e);
+      return null;
+    }
+  }, [content, grammar]);
+
+  if (!grammar || !tokenLines) {
     return (
       <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground font-mono", className)}>
-        <code style={{ fontFamily: "inherit" }}>
-          {content}
-        </code>
+        <code className="block px-6 py-4">{content}</code>
       </pre>
     );
   }
 
   return (
-    <Highlighter
+    <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground font-mono", paddingY, className)}>
+      <code className="block min-w-full w-fit">
+        {tokenLines.map((lineTokens, lineIdx) => {
+          const lineStr = lineTokens.map(t => t.content).join('');
+          
+          let lineClass = "block w-full min-w-full pr-6 py-0.5";
+          
+          const isAdded = lineStr.startsWith('+') && !lineStr.startsWith('+++');
+          const isRemoved = lineStr.startsWith('-') && !lineStr.startsWith('---');
+          
+          if (isAdded) {
+            lineClass += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
+          } else if (isRemoved) {
+            lineClass += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
+          } else {
+            lineClass += " pl-6";
+          }
+
+          return (
+            <div key={lineIdx} className={lineClass}>
+              {lineTokens.length === 0 ? (
+                <br />
+              ) : (
+                lineTokens.map((token, tokenIdx) => {
+                  let tokenClass = token.type ? cn("token", token.type) : undefined;
+                  
+                  if (language.toLowerCase() === "diff") {
+                    if (token.type === "inserted") {
+                      tokenClass = "token inserted text-emerald-700 dark:text-emerald-400";
+                    } else if (token.type === "deleted") {
+                      tokenClass = "token deleted text-red-700 dark:text-red-400";
+                    }
+                  }
+
+                  return (
+                    <span key={tokenIdx} className={tokenClass}>
+                      {token.content}
+                    </span>
+                  );
+                })
+              )}
+            </div>
+          );
+        })}
+      </code>
+    </pre>
+  );
+}
+
+export function RawSyntaxHighlighter({ content, language, className }: { content: string; language: string; className?: string }) {
+  return (
+    <CustomSyntaxHighlighter
+      content={content}
       language={language}
-      PreTag="pre"
-      useInlineStyles={false}
-      wrapLines={true}
-      lineProps={(lineNumber: number) => {
-        const lineStr = lines[lineNumber - 1] || '';
-        let classes = "block w-full min-w-full pr-6 py-0.5";
-        if (lineStr.startsWith('+') && !lineStr.startsWith('+++')) {
-          classes += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
-        } else if (lineStr.startsWith('-') && !lineStr.startsWith('---')) {
-          classes += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
-        } else {
-          classes += " pl-6";
-        }
-        return { className: classes };
-      }}
-      customStyle={{
-        margin: 0,
-        padding: "1rem 0",
-        background: "transparent",
-        fontSize: "12.5px",
-        lineHeight: "1.6",
-      }}
-      codeTagProps={{
-        style: { fontFamily: "inherit" }
-      }}
       className={className}
-    >
-      {content}
-    </Highlighter>
+      paddingY="py-1"
+    />
   );
 }
 
@@ -129,21 +203,9 @@ const markdownComponents: Components = {
 
 function CodeBlock({ className, children }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
-  const [Highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const content = String(children ?? "");
   const language = className?.replace(/^language-/, "") ?? "";
-  const lines = useMemo(() => content.split('\n'), [content]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void loadSyntaxHighlighter().then((component) => {
-      if (!cancelled) setHighlighter(() => component);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function handleCopy() {
     try {
@@ -211,44 +273,11 @@ function CodeBlock({ className, children }: CodeBlockProps) {
         </AnimatePresence>
       </div>
       
-      {Highlighter ? (
-        <Highlighter
-          language={language}
-          PreTag="pre"
-          useInlineStyles={false}
-          wrapLines={true}
-          lineProps={(lineNumber: number) => {
-            const lineStr = lines[lineNumber - 1] || '';
-            let classes = "block w-full min-w-full pr-6 py-0.5";
-            if (lineStr.startsWith('+') && !lineStr.startsWith('+++')) {
-              classes += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
-            } else if (lineStr.startsWith('-') && !lineStr.startsWith('---')) {
-              classes += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
-            } else {
-              classes += " pl-6";
-            }
-            return { className: classes };
-          }}
-          customStyle={{
-            margin: 0,
-            padding: "1.25rem 0",
-            background: "transparent",
-            fontSize: "12.5px",
-            lineHeight: "1.6",
-          }}
-          codeTagProps={{
-            style: { fontFamily: "inherit" }
-          }}
-        >
-          {content}
-        </Highlighter>
-      ) : (
-        <pre className="m-0 overflow-x-auto p-5 text-[12.5px] leading-relaxed text-foreground font-mono">
-          <code style={{ fontFamily: "inherit" }}>
-            {content}
-          </code>
-        </pre>
-      )}
+      <CustomSyntaxHighlighter
+        content={content}
+        language={language}
+        paddingY="py-5"
+      />
     </div>
   );
 }
