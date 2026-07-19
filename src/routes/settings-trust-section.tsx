@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { ShieldCheckIcon } from '@phosphor-icons/react';
+import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
+import { ShieldKeyIcon } from '@hugeicons/core-free-icons';
 
 import { SettingsRow, SettingsSection } from '../components/ui/settings-layout';
 import {
@@ -27,7 +28,7 @@ export function SettingsTrustSection({
   setTrustDraft,
 }: SettingsTrustSectionProps) {
   return (
-    <SettingsSection title="Workspace Trust Contract" icon={<ShieldCheckIcon className="size-4" weight="regular" />}>
+    <SettingsSection title="Workspace Trust Contract" icon={<HugeIcon icon={ShieldKeyIcon} className="size-4" />}>
       {trustDraft ? (
         <>
           <SettingsRow

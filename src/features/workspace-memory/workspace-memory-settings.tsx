@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
 import {
-  CheckIcon,
+  Tick01Icon,
   ExternalLinkIcon,
-  FileTextIcon,
-  Loader2Icon,
-  RefreshCcwIcon,
+  File02Icon,
+  Loading01Icon,
+  ReloadIcon,
   SaveIcon,
-} from 'lucide-react';
+} from '@hugeicons/core-free-icons';
 
 import { Button } from '../../components/ui/button';
 import { SettingsRow, SettingsSection } from '../../components/ui/settings-layout';
@@ -123,7 +124,7 @@ export function WorkspaceMemorySettings() {
   }, []);
 
   return (
-    <SettingsSection title="Workspace Memory" icon={<FileTextIcon className="size-3.5" />}>
+    <SettingsSection title="Workspace Memory" icon={<HugeIcon icon={File02Icon} className="size-3.5" />}>
       <div className="flex min-w-0 flex-col gap-4">
         <SettingsRow
           title="Storage"
@@ -137,11 +138,11 @@ export function WorkspaceMemorySettings() {
             <Button
               size="xs"
               variant="outline"
-              className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+              className="h-8 rounded-xl px-3 text-[12px] shadow-none"
               onClick={() => void handleReveal()}
               disabled={isBusy || !status}
             >
-              <ExternalLinkIcon className="size-3.5" />
+              <HugeIcon icon={ExternalLinkIcon} className="size-3.5" />
               Reveal
             </Button>
           }
@@ -159,13 +160,13 @@ export function WorkspaceMemorySettings() {
                 type="button"
                 onClick={() => setActiveKind(kind)}
                 className={cn(
-                  'inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs transition-colors',
+                  'inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs transition-colors cursor-pointer',
                   isActive
                     ? 'border-foreground/20 bg-foreground text-background'
                     : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
-                <FileTextIcon className="size-3.5" />
+                <HugeIcon icon={File02Icon} className="size-3.5" />
                 <span>{file?.filename ?? kind}</span>
                 {fileHasDraft ? (
                   <span className="size-1.5 rounded-full bg-amber-400" />
@@ -175,8 +176,8 @@ export function WorkspaceMemorySettings() {
           })}
         </div>
 
-        <div className="mx-4 mb-1 rounded-md border border-border/70 bg-background sm:mx-5">
-          <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border/70 px-3">
+        <div className="mx-4 mb-1 rounded-2xl border border-border/70 bg-background sm:mx-5 overflow-hidden">
+          <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border/70 px-3 bg-muted/20">
             <div className="min-w-0">
               <div className="truncate text-xs font-medium text-foreground">
                 {activeFile?.title ?? 'Workspace memory'}
@@ -192,12 +193,12 @@ export function WorkspaceMemorySettings() {
 
           {isLoading ? (
             <div className="flex min-h-[340px] items-center justify-center text-sm text-muted-foreground">
-              <Loader2Icon className="mr-2 size-4 animate-spin" />
+              <HugeIcon icon={Loading01Icon} className="mr-2 size-4 animate-spin" />
               Loading workspace memory
             </div>
           ) : (
             <textarea
-              className="min-h-[420px] w-full resize-y bg-transparent p-3 font-mono text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/50"
+              className="min-h-[420px] w-full resize-y bg-transparent p-4 font-mono text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground/50 transition-colors duration-150 ease-[var(--ease-out)] focus:bg-[var(--accent)]/10"
               value={activeDraft}
               aria-label={activeFile?.title ?? 'Workspace memory file'}
               onChange={(event) => {
@@ -232,25 +233,25 @@ export function WorkspaceMemorySettings() {
             <Button
               size="sm"
               variant="outline"
-              className="h-9 rounded-lg px-3"
+              className="h-9 rounded-xl px-3"
               onClick={() => void handleReset()}
               disabled={isBusy || !activeFile}
             >
-              <RefreshCcwIcon className="size-4" />
+              <HugeIcon icon={ReloadIcon} className="size-4" />
               Reset file
             </Button>
             <Button
               size="sm"
-              className="h-9 rounded-lg px-4"
+              className="h-9 rounded-xl px-4"
               onClick={() => void handleSave()}
               disabled={isBusy || !hasDraft}
             >
               {saveState === 'saving' ? (
-                <Loader2Icon className="size-4 animate-spin" />
+                <HugeIcon icon={Loading01Icon} className="size-4 animate-spin" />
               ) : saveState === 'saved' ? (
-                <CheckIcon className="size-4" />
+                <HugeIcon icon={Tick01Icon} className="size-4" />
               ) : (
-                <SaveIcon className="size-4" />
+                <HugeIcon icon={SaveIcon} className="size-4" />
               )}
               Save file
             </Button>

@@ -1,22 +1,23 @@
 import { useState } from "react";
 
+import { HugeiconsIcon as HugeIcon } from "@hugeicons/react";
 import {
-  ArrowLeftIcon,
-  FileTextIcon,
-  ListChecksIcon,
-  SignpostIcon,
-  ShieldIcon,
-  ShieldCheckIcon,
-  GearIcon,
-  PlugsIcon,
-  PuzzlePieceIcon,
-  TrashIcon,
-  CaretDownIcon,
+  ArrowLeft02Icon,
+  File02Icon,
+  TaskEditIcon,
+  DirectionsIcon,
+  Shield01Icon,
+  ShieldKeyIcon,
+  Settings02Icon,
+  ConnectIcon,
+  PuzzleIcon,
+  Delete02Icon,
+  ChevronDownIcon,
   FolderIcon,
-  FolderPlusIcon,
-  MagnifyingGlassIcon,
-  NotePencilIcon,
-} from "@phosphor-icons/react";
+  FolderAddIcon,
+  Search02Icon,
+  PencilEdit01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { useChatStore } from "../../../store/chat-store";
 import { Button } from "../../../components/ui/button";
@@ -205,7 +206,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <GearIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={Settings02Icon} className="size-4 shrink-0 opacity-80" />
                     <span>General</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -226,7 +227,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <PlugsIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={ConnectIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Connections</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -247,7 +248,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <ShieldCheckIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={ShieldKeyIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Trust</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -268,7 +269,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <ShieldIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={Shield01Icon} className="size-4 shrink-0 opacity-80" />
                     <span>Privacy</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -289,7 +290,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <FileTextIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={File02Icon} className="size-4 shrink-0 opacity-80" />
                     <span>Workspace Memory</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -310,7 +311,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <SignpostIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={DirectionsIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Agent Profiler</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -331,7 +332,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <PuzzlePieceIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={PuzzleIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -352,7 +353,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <TrashIcon className="size-4 shrink-0 opacity-80" />
+                    <HugeIcon icon={Delete02Icon} className="size-4 shrink-0 opacity-80" />
                     <span>Archive</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -369,7 +370,7 @@ export function AppSidebar({
                   className="gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)]"
                   render={<Link to="/" />}
                 >
-                  <ArrowLeftIcon className="size-4" />
+                  <HugeIcon icon={ArrowLeft02Icon} className="size-4" />
                   <span className="font-medium">Back</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -387,7 +388,7 @@ export function AppSidebar({
                   type="button"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground/80" weight="regular" />
+                    <HugeIcon icon={Search02Icon} className="size-4 shrink-0 text-muted-foreground/80" />
                     <span className="truncate font-medium tracking-tight">Search...</span>
                   </div>
                   <KbdGroup className="shrink-0 gap-0.5 opacity-60">
@@ -409,7 +410,7 @@ export function AppSidebar({
                   aria-label="Import folder"
                   type="button"
                 >
-                  <FolderPlusIcon className="size-3.5" weight="regular" />
+                  <HugeIcon icon={FolderAddIcon} className="size-3.5" />
                 </button>
               </div>
 
@@ -451,12 +452,12 @@ export function AppSidebar({
                           }
                           type="button"
                         >
-                          <CaretDownIcon
+                          <HugeIcon
+                            icon={ChevronDownIcon}
                             className={cn(
                               "size-3 transition-transform duration-[var(--motion-press)] ease-[var(--ease-out)] motion-reduce:transition-none",
                               isProjectOpen ? "rotate-0" : "-rotate-90",
                             )}
-                            weight="regular"
                           />
                         </button>
                         <button
@@ -473,7 +474,7 @@ export function AppSidebar({
                             "flex size-4 shrink-0 items-center justify-center transition-colors",
                             isWorkspaceActive ? "text-primary" : "text-muted-foreground/60"
                           )}>
-                            <FolderIcon className="size-3.5" weight={isWorkspaceActive ? "fill" : "regular"} />
+                            <HugeIcon icon={FolderIcon} className="size-3.5" />
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {project.name}
@@ -487,7 +488,7 @@ export function AppSidebar({
                             aria-label={`Remove project ${project.name}`}
                             type="button"
                           >
-                            <TrashIcon className="size-3" />
+                            <HugeIcon icon={Delete02Icon} className="size-3" />
                           </button>
                         ) : null}
                       </div>
@@ -510,9 +511,9 @@ export function AppSidebar({
                               aria-label="New thread"
                               type="button"
                             >
-                              <NotePencilIcon
+                              <HugeIcon
+                                icon={PencilEdit01Icon}
                                 className="size-3.5"
-                                weight="regular"
                               />
                             </button>
                           </div>
@@ -568,7 +569,7 @@ export function AppSidebar({
                     className="flex min-w-0 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open Mission Log"
                   >
-                    <ListChecksIcon className="size-4 text-muted-foreground/75" />
+                    <HugeIcon icon={TaskEditIcon} className="size-4 text-muted-foreground/75" />
                     <span className="text-[13px] font-medium">Mission Log</span>
                   </Link>
                 </div>
@@ -579,7 +580,7 @@ export function AppSidebar({
                     className="flex min-w-0 flex-1 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
-                    <GearIcon className="size-4 text-muted-foreground/75" />
+                    <HugeIcon icon={Settings02Icon} className="size-4 text-muted-foreground/75" />
                     <span className="text-[13px] font-medium">Settings</span>
                   </SettingsLink>
                   <span
