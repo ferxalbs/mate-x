@@ -119,7 +119,8 @@ Design direction: compact native-macOS utility, flat canvas, subtle borders, rar
 - **Single-layer rule:** only the glass leaf may use `backdrop-filter`. Never put `backdrop-filter` on `.app-main-content-container` or other ancestors of inputs/composer/menus — nested filters make children look transparent.
 - Prefer global glass tokens and `data-slot` rules in `src/index.css` / theme CSS (`--control-glass-blur`, `--overlay-glass-blur`, `.mate-glass-float`, `.control-surface`) over one-off `backdrop-blur-*` classes.
 - Controls stay solid/`--control` when blur is off; high-tint small blur when on. Overlays use stronger blur only when portaled.
-- **Performance:** do not animate `backdrop-filter`; animate transform/opacity only (~150–250ms, `cubic-bezier(0.2, 0.8, 0.2, 1)`). Respect reduced motion. Keep blur opt-in by default.
+- **Performance:** do not animate `backdrop-filter`; animate transform/opacity only (~150–250ms, `cubic-bezier(0.2, 0.8, 0.2, 1)`). For `framer-motion`, use snappy springs (`damping: 25, stiffness: 400`) and avoid bouncy hover translations (prefer subtle `scale: 1.01`). Respect reduced motion. Keep blur opt-in by default.
+- **Component Composition:** Avoid redundant scrollbars (`overflow-y-auto`) on dropdown contents. Expose active context directly on triggers (with subtle dividers) rather than hiding it inside menus.
 
 Motion should be functional, interruptible, and reduced-motion aware.
 
