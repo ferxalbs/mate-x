@@ -81,6 +81,7 @@ import { useChatStore } from "@/store/chat-store";
 import { usePlatform } from "@/hooks/use-platform";
 import { useSidebar } from '@/components/ui/sidebar';
 import {
+  getRainyApiKeyStatusLabel,
   isValidRainyApiKey,
   serializeAppSettings,
   serializeTrustContract,
@@ -351,6 +352,11 @@ export function SettingsPage() {
   );
   const isBusy = isLoading || saveState === 'saving';
   const saveLabel = saveState === 'saved' ? 'Saved' : 'Save changes';
+  const rainyApiKeyStatusLabel = getRainyApiKeyStatusLabel({
+    hasKeyDraft,
+    currentKeyPrefix,
+    saveState,
+  });
 
   const handleSave = useCallback(async () => {
     if (section === 'trust') {
@@ -885,12 +891,12 @@ export function SettingsPage() {
                         <span
                           className={cn(
                             'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]',
-                            currentKeyPrefix
+                            rainyApiKeyStatusLabel === 'Connected' || rainyApiKeyStatusLabel === 'Saved'
                               ? 'bg-emerald-500/12 text-emerald-500'
                               : 'bg-amber-500/12 text-amber-500',
                           )}
                         >
-                          {saveState === 'saved' ? 'Saved' : currentKeyPrefix ? 'Connected' : 'Missing'}
+                          {rainyApiKeyStatusLabel}
                         </span>
 
                         {currentKeyPrefix && !isEditingKey ? (

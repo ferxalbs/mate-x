@@ -1,14 +1,30 @@
-import { SettingsRow } from '../components/ui/settings-layout';
-import type { AppSettings } from '../contracts/settings';
-import type { WorkspaceTrustContract } from '../contracts/workspace';
+import { SettingsRow } from "../components/ui/settings-layout";
+import type { AppSettings } from "../contracts/settings";
+import type { WorkspaceTrustContract } from "../contracts/workspace";
 
 export function maskKey(key: string) {
-  if (key.length <= 8) return '••••••••';
-  return key.slice(0, 4) + '•'.repeat(Math.min(key.length - 8, 24)) + key.slice(-4);
+  if (key.length <= 8) return "••••••••";
+  return (
+    key.slice(0, 4) + "•".repeat(Math.min(key.length - 8, 24)) + key.slice(-4)
+  );
 }
 
 export function isValidRainyApiKey(value: string) {
-  return value.startsWith('ra-') || value.startsWith('rk_live_');
+  return value.startsWith("ra-") || value.startsWith("rk_live_");
+}
+
+export function getRainyApiKeyStatusLabel({
+  hasKeyDraft,
+  currentKeyPrefix,
+  saveState,
+}: {
+  hasKeyDraft: boolean;
+  currentKeyPrefix: string | null;
+  saveState: "idle" | "saving" | "saved" | "error";
+}) {
+  if (hasKeyDraft) return "Unsaved";
+  if (saveState === "saved") return "Saved";
+  return currentKeyPrefix ? "Connected" : "Missing";
 }
 
 export function TrustTextareaRow({
@@ -31,7 +47,7 @@ export function TrustTextareaRow({
       control={
         <textarea
           className="control-surface min-h-20 w-full rounded-xl border border-input bg-mate-control-bg px-3 py-2 text-[13px] leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/35 sm:w-[min(360px,45vw)]"
-          value={value.join('\n')}
+          value={value.join("\n")}
           placeholder={placeholder}
           onChange={(event) => onChange(parseLines(event.target.value))}
         />
@@ -44,7 +60,7 @@ export function parseLines(value: string) {
   return Array.from(
     new Set(
       value
-        .split('\n')
+        .split("\n")
         .map((line) => line.trim())
         .filter(Boolean),
     ),
@@ -73,11 +89,11 @@ export function serializeTrustContract(contract: WorkspaceTrustContract) {
 export function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return 'unknown';
+    return "unknown";
   }
 
   return date.toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+    dateStyle: "medium",
+    timeStyle: "short",
   });
 }

@@ -18,6 +18,7 @@ import type {
 import type { ResolvePolicyStopRequest } from "../contracts/policy";
 import type { AppSettings } from "../contracts/settings";
 import type { WorkspaceMemoryFileKind, WorkspaceTrustContract } from "../contracts/workspace";
+import { requiresSensitiveIpcApproval } from "./ipc/approval-policy";
 import { assertTrustedRendererSender } from "./ipc/guards";
 import { policyService } from "./policy-service";
 import {
@@ -1360,7 +1361,9 @@ export function registerIpcHandlers() {
   handle("settings:get-api-key-status", async () => tursoService.getApiKeyStatus());
   handle("settings:set-api-key", async (_event, apiKey: string) => {
     const normalizedApiKey = normalizeRainyApiKey(requireBoundedString(apiKey, "apiKey", 2_000));
-    await requireSensitiveIpcApproval({ action: "settings:set-api-key" });
+    if (requiresSensitiveIpcApproval("settings:set-api-key")) {
+      await requireSensitiveIpcApproval({ action: "settings:set-api-key" });
+    }
     return tursoService.setApiKey(normalizedApiKey);
   });
   handle(
