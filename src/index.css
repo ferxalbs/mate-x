@@ -746,60 +746,57 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* ── Prism Syntax Highlighting (Tailwind v4) ── */
-pre[class*="language-"],
-code[class*="language-"] {
+pre, code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
 }
 
-pre[class*="language-"] {
-  & .token.comment,
-  & .token.prolog,
-  & .token.doctype,
-  & .token.cdata {
-    color: var(--code-comment);
-    font-style: italic;
-  }
-  & .token.string {
-    color: var(--code-string);
-  }
-  & .token.keyword {
-    color: var(--code-keyword);
-    font-weight: 500;
-  }
-  & .token.function {
-    color: var(--code-function);
-  }
-  & .token.variable,
-  & .token.parameter,
-  & .token.property,
-  & .token.attr-name {
-    color: var(--code-variable);
-  }
-  & .token.operator,
-  & .token.punctuation {
-    color: var(--foreground);
-    opacity: 0.8;
-  }
-  & .token.constant,
-  & .token.boolean,
-  & .token.number {
-    color: var(--code-constant);
-  }
-  & .token.tag {
-    color: var(--code-tag);
-  }
-  & .token.class-name,
-  & .token.builtin {
-    color: var(--code-class);
-  }
-  & .token.coord {
-    color: var(--code-comment);
-  }
-  & .token.inserted {
-    color: var(--code-inserted, #16a34a);
-  }
-  & .token.deleted {
-    color: var(--code-deleted, #dc2626);
-  }
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--code-comment);
+  font-style: italic;
+}
+.token.string {
+  color: var(--code-string);
+}
+.token.keyword {
+  color: var(--code-keyword);
+  font-weight: 500;
+}
+.token.function {
+  color: var(--code-function);
+}
+.token.variable,
+.token.parameter,
+.token.property,
+.token.attr-name {
+  color: var(--code-variable);
+}
+.token.operator,
+.token.punctuation {
+  color: var(--foreground);
+  opacity: 0.85;
+}
+.token.constant,
+.token.boolean,
+.token.number {
+  color: var(--code-constant);
+}
+.token.tag {
+  color: var(--code-tag);
+}
+.token.class-name,
+.token.builtin {
+  color: var(--code-class);
+}
+.token.coord {
+  color: var(--code-comment);
+}
+.token.inserted {
+  color: var(--code-inserted, #16a34a);
+}
+.token.deleted {
+  color: var(--code-deleted, #dc2626);
 }
 
