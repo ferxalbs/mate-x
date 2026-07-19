@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { QRCodeSVG } from 'qrcode.react';
+import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
 import {
-  ArrowClockwiseIcon,
-  CheckIcon,
-  DownloadSimpleIcon,
+  ReloadIcon,
+  Tick01Icon,
+  Download01Icon,
   FolderOpenIcon,
-  GearIcon,
-  KeyIcon,
-  MonitorIcon,
-  NotePencilIcon,
-  PuzzlePieceIcon,
-  ShieldCheckIcon,
-  ShieldIcon,
-  SignpostIcon,
-  SpinnerGapIcon,
-} from '@phosphor-icons/react';
+  Settings02Icon,
+  LockKeyIcon,
+  ComputerIcon,
+  PencilEdit01Icon,
+  PuzzleIcon,
+  ShieldKeyIcon,
+  Shield01Icon,
+  DirectionsIcon,
+  Loading01Icon,
+} from '@hugeicons/core-free-icons';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -104,6 +106,7 @@ export function SettingsPage() {
   const { setAppearance, setTheme, setBlurEnabled } = useTheme();
   const { state } = useSidebar();
   const platform = usePlatform();
+  const shouldReduceMotion = useReducedMotion();
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
   const activeWorkspace = useChatStore((state) => state.workspace);
   const [currentKeyPrefix, setCurrentKeyPrefix] = useState<string | null>(null);
@@ -662,7 +665,7 @@ export function SettingsPage() {
               onClick={handleRestoreDefaults}
               disabled={isBusy || changedSettingLabels.length === 0}
             >
-              <ArrowClockwiseIcon className="size-4" weight="regular" />
+              <HugeIcon icon={ReloadIcon} className="size-4" />
               Restore defaults
             </Button>
           </div>
@@ -670,9 +673,18 @@ export function SettingsPage() {
 
         <div className="flex-1 overflow-y-auto bg-transparent p-6">
           <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
-            {section === 'general' ? (
-              <SettingsSection title="General" icon={<GearIcon className="size-4" weight="regular" />}>
-                <>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={section}
+                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -6 }}
+                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                className="flex flex-col gap-6"
+              >
+                {section === 'general' ? (
+                  <SettingsSection title="General" icon={<HugeIcon icon={Settings02Icon} className="size-4" />}>
+                    <>
                   <SettingsRow
                     title="Appearance"
                     description="Choose how Mate X feels. System follows your OS setting."
@@ -855,7 +867,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'connections' ? (
-              <SettingsSection title="Connections" icon={<SignpostIcon className="size-4" weight="regular" />}>
+              <SettingsSection title="Connections" icon={<HugeIcon icon={DirectionsIcon} className="size-4" />}>
                 <>
                   <SettingsRow
                     title="Rainy API key"
@@ -903,7 +915,7 @@ export function SettingsPage() {
                           <Button
                             size="xs"
                             variant="outline"
-                            className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                            className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                             onClick={() => {
                               setIsEditingKey(true);
                               setInputValue('');
@@ -911,7 +923,7 @@ export function SettingsPage() {
                             }}
                             disabled={isBusy}
                           >
-                            <NotePencilIcon className="size-4" weight="regular" />
+                            <HugeIcon icon={PencilEdit01Icon} className="size-4" />
                             Replace
                           </Button>
                         ) : null}
@@ -923,7 +935,7 @@ export function SettingsPage() {
                     description="Main-process credentials are isolated from the renderer."
                     control={
                       <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
-                        <MonitorIcon className="size-4" weight="regular" />
+                        <HugeIcon icon={ComputerIcon} className="size-4" />
                         {currentKeyPrefix ? 'IPC secured' : 'Waiting for key'}
                       </div>
                     }
@@ -946,7 +958,7 @@ export function SettingsPage() {
                     title="Pair mobile device"
                     description={
                       mobileStatus?.running
-                        ? `Bridge listening on ${mobileStatus.host}:${mobileStatus.port}`
+                         ? `Bridge listening on ${mobileStatus.host}:${mobileStatus.port}`
                         : appSettings.mobileCompanionEnabled
                           ? 'Save settings, then start pairing to show a QR code.'
                           : 'Enable Mobile Companion and save before pairing.'
@@ -956,17 +968,17 @@ export function SettingsPage() {
                         <Button
                           size="xs"
                           variant="outline"
-                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                           onClick={() => void handleStartMobilePairing()}
                           disabled={isBusy || isMobileBusy || !savedAppSettings.mobileCompanionEnabled}
                         >
-                          {isMobileBusy ? <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" /> : null}
+                          {isMobileBusy ? <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" /> : null}
                           Start pairing
                         </Button>
                         <Button
                           size="xs"
                           variant="ghost"
-                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                           onClick={() => void handleStopMobilePairing()}
                           disabled={isBusy || isMobileBusy || !mobilePairingPayload}
                         >
@@ -1002,7 +1014,7 @@ export function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <Button
                             size="xs"
-                            className="h-8 rounded-lg px-3 text-[12px]"
+                            className="h-8 rounded-xl px-3 text-[12px]"
                             onClick={() => void handleApproveMobilePairing(true)}
                             disabled={isBusy || isMobileBusy}
                           >
@@ -1011,7 +1023,7 @@ export function SettingsPage() {
                           <Button
                             size="xs"
                             variant="outline"
-                            className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                            className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                             onClick={() => void handleApproveMobilePairing(false)}
                             disabled={isBusy || isMobileBusy}
                           >
@@ -1033,7 +1045,7 @@ export function SettingsPage() {
                               <Button
                                 size="xs"
                                 variant="ghost"
-                                className="h-7 rounded-lg px-2 text-[11px]"
+                                className="h-7 rounded-xl px-2 text-[11px]"
                                 onClick={async () => {
                                   setMobileDevices(await window.mate.mobile.revokeDevice(device.id));
                                   await refreshMobileBridge();
@@ -1060,7 +1072,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'privacy' ? (
-              <SettingsSection title="Privacy Firewall" icon={<ShieldIcon className="size-3.5" />}>
+              <SettingsSection title="Privacy Firewall" icon={<HugeIcon icon={Shield01Icon} className="size-3.5" />}>
                 <>
                   <SettingsRow
                     title="Enable Privacy Firewall"
@@ -1132,24 +1144,24 @@ export function SettingsPage() {
                         <Button
                           size="xs"
                           variant="outline"
-                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                           onClick={() => void refreshPrivacyModelStatus()}
                           disabled={isPrivacyModelBusy}
                         >
-                          <ArrowClockwiseIcon className="size-4" weight="regular" />
+                          <HugeIcon icon={ReloadIcon} className="size-4" />
                           Refresh
                         </Button>
                         <Button
                           size="xs"
                           variant="outline"
-                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                           onClick={() => void handleDownloadPrivacyModel()}
                           disabled={isPrivacyModelBusy || !privacyModelStatus?.downloadUrl}
                         >
                           {isPrivacyModelBusy ? (
-                            <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
+                            <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                           ) : (
-                            <DownloadSimpleIcon className="size-4" weight="regular" />
+                            <HugeIcon icon={Download01Icon} className="size-4" />
                           )}
                           Download
                         </Button>
@@ -1293,14 +1305,14 @@ export function SettingsPage() {
                       <Button
                         size="xs"
                         variant="outline"
-                        className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                        className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                         onClick={() => void handlePrivacyCanaryScan()}
                         disabled={isPrivacyActionBusy}
                       >
                         {isPrivacyActionBusy ? (
-                          <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
+                          <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                         ) : (
-                          <ShieldIcon className="size-3.5" />
+                          <HugeIcon icon={Shield01Icon} className="size-3.5" />
                         )}
                         Scan canary
                       </Button>
@@ -1313,11 +1325,11 @@ export function SettingsPage() {
                       <Button
                         size="xs"
                         variant="outline"
-                        className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                        className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                         onClick={() => void handleClearPrivacyVault()}
                         disabled={isPrivacyActionBusy}
                       >
-                        <ArrowClockwiseIcon className="size-4" weight="regular" />
+                        <HugeIcon icon={ReloadIcon} className="size-4" />
                         Clear vault
                       </Button>
                     }
@@ -1343,7 +1355,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'integrations' ? (
-              <SettingsSection title="Integrations" icon={<PuzzlePieceIcon className="size-4" weight="regular" />}>
+              <SettingsSection title="Integrations" icon={<HugeIcon icon={PuzzleIcon} className="size-4" />}>
                 <>
                   <SettingsRow
                     title="Codex"
@@ -1497,14 +1509,14 @@ export function SettingsPage() {
                         <Button
                           size="xs"
                           variant="outline"
-                          className="h-8 rounded-lg px-3 text-[12px] shadow-none"
+                          className="h-8 rounded-xl px-3 text-[12px] shadow-none"
                           onClick={() => void refreshGithubStatus()}
                           disabled={isBusy || isGithubStatusBusy}
                         >
                           {isGithubStatusBusy ? (
-                            <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
+                            <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                           ) : (
-                            <MonitorIcon className="size-4" weight="regular" />
+                            <HugeIcon icon={ComputerIcon} className="size-4" />
                           )}
                           Detect
                         </Button>
@@ -1514,9 +1526,9 @@ export function SettingsPage() {
                 </>
               </SettingsSection>
             ) : null}
-
+ 
             {section === 'archive' ? (
-              <SettingsSection title="Archive" icon={<FolderOpenIcon className="size-4" weight="regular" />}>
+              <SettingsSection title="Archive" icon={<HugeIcon icon={FolderOpenIcon} className="size-4" />}>
                 <>
                   <SettingsRow
                     title="Archive confirmation"
@@ -1551,8 +1563,10 @@ export function SettingsPage() {
                 </>
               </SettingsSection>
             ) : null}
-
-            <div className="mt-4 flex items-center justify-between gap-4">
+          </motion.div>
+        </AnimatePresence>
+ 
+        <div className="mt-4 flex items-center justify-between gap-4">
               <div className="flex min-h-5 items-center gap-2 text-xs text-muted-foreground">
                 {saveState === 'error' ? (
                   <span className="text-destructive-foreground">{errorMsg}</span>
@@ -1596,11 +1610,11 @@ export function SettingsPage() {
                   </span>
                 )}
               </div>
-
+ 
               {section === 'workspace-memory' ? null : (
                 <Button
                   size="sm"
-                  className="h-9 rounded-lg px-4"
+                  className="h-9 rounded-xl px-4"
                   onClick={() => void handleSave()}
                   disabled={
                     section === 'connections'
@@ -1611,15 +1625,15 @@ export function SettingsPage() {
                   }
                 >
                   {isBusy ? (
-                    <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
+                    <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                   ) : saveState === 'saved' ? (
-                    <CheckIcon className="size-4" />
+                    <HugeIcon icon={Tick01Icon} className="size-4" />
                   ) : section === 'trust' ? (
-                    <ShieldCheckIcon className="size-4" />
+                    <HugeIcon icon={ShieldKeyIcon} className="size-4" />
                   ) : section === 'general' || section === 'archive' || section === 'integrations' || section === 'agent-profiler' || section === 'privacy' ? (
-                    <GearIcon className="size-4" weight="regular" />
+                    <HugeIcon icon={Settings02Icon} className="size-4" />
                   ) : (
-                    <KeyIcon className="size-4" weight="regular" />
+                    <HugeIcon icon={LockKeyIcon} className="size-4" />
                   )}
                   {saveLabel}
                 </Button>

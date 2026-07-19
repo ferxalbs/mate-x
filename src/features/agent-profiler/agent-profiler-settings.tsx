@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrainCircuitIcon, Loader2Icon, RouteIcon } from 'lucide-react';
+import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
+import { BrainCircuitIcon, Loading01Icon, RouteIcon } from '@hugeicons/core-free-icons';
 
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -97,11 +98,11 @@ export function AgentProfilerSettings({
     <div className="space-y-6">
       <SettingsSection
         title="Agent Profiler"
-        icon={<BrainCircuitIcon className="size-3.5" />}
+        icon={<HugeIcon icon={BrainCircuitIcon} className="size-3.5" />}
         headerAction={
           loading ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Loader2Icon className="size-3 animate-spin" />
+              <HugeIcon icon={Loading01Icon} className="size-3 animate-spin" />
               Loading
             </span>
           ) : null
@@ -143,14 +144,14 @@ export function AgentProfilerSettings({
               />
               <Button
                 size="sm"
-                className="h-9 rounded-lg"
+                className="h-9 rounded-xl"
                 disabled={recommending || task.trim().length === 0}
                 onClick={() => void handleRecommend()}
               >
                 {recommending ? (
-                  <Loader2Icon className="size-4 animate-spin" />
+                  <HugeIcon icon={Loading01Icon} className="size-4 animate-spin" />
                 ) : (
-                  <RouteIcon className="size-4" />
+                  <HugeIcon icon={RouteIcon} className="size-4" />
                 )}
                 Recommend
               </Button>
@@ -182,7 +183,7 @@ function ProfilerTable({
   profiles: AgentCapabilityProfile[];
 }) {
   return (
-    <SettingsSection title={title} icon={<RouteIcon className="size-3.5" />}>
+    <SettingsSection title={title} icon={<HugeIcon icon={RouteIcon} className="size-3.5" />}>
       {profiles.length === 0 ? (
         <SettingsRow
           title="No data yet"
