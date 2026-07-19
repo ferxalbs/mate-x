@@ -102,7 +102,7 @@ export function EmptyChatState({
         )}
 
         {composer && workspace ? (
-          <div className="mt-4 rounded-[32px]">
+          <div className="mt-3 rounded-[32px]">
             {composer}
           </div>
         ) : null}
