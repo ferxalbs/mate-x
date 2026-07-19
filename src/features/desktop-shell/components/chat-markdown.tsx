@@ -15,8 +15,9 @@ type SyntaxHighlighterComponent = ComponentType<{
   customStyle?: React.CSSProperties;
   codeTagProps?: { style?: React.CSSProperties; className?: string };
   wrapLines?: boolean;
-  lineProps?: (lineNumber: number) => React.HTMLProps<HTMLElement>;
+  lineProps?: (lineNumber: number) => React.HTMLProps<HTMLElement> | { className?: string };
   className?: string;
+  useInlineStyles?: boolean;
   children: string;
 }>;
 
@@ -40,53 +41,6 @@ interface CodeBlockProps {
   children?: ReactNode;
 }
 
-const customPrismTheme: { [key: string]: React.CSSProperties } = {
-  'code[class*="language-"]': {
-    color: "var(--foreground)",
-    fontFamily: "inherit",
-  },
-  'pre[class*="language-"]': {
-    background: "transparent",
-    padding: 0,
-    margin: 0,
-  },
-  keyword: { color: "var(--code-keyword)" },
-  string: { color: "var(--code-string)" },
-  function: { color: "var(--code-function)" },
-  comment: { color: "var(--code-comment)" },
-  variable: { color: "var(--code-variable)" },
-  operator: { color: "var(--code-operator)" },
-  constant: { color: "var(--code-constant)" },
-  tag: { color: "var(--code-tag)" },
-  boolean: { color: "var(--code-constant)" },
-  number: { color: "var(--code-constant)" },
-  "attr-name": { color: "var(--code-variable)" },
-  "attr-value": { color: "var(--code-string)" },
-  "class-name": { color: "var(--code-class)" },
-  parameter: { color: "var(--code-variable)" },
-  property: { color: "var(--code-variable)" },
-  selector: { color: "var(--code-keyword)" },
-  builtin: { color: "var(--code-class)" },
-  inserted: {
-    color: "var(--code-inserted, #16a34a)",
-    backgroundColor: "color-mix(in srgb, var(--code-inserted, #16a34a) 15%, transparent)",
-    display: "inline-block",
-    width: "100%",
-  },
-  deleted: {
-    color: "var(--code-deleted, #dc2626)",
-    backgroundColor: "color-mix(in srgb, var(--code-deleted, #dc2626) 15%, transparent)",
-    display: "inline-block",
-    width: "100%",
-  },
-  coord: {
-    color: "var(--code-comment, #8b949e)",
-  },
-  diff: {
-    color: "var(--foreground)",
-  }
-};
-
 export function RawSyntaxHighlighter({ content, language, className }: { content: string; language: string; className?: string }) {
   const [Highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(null);
 
@@ -104,7 +58,7 @@ export function RawSyntaxHighlighter({ content, language, className }: { content
 
   if (!Highlighter) {
     return (
-      <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground", className)}>
+      <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground font-mono", className)}>
         <code style={{ fontFamily: "inherit" }}>
           {content}
         </code>
@@ -115,21 +69,24 @@ export function RawSyntaxHighlighter({ content, language, className }: { content
   return (
     <Highlighter
       language={language}
-      style={customPrismTheme}
-      PreTag="div"
+      PreTag="pre"
+      useInlineStyles={false}
       wrapLines={true}
       lineProps={(lineNumber: number) => {
         const lineStr = lines[lineNumber - 1] || '';
+        let classes = "block w-full min-w-full pr-6 py-0.5";
         if (lineStr.startsWith('+') && !lineStr.startsWith('+++')) {
-          return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-inserted, #16a34a) 15%, transparent)' } };
+          classes += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
         } else if (lineStr.startsWith('-') && !lineStr.startsWith('---')) {
-          return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-deleted, #dc2626) 15%, transparent)' } };
+          classes += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
+        } else {
+          classes += " pl-6";
         }
-        return { style: { display: 'block', minWidth: '100%', width: 'fit-content' } };
+        return { className: classes };
       }}
       customStyle={{
         margin: 0,
-        padding: 0,
+        padding: "1rem 0",
         background: "transparent",
         fontSize: "12.5px",
         lineHeight: "1.6",
@@ -257,21 +214,24 @@ function CodeBlock({ className, children }: CodeBlockProps) {
       {Highlighter ? (
         <Highlighter
           language={language}
-          style={customPrismTheme}
-          PreTag="div"
+          PreTag="pre"
+          useInlineStyles={false}
           wrapLines={true}
           lineProps={(lineNumber: number) => {
             const lineStr = lines[lineNumber - 1] || '';
+            let classes = "block w-full min-w-full pr-6 py-0.5";
             if (lineStr.startsWith('+') && !lineStr.startsWith('+++')) {
-              return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-inserted, #16a34a) 15%, transparent)' } };
+              classes += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
             } else if (lineStr.startsWith('-') && !lineStr.startsWith('---')) {
-              return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-deleted, #dc2626) 15%, transparent)' } };
+              classes += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
+            } else {
+              classes += " pl-6";
             }
-            return { style: { display: 'block', minWidth: '100%', width: 'fit-content' } };
+            return { className: classes };
           }}
           customStyle={{
             margin: 0,
-            padding: "1.25rem 1.5rem",
+            padding: "1.25rem 0",
             background: "transparent",
             fontSize: "12.5px",
             lineHeight: "1.6",
@@ -283,7 +243,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
           {content}
         </Highlighter>
       ) : (
-        <pre className="m-0 overflow-x-auto p-5 text-[12.5px] leading-relaxed text-foreground">
+        <pre className="m-0 overflow-x-auto p-5 text-[12.5px] leading-relaxed text-foreground font-mono">
           <code style={{ fontFamily: "inherit" }}>
             {content}
           </code>
