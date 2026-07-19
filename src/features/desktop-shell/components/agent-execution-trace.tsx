@@ -15,7 +15,7 @@ import {
 import { memo, useEffect, useMemo, useState } from "react";
 
 import { normalizeToolEvent, type ToolEvent, type ToolEventType } from "../../../contracts/chat";
-import { ChatMarkdown } from "./chat-markdown";
+import { ChatMarkdown, RawSyntaxHighlighter } from "./chat-markdown";
 import { formatDuration, getTimelineDuration, getTimelineStart } from "./agent-execution-trace-utils";
 
 function getToolIcon(type?: ToolEventType) {
@@ -218,9 +218,9 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
         <span className="min-w-0 break-words [overflow-wrap:anywhere] pt-0.5 leading-snug">{event.title ?? event.label}</span>
       </button>
       {detailsOpen ? (
-        <div className="ml-[1.375rem] max-w-full [&_.chat-markdown-codeblock]:max-h-[400px] [&_.chat-markdown-codeblock]:overflow-y-auto [&_.chat-markdown-codeblock]:my-2">
-          <ChatMarkdown
-            content={`\`\`\`${
+        <div className="ml-[1.375rem] my-2 max-w-full overflow-x-auto border-l-2 border-border/50 pl-3 py-1">
+          <RawSyntaxHighlighter
+            language={
               event.type === "edit" || event.detail?.includes("@@")
                 ? "diff"
                 : event.type === "command"
@@ -228,7 +228,9 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
                   : event.detail?.trim().startsWith("{")
                     ? "json"
                     : "typescript"
-            }\n${event.detail}\n\`\`\``}
+            }
+            content={event.detail ?? ""}
+            className="[&_pre]:!bg-transparent"
           />
         </div>
       ) : null}
