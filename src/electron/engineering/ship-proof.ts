@@ -57,7 +57,7 @@ export function issueShipProof(input: {
   if (input.task.changeContract && !outcomeMap) {
     return { ok: false, code: ERR_CODES.ERR_OUTCOME_REQUIRED, message: 'ShipProof requires an outcome check' };
   }
-  if (outcomeMap?.diffHash !== input.anchors.diffHash) {
+  if (outcomeMap && outcomeMap.diffHash !== input.anchors.diffHash) {
     return {
       ok: false,
       code: ERR_CODES.ERR_PROOF_STALE_DIFF,

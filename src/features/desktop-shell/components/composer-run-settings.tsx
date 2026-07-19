@@ -103,11 +103,13 @@ export function ComposerRunSettings({
         ref={triggerRef}
       >
         <ComposerPolicySummary behavior={behavior} trust={trust} />
+        <span className="h-3 w-px bg-border/60" />
+        <span className="truncate text-muted-foreground">{modelLabel}</span>
         <CaretDownIcon aria-hidden className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="mate-glass-float max-h-[min(34rem,var(--available-height))] w-[min(22rem,var(--available-width))] overflow-y-auto rounded-2xl border-border/70 bg-panel p-1.5 shadow-none"
+        className="mate-glass-float max-h-[min(34rem,var(--available-height))] w-[min(22rem,var(--available-width))] rounded-2xl border-border/70 shadow-none"
         sideOffset={6}
       >
         <MenuSectionLabel>Run settings</MenuSectionLabel>
@@ -188,15 +190,15 @@ export function ComposerRunSettings({
         <MenuSubLabel>Model</MenuSubLabel>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger
-            className="rounded-xl"
+            className="rounded-xl gap-3"
             disabled={isModelDisabled}
           >
             <span className="min-w-0 flex-1 truncate">Model</span>
-            <span className="max-w-44 truncate text-muted-foreground">
+            <span className="max-w-44 truncate text-right text-muted-foreground">
               {modelLabel}
             </span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="mate-glass-float max-h-72 w-72 overflow-y-auto rounded-2xl border-border/70 bg-panel p-1.5 shadow-none">
+          <DropdownMenuSubContent className="mate-glass-float max-h-72 w-72 rounded-2xl border-border/70 shadow-none">
             <DropdownMenuRadioGroup value={modelValue} onValueChange={onModelChange}>
               {catalog.map((model) => (
                 <DropdownMenuRadioItem
@@ -213,13 +215,13 @@ export function ComposerRunSettings({
 
         {supportsReasoningEffort ? (
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="rounded-xl">
-              <span className="flex-1">Reasoning</span>
-              <span className="text-muted-foreground">
+            <DropdownMenuSubTrigger className="rounded-xl gap-3">
+              <span className="flex-1 truncate">Reasoning</span>
+              <span className="text-right text-muted-foreground truncate">
                 {formatReasoningEffort(reasoningValue)}
               </span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="mate-glass-float w-44 rounded-2xl border-border/70 bg-panel p-1.5 shadow-none">
+            <DropdownMenuSubContent className="mate-glass-float w-44 rounded-2xl border-border/70 shadow-none">
               <DropdownMenuRadioGroup
                 onValueChange={(value) =>
                   onReasoningChange(value as AssistantRunOptions["reasoning"])
@@ -242,13 +244,13 @@ export function ComposerRunSettings({
 
         {showServiceTierSelector ? (
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="rounded-xl">
-              <span className="flex-1">Service tier</span>
-              <span className="text-muted-foreground">
+            <DropdownMenuSubTrigger className="rounded-xl gap-3">
+              <span className="flex-1 truncate">Service tier</span>
+              <span className="text-right text-muted-foreground truncate">
                 {formatServiceTier(serviceTier)}
               </span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="mate-glass-float w-44 rounded-2xl border-border/70 bg-panel p-1.5 shadow-none">
+            <DropdownMenuSubContent className="mate-glass-float w-44 rounded-2xl border-border/70 shadow-none">
               <DropdownMenuRadioGroup
                 onValueChange={(value) =>
                   onServiceTierChange(value as RainyServiceTier)
