@@ -240,6 +240,7 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 6. **Snappy & Fluid Transitions**:
     - Avoid slow, sluggish, or purely linear CSS transitions (e.g., `ease-linear`).
     - Prefer `duration-150`–`duration-[250ms]` with `ease-[cubic-bezier(0.2,0.8,0.2,1)]` for interactive UI.
+    - For `framer-motion`, use snappy, properly-damped springs (e.g., `damping: 25, stiffness: 400`). Avoid bouncy or aggressive y-axis translations on hover; use subtle scaling instead (`scale: 1.01`).
     - Prefer transform + opacity only; never transition `backdrop-filter` or large layout properties for routine hover/open.
     - Motion must be interruptible and reduced-motion aware.
 7. **Cards & Data Panels**:
@@ -247,6 +248,9 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
     - Leverage scrollable constraints (`min-h-0`, `flex-1`) combined with `ScrollArea` to construct clean layouts without stretching the entire view.
     - Prevent horizontal overflow gracefully: always apply `break-all` and `break-words` on typography displaying dynamic data, long text, JSON, or hashes.
     - Use uppercase, tracking-wider, `text-[10px]` typography for section labels, metric headers, or minor tags (`text-muted-foreground/70`).
+8. **Component Composition & Context**:
+    - Avoid redundant scrollbars. Do not add `overflow-y-auto` to `DropdownMenuContent` wrappers if the underlying primitive already manages scrolling.
+    - Expose active context (like selected models or settings) directly on the trigger button (using subtle dividers like `h-3 w-px bg-border/60`) so users do not have to open menus just to see their current selection.
 
 ***
 

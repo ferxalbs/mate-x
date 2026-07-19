@@ -104,7 +104,10 @@ export function ComposerRunSettings({
       >
         <ComposerPolicySummary behavior={behavior} trust={trust} />
         <span className="h-3 w-px bg-border/60" />
-        <span className="truncate text-muted-foreground">{modelLabel}</span>
+        <span className="truncate text-muted-foreground">
+          {modelLabel}
+          {supportsReasoningEffort && ` ${formatReasoningEffort(reasoningValue)}`}
+        </span>
         <CaretDownIcon aria-hidden className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
