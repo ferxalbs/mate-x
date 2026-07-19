@@ -218,20 +218,18 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
         <span className="min-w-0 break-words [overflow-wrap:anywhere] pt-0.5 leading-snug">{event.title ?? event.label}</span>
       </button>
       {detailsOpen ? (
-        <div className="ml-[1.375rem] mt-2 max-w-full">
-          <div className="max-h-[500px] overflow-y-auto rounded-md ring-1 ring-inset ring-border/20 shadow-inner bg-black/5 dark:bg-white/5">
-            <ChatMarkdown
-              content={`\`\`\`${
-                event.type === "edit" || event.detail?.includes("@@")
-                  ? "diff"
-                  : event.type === "command"
-                    ? "bash"
-                    : event.detail?.trim().startsWith("{")
-                      ? "json"
-                      : "typescript"
-              }\n${event.detail}\n\`\`\``}
-            />
-          </div>
+        <div className="ml-[1.375rem] max-w-full [&_.chat-markdown-codeblock]:max-h-[400px] [&_.chat-markdown-codeblock]:overflow-y-auto [&_.chat-markdown-codeblock]:my-2">
+          <ChatMarkdown
+            content={`\`\`\`${
+              event.type === "edit" || event.detail?.includes("@@")
+                ? "diff"
+                : event.type === "command"
+                  ? "bash"
+                  : event.detail?.trim().startsWith("{")
+                    ? "json"
+                    : "typescript"
+            }\n${event.detail}\n\`\`\``}
+          />
         </div>
       ) : null}
     </div>
