@@ -3,15 +3,20 @@ import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"
 
+interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
+  scrollbarOrientation?: "vertical" | "horizontal" | "both";
+}
+
 function ScrollArea({
   className,
   children,
+  scrollbarOrientation = "vertical",
   ...props
-}: ScrollAreaPrimitive.Root.Props) {
+}: ScrollAreaProps) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn("relative", className)}
+      className={cn("relative overflow-hidden group/scrollarea", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
@@ -20,7 +25,12 @@ function ScrollArea({
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
+      {(scrollbarOrientation === "vertical" || scrollbarOrientation === "both") && (
+        <ScrollBar orientation="vertical" />
+      )}
+      {(scrollbarOrientation === "horizontal" || scrollbarOrientation === "both") && (
+        <ScrollBar orientation="horizontal" />
+      )}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )
@@ -37,14 +47,14 @@ function ScrollBar({
       data-orientation={orientation}
       orientation={orientation}
       className={cn(
-        "flex touch-none p-px transition-colors select-none data-horizontal:h-2.5 data-horizontal:flex-col data-horizontal:border-t data-horizontal:border-t-transparent data-vertical:h-full data-vertical:w-2.5 data-vertical:border-l data-vertical:border-l-transparent",
+        "flex touch-none p-px select-none opacity-0 group-hover/scrollarea:opacity-100 transition-opacity duration-300 data-horizontal:h-2 data-horizontal:flex-col data-horizontal:border-t data-horizontal:border-t-transparent data-vertical:h-full data-vertical:w-2 data-vertical:border-l data-vertical:border-l-transparent",
         className
       )}
       {...props}
     >
       <ScrollAreaPrimitive.Thumb
         data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full bg-border"
+        className="relative flex-1 rounded-full bg-muted-foreground/30 hover:bg-muted-foreground/50 transition-colors duration-200"
       />
     </ScrollAreaPrimitive.Scrollbar>
   )
