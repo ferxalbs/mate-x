@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { memo, useEffect, useState, useMemo, type ComponentType, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -14,6 +14,8 @@ type SyntaxHighlighterComponent = ComponentType<{
   PreTag?: string;
   customStyle?: React.CSSProperties;
   codeTagProps?: { style?: React.CSSProperties; className?: string };
+  wrapLines?: boolean;
+  lineProps?: (lineNumber: number) => React.HTMLProps<HTMLElement>;
   className?: string;
   children: string;
 }>;
@@ -88,6 +90,8 @@ const customPrismTheme: { [key: string]: React.CSSProperties } = {
 export function RawSyntaxHighlighter({ content, language, className }: { content: string; language: string; className?: string }) {
   const [Highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(null);
 
+  const lines = useMemo(() => content.split('\n'), [content]);
+
   useEffect(() => {
     let cancelled = false;
     void loadSyntaxHighlighter().then((component) => {
@@ -113,6 +117,16 @@ export function RawSyntaxHighlighter({ content, language, className }: { content
       language={language}
       style={customPrismTheme}
       PreTag="div"
+      wrapLines={true}
+      lineProps={(lineNumber: number) => {
+        const lineStr = lines[lineNumber - 1] || '';
+        if (lineStr.startsWith('+') && !lineStr.startsWith('+++')) {
+          return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-inserted, #16a34a) 15%, transparent)' } };
+        } else if (lineStr.startsWith('-') && !lineStr.startsWith('---')) {
+          return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-deleted, #dc2626) 15%, transparent)' } };
+        }
+        return { style: { display: 'block', minWidth: '100%', width: 'fit-content' } };
+      }}
       customStyle={{
         margin: 0,
         padding: 0,
@@ -162,6 +176,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const content = String(children ?? "");
   const language = className?.replace(/^language-/, "") ?? "";
+  const lines = useMemo(() => content.split('\n'), [content]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +259,16 @@ function CodeBlock({ className, children }: CodeBlockProps) {
           language={language}
           style={customPrismTheme}
           PreTag="div"
+          wrapLines={true}
+          lineProps={(lineNumber: number) => {
+            const lineStr = lines[lineNumber - 1] || '';
+            if (lineStr.startsWith('+') && !lineStr.startsWith('+++')) {
+              return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-inserted, #16a34a) 15%, transparent)' } };
+            } else if (lineStr.startsWith('-') && !lineStr.startsWith('---')) {
+              return { style: { display: 'block', minWidth: '100%', width: 'fit-content', backgroundColor: 'color-mix(in srgb, var(--code-deleted, #dc2626) 15%, transparent)' } };
+            }
+            return { style: { display: 'block', minWidth: '100%', width: 'fit-content' } };
+          }}
           customStyle={{
             margin: 0,
             padding: "1.25rem 1.5rem",
