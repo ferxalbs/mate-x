@@ -15,6 +15,7 @@ import "prismjs/components/prism-json";
 import "prismjs/components/prism-diff";
 
 import { cn } from "../../../lib/utils";
+import { ScrollArea } from "../../../components/ui/scroll-area";
 
 interface ChatMarkdownProps {
   content: string;
@@ -108,59 +109,69 @@ export function CustomSyntaxHighlighter({
 
   if (!grammar || !tokenLines) {
     return (
-      <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground font-mono", className)}>
-        <code className="block px-6 py-4">{content}</code>
-      </pre>
+      <ScrollArea
+        scrollbarOrientation="horizontal"
+        className={cn("w-full text-[12.5px] leading-relaxed text-foreground font-mono", className)}
+      >
+        <pre className="m-0 overflow-visible py-4">
+          <code className="block px-6">{content}</code>
+        </pre>
+      </ScrollArea>
     );
   }
 
   return (
-    <pre className={cn("m-0 overflow-x-auto text-[12.5px] leading-relaxed text-foreground font-mono", paddingY, className)}>
-      <code className="block min-w-full w-fit">
-        {tokenLines.map((lineTokens, lineIdx) => {
-          const lineStr = lineTokens.map(t => t.content).join('');
-          
-          let lineClass = "block w-full min-w-full pr-6 py-0.5";
-          
-          const isAdded = lineStr.startsWith('+') && !lineStr.startsWith('+++');
-          const isRemoved = lineStr.startsWith('-') && !lineStr.startsWith('---');
-          
-          if (isAdded) {
-            lineClass += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
-          } else if (isRemoved) {
-            lineClass += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
-          } else {
-            lineClass += " pl-6";
-          }
+    <ScrollArea
+      scrollbarOrientation="horizontal"
+      className={cn("w-full text-[12.5px] leading-relaxed text-foreground font-mono", className)}
+    >
+      <pre className={cn("m-0 overflow-visible", paddingY)}>
+        <code className="block min-w-full w-fit">
+          {tokenLines.map((lineTokens, lineIdx) => {
+            const lineStr = lineTokens.map(t => t.content).join('');
+            
+            let lineClass = "block w-full min-w-full pr-6 py-0.5";
+            
+            const isAdded = lineStr.startsWith('+') && !lineStr.startsWith('+++');
+            const isRemoved = lineStr.startsWith('-') && !lineStr.startsWith('---');
+            
+            if (isAdded) {
+              lineClass += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
+            } else if (isRemoved) {
+              lineClass += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
+            } else {
+              lineClass += " pl-6";
+            }
 
-          return (
-            <div key={lineIdx} className={lineClass}>
-              {lineTokens.length === 0 ? (
-                <br />
-              ) : (
-                lineTokens.map((token, tokenIdx) => {
-                  let tokenClass = token.type ? cn("token", token.type) : undefined;
-                  
-                  if (language.toLowerCase() === "diff") {
-                    if (token.type === "inserted") {
-                      tokenClass = "token inserted text-emerald-700 dark:text-emerald-400";
-                    } else if (token.type === "deleted") {
-                      tokenClass = "token deleted text-red-700 dark:text-red-400";
+            return (
+              <div key={lineIdx} className={lineClass}>
+                {lineTokens.length === 0 ? (
+                  <br />
+                ) : (
+                  lineTokens.map((token, tokenIdx) => {
+                    let tokenClass = token.type ? cn("token", token.type) : undefined;
+                    
+                    if (language.toLowerCase() === "diff") {
+                      if (token.type === "inserted") {
+                        tokenClass = "token inserted text-emerald-700 dark:text-emerald-400";
+                      } else if (token.type === "deleted") {
+                        tokenClass = "token deleted text-red-700 dark:text-red-400";
+                      }
                     }
-                  }
 
-                  return (
-                    <span key={tokenIdx} className={tokenClass}>
-                      {token.content}
-                    </span>
-                  );
-                })
-              )}
-            </div>
-          );
-        })}
-      </code>
-    </pre>
+                    return (
+                      <span key={tokenIdx} className={tokenClass}>
+                        {token.content}
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })}
+        </code>
+      </pre>
+    </ScrollArea>
   );
 }
 

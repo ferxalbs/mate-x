@@ -218,7 +218,7 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
         <span className="min-w-0 break-words [overflow-wrap:anywhere] pt-0.5 leading-snug">{event.title ?? event.label}</span>
       </button>
       {detailsOpen ? (
-        <div className="ml-[1.375rem] my-2 max-w-full overflow-x-auto border-l-2 border-border/50 pl-3 py-1">
+        <div className="ml-[1.375rem] my-2 max-w-full border-l-2 border-border/50 pl-3 py-1">
           <RawSyntaxHighlighter
             language={
               event.type === "edit" || event.detail?.includes("@@")
