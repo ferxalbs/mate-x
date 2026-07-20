@@ -17,6 +17,7 @@ import { renderWorkPlanForPrompt } from "../../work-engine/work-engine";
 import { renderFailureMemoryInstruction } from "../../work-engine/failure-memory-gate";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../../config/mate-agent";
 import { renderRunbookForPrompt } from "../../assistant-runbooks";
+import { applyContextCompressionChat } from "../../context-compression";
 import type { AgentToolCall } from "./types";
 import {
   buildAgentRuntimeConfig,
@@ -104,8 +105,6 @@ export async function requestRainyChatAgenticResponse({
   let totalToolCalls = 0;
   let lastNonEmptyAssistantText = "";
   const toolExecutions: ToolExecutionRecord[] = [];
-
-  const { applyContextCompressionChat } = await import("../../context-compression");
 
   const finalizeContent = (finalContent: string) =>
     finalizeCriticLoop({
