@@ -18,10 +18,10 @@
   --popover-foreground: var(--foreground);
   --primary: oklch(0.48 0.07 145);
   --primary-foreground: var(--color-white);
-  --secondary: --alpha(var(--color-black) / 4%);
+  --secondary: color-mix(in srgb, black 4%, transparent);
   --secondary-foreground: var(--foreground);
-  --muted: --alpha(var(--color-black) / 4%);
-  --muted-foreground: color-mix(in srgb, var(--color-neutral-600) 90%, var(--color-black));
+  --muted: color-mix(in srgb, black 4%, transparent);
+  --muted-foreground: color-mix(in srgb, var(--foreground) 65%, transparent);
   /*
    * Semantic text roles. Operational copy never stacks opacity on these colors:
    * body 14px, compact rows 13px, secondary copy 12px, metadata 10–11px only.
@@ -29,11 +29,11 @@
   --text-operational: var(--foreground);
   --text-secondary: var(--muted-foreground);
   --text-metadata: var(--muted-foreground);
-  --accent: --alpha(var(--color-black) / 4%);
+  --accent: color-mix(in srgb, black 4%, transparent);
   --accent-foreground: var(--foreground);
   --destructive: var(--color-red-500);
-  --border: --alpha(var(--color-black) / 8%);
-  --input: --alpha(var(--color-black) / 10%);
+  --border: color-mix(in srgb, black 8%, transparent);
+  --input: color-mix(in srgb, black 10%, transparent);
   --ring: oklch(0.48 0.07 145);
   --destructive-foreground: var(--color-red-700);
   --info: var(--color-blue-500);
@@ -82,7 +82,11 @@
   --sidebar: #ffffff;
   --sidebar-foreground: var(--foreground);
   --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
-  --sidebar-accent: color-mix(in srgb, black 4%, #ffffff);
+  --sidebar-accent: color-mix(in srgb, black 4%, transparent);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-ring: var(--ring);
   --surface: #ffffff;
   --surface-soft: color-mix(in srgb, black 3%, #ffffff);
   --panel: #ffffff;
