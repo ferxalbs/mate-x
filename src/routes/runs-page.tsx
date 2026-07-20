@@ -445,10 +445,10 @@ export function RunsPage() {
       )}
 
       {selectedRun ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto min-[1100px]:grid-cols-[260px_minmax(0,1fr)] min-[1100px]:overflow-hidden 2xl:grid-cols-[280px_minmax(0,1fr)_300px]">
-          <aside className="min-h-0 border-r border-border/70 flex flex-col">
-            <div className="border-b border-border/70 px-4 py-3">
-              <div className="mate-text-metadata">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 min-w-0 overflow-y-auto md:overflow-hidden bg-[var(--mate-page-bg)]">
+          <aside className="shrink-0 w-full md:w-[260px] xl:w-[280px] border-b md:border-b-0 md:border-r border-border/70 flex flex-col min-h-[300px] md:min-h-0 bg-[var(--mate-panel-bg)] z-20">
+            <div className="sticky top-0 z-10 border-b border-border/70 px-4 py-3 bg-[var(--mate-panel-bg)]/80 backdrop-blur-xl">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Captured Runs
               </div>
             </div>
@@ -488,7 +488,7 @@ export function RunsPage() {
             </ScrollArea>
           </aside>
 
-          <main className="min-h-0 flex flex-col">
+          <main className="flex-1 min-w-0 flex flex-col min-h-[500px] md:min-h-0 relative z-0">
             <ScrollArea className="flex-1 min-h-0">
               <div className="p-6">
                 <div className="mb-5 grid grid-cols-5 gap-2">
@@ -535,7 +535,7 @@ export function RunsPage() {
                             </div>
                             <Separator orientation="vertical" className="h-full bg-border/70" />
                           </div>
-                          <Card className="border-border/70 shadow-none mb-3">
+                          <Card className="border-border/50 shadow-sm bg-[var(--mate-surface-bg)] mb-3">
                             <CardContent className="px-4 py-3">
                               <div className="flex items-center justify-between gap-3">
                                 <h2 className="text-xs font-semibold text-foreground">{getSemanticEventLabel(event)}</h2>
@@ -566,13 +566,15 @@ export function RunsPage() {
             </ScrollArea>
           </main>
 
-          <aside className="min-h-0 border-l border-border/70 flex flex-col min-[1100px]:col-span-2 2xl:col-span-1">
+          <aside className="shrink-0 w-full md:w-[280px] xl:w-[300px] border-t md:border-t-0 md:border-l border-border/70 flex flex-col min-h-[400px] md:min-h-0 bg-[var(--mate-panel-bg)] z-10">
+            <div className="sticky top-0 z-10 border-b border-border/70 px-5 py-3 bg-[var(--mate-panel-bg)]/80 backdrop-blur-xl">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Run Evidence
+              </div>
+            </div>
             <ScrollArea className="flex-1 min-h-0">
               <div className="p-5">
-                <div className="mate-text-metadata">
-                  Run Evidence
-                </div>
-                <h2 className="mt-2 text-sm font-semibold text-foreground">{selectedRun.title}</h2>
+                <h2 className="text-sm font-semibold text-foreground">{selectedRun.title}</h2>
                 
                 <Separator className="my-4" />
                 
