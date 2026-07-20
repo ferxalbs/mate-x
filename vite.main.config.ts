@@ -18,7 +18,10 @@ logger.warn = (message, options) => {
 export default defineConfig({
   build: {
     rolldownOptions: {
-      external: ['@vscode/ripgrep'],
+      // Transformers.js relies on import.meta.url to resolve its ONNX/WASM
+      // assets. Keep it out of the CommonJS main bundle so Electron loads it
+      // through its package exports at runtime.
+      external: ['@vscode/ripgrep', '@huggingface/transformers'],
     },
   },
   customLogger: logger,
