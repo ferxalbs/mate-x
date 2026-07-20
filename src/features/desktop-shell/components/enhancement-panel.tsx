@@ -1,5 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Task01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useState } from "react";
-import { ListChecksIcon } from "@phosphor-icons/react";
+
 
 import { Card, CardContent } from "../../../components/ui/card";
 import { ScrollArea } from "../../../components/ui/scroll-area";
@@ -315,7 +317,7 @@ export function EnhancementPanel({
           ) : !runtime.evidencePack && activeGroup === "advanced" ? (
             <Card className="mt-3 border-border/70 bg-[var(--mate-control-bg)] shadow-none">
               <CardContent className="mate-text-secondary px-3 py-2">
-                <ListChecksIcon className="mr-1 inline size-4" weight="regular" />
+                <HugeiconsIcon icon={Task01Icon} className="mr-1 inline size-4" />
                 Ship Proof appears after verified run completes.
               </CardContent>
             </Card>

@@ -1,14 +1,6 @@
-import {
-  ActivityIcon,
-  ChatTextIcon,
-  CheckCircleIcon,
-  CircleIcon,
-  FileCodeIcon,
-  GitBranchIcon,
-  ListChecksIcon,
-  TerminalWindowIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Activity01Icon, ChatIcon, CheckmarkCircle01Icon, CircleIcon, CodeIcon, GitBranchIcon, Task01Icon, TerminalIcon, Alert01Icon } from "@hugeicons/core-free-icons";
+
 import { useMemo, useState } from "react";
 
 import type { ChatMessage, Conversation, ReproducibleRun, ToolEvent } from "@/contracts/chat";
@@ -180,10 +172,10 @@ function statusVariant(status: MissionRun["status"]): "default" | "secondary" | 
 
 function getEventIcon(event: ToolEvent) {
   const text = `${event.label} ${event.detail}`.toLowerCase();
-  if (event.status === "error") return WarningCircleIcon;
-  if (text.includes("command") || text.includes("tool")) return TerminalWindowIcon;
-  if (text.includes("file") || text.includes("diff") || text.includes("patch")) return FileCodeIcon;
-  if (text.includes("check") || text.includes("test") || text.includes("lint")) return ListChecksIcon;
+  if (event.status === "error") return Alert01Icon;
+  if (text.includes("command") || text.includes("tool")) return TerminalIcon;
+  if (text.includes("file") || text.includes("diff") || text.includes("patch")) return CodeIcon;
+  if (text.includes("check") || text.includes("test") || text.includes("lint")) return Task01Icon;
   return CircleIcon;
 }
 
@@ -399,7 +391,7 @@ export function RunsPage() {
           >
             Browse Proof Receipts
           </Button>
-          <GitBranchIcon className="size-3.5" />
+          <HugeiconsIcon icon={GitBranchIcon} className="size-3.5" />
           <span className="max-w-[280px] truncate">{workspace?.path ?? "No workspace selected"}</span>
         </div>
       </header>
@@ -515,7 +507,7 @@ export function RunsPage() {
                 <Card className="mb-5 border-border/70">
                   <CardContent className="px-5 py-4">
                     <div className="mate-text-metadata mb-2 flex items-center gap-2">
-                      <ChatTextIcon className="size-4" weight="regular" />
+                      <HugeiconsIcon icon={ChatIcon} className="size-4" />
                       Initial Intent
                     </div>
                     <p className="whitespace-pre-wrap text-xs leading-5 text-foreground">{selectedRun.userIntent}</p>
@@ -531,7 +523,7 @@ export function RunsPage() {
                           <div className="mate-text-secondary pt-1 text-right">{index + 1}</div>
                           <div className="flex flex-col items-center">
                             <div className="flex size-6 items-center justify-center rounded-full border border-border bg-[var(--mate-control-bg)] backdrop-blur-md z-10">
-                              <Icon className="size-3.5 text-muted-foreground" />
+                              <HugeiconsIcon icon={Icon} className="size-3.5 text-muted-foreground" />
                             </div>
                             <Separator orientation="vertical" className="h-full bg-border/70" />
                           </div>
@@ -652,7 +644,7 @@ export function RunsPage() {
                 <Card className="border-border/70 shadow-none">
                   <CardContent className="px-4 py-3">
                     <div className="mate-text-metadata mb-1 flex items-center gap-2">
-                      <CheckCircleIcon className="size-4" weight="regular" />
+                      <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-4" />
                       Final Result
                     </div>
                     <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
@@ -668,7 +660,7 @@ export function RunsPage() {
         <div className="flex flex-1 items-center justify-center px-6">
           <Empty>
             <EmptyMedia variant="icon">
-              <ActivityIcon />
+              <HugeiconsIcon icon={Activity01Icon} />
             </EmptyMedia>
             <EmptyHeader>
               <EmptyTitle>No reproducible runs captured</EmptyTitle>

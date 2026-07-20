@@ -1,7 +1,8 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
-import { PanelLeftCloseIcon, PanelLeftIcon } from "lucide-react";
+import { SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -329,7 +330,7 @@ function SidebarTrigger({
         render={<Button />}
         {...props}
       >
-        {showSidebarIcon ? <PanelLeftCloseIcon className="size-3.5" /> : <PanelLeftIcon className="size-3.5" />}
+        {showSidebarIcon ? <HugeiconsIcon icon={SidebarLeftIcon} className="size-3.5" /> : <HugeiconsIcon icon={SidebarLeftIcon} className="size-3.5" />}
         <span className="sr-only">Toggle Sidebar</span>
       </TooltipTrigger>
       <TooltipContent side="bottom" align="center" className="text-[10px]">

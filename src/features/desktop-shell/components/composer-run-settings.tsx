@@ -1,4 +1,6 @@
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
+
 import { useRef, useState } from "react";
 
 import {
@@ -108,7 +110,7 @@ export function ComposerRunSettings({
           {modelLabel}
           {supportsReasoningEffort && ` ${formatReasoningEffort(reasoningValue)}`}
         </span>
-        <CaretDownIcon aria-hidden className="size-3 shrink-0 opacity-60" />
+        <HugeiconsIcon icon={ArrowDown01Icon} aria-hidden className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"

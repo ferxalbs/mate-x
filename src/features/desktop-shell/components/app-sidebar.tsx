@@ -1,6 +1,6 @@
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 
-import { HugeiconsIcon as HugeIcon } from "@hugeicons/react";
 import {
   ArrowLeft02Icon,
   File02Icon,
@@ -88,7 +88,7 @@ interface AppSidebarProps {
   onActivateWorkspace: (workspaceId: string) => Promise<void>;
   onRemoveWorkspace: (workspaceId: string) => Promise<void>;
   onOpenSearch: () => void;
-  onCreateThread: () => void;
+  onCreateThread: (workspaceId: string) => void | Promise<void>;
   onSelectThread: (threadId: string) => void;
   onRenameThread: (threadId: string, title: string) => Promise<void>;
 }
@@ -206,7 +206,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={Settings02Icon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={Settings02Icon} className="size-4 shrink-0 opacity-80" />
                     <span>General</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -227,7 +227,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={ConnectIcon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={ConnectIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Connections</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -248,7 +248,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={ShieldKeyIcon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={ShieldKeyIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Trust</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -269,7 +269,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={Shield01Icon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={Shield01Icon} className="size-4 shrink-0 opacity-80" />
                     <span>Privacy</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -290,7 +290,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={File02Icon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={File02Icon} className="size-4 shrink-0 opacity-80" />
                     <span>Workspace Memory</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -311,7 +311,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={DirectionsIcon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={DirectionsIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Agent Profiler</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -332,7 +332,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={PuzzleIcon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={PuzzleIcon} className="size-4 shrink-0 opacity-80" />
                     <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -353,7 +353,7 @@ export function AppSidebar({
                       />
                     }
                   >
-                    <HugeIcon icon={Delete02Icon} className="size-4 shrink-0 opacity-80" />
+                    <HugeiconsIcon icon={Delete02Icon} className="size-4 shrink-0 opacity-80" />
                     <span>Archive</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -370,7 +370,7 @@ export function AppSidebar({
                   className="gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground rounded-xl transition-[background-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)]"
                   render={<Link to="/" />}
                 >
-                  <HugeIcon icon={ArrowLeft02Icon} className="size-4" />
+                  <HugeiconsIcon icon={ArrowLeft02Icon} className="size-4" />
                   <span className="font-medium">Back</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -388,7 +388,7 @@ export function AppSidebar({
                   type="button"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <HugeIcon icon={Search02Icon} className="size-4 shrink-0 text-muted-foreground/80" />
+                    <HugeiconsIcon icon={Search02Icon} className="size-4 shrink-0 text-muted-foreground/80" />
                     <span className="truncate font-medium tracking-tight">Search...</span>
                   </div>
                   <KbdGroup className="shrink-0 gap-0.5 opacity-60">
@@ -410,7 +410,7 @@ export function AppSidebar({
                   aria-label="Import folder"
                   type="button"
                 >
-                  <HugeIcon icon={FolderAddIcon} className="size-3.5" />
+                  <HugeiconsIcon icon={FolderAddIcon} className="size-3.5" />
                 </button>
               </div>
 
@@ -452,7 +452,7 @@ export function AppSidebar({
                           }
                           type="button"
                         >
-                          <HugeIcon
+                          <HugeiconsIcon
                             icon={ChevronDownIcon}
                             className={cn(
                               "size-3 transition-transform duration-[var(--motion-press)] ease-[var(--ease-out)] motion-reduce:transition-none",
@@ -474,7 +474,7 @@ export function AppSidebar({
                             "flex size-4 shrink-0 items-center justify-center transition-colors",
                             isWorkspaceActive ? "text-primary" : "text-muted-foreground/60"
                           )}>
-                            <HugeIcon icon={FolderIcon} className="size-3.5" />
+                            <HugeiconsIcon icon={FolderIcon} className="size-3.5" />
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {project.name}
@@ -488,7 +488,7 @@ export function AppSidebar({
                             aria-label={`Remove project ${project.name}`}
                             type="button"
                           >
-                            <HugeIcon icon={Delete02Icon} className="size-3" />
+                            <HugeiconsIcon icon={Delete02Icon} className="size-3" />
                           </button>
                         ) : null}
                       </div>
@@ -505,13 +505,18 @@ export function AppSidebar({
                               </div>
                             </div>
                             <button
-                              onClick={onCreateThread}
-                              className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-                              title="New thread"
+                              onClick={() => void onCreateThread(project.id)}
+                              className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-35"
+                              title={
+                                runStatus === "running"
+                                  ? "Finish the current run before starting a new thread"
+                                  : "New thread"
+                              }
                               aria-label="New thread"
+                              disabled={runStatus === "running"}
                               type="button"
                             >
-                              <HugeIcon
+                              <HugeiconsIcon
                                 icon={PencilEdit01Icon}
                                 className="size-3.5"
                               />
@@ -569,7 +574,7 @@ export function AppSidebar({
                     className="flex min-w-0 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open Mission Log"
                   >
-                    <HugeIcon icon={TaskEditIcon} className="size-4 text-muted-foreground/75" />
+                    <HugeiconsIcon icon={TaskEditIcon} className="size-4 text-muted-foreground/75" />
                     <span className="text-[13px] font-medium">Mission Log</span>
                   </Link>
                 </div>
@@ -580,7 +585,7 @@ export function AppSidebar({
                     className="flex min-w-0 flex-1 items-center gap-2.5 text-muted-foreground/80 transition-colors hover:text-foreground"
                     aria-label="Open settings"
                   >
-                    <HugeIcon icon={Settings02Icon} className="size-4 text-muted-foreground/75" />
+                    <HugeiconsIcon icon={Settings02Icon} className="size-4 text-muted-foreground/75" />
                     <span className="text-[13px] font-medium">Settings</span>
                   </SettingsLink>
                   <span

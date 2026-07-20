@@ -1,4 +1,6 @@
-import { FolderIcon, GitBranchIcon } from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FolderIcon, GitBranchIcon } from "@hugeicons/core-free-icons";
+
 import type { KeyboardEvent, ReactNode } from "react";
 
 import type { WorkspaceSummary } from "../../../contracts/workspace";
@@ -31,11 +33,11 @@ export function ComposerCoreInput({
           className="mb-2 flex min-w-0 items-center gap-3 text-[11px] font-medium text-muted-foreground"
         >
           <span className="flex min-w-0 items-center gap-1.5">
-            <FolderIcon aria-hidden className="size-3.5 shrink-0" />
+            <HugeiconsIcon icon={FolderIcon} aria-hidden className="size-3.5 shrink-0" />
             <span className="max-w-[18rem] truncate">{workspace.name}</span>
           </span>
           <span className="flex min-w-0 items-center gap-1.5">
-            <GitBranchIcon aria-hidden className="size-3.5 shrink-0" />
+            <HugeiconsIcon icon={GitBranchIcon} aria-hidden className="size-3.5 shrink-0" />
             <span className="max-w-[14rem] truncate" data-testid="composer-branch">
               {workspace.branch?.trim() || "detached"}
             </span>

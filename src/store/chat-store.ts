@@ -34,6 +34,7 @@ import {
 } from "../lib/factory-run";
 import { type AppSettings, DEFAULT_APP_SETTINGS } from "../contracts/settings";
 import { getAppSettings } from "../services/settings-client";
+import { compactConversationSnapshotForPersistence } from "../lib/conversation-persistence";
 
 interface ChatState {
   workspaces: WorkspaceEntry[];
@@ -202,7 +203,18 @@ async function persistWorkspaceState(
     return;
   }
 
-  await saveWorkspaceSession(workspaceId, threads, activeThreadId);
+  const persistedThreads = compactConversationSnapshotForPersistence(
+    threads,
+    activeThreadId,
+  );
+
+  try {
+    await saveWorkspaceSession(workspaceId, persistedThreads, activeThreadId);
+  } catch (error) {
+    // Persistence is background work. Keep a database/IPC failure from
+    // becoming an unhandled rejection that destabilizes the renderer.
+    console.error("Failed to persist workspace session:", error);
+  }
 }
 
 function replaceMessageById(
@@ -616,23 +628,63 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
   createThread() {
-    const workspaceId = get().activeWorkspaceId;
+    const state = get();
+    const workspaceId = state.activeWorkspaceId;
     if (!workspaceId) {
       return;
     }
 
-    const nextThread = createEmptyConversation();
-    set((state) => {
+    // A running assistant owns the active thread. Creating another active
+    // thread mid-run makes subsequent progress ambiguous and invites double
+    // clicks to create unused sessions.
+    if (state.runStatus === "running") {
+      return;
+    }
+
+    const workspaceThreads = state.threadsByWorkspace[workspaceId] ?? [];
+    const reusableThread = workspaceThreads.find(
+      (thread) => !thread.isArchived && thread.messages.length === 0,
+    );
+
+    if (reusableThread) {
+      const nextThreads = workspaceThreads.filter(
+        (thread) =>
+          thread.id === reusableThread.id ||
+          thread.isArchived ||
+          thread.messages.length > 0,
+      );
       const nextState = {
         activeThreadIds: {
           ...state.activeThreadIds,
-          [workspaceId]: nextThread.id,
+          [workspaceId]: reusableThread.id,
         },
         threadsByWorkspace: {
           ...state.threadsByWorkspace,
+          [workspaceId]: nextThreads,
+        },
+      };
+
+      set(nextState);
+      void persistWorkspaceState(
+        workspaceId,
+        nextState.threadsByWorkspace,
+        nextState.activeThreadIds,
+      );
+      return;
+    }
+
+    const nextThread = createEmptyConversation();
+    set((currentState) => {
+      const nextState = {
+        activeThreadIds: {
+          ...currentState.activeThreadIds,
+          [workspaceId]: nextThread.id,
+        },
+        threadsByWorkspace: {
+          ...currentState.threadsByWorkspace,
           [workspaceId]: [
             nextThread,
-            ...(state.threadsByWorkspace[workspaceId] ?? []),
+            ...(currentState.threadsByWorkspace[workspaceId] ?? []),
           ],
         },
       };

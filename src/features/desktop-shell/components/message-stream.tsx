@@ -1,13 +1,6 @@
-import {
-  ArrowCounterClockwiseIcon,
-  CaretDownIcon,
-  CaretRightIcon,
-  CheckIcon,
-  CopyIcon,
-  FileTextIcon,
-  SpinnerGapIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ReloadIcon, ArrowDown01Icon, ArrowRight01Icon, CheckIcon, CopyIcon, File01Icon, Loading02Icon, Alert01Icon } from "@hugeicons/core-free-icons";
+
 import {
   memo,
   useDeferredValue,
@@ -188,9 +181,9 @@ const MessageEntry = memo(function MessageEntry({
             ariaLabel={copied ? "Copied message" : "Copy message"}
             icon={
               copied ? (
-                <CheckIcon className="size-3.5" />
+                <HugeiconsIcon icon={CheckIcon} className="size-3.5" />
               ) : (
-                <CopyIcon className="size-3.5" />
+                <HugeiconsIcon icon={CopyIcon} className="size-3.5" />
               )
             }
             onClick={() => void handleCopy()}
@@ -198,7 +191,7 @@ const MessageEntry = memo(function MessageEntry({
           {canUndo ? (
             <MessageActionButton
               ariaLabel="Undo last turn"
-              icon={<ArrowCounterClockwiseIcon className="size-4" weight="regular" />}
+              icon={<HugeiconsIcon icon={ReloadIcon} className="size-4" />}
               onClick={() => void onUndo()}
             />
           ) : null}
@@ -283,9 +276,9 @@ const MessageEntry = memo(function MessageEntry({
           ariaLabel={copied ? "Copied message" : "Copy message"}
           icon={
             copied ? (
-              <CheckIcon className="size-3.5" />
+              <HugeiconsIcon icon={CheckIcon} className="size-3.5" />
             ) : (
-              <CopyIcon className="size-3.5" />
+              <HugeiconsIcon icon={CopyIcon} className="size-3.5" />
             )
           }
           onClick={() => void handleCopy()}
@@ -328,7 +321,7 @@ function ResultFallback() {
   return (
     <section className="rounded-2xl border border-border/65 bg-[var(--mate-surface-bg)] p-3.5 backdrop-blur-xl">
       <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground/85">
-        <FileTextIcon className="size-3.5" />
+        <HugeiconsIcon icon={File01Icon} className="size-3.5" />
         Result
       </div>
       <p className="mt-1.5 text-[12px] text-muted-foreground">
@@ -385,13 +378,13 @@ function ThinkingRow({
         type="button"
       >
         {isStreaming && hasErrorEvent ? (
-          <WarningCircleIcon className="size-4 text-warning" weight="regular" />
+          <HugeiconsIcon icon={Alert01Icon} className="size-4 text-warning" />
         ) : isStreaming ? (
-          <SpinnerGapIcon className="size-4 animate-spin text-primary motion-reduce:animate-none" weight="regular" />
+          <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin text-primary motion-reduce:animate-none" />
         ) : expanded ? (
-          <CaretDownIcon className="size-4" weight="regular" />
+          <HugeiconsIcon icon={ArrowDown01Icon} className="size-4" />
         ) : (
-          <CaretRightIcon className="size-4" weight="regular" />
+          <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
         )}
         {isStreaming && hasErrorEvent
           ? "Recovering after tool error"

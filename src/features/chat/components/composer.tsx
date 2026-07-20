@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ArrowUpRight, LoaderCircle } from 'lucide-react';
+import { ArrowUpRight01Icon, Loading02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from '../../../components/ui/button';
 
@@ -53,9 +54,9 @@ export function Composer({ isRunning, onSubmit }: ComposerProps) {
 
         <div className="flex items-end justify-end">
           <Button className="w-full lg:w-auto" disabled={isRunning} onClick={handleSubmit}>
-            {isRunning ? <LoaderCircle className="size-4 animate-spin" /> : null}
+            {isRunning ? <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin" /> : null}
             {isRunning ? 'Running audit' : 'Run prompt'}
-            <ArrowUpRight className="size-4" />
+            <HugeiconsIcon icon={ArrowUpRight01Icon} className="size-4" />
           </Button>
         </div>
       </div>

@@ -1,4 +1,6 @@
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+
+import { Search01Icon } from "@hugeicons/core-free-icons";
+
 
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { ImpactSummary, TrustGateState } from "./enhancement-panel-utils";
@@ -31,7 +33,7 @@ export function ReviewQueueSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <PanelTitle icon={MagnifyingGlassIcon} title="Review Queue" />
+        <PanelTitle icon={Search01Icon} title="Review Queue" />
         <RiskPill risk={summary.risk} />
       </div>
       <dl className="grid grid-cols-2 gap-2 text-[13px]">

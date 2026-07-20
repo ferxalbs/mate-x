@@ -1,4 +1,6 @@
-import { CheckCircleIcon, FileTextIcon, ListChecksIcon } from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { CheckmarkCircle01Icon, File01Icon, Task01Icon } from "@hugeicons/core-free-icons";
+
 
 import type { EvidencePack, VerifiedTaskScoreSignal } from "../../../contracts/chat";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
@@ -56,7 +58,7 @@ export function EvidencePackSection({
 
   return (
     <section className="space-y-3">
-      <PanelTitle icon={ListChecksIcon} title="Ship Proof" />
+      <PanelTitle icon={Task01Icon} title="Ship Proof" />
       {!evidencePack ? <SkeletonStack /> : null}
       <EvidenceConfidenceCard
         commandCount={commandCount}
@@ -167,7 +169,7 @@ export function EvidencePackSection({
             title="Export SOC 2 / Procurement Package"
             type="button"
           >
-            <FileTextIcon className="size-4" weight="regular" />
+            <HugeiconsIcon icon={File01Icon} className="size-4" />
             Generate Compliance Report
           </button>
           <button
@@ -181,7 +183,7 @@ export function EvidencePackSection({
             title="Export Agent Runbook"
             type="button"
           >
-            <FileTextIcon className="size-4" weight="regular" />
+            <HugeiconsIcon icon={File01Icon} className="size-4" />
             Export Agent Runbook
           </button>
         </CardContent>
@@ -296,7 +298,7 @@ function EvidenceRow({
       <CardContent className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
         <span className="text-muted-foreground">{label}</span>
         <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
-          <CheckCircleIcon
+          <HugeiconsIcon icon={CheckmarkCircle01Icon}
             className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
           />
           <span className="truncate text-foreground">{value}</span>

@@ -1,5 +1,5 @@
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
 import {
   Tick01Icon,
   ExternalLinkIcon,
@@ -124,7 +124,7 @@ export function WorkspaceMemorySettings() {
   }, []);
 
   return (
-    <SettingsSection title="Workspace Memory" icon={<HugeIcon icon={File02Icon} className="size-3.5" />}>
+    <SettingsSection title="Workspace Memory" icon={<HugeiconsIcon icon={File02Icon} className="size-3.5" />}>
       <div className="flex min-w-0 flex-col gap-4">
         <SettingsRow
           title="Storage"
@@ -142,7 +142,7 @@ export function WorkspaceMemorySettings() {
               onClick={() => void handleReveal()}
               disabled={isBusy || !status}
             >
-              <HugeIcon icon={ExternalLinkIcon} className="size-3.5" />
+              <HugeiconsIcon icon={ExternalLinkIcon} className="size-3.5" />
               Reveal
             </Button>
           }
@@ -166,7 +166,7 @@ export function WorkspaceMemorySettings() {
                     : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
-                <HugeIcon icon={File02Icon} className="size-3.5" />
+                <HugeiconsIcon icon={File02Icon} className="size-3.5" />
                 <span>{file?.filename ?? kind}</span>
                 {fileHasDraft ? (
                   <span className="size-1.5 rounded-full bg-amber-400" />
@@ -193,7 +193,7 @@ export function WorkspaceMemorySettings() {
 
           {isLoading ? (
             <div className="flex min-h-[340px] items-center justify-center text-sm text-muted-foreground">
-              <HugeIcon icon={Loading01Icon} className="mr-2 size-4 animate-spin" />
+              <HugeiconsIcon icon={Loading01Icon} className="mr-2 size-4 animate-spin" />
               Loading workspace memory
             </div>
           ) : (
@@ -237,7 +237,7 @@ export function WorkspaceMemorySettings() {
               onClick={() => void handleReset()}
               disabled={isBusy || !activeFile}
             >
-              <HugeIcon icon={ReloadIcon} className="size-4" />
+              <HugeiconsIcon icon={ReloadIcon} className="size-4" />
               Reset file
             </Button>
             <Button
@@ -247,11 +247,11 @@ export function WorkspaceMemorySettings() {
               disabled={isBusy || !hasDraft}
             >
               {saveState === 'saving' ? (
-                <HugeIcon icon={Loading01Icon} className="size-4 animate-spin" />
+                <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin" />
               ) : saveState === 'saved' ? (
-                <HugeIcon icon={Tick01Icon} className="size-4" />
+                <HugeiconsIcon icon={Tick01Icon} className="size-4" />
               ) : (
-                <HugeIcon icon={SaveIcon} className="size-4" />
+                <HugeiconsIcon icon={SaveIcon} className="size-4" />
               )}
               Save file
             </Button>

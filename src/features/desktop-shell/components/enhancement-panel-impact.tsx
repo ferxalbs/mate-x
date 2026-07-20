@@ -1,4 +1,6 @@
-import { FileTextIcon, PathIcon } from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { File01Icon, RouteIcon } from "@hugeicons/core-free-icons";
+
 
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { ImpactSummary } from "./enhancement-panel-utils";
@@ -28,7 +30,7 @@ export function ImpactSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <PanelTitle icon={PathIcon} title="Impact Map" />
+        <PanelTitle icon={RouteIcon} title="Impact Map" />
         <RiskPill risk={summary.risk} />
       </div>
       {isLoading ? <SkeletonStack /> : null}
@@ -120,7 +122,7 @@ function ImpactRow({ entry }: { entry: RepoGraphImpactedFile }) {
         <span className="shrink-0 text-muted-foreground tabular-nums">
           d{entry.distance}
         </span>
-        <FileTextIcon className="size-4 shrink-0 text-primary" weight="regular" />
+        <HugeiconsIcon icon={File01Icon} className="size-4 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 truncate text-foreground">
           {entry.group ?? entry.file}
         </span>

@@ -1,11 +1,6 @@
-import {
-  CaretDownIcon,
-  ArrowSquareOutIcon,
-  GitBranchIcon,
-  CircleNotchIcon,
-  PlusIcon,
-  ShieldCheckIcon,
-} from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon, ArrowUpRight01Icon, GitBranchIcon, Loading02Icon, Add01Icon, Shield01Icon } from "@hugeicons/core-free-icons";
+
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "../../../components/ui/button";
@@ -127,9 +122,9 @@ export function ChatTopbar({
             onClick={toggleLivePanel}
           >
             {runStatus === "running" ? (
-              <CircleNotchIcon className="size-3.5 animate-spin text-blue-400 motion-reduce:animate-none" />
+              <HugeiconsIcon icon={Loading02Icon} className="size-3.5 animate-spin text-blue-400 motion-reduce:animate-none" />
             ) : (
-              <ShieldCheckIcon className="size-3.5 opacity-70" />
+              <HugeiconsIcon icon={Shield01Icon} className="size-3.5 opacity-70" />
             )}
             <span className="font-medium tracking-tight max-[1024px]:sr-only">
               {runStatus === "running" ? "Running" : repoSafetyLabel}
@@ -142,7 +137,7 @@ export function ChatTopbar({
               <TitlebarButton liquidGlassEnabled={liquidGlassEnabled} />
             }
           >
-            <ArrowSquareOutIcon className="size-3.5" />
+            <HugeiconsIcon icon={ArrowUpRight01Icon} className="size-3.5" />
             <span className="max-[1100px]:sr-only">
               {openTarget === "folder"
                 ? "Open"
@@ -150,7 +145,7 @@ export function ChatTopbar({
                   ? "VS Code"
                   : "Terminal"}
             </span>
-            <CaretDownIcon className="size-3.5 text-muted-foreground max-[900px]:hidden" />
+            <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5 text-muted-foreground max-[900px]:hidden" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
@@ -187,9 +182,9 @@ export function ChatTopbar({
               />
             }
           >
-            <GitBranchIcon className="size-3.5" />
+            <HugeiconsIcon icon={GitBranchIcon} className="size-3.5" />
             <span className="max-[1100px]:sr-only">Git</span>
-            <CaretDownIcon className="size-3.5 text-muted-foreground max-[900px]:hidden" />
+            <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5 text-muted-foreground max-[900px]:hidden" />
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem
@@ -239,7 +234,7 @@ export function ChatTopbar({
           )}
           onClick={onCreateThread}
         >
-          <PlusIcon className="size-3.5" />
+          <HugeiconsIcon icon={Add01Icon} className="size-3.5" />
         </Button>
       </div>
     </header>

@@ -1,4 +1,5 @@
-import { FileIcon, ImageIcon, VideoIcon, XIcon } from "lucide-react";
+import { File01Icon, Image01Icon, Video01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import type {
   AssistantAttachment,
@@ -75,10 +76,10 @@ function AttachmentChip({
 }) {
   const Icon =
     attachment.kind === "image"
-      ? ImageIcon
+      ? Image01Icon
       : attachment.kind === "video"
-        ? VideoIcon
-        : FileIcon;
+        ? Video01Icon
+        : File01Icon;
 
   return (
     <div
@@ -90,7 +91,7 @@ function AttachmentChip({
       )}
       title={`${attachment.name} (${formatBytes(attachment.size)})`}
     >
-      <Icon className="size-3.5 shrink-0" />
+      <HugeiconsIcon icon={Icon} className="size-3.5 shrink-0" />
       <span className="truncate">{attachment.name}</span>
       <button
         aria-label={`Remove ${attachment.name}`}
@@ -98,7 +99,7 @@ function AttachmentChip({
         onClick={onRemove}
         type="button"
       >
-        <XIcon className="size-3" />
+        <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
       </button>
     </div>
   );

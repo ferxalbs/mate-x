@@ -1,9 +1,6 @@
-import {
-  BugBeetleIcon,
-  CheckCircleIcon,
-  GitDiffIcon,
-  PathIcon,
-} from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Bug01Icon, CheckmarkCircle01Icon, GitBranchIcon, RouteIcon } from "@hugeicons/core-free-icons";
+
 import { motion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
@@ -60,7 +57,7 @@ const QUICK_ACTIONS = [
     id: "review",
     title: "Review current changes",
     evidence: "Risk-ranked findings with file evidence",
-    icon: <GitDiffIcon className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={GitBranchIcon} className="size-[20px]" />,
     prompt:
       "Review the current repository changes. Rank concrete risks, cite the affected files, and recommend the smallest safe next step.",
   },
@@ -68,7 +65,7 @@ const QUICK_ACTIONS = [
     id: "validate",
     title: "Validate a fix",
     evidence: "Checks run, results, and remaining risk",
-    icon: <CheckCircleIcon className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-[20px]" />,
     prompt:
       "Validate the current fix. Run the relevant checks, explain the evidence, and identify any remaining risk without changing unrelated code.",
   },
@@ -76,7 +73,7 @@ const QUICK_ACTIONS = [
     id: "trace",
     title: "Trace a risky path",
     evidence: "Source-to-sink path and trust boundaries",
-    icon: <PathIcon className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={RouteIcon} className="size-[20px]" />,
     prompt:
       "Trace a risky path through this repository from input to sensitive sink. Cite the data flow, trust boundaries, and missing controls.",
   },
@@ -84,7 +81,7 @@ const QUICK_ACTIONS = [
     id: "explain",
     title: "Explain repository risk",
     evidence: "Risk model grounded in repository signals",
-    icon: <BugBeetleIcon className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={Bug01Icon} className="size-[20px]" />,
     prompt:
       "Explain this repository's most important security and reliability risks using concrete local evidence and confidence levels.",
   },

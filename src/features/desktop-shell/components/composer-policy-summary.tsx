@@ -1,4 +1,6 @@
-import { ShieldCheckIcon } from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Shield01Icon } from "@hugeicons/core-free-icons";
+
 
 import type {
   BehaviorMode,
@@ -28,7 +30,7 @@ export function ComposerPolicySummary({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <ShieldCheckIcon aria-hidden className="size-3.5 shrink-0" />
+      <HugeiconsIcon icon={Shield01Icon} aria-hidden className="size-3.5 shrink-0" />
       <span className="max-w-52 truncate">
         {TRUST_LABELS[trust]} · {BEHAVIOR_MODE_LABELS[behavior.mode]}
       </span>

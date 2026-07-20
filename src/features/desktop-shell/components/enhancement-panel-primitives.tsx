@@ -1,4 +1,6 @@
-import { ActivityIcon } from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Activity01Icon } from "@hugeicons/core-free-icons";
+
 
 import type { SignalTone } from "./enhancement-panel-utils";
 import { cn } from "../../../lib/utils";
@@ -35,12 +37,12 @@ export function PanelTitle({
   icon: Icon,
   title,
 }: {
-  icon: typeof ActivityIcon;
+  icon: typeof Activity01Icon;
   title: string;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Icon className="size-4 shrink-0 text-primary" weight="regular" />
+      <HugeiconsIcon icon={Icon} className="size-4 shrink-0 text-primary"  />
       <h3 className="mate-text-compact truncate font-semibold">
         {title}
       </h3>
