@@ -1,7 +1,8 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { CheckIcon, ChevronsUpDownIcon, XIcon } from "lucide-react";
+import { Tick01Icon, ArrowDataTransferVerticalIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -109,7 +110,7 @@ function ComboboxInput({
           )}
         >
           <ComboboxPrimitive.Icon data-slot="combobox-icon">
-            <ChevronsUpDownIcon />
+            <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} />
           </ComboboxPrimitive.Icon>
         </ComboboxTrigger>
       )}
@@ -120,7 +121,7 @@ function ComboboxInput({
             sizeValue === "sm" ? "end-0" : "end-0.5",
           )}
         >
-          <XIcon />
+          <HugeiconsIcon icon={Cancel01Icon} />
         </ComboboxClear>
       )}
     </div>
@@ -203,7 +204,7 @@ function ComboboxItem({
       {...props}
     >
       <ComboboxPrimitive.ItemIndicator className={cn("col-start-1", hideIndicator && "hidden")}>
-        <CheckIcon />
+        <HugeiconsIcon icon={Tick01Icon} />
       </ComboboxPrimitive.ItemIndicator>
       <div className={hideIndicator ? "col-start-1 col-span-full" : "col-start-2"}>{children}</div>
     </ComboboxPrimitive.Item>
@@ -352,7 +353,7 @@ function ComboboxChipRemove(props: ComboboxPrimitive.ChipRemove.Props) {
       data-slot="combobox-chip-remove"
       {...props}
     >
-      <XIcon />
+      <HugeiconsIcon icon={Cancel01Icon} />
     </ComboboxPrimitive.ChipRemove>
   );
 }

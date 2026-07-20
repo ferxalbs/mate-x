@@ -1,5 +1,5 @@
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from 'react';
-import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
 import { BrainCircuitIcon, Loading01Icon, RouteIcon } from '@hugeicons/core-free-icons';
 
 import { Button } from '../../components/ui/button';
@@ -98,11 +98,11 @@ export function AgentProfilerSettings({
     <div className="space-y-6">
       <SettingsSection
         title="Agent Profiler"
-        icon={<HugeIcon icon={BrainCircuitIcon} className="size-3.5" />}
+        icon={<HugeiconsIcon icon={BrainCircuitIcon} className="size-3.5" />}
         headerAction={
           loading ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <HugeIcon icon={Loading01Icon} className="size-3 animate-spin" />
+              <HugeiconsIcon icon={Loading01Icon} className="size-3 animate-spin" />
               Loading
             </span>
           ) : null
@@ -149,9 +149,9 @@ export function AgentProfilerSettings({
                 onClick={() => void handleRecommend()}
               >
                 {recommending ? (
-                  <HugeIcon icon={Loading01Icon} className="size-4 animate-spin" />
+                  <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin" />
                 ) : (
-                  <HugeIcon icon={RouteIcon} className="size-4" />
+                  <HugeiconsIcon icon={RouteIcon} className="size-4" />
                 )}
                 Recommend
               </Button>
@@ -183,7 +183,7 @@ function ProfilerTable({
   profiles: AgentCapabilityProfile[];
 }) {
   return (
-    <SettingsSection title={title} icon={<HugeIcon icon={RouteIcon} className="size-3.5" />}>
+    <SettingsSection title={title} icon={<HugeiconsIcon icon={RouteIcon} className="size-3.5" />}>
       {profiles.length === 0 ? (
         <SettingsRow
           title="No data yet"

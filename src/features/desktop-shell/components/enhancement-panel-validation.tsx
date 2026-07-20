@@ -1,4 +1,6 @@
-import { TerminalWindowIcon } from "@phosphor-icons/react";
+
+import { TerminalIcon } from "@hugeicons/core-free-icons";
+
 
 import type { EvidencePack } from "../../../contracts/chat";
 import { Card, CardContent } from "../../../components/ui/card";
@@ -19,7 +21,7 @@ export function ValidationSection({
 
   return (
     <section className="space-y-3">
-      <PanelTitle icon={TerminalWindowIcon} title="Validation Terminal" />
+      <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
       {isLoading ? <SkeletonStack /> : null}
       <Card className="border-border/70 bg-transparent font-mono text-[12px] shadow-none">
         <CardContent className="p-3">

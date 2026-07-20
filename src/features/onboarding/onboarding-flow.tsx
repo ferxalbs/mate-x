@@ -1,3 +1,5 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight01Icon, Loading02Icon } from "@hugeicons/core-free-icons";
 import {
   useCallback,
   useEffect,
@@ -12,7 +14,7 @@ import {
   m,
   useReducedMotion,
 } from "framer-motion";
-import { CaretRightIcon, SpinnerGapIcon } from "@phosphor-icons/react";
+
 import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "../../components/ui/button";
@@ -277,7 +279,7 @@ export function OnboardingFlowContent({
             className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"
             role="status"
           >
-            <SpinnerGapIcon className="size-4" />
+            <HugeiconsIcon icon={Loading02Icon} className="size-4" />
             Loading setup…
           </div>
         )}
@@ -368,10 +370,10 @@ export function OnboardingFlowContent({
           </Button>
           <Button disabled={isSaving} type="submit">
             {isSaving ? (
-              <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" />
+              <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin motion-reduce:animate-none" />
             ) : null}
             {isSaving ? "Saving…" : step.cta}
-            {!isSaving ? <CaretRightIcon className="size-4" /> : null}
+            {!isSaving ? <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" /> : null}
           </Button>
         </footer>
       </form>

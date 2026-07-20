@@ -1,4 +1,4 @@
-import { HugeiconsIcon as HugeIcon } from "@hugeicons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -109,7 +109,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
         <span className="min-w-0 flex-1">
           {isRunning ? "Working" : "Worked"} for {formatDuration(duration)}
         </span>
-        {isRunning ? <HugeIcon icon={Loading01Icon} className="size-3.5 animate-spin motion-reduce:animate-none" /> : expanded ? <HugeIcon icon={ArrowDown01Icon} className="size-3.5" /> : <HugeIcon icon={ArrowRight01Icon} className="size-3.5" />}
+        {isRunning ? <HugeiconsIcon icon={Loading01Icon} className="size-3.5 animate-spin motion-reduce:animate-none" /> : expanded ? <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />}
       </button>
 
       <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
@@ -165,9 +165,9 @@ function TimelineGroup({ items }: { items: ToolEvent[] }) {
         className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-left transition-colors hover:text-foreground/90"
         onClick={() => setOpen((o) => !o)}
       >
-        <HugeIcon icon={BookOpen01Icon} className="size-4 shrink-0 opacity-70" />
+        <HugeiconsIcon icon={BookOpen01Icon} className="size-4 shrink-0 opacity-70" />
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">{name}</span>
-        {open ? <HugeIcon icon={ArrowDown01Icon} className="size-3.5 opacity-70" /> : <HugeIcon icon={ArrowRight01Icon} className="size-3.5 opacity-70" />}
+        {open ? <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5 opacity-70" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5 opacity-70" />}
       </button>
       {open ? (
         <div className="ml-2 mt-2 space-y-2 border-l border-border/40 pl-4">
@@ -208,9 +208,9 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
       >
         <div className="flex h-5 items-center justify-center">
           {isActive ? (
-            <HugeIcon icon={Loading01Icon} className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
+            <HugeiconsIcon icon={Loading01Icon} className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
           ) : Icon ? (
-            <HugeIcon icon={Icon} className="size-4 shrink-0 opacity-70" />
+            <HugeiconsIcon icon={Icon} className="size-4 shrink-0 opacity-70" />
           ) : (
             <span className="size-4 shrink-0 text-center opacity-70">·</span>
           )}
@@ -241,7 +241,7 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
 function ActivityLabel({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 text-[13px] text-muted-foreground/80">
-      <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
+      <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
       {label}
     </div>
   );

@@ -5,7 +5,8 @@
  */
 
 import { useCallback, useState } from "react";
-import { ChevronDownIcon, ListChecksIcon } from "lucide-react";
+import { ArrowDown01Icon, Task01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import type {
   EngineeringTaskStatus,
@@ -161,10 +162,10 @@ export function EngineeringTaskPanel({
       data-user-facing-status={facing}
     >
       <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-full border border-border/55 bg-background/55 px-3 text-[11px] font-medium text-foreground/85 backdrop-blur-md transition-[background-color,border-color,color] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-primary/35 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35">
-        <ListChecksIcon className="size-3.5" />
+        <HugeiconsIcon icon={Task01Icon} className="size-3.5" />
         <span>Task details</span>
         <span className="text-muted-foreground/65">{facing}</span>
-        <ChevronDownIcon className="size-3 opacity-60 transition-transform duration-[250ms] group-open:rotate-180" />
+        <HugeiconsIcon icon={ArrowDown01Icon} className="size-3 opacity-60 transition-transform duration-[250ms] group-open:rotate-180" />
       </summary>
       <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border border-border/70 bg-[var(--panel)]/95 p-4 shadow-none backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">

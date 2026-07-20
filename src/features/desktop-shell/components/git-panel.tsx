@@ -1,14 +1,6 @@
 import { useEffect, useRef } from 'react';
-import {
-  ArrowClockwiseIcon,
-  ArrowLineDownIcon,
-  ArrowLineUpIcon,
-  GitBranchIcon,
-  GitCommitIcon,
-  MinusSquareIcon,
-  PlusSquareIcon,
-  SpinnerGapIcon,
-} from '@phosphor-icons/react';
+import { ReloadIcon as ArrowReload02Icon, Download01Icon, Upload01Icon, GitBranchIcon, GitCommitIcon, MinusSignSquareIcon, PlusSignSquareIcon, Loading02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import { useGitStore } from '../../../store/git-store';
 import { cn } from '../../../lib/utils';
@@ -90,7 +82,7 @@ function FileRow({
           aria-label={`Unstage ${basename(path)}`}
           className="ml-1 hidden size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover:inline-flex focus:inline-flex"
         >
-          <MinusSquareIcon className="size-4" weight="regular" />
+          <HugeiconsIcon icon={MinusSignSquareIcon} className="size-4" />
         </button>
       ) : (
         <button
@@ -100,7 +92,7 @@ function FileRow({
           aria-label={`Stage ${basename(path)}`}
           className="ml-1 hidden size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 group-hover:inline-flex focus:inline-flex"
         >
-          <PlusSquareIcon className="size-4" weight="regular" />
+          <HugeiconsIcon icon={PlusSignSquareIcon} className="size-4" />
         </button>
       )}
     </div>
@@ -192,7 +184,7 @@ export function GitPanel() {
       {/* Branch header */}
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <GitBranchIcon className="size-3 text-muted-foreground/60" />
+          <HugeiconsIcon icon={GitBranchIcon} className="size-3 text-muted-foreground/60" />
           <span className="text-xs font-medium text-foreground/80">
             {status?.current ?? '—'}
           </span>
@@ -218,7 +210,7 @@ export function GitPanel() {
             aria-label="Pull from remote"
             className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ArrowLineDownIcon className="size-4" weight="regular" />
+            <HugeiconsIcon icon={Download01Icon} className="size-4" />
           </button>
           {/* Push */}
           <button
@@ -235,7 +227,7 @@ export function GitPanel() {
             aria-label="Push to remote"
             className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ArrowLineUpIcon className="size-4" weight="regular" />
+            <HugeiconsIcon icon={Upload01Icon} className="size-4" />
           </button>
           {/* Refresh */}
           <button
@@ -246,7 +238,7 @@ export function GitPanel() {
             aria-label="Refresh git status"
             className="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ArrowClockwiseIcon className={cn('size-4', loadStatus === 'loading' && 'animate-spin motion-reduce:animate-none')} weight="regular" />
+            <HugeiconsIcon icon={ArrowReload02Icon} className={cn('size-4', loadStatus === 'loading' && 'animate-spin motion-reduce:animate-none')} />
           </button>
         </div>
       </div>
@@ -261,7 +253,7 @@ export function GitPanel() {
       {/* Loading skeleton */}
       {loadStatus === 'loading' && !status && (
         <div className="flex items-center justify-center py-6 text-muted-foreground">
-          <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
+          <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin motion-reduce:animate-none" />
         </div>
       )}
 
@@ -356,9 +348,9 @@ export function GitPanel() {
               )}
             >
               {isRunning ? (
-                <SpinnerGapIcon className="size-4 animate-spin motion-reduce:animate-none" weight="regular" />
+                <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin motion-reduce:animate-none" />
               ) : (
-                <GitCommitIcon className="size-4" weight="regular" />
+                <HugeiconsIcon icon={GitCommitIcon} className="size-4" />
               )}
               Commit {staged.length > 0 ? `(${staged.length})` : ''}
             </button>
@@ -386,7 +378,7 @@ export function GitPanel() {
                     key={entry.hash}
                     className="flex items-start gap-1.5 rounded-md px-1.5 py-[3px] hover:bg-accent/30"
                   >
-                    <GitCommitIcon className="mt-[1px] size-4 shrink-0 text-muted-foreground" weight="regular" />
+                    <HugeiconsIcon icon={GitCommitIcon} className="mt-[1px] size-4 shrink-0 text-muted-foreground" />
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate text-[11px] text-foreground/70">{entry.message}</span>
                       <span className="text-[12px] text-muted-foreground">

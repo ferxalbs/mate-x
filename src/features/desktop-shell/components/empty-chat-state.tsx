@@ -1,5 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FolderOpenIcon } from "@hugeicons/core-free-icons";
 import { useState, type ReactNode } from "react";
-import { FolderOpenIcon } from "@phosphor-icons/react";
+
 
 import { Button } from "../../../components/ui/button";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
@@ -95,7 +97,7 @@ export function EmptyChatState({
               className="rounded-full px-5 shadow-none"
               onClick={() => void onOpenRepository()}
             >
-              <FolderOpenIcon className="size-4" />
+              <HugeiconsIcon icon={FolderOpenIcon} className="size-4" />
               Open repository
             </Button>
           </div>

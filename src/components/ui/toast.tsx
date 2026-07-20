@@ -4,15 +4,8 @@ import { Toast } from "@base-ui/react/toast";
 import * as React from "react";
 import { useEffect, type CSSProperties } from "react";
 import { useParams } from "@tanstack/react-router";
-import {
-  CheckIcon,
-  CircleAlertIcon,
-  CircleCheckIcon,
-  CopyIcon,
-  InfoIcon,
-  LoaderCircleIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { Tick01Icon, Alert01Icon as CircleAlertIcon, CheckmarkCircle01Icon as CircleCheckIcon, Copy01Icon as CopyIcon, InformationCircleIcon, Loading02Icon as LoaderCircleIcon, Alert02Icon as TriangleAlertIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
@@ -34,7 +27,7 @@ const threadToastVisibleTimeoutRemainingMs = new Map<ToastId, number>();
 
 const TOAST_ICONS = {
   error: CircleAlertIcon,
-  info: InfoIcon,
+  info: InformationCircleIcon,
   loading: LoaderCircleIcon,
   success: CircleCheckIcon,
   warning: TriangleAlertIcon,
@@ -62,9 +55,9 @@ function CopyErrorButton({ text }: { text: string }) {
       type="button"
     >
       {isCopied ? (
-        <CheckIcon className="size-3.5 text-success" />
+        <HugeiconsIcon icon={Tick01Icon} className="size-3.5 text-success" />
       ) : (
-        <CopyIcon className="size-3.5" />
+        <HugeiconsIcon icon={CopyIcon} className="size-3.5" />
       )}
     </button>
   );
@@ -311,7 +304,7 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                       className="[&>svg]:h-lh [&>svg]:w-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
                       data-slot="toast-icon"
                     >
-                      <Icon className="in-data-[type=loading]:animate-spin in-data-[type=error]:text-destructive in-data-[type=info]:text-info in-data-[type=success]:text-success in-data-[type=warning]:text-warning in-data-[type=loading]:opacity-80 motion-reduce:animate-none" />
+                      <HugeiconsIcon icon={Icon as any} className="in-data-[type=loading]:animate-spin in-data-[type=error]:text-destructive in-data-[type=info]:text-info in-data-[type=success]:text-success in-data-[type=warning]:text-warning in-data-[type=loading]:opacity-80 motion-reduce:animate-none" />
                     </div>
                   )}
 
@@ -405,7 +398,7 @@ function AnchoredToasts() {
                             className="[&>svg]:h-lh [&>svg]:w-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
                             data-slot="toast-icon"
                           >
-                            <Icon className="in-data-[type=loading]:animate-spin in-data-[type=error]:text-destructive in-data-[type=info]:text-info in-data-[type=success]:text-success in-data-[type=warning]:text-warning in-data-[type=loading]:opacity-80 motion-reduce:animate-none" />
+                            <HugeiconsIcon icon={Icon as any} className="in-data-[type=loading]:animate-spin in-data-[type=error]:text-destructive in-data-[type=info]:text-info in-data-[type=success]:text-success in-data-[type=warning]:text-warning in-data-[type=loading]:opacity-80 motion-reduce:animate-none" />
                           </div>
                         )}
 

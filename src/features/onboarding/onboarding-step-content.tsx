@@ -1,14 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowUpRight01Icon, CheckmarkCircle01Icon, Download01Icon, FolderOpenIcon, KeyIcon, LockKeyIcon, ComputerIcon, Shield01Icon } from "@hugeicons/core-free-icons";
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  ArrowSquareOutIcon,
-  CheckCircleIcon,
-  DownloadSimpleIcon,
-  FolderOpenIcon,
-  KeyIcon,
-  LockKeyIcon,
-  MonitorIcon,
-  ShieldCheckIcon,
-} from "@phosphor-icons/react";
+
 
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -60,7 +53,7 @@ export function PreferencesStep({
   onAppearanceChange,
 }: PreferencesStepProps) {
   return (
-    <StepPanel icon={<MonitorIcon />} title="Appearance">
+    <StepPanel icon={<HugeiconsIcon icon={ComputerIcon} />} title="Appearance">
       <p className="text-[15px] leading-6 text-muted-foreground">
         Match macOS automatically or choose a fixed appearance. Other interface
         details remain available in Settings.
@@ -146,7 +139,7 @@ export function PrivacyStep({
   }
 
   return (
-    <StepPanel icon={<ShieldCheckIcon />} title="Local privacy scan">
+    <StepPanel icon={<HugeiconsIcon icon={Shield01Icon} />} title="Local privacy scan">
       <p className="text-[15px] leading-6 text-muted-foreground">
         Built-in checks remain active. The optional local model adds secret and
         PII classification before cloud reasoning and can also be installed later.
@@ -173,9 +166,9 @@ export function PrivacyStep({
           variant="outline"
         >
           {isReady ? (
-            <CheckCircleIcon className="size-4" />
+            <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-4" />
           ) : (
-            <DownloadSimpleIcon className="size-4" />
+            <HugeiconsIcon icon={Download01Icon} className="size-4" />
           )}
           {isReady ? "Installed" : isDownloading ? "Installing" : "Install model"}
         </Button>
@@ -212,7 +205,7 @@ export function ApiKeyStep({
   onApiKeyChange,
 }: ApiKeyStepProps) {
   return (
-    <StepPanel icon={<KeyIcon />} title="Rainy API key">
+    <StepPanel icon={<HugeiconsIcon icon={KeyIcon} />} title="Rainy API key">
       <p className="text-[15px] leading-6 text-muted-foreground">
         Your key is stored by the main process and never embedded in repository
         evidence. You can leave this blank and configure it later.
@@ -243,7 +236,7 @@ export function ApiKeyStep({
         target="_blank"
       >
         Get a Rainy API key
-        <ArrowSquareOutIcon className="size-4" />
+        <HugeiconsIcon icon={ArrowUpRight01Icon} className="size-4" />
       </a>
     </StepPanel>
   );
@@ -255,7 +248,7 @@ export function WorkspaceStep({
   selectedWorkspace: string | null;
 }) {
   return (
-    <StepPanel icon={<FolderOpenIcon />} title="Local repository">
+    <StepPanel icon={<HugeiconsIcon icon={FolderOpenIcon} />} title="Local repository">
       <p className="text-[15px] leading-6 text-muted-foreground">
         The picker opens a local folder. MaTE X builds repository context on this
         device and scopes subsequent tools to that workspace.
@@ -286,7 +279,7 @@ export function TrustBoundaryStep({
   onTrustChange,
 }: TrustBoundaryStepProps) {
   return (
-    <StepPanel icon={<LockKeyIcon />} title="Scoped autonomy">
+    <StepPanel icon={<HugeiconsIcon icon={LockKeyIcon} />} title="Scoped autonomy">
       {trustDraft ? (
         <>
           <p className="text-[15px] leading-6 text-muted-foreground">
@@ -328,22 +321,22 @@ export function TrustBoundaryStep({
 
 export function VerificationStep() {
   return (
-    <StepPanel icon={<CheckCircleIcon />} title="Setup complete">
+    <StepPanel icon={<HugeiconsIcon icon={CheckmarkCircle01Icon} />} title="Setup complete">
       <p className="text-[15px] leading-6 text-muted-foreground">
         MaTE X will open your workspace with scoped controls active. Start with a
         review request when you are ready; no verification runs automatically.
       </p>
       <ul className="mt-6 space-y-3 border-t border-border/70 pt-5 text-sm text-foreground">
         <li className="flex items-start gap-2.5">
-          <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+          <HugeiconsIcon icon={CheckmarkCircle01Icon} className="mt-0.5 size-4 shrink-0 text-primary" />
           Local workspace selected
         </li>
         <li className="flex items-start gap-2.5">
-          <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+          <HugeiconsIcon icon={CheckmarkCircle01Icon} className="mt-0.5 size-4 shrink-0 text-primary" />
           Scoped trust contract ready
         </li>
         <li className="flex items-start gap-2.5">
-          <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+          <HugeiconsIcon icon={CheckmarkCircle01Icon} className="mt-0.5 size-4 shrink-0 text-primary" />
           Privacy checks remain under your control
         </li>
       </ul>

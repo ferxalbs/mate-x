@@ -1,4 +1,5 @@
-import { FolderOpen, Layers3, ShieldCheck } from 'lucide-react';
+import { FolderOpenIcon, Layers01Icon, Shield01Icon as ShieldTickIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 
@@ -11,7 +12,7 @@ export function WorkspacePanel({ workspace }: WorkspacePanelProps) {
     <aside className="flex flex-col gap-5 rounded-[1.75rem] border border-[var(--border)] bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.24)]">
       <section>
         <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-          <FolderOpen className="size-3.5" />
+          <HugeiconsIcon icon={FolderOpenIcon} className="size-3.5" />
           workspace
         </div>
 
@@ -57,7 +58,7 @@ export function WorkspacePanel({ workspace }: WorkspacePanelProps) {
       <section className="rounded-[1.5rem] border border-[var(--border)] bg-[linear-gradient(180deg,color-mix(in_oklab,var(--accent-soft)_65%,transparent),transparent)] p-4">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-[var(--accent-soft)] p-3 text-[var(--accent)]">
-            <ShieldCheck className="size-5" />
+            <HugeiconsIcon icon={ShieldTickIcon} className="size-5" />
           </div>
           <div>
             <h3 className="font-medium">Audit direction</h3>
@@ -71,7 +72,7 @@ export function WorkspacePanel({ workspace }: WorkspacePanelProps) {
       <section className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-[var(--accent-soft)] p-3 text-[var(--accent)]">
-            <Layers3 className="size-5" />
+            <HugeiconsIcon icon={Layers01Icon} className="size-5" />
           </div>
           <div>
             <h3 className="font-medium">Modular layers</h3>

@@ -1,8 +1,8 @@
+import { HugeiconsIcon } from "@hugeicons/react";
 import { memo, useState, useMemo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
-import { HugeiconsIcon as HugeIcon } from "@hugeicons/react";
 import { Copy01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -265,7 +265,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
                     exit={{ scale: 0, rotate: 45 }}
                     transition={{ type: "spring", stiffness: 400, damping: 25 }}
                   >
-                    <HugeIcon icon={Tick01Icon} className="size-3.5 text-emerald-500" />
+                    <HugeiconsIcon icon={Tick01Icon} className="size-3.5 text-emerald-500" />
                   </motion.div>
                 ) : (
                   <motion.div
@@ -275,7 +275,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
                     exit={{ scale: 0, rotate: -45 }}
                     transition={{ type: "spring", stiffness: 400, damping: 25 }}
                   >
-                    <HugeIcon icon={Copy01Icon} className="size-3.5" />
+                    <HugeiconsIcon icon={Copy01Icon} className="size-3.5" />
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -156,9 +156,12 @@ export function DesktopShell() {
             activeWorkspaceId={activeWorkspaceId}
             activeThreadId={activeThreadId}
             onActivateWorkspace={activateWorkspace}
-            onCreateThread={() => {
+            onCreateThread={async (workspaceId) => {
+              if (workspaceId !== activeWorkspaceId) {
+                await activateWorkspace(workspaceId);
+              }
               createThread();
-              navigate({ to: '/' });
+              await navigate({ to: '/' });
             }}
             onImportWorkspace={importWorkspace}
             onOpenSearch={() => setSearchOpen(true)}

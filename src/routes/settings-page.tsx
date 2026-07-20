@@ -1,7 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { QRCodeSVG } from 'qrcode.react';
-import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
 import {
   ReloadIcon,
   Tick01Icon,
@@ -665,7 +665,7 @@ export function SettingsPage() {
               onClick={handleRestoreDefaults}
               disabled={isBusy || changedSettingLabels.length === 0}
             >
-              <HugeIcon icon={ReloadIcon} className="size-4" />
+              <HugeiconsIcon icon={ReloadIcon} className="size-4" />
               Restore defaults
             </Button>
           </div>
@@ -683,7 +683,7 @@ export function SettingsPage() {
                 className="flex flex-col gap-6"
               >
                 {section === 'general' ? (
-                  <SettingsSection title="General" icon={<HugeIcon icon={Settings02Icon} className="size-4" />}>
+                  <SettingsSection title="General" icon={<HugeiconsIcon icon={Settings02Icon} className="size-4" />}>
                     <>
                   <SettingsRow
                     title="Appearance"
@@ -867,7 +867,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'connections' ? (
-              <SettingsSection title="Connections" icon={<HugeIcon icon={DirectionsIcon} className="size-4" />}>
+              <SettingsSection title="Connections" icon={<HugeiconsIcon icon={DirectionsIcon} className="size-4" />}>
                 <>
                   <SettingsRow
                     title="Rainy API key"
@@ -923,7 +923,7 @@ export function SettingsPage() {
                             }}
                             disabled={isBusy}
                           >
-                            <HugeIcon icon={PencilEdit01Icon} className="size-4" />
+                            <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" />
                             Replace
                           </Button>
                         ) : null}
@@ -935,7 +935,7 @@ export function SettingsPage() {
                     description="Main-process credentials are isolated from the renderer."
                     control={
                       <div className="flex items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5 text-xs text-muted-foreground">
-                        <HugeIcon icon={ComputerIcon} className="size-4" />
+                        <HugeiconsIcon icon={ComputerIcon} className="size-4" />
                         {currentKeyPrefix ? 'IPC secured' : 'Waiting for key'}
                       </div>
                     }
@@ -972,7 +972,7 @@ export function SettingsPage() {
                           onClick={() => void handleStartMobilePairing()}
                           disabled={isBusy || isMobileBusy || !savedAppSettings.mobileCompanionEnabled}
                         >
-                          {isMobileBusy ? <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" /> : null}
+                          {isMobileBusy ? <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" /> : null}
                           Start pairing
                         </Button>
                         <Button
@@ -1072,7 +1072,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'privacy' ? (
-              <SettingsSection title="Privacy Firewall" icon={<HugeIcon icon={Shield01Icon} className="size-3.5" />}>
+              <SettingsSection title="Privacy Firewall" icon={<HugeiconsIcon icon={Shield01Icon} className="size-3.5" />}>
                 <>
                   <SettingsRow
                     title="Enable Privacy Firewall"
@@ -1148,7 +1148,7 @@ export function SettingsPage() {
                           onClick={() => void refreshPrivacyModelStatus()}
                           disabled={isPrivacyModelBusy}
                         >
-                          <HugeIcon icon={ReloadIcon} className="size-4" />
+                          <HugeiconsIcon icon={ReloadIcon} className="size-4" />
                           Refresh
                         </Button>
                         <Button
@@ -1159,9 +1159,9 @@ export function SettingsPage() {
                           disabled={isPrivacyModelBusy || !privacyModelStatus?.downloadUrl}
                         >
                           {isPrivacyModelBusy ? (
-                            <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
+                            <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                           ) : (
-                            <HugeIcon icon={Download01Icon} className="size-4" />
+                            <HugeiconsIcon icon={Download01Icon} className="size-4" />
                           )}
                           Download
                         </Button>
@@ -1310,9 +1310,9 @@ export function SettingsPage() {
                         disabled={isPrivacyActionBusy}
                       >
                         {isPrivacyActionBusy ? (
-                          <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
+                          <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                         ) : (
-                          <HugeIcon icon={Shield01Icon} className="size-3.5" />
+                          <HugeiconsIcon icon={Shield01Icon} className="size-3.5" />
                         )}
                         Scan canary
                       </Button>
@@ -1329,7 +1329,7 @@ export function SettingsPage() {
                         onClick={() => void handleClearPrivacyVault()}
                         disabled={isPrivacyActionBusy}
                       >
-                        <HugeIcon icon={ReloadIcon} className="size-4" />
+                        <HugeiconsIcon icon={ReloadIcon} className="size-4" />
                         Clear vault
                       </Button>
                     }
@@ -1355,7 +1355,7 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'integrations' ? (
-              <SettingsSection title="Integrations" icon={<HugeIcon icon={PuzzleIcon} className="size-4" />}>
+              <SettingsSection title="Integrations" icon={<HugeiconsIcon icon={PuzzleIcon} className="size-4" />}>
                 <>
                   <SettingsRow
                     title="Codex"
@@ -1514,9 +1514,9 @@ export function SettingsPage() {
                           disabled={isBusy || isGithubStatusBusy}
                         >
                           {isGithubStatusBusy ? (
-                            <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
+                            <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                           ) : (
-                            <HugeIcon icon={ComputerIcon} className="size-4" />
+                            <HugeiconsIcon icon={ComputerIcon} className="size-4" />
                           )}
                           Detect
                         </Button>
@@ -1528,7 +1528,7 @@ export function SettingsPage() {
             ) : null}
  
             {section === 'archive' ? (
-              <SettingsSection title="Archive" icon={<HugeIcon icon={FolderOpenIcon} className="size-4" />}>
+              <SettingsSection title="Archive" icon={<HugeiconsIcon icon={FolderOpenIcon} className="size-4" />}>
                 <>
                   <SettingsRow
                     title="Archive confirmation"
@@ -1625,15 +1625,15 @@ export function SettingsPage() {
                   }
                 >
                   {isBusy ? (
-                    <HugeIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
+                    <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                   ) : saveState === 'saved' ? (
-                    <HugeIcon icon={Tick01Icon} className="size-4" />
+                    <HugeiconsIcon icon={Tick01Icon} className="size-4" />
                   ) : section === 'trust' ? (
-                    <HugeIcon icon={ShieldKeyIcon} className="size-4" />
+                    <HugeiconsIcon icon={ShieldKeyIcon} className="size-4" />
                   ) : section === 'general' || section === 'archive' || section === 'integrations' || section === 'agent-profiler' || section === 'privacy' ? (
-                    <HugeIcon icon={Settings02Icon} className="size-4" />
+                    <HugeiconsIcon icon={Settings02Icon} className="size-4" />
                   ) : (
-                    <HugeIcon icon={LockKeyIcon} className="size-4" />
+                    <HugeiconsIcon icon={LockKeyIcon} className="size-4" />
                   )}
                   {saveLabel}
                 </Button>

@@ -1,5 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight01Icon, GitBranchIcon } from "@hugeicons/core-free-icons";
 import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
-import { CaretRightIcon, GitBranchIcon } from "@phosphor-icons/react";
+
 
 import { Button } from "../../../components/ui/button";
 import { RESPONSIVE_SPRING } from "../../../lib/motion";
@@ -70,7 +72,7 @@ export function PanelHeader({
             onClick={onCollapse}
             type="button"
           >
-            <CaretRightIcon className="size-4" />
+            <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
           </button>
           <Button
             className="h-8 rounded-xl border-transparent bg-transparent px-2.5 text-[12px] font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:border-[var(--panel-border)]/60 hover:bg-accent/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] disabled:opacity-60 motion-reduce:transform-none"
@@ -79,7 +81,7 @@ export function PanelHeader({
             size="xs"
             variant="outline"
           >
-            <GitBranchIcon className="size-3.5" />
+            <HugeiconsIcon icon={GitBranchIcon} className="size-3.5" />
             {isLoading ? "Processing" : "Scan"}
           </Button>
         </div>

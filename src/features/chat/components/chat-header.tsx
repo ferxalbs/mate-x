@@ -1,4 +1,5 @@
-import { RobotIcon, GitBranchIcon, FolderIcon } from '@phosphor-icons/react';
+import { BotIcon, GitBranchIcon, Folder01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import type { WorkspaceSummary } from '../../../contracts/workspace';
 
@@ -18,15 +19,15 @@ export function ChatHeader({ workspace }: ChatHeaderProps) {
 
       <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
         <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/70 bg-mate-control-bg px-2.5 py-1 text-[11px] font-mono tracking-tight">
-          <FolderIcon className="size-3.5 opacity-80" weight="regular" />
+          <HugeiconsIcon icon={Folder01Icon} className="size-3.5 opacity-80" />
           <span>{workspace?.name ?? 'loading'}</span>
         </div>
         <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/70 bg-mate-control-bg px-2.5 py-1 text-[11px] font-mono tracking-tight">
-          <GitBranchIcon className="size-3.5 opacity-80" weight="regular" />
+          <HugeiconsIcon icon={GitBranchIcon} className="size-3.5 opacity-80" />
           <span>{workspace?.branch ?? '...'}</span>
         </div>
         <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/70 bg-mate-control-bg px-2.5 py-1 text-[11px] font-mono tracking-tight">
-          <RobotIcon className="size-3.5 opacity-80" weight="regular" />
+          <HugeiconsIcon icon={BotIcon} className="size-3.5 opacity-80" />
           <span>audit runtime v0</span>
         </div>
       </div>

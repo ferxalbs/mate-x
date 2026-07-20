@@ -1,8 +1,6 @@
-import {
-  ArrowUpIcon,
-  PaperclipIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowUpIcon, Attachment01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+
 import {
   startTransition,
   useEffect,
@@ -438,7 +436,7 @@ export function ComposerPanel({
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
-              <PaperclipIcon className="size-4" />
+              <HugeiconsIcon icon={Attachment01Icon} className="size-4" />
             </button>
             <ComposerRunSettings
               behavior={behavior}
@@ -480,7 +478,7 @@ export function ComposerPanel({
             }
             type="button"
           >
-            {isRunning ? <XIcon className="size-3.5" /> : <ArrowUpIcon className="size-3.5" />}
+            {isRunning ? <HugeiconsIcon icon={Cancel01Icon} className="size-3.5" /> : <HugeiconsIcon icon={ArrowUpIcon} className="size-3.5" />}
             {isRunning ? "Stop" : "Run"}
           </button>
         </div>

@@ -1,4 +1,6 @@
-import { ActivityIcon } from "@phosphor-icons/react";
+
+import { Activity01Icon } from "@hugeicons/core-free-icons";
+
 
 import type { RepoHealthSignal } from "./enhancement-panel-utils";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
@@ -31,7 +33,7 @@ export function RepoHealthSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <PanelTitle icon={ActivityIcon} title="Repo Health" />
+        <PanelTitle icon={Activity01Icon} title="Repo Health" />
         <TonePill label={verdict.label} tone={verdict.tone} />
       </div>
       <div

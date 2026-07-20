@@ -186,4 +186,55 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
       undefined,
     );
   });
+
+  it("reuses an unused thread and only creates another after the current one has a prompt", () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = {
+      mate: {
+        repo: {
+          saveWorkspaceSession: async () => undefined,
+        },
+      },
+    } as never;
+
+    try {
+      const initialThreadId = useChatStore.getState().activeThreadIds["workspace-1"];
+      useChatStore.getState().createThread();
+
+      let state = useChatStore.getState();
+      assert.equal(state.threadsByWorkspace["workspace-1"]?.length, 1);
+      assert.equal(
+        state.activeThreadIds["workspace-1"],
+        initialThreadId,
+      );
+
+      state = useChatStore.getState();
+      useChatStore.setState({
+        threadsByWorkspace: {
+          ...state.threadsByWorkspace,
+          "workspace-1": [
+            {
+              ...state.threadsByWorkspace["workspace-1"]![0]!,
+              messages: [
+                {
+                  id: "user-1",
+                  role: "user",
+                  content: "A real prompt",
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            },
+          ],
+        },
+      });
+      useChatStore.getState().createThread();
+
+      assert.equal(
+        useChatStore.getState().threadsByWorkspace["workspace-1"]?.length,
+        2,
+      );
+    } finally {
+      globalThis.window = previousWindow;
+    }
+  });
 });

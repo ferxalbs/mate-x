@@ -1,5 +1,5 @@
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { Dispatch, SetStateAction } from 'react';
-import { HugeiconsIcon as HugeIcon } from '@hugeicons/react';
 import { ShieldKeyIcon } from '@hugeicons/core-free-icons';
 
 import { SettingsRow, SettingsSection } from '../components/ui/settings-layout';
@@ -28,7 +28,7 @@ export function SettingsTrustSection({
   setTrustDraft,
 }: SettingsTrustSectionProps) {
   return (
-    <SettingsSection title="Workspace Trust Contract" icon={<HugeIcon icon={ShieldKeyIcon} className="size-4" />}>
+    <SettingsSection title="Workspace Trust Contract" icon={<HugeiconsIcon icon={ShieldKeyIcon} className="size-4" />}>
       {trustDraft ? (
         <>
           <SettingsRow

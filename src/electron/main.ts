@@ -11,6 +11,23 @@ import { startupPerfBegin, startupPerfMark } from './startup-perf';
 import { tursoService } from './turso-service';
 import { resolveWindowAppearance } from './window-appearance';
 
+// Electron Forge can start the app more than once when a dev process is
+// restarted quickly. Keep one runtime and bring the existing window forward.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+  process.exit(0);
+}
+
+app.on('second-instance', () => {
+  const [mainWindow] = BrowserWindow.getAllWindows();
+  if (!mainWindow) return;
+
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
+
 // Some upstream Node/Electron dependencies still emit DEP0040 from `punycode`.
 // Ignore that single deprecation noise so actual app warnings stay visible.
 const originalEmitWarning = process.emitWarning.bind(process);
@@ -217,4 +234,3 @@ app.on('activate', async () => {
     createWindow(appSettings);
   }
 });
-
