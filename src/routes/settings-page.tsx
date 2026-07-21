@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
+import { Slider } from '../components/ui/slider';
 import type { WorkspaceTrustContract } from '../contracts/workspace';
 import {
   DEFAULT_APP_SETTINGS,
@@ -91,6 +92,15 @@ import {
 import { SettingsTrustSection } from './settings-trust-section';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type BackgroundImageState = 'idle' | 'loading' | 'ready' | 'error';
+const MAX_BACKGROUND_IMAGE_BYTES = 40 * 1024 * 1024;
+
+function normalizeBackgroundImageOpacity(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_APP_SETTINGS.customBackgroundOpacity ?? 1;
+  }
+  return Math.min(1, Math.max(0, value));
+}
 type SettingsSectionId =
   | 'general'
   | 'connections'
@@ -118,6 +128,9 @@ export function SettingsPage() {
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
   const [savedAppSettings, setSavedAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS });
+  const [backgroundImageState, setBackgroundImageState] = useState<BackgroundImageState>('idle');
+  const [backgroundPreviewUrl, setBackgroundPreviewUrl] = useState<string | null>(null);
+  const [backgroundImageError, setBackgroundImageError] = useState<string | null>(null);
   const [trustContract, setTrustContract] = useState<WorkspaceTrustContract | null>(null);
   const [trustDraft, setTrustDraft] = useState<WorkspaceTrustContract | null>(null);
   const [privacyModelStatus, setPrivacyModelStatus] = useState<PrivacyModelStatus | null>(null);
@@ -149,6 +162,9 @@ export function SettingsPage() {
               : pathname === '/settings/agent-profiler'
                 ? 'agent-profiler'
                 : 'general';
+  const backgroundImageVisibility = Math.round(
+    normalizeBackgroundImageOpacity(appSettings.customBackgroundOpacity) * 100,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +185,8 @@ export function SettingsPage() {
         setTrustDraft(contract);
         setAppSettings(persistedAppSettings);
         setSavedAppSettings(persistedAppSettings);
+        setBackgroundImageState('idle');
+        setBackgroundImageError(null);
         setAppearance(persistedAppSettings.appearance);
         setTheme(persistedAppSettings.theme);
         setBlurEnabled(persistedAppSettings.blurEnabled);
@@ -186,6 +204,14 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, [activeWorkspaceId, setAppearance, setTheme, setBlurEnabled]);
+
+  useEffect(() => {
+    return () => {
+      if (backgroundPreviewUrl) {
+        URL.revokeObjectURL(backgroundPreviewUrl);
+      }
+    };
+  }, [backgroundPreviewUrl]);
 
   useEffect(() => {
     setSaveState('idle');
@@ -399,6 +425,7 @@ export function SettingsPage() {
         const nextSettings = await updateAppSettings(appSettings);
         setAppSettings(nextSettings);
         setSavedAppSettings(nextSettings);
+        setBackgroundPreviewUrl(null);
         applyRendererSettings(nextSettings);
         useChatStore.getState().setSettings(nextSettings);
         window.dispatchEvent(
@@ -549,6 +576,12 @@ export function SettingsPage() {
       ...(appSettings.theme !== savedAppSettings.theme ? ['Theme'] : []),
       ...(appSettings.blurEnabled !== savedAppSettings.blurEnabled ? ['Interface blur'] : []),
       ...(appSettings.vibrancyMode !== savedAppSettings.vibrancyMode ? ['Transparency Mode'] : []),
+      ...(appSettings.customBackgroundImage !== savedAppSettings.customBackgroundImage
+        ? ['Background image']
+        : []),
+      ...(appSettings.customBackgroundOpacity !== savedAppSettings.customBackgroundOpacity
+        ? ['Image visibility']
+        : []),
       ...(appSettings.timeFormat !== savedAppSettings.timeFormat ? ['Time format'] : []),
       ...(appSettings.diffLineWrapping !== savedAppSettings.diffLineWrapping ? ['Diff line wrapping'] : []),
       ...(appSettings.assistantOutput !== savedAppSettings.assistantOutput ? ['Assistant output'] : []),
@@ -591,6 +624,8 @@ export function SettingsPage() {
       appSettings.theme,
       appSettings.blurEnabled,
       appSettings.vibrancyMode,
+      appSettings.customBackgroundImage,
+      appSettings.customBackgroundOpacity,
       appSettings.archiveConfirmation,
       appSettings.assistantOutput,
       appSettings.deleteConfirmation,
@@ -615,6 +650,8 @@ export function SettingsPage() {
       savedAppSettings.theme,
       savedAppSettings.blurEnabled,
       savedAppSettings.vibrancyMode,
+      savedAppSettings.customBackgroundImage,
+      savedAppSettings.customBackgroundOpacity,
       savedAppSettings.archiveConfirmation,
       savedAppSettings.assistantOutput,
       savedAppSettings.deleteConfirmation,
@@ -787,6 +824,154 @@ export function SettingsPage() {
                           <SelectItem value="special">Floating glass</SelectItem>
                         </SelectContent>
                       </Select>
+                    }
+                  />
+
+                  <SettingsRow
+                    title="Background Image"
+                    description="Choose a local image for your workspace atmosphere. It stays beneath the app chrome, so your work remains readable."
+                    status={
+                      backgroundImageState === 'loading'
+                        ? (
+                            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                              <HugeiconsIcon icon={Loading01Icon} className="size-3 animate-spin motion-reduce:animate-none" />
+                              Validating image locally…
+                            </span>
+                          )
+                        : backgroundImageState === 'ready'
+                          ? (
+                              <span className="inline-flex items-center gap-1.5 text-emerald-500">
+                                <HugeiconsIcon icon={Tick01Icon} className="size-3" />
+                                Image ready — it will be saved with your appearance settings.
+                              </span>
+                            )
+                          : backgroundImageState === 'error'
+                            ? backgroundImageError ?? 'This image could not be read. Choose another file before saving.'
+                            : undefined
+                    }
+                    control={
+                      <div className="flex items-center gap-2">
+                        {appSettings.customBackgroundImage && (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => {
+                              setAppSettings(curr => ({ ...curr, customBackgroundImage: '' }));
+                              setBackgroundPreviewUrl(null);
+                              setBackgroundImageState('idle');
+                              setBackgroundImageError(null);
+                              if (saveState === 'saved') setSaveState('idle');
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="relative overflow-hidden rounded-full px-3 active:scale-[0.97]"
+                        >
+                          {appSettings.customBackgroundImage ? "Change image" : "Choose image"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 cursor-pointer opacity-0"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  if (file.type && !file.type.startsWith('image/')) {
+                                    throw new Error('Choose an image file, such as PNG, JPEG, WebP, or GIF.');
+                                  }
+                                  if (file.size > MAX_BACKGROUND_IMAGE_BYTES) {
+                                    throw new Error('Choose an image smaller than 40 MB to keep the interface responsive.');
+                                  }
+                                  const filePath = window.mate.settings.getBackgroundImagePath(file);
+                                  if (!filePath) {
+                                    throw new Error('The selected image is unavailable.');
+                                  }
+                                  setBackgroundImageState('loading');
+                                  setBackgroundImageError(null);
+                                  setBackgroundPreviewUrl(URL.createObjectURL(file));
+                                  setAppSettings((current) => ({
+                                    ...current,
+                                    customBackgroundImage: filePath,
+                                  }));
+                                  if (saveState === 'saved') {
+                                    setSaveState('idle');
+                                  }
+                                } catch (error) {
+                                  setBackgroundPreviewUrl(null);
+                                  setBackgroundImageState('error');
+                                  setBackgroundImageError(
+                                    error instanceof Error
+                                      ? error.message
+                                      : 'This image could not be prepared.',
+                                  );
+                                }
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </Button>
+                      </div>
+                    }
+                  >
+                    {appSettings.customBackgroundImage ? (
+                      <div className="relative h-24 overflow-hidden rounded-2xl border border-border/60 bg-[var(--control)]">
+                        <img
+                          alt="Selected background preview"
+                          className="h-full w-full object-cover opacity-70"
+                          src={backgroundPreviewUrl ?? `mate-local://${appSettings.customBackgroundImage.split('/').map(encodeURIComponent).join('/')}`}
+                          onLoad={() => setBackgroundImageState('ready')}
+                          onError={() => {
+                            setBackgroundImageState('error');
+                            setBackgroundImageError('This image is corrupt or uses an unsupported format.');
+                            setBackgroundPreviewUrl(null);
+                            setAppSettings((current) => ({
+                              ...current,
+                              customBackgroundImage: '',
+                            }));
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-transparent to-transparent" />
+                        <p className="absolute bottom-2 left-3 text-[10px] font-medium tracking-wide text-foreground/80">
+                          Background preview
+                        </p>
+                      </div>
+                    ) : null}
+                  </SettingsRow>
+
+                  <SettingsRow
+                    title="Image visibility"
+                    description="Tune how present the image feels behind the interface before saving your appearance settings."
+                    control={
+                      <div className="flex items-center gap-3 w-full sm:w-[220px]">
+                        <Slider
+                          aria-label="Background image visibility"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={backgroundImageVisibility}
+                          onValueChange={(value) => {
+                            const sliderValue = Array.isArray(value) ? value[0] : value;
+                            if (!Number.isFinite(sliderValue)) return;
+                            const val = Math.min(1, Math.max(0, sliderValue / 100));
+                            setAppSettings((current) => ({
+                              ...current,
+                              customBackgroundOpacity: val,
+                            }));
+                            if (saveState === 'saved') {
+                              setSaveState('idle');
+                            }
+                          }}
+                          className="flex-1"
+                          thumbLabel="Background image visibility"
+                        />
+                        <span className="w-9 text-right text-xs font-medium tabular-nums text-muted-foreground">
+                          {backgroundImageVisibility}%
+                        </span>
+                      </div>
                     }
                   />
 

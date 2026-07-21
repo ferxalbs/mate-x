@@ -1,5 +1,7 @@
-import { app, BrowserWindow, nativeTheme, shell } from 'electron';
+import { app, BrowserWindow, nativeTheme, shell, protocol, net } from 'electron';
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
 import { initializeUpdater } from './updater';
@@ -165,6 +167,35 @@ const createWindow = (settings: AppSettings) => {
 
 app.on('ready', async () => {
   startupPerfBegin('app-ready');
+
+  protocol.handle('mate-local', async (request) => {
+    let requestedPath: string;
+    try {
+      requestedPath = decodeURIComponent(new URL(request.url).pathname);
+    } catch {
+      return new Response('Not found', { status: 404 });
+    }
+
+    const settings = await tursoService.getAppSettings();
+
+    // This protocol is deliberately single-purpose: renderer content can read
+    // only the one local image the user explicitly saved as their background.
+    if (
+      !settings.customBackgroundImage ||
+      !path.isAbsolute(requestedPath) ||
+      path.resolve(requestedPath) !== path.resolve(settings.customBackgroundImage)
+    ) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    try {
+      const file = await stat(requestedPath);
+      if (!file.isFile()) return new Response('Not found', { status: 404 });
+      return net.fetch(pathToFileURL(requestedPath).toString());
+    } catch {
+      return new Response('Not found', { status: 404 });
+    }
+  });
 
   // Initialize durable storage first so settings IPC and vibrancy resolve quickly.
   // initStack also calls tursoService.initialize() (idempotent after this).

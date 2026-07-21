@@ -199,6 +199,7 @@ export interface SettingsApi {
   setEmbeddingModel: (model: string) => Promise<void>;
   getAppSettings: () => Promise<AppSettings>;
   updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
+  getBackgroundImagePath: (file: File) => string;
 }
 
 export interface PolicyApi {

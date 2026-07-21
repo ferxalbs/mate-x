@@ -7,6 +7,7 @@ import { usePlatform } from "../../hooks/use-platform";
 import {
   applyRendererSettings,
   getAppSettings,
+  updateAppSettings,
 } from "../../services/settings-client";
 import { useChatStore } from "../../store/chat-store";
 import { cn } from "../../lib/utils";
@@ -24,6 +25,12 @@ import type { CSSProperties } from "react";
 /** Module-stable empty style object — never recreated per render. */
 const EMPTY_SHELL_STYLE: CSSProperties = Object.freeze({});
 
+function toLocalImageUrl(filePath: string): string {
+  // Keep local paths inside Electron's explicitly registered protocol instead
+  // of exposing a file:// URL to the renderer.
+  return `mate-local://${filePath.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 export function DesktopShell() {
   const navigate = useNavigate();
   const workspaces = useChatStore((state) => state.workspaces);
@@ -35,6 +42,10 @@ export function DesktopShell() {
   const settings = useChatStore((state) => state.settings);
   const isSubmittingContextualAction = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [backgroundImageState, setBackgroundImageState] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const failedBackgroundPath = useRef<string | null>(null);
   const bootstrap = useChatStore((state) => state.bootstrap);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
   const activateWorkspace = useChatStore((state) => state.activateWorkspace);
@@ -130,12 +141,80 @@ export function DesktopShell() {
 
   const vibrancyMode = settings.vibrancyMode || 'solid';
   const usesCssGlass = vibrancyMode === "sidebar" || vibrancyMode === "special";
+  const backgroundImage = settings.customBackgroundImage
+    ? toLocalImageUrl(settings.customBackgroundImage)
+    : null;
+  const backgroundOpacity = Math.min(
+    1,
+    Math.max(0, settings.customBackgroundOpacity ?? 1),
+  );
+
+  useEffect(() => {
+    if (!backgroundImage || !settings.customBackgroundImage) {
+      setBackgroundImageState("idle");
+      return;
+    }
+
+    let cancelled = false;
+    let hasVerifiedImage = false;
+    const verifyBackgroundImage = () => {
+      const image = new Image();
+      if (!hasVerifiedImage) setBackgroundImageState("loading");
+      image.onload = () => {
+        if (!cancelled) {
+          hasVerifiedImage = true;
+          failedBackgroundPath.current = null;
+          setBackgroundImageState("ready");
+        }
+      };
+      image.onerror = () => {
+        if (cancelled) return;
+        setBackgroundImageState("error");
+
+        const failedPath = settings.customBackgroundImage;
+        if (failedBackgroundPath.current === failedPath) return;
+        failedBackgroundPath.current = failedPath;
+
+        // A moved, deleted, or corrupt file should never leave a permanent
+        // broken wallpaper reference. Fall back to the normal canvas and retain
+        // every other setting.
+        const latestSettings = useChatStore.getState().settings;
+        if (latestSettings.customBackgroundImage !== failedPath) return;
+        void updateAppSettings({
+          ...latestSettings,
+          customBackgroundImage: undefined,
+        })
+          .then((nextSettings) => {
+            useChatStore.getState().setSettings(nextSettings);
+            toastManager.add({
+              type: "warning",
+              title: "Background image unavailable",
+              description: "The source image was removed or could not be read. MaTE X returned to the standard background.",
+            });
+          })
+          .catch(() => {
+            // The visual fallback still applies even if storage is unavailable.
+          });
+      };
+      // Bypass the image cache when checking a long-running desktop session.
+      image.src = `${backgroundImage}?background-probe=${Date.now()}`;
+    };
+
+    verifyBackgroundImage();
+    const recheck = window.setInterval(verifyBackgroundImage, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(recheck);
+    };
+  }, [backgroundImage, settings.customBackgroundImage]);
 
   return (
     <SidebarProvider defaultOpen>
       <main
         className={cn(
           "relative flex h-screen w-full overflow-hidden text-foreground",
+          backgroundImage && "has-custom-background",
           vibrancyMode === "solid" && "vibrancy-solid bg-background",
           vibrancyMode === "sidebar" && "vibrancy-sidebar bg-transparent",
           vibrancyMode === "special" && "vibrancy-special bg-transparent",
@@ -143,6 +222,16 @@ export function DesktopShell() {
         )}
         style={shellStyle}
       >
+        {backgroundImage && backgroundImageState === "ready" ? (
+          <div
+            aria-hidden
+            className="app-custom-background"
+            style={{
+              backgroundImage: `url("${backgroundImage}")`,
+              opacity: backgroundOpacity,
+            }}
+          />
+        ) : null}
         {/* Ambient mesh gives CSS backdrop-filter something real to blur
             (native mica/vibrancy are intentionally disabled). */}
         {usesCssGlass ? <div aria-hidden className="app-ambient" /> : null}

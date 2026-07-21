@@ -15,11 +15,15 @@ function Slider({
   thumbLabel = "Slider value",
   ...props
 }: SliderProps) {
-  const _values = Array.isArray(value)
+  const values = Array.isArray(value)
     ? value
-    : Array.isArray(defaultValue)
-      ? defaultValue
-      : [min, max]
+    : typeof value === "number"
+      ? [value]
+      : Array.isArray(defaultValue)
+        ? defaultValue
+        : typeof defaultValue === "number"
+          ? [defaultValue]
+          : [min]
 
   return (
     <SliderPrimitive.Root
@@ -42,7 +46,7 @@ function Slider({
             className="bg-primary select-none data-horizontal:h-full data-vertical:w-full"
           />
         </SliderPrimitive.Track>
-        {Array.from({ length: _values.length }, (_, index) => (
+        {Array.from({ length: values.length }, (_, index) => (
           <SliderPrimitive.Thumb
             aria-label={thumbLabel}
             data-slot="slider-thumb"

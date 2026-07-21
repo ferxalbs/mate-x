@@ -46,6 +46,8 @@ export interface AppSettings {
   agentFirewallMode: AgentFirewallMode;
   supermemoryApiKey?: string;
   onboardingCompleted: boolean;
+  customBackgroundImage?: string;
+  customBackgroundOpacity?: number;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -83,6 +85,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   mobileCompanionPrivateLanOnly: true,
   powerMode: 'efficient',
   agentFirewallMode: 'strict',
-  supermemoryApiKey: '',
+  supermemoryApiKey: undefined,
   onboardingCompleted: false,
+  customBackgroundImage: undefined,
+  customBackgroundOpacity: 1.0,
 };
