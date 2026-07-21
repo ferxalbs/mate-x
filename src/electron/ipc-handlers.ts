@@ -683,6 +683,9 @@ export function registerIpcHandlers() {
   const handle = registerGuardedIpcHandler;
 
   handle("app:check-updates", async () => checkForUpdates(true));
+  handle("linear:get-status", async () => (await import("./linear")).getLinearConnectionService().status());
+  handle("linear:connect", async () => (await import("./linear")).getLinearConnectionService().begin());
+  handle("linear:disconnect", async () => (await import("./linear")).getLinearConnectionService().revoke());
   handle("privacy:scan-text", async (_event, text: string) => {
     if (typeof text !== "string") {
       throw new Error("privacy scan text must be a string.");

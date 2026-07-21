@@ -68,6 +68,7 @@ import type {
 import { useTheme } from '../hooks/use-theme';
 import { WorkspaceMemorySettings } from '../features/workspace-memory/workspace-memory-settings';
 import { AgentProfilerSettings } from '../features/agent-profiler/agent-profiler-settings';
+import { LinearIntegrationSettings } from '../features/linear/linear-integration-settings';
 import { cn } from '../lib/utils';
 import {
   getWorkspaceTrustContract,
@@ -1542,6 +1543,7 @@ export function SettingsPage() {
             {section === 'integrations' ? (
               <SettingsSection title="Integrations" icon={<HugeiconsIcon icon={PuzzleIcon} className="size-4" />}>
                 <>
+                  <LinearIntegrationSettings />
                   <SettingsRow
                     title="Codex"
                     description="Allow MaTE X to use Codex as an external agent integration when explicitly selected."

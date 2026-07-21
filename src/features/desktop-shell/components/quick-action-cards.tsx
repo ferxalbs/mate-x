@@ -4,6 +4,7 @@ import { Bug01Icon, CheckmarkCircle01Icon, GitBranchIcon, RouteIcon } from "@hug
 import { motion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
+import { useTheme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
 
 interface QuickActionCardProps {
@@ -21,6 +22,7 @@ function QuickActionCard({
   onClick,
   disabled,
 }: QuickActionCardProps) {
+  const { blurEnabled } = useTheme();
   return (
     <motion.button
       type="button"
@@ -30,7 +32,8 @@ function QuickActionCard({
       whileTap={{ scale: 0.97 }}
       transition={{ type: "spring", damping: 25, stiffness: 400 }}
       className={cn(
-        "group relative flex w-full flex-col items-start gap-2 rounded-xl border border-border/40 bg-transparent p-3 text-left shadow-none transition-colors duration-[250ms] hover:border-foreground/15 hover:bg-foreground/[0.02] motion-reduce:transform-none",
+        "group relative flex w-full flex-col items-start gap-2 rounded-2xl border border-border/40 p-3 text-left shadow-none transition-colors duration-[250ms] hover:border-foreground/15 hover:bg-foreground/[0.04] motion-reduce:transform-none",
+        blurEnabled ? "mate-glass-float" : "bg-transparent",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >

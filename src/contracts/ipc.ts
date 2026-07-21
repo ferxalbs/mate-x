@@ -28,6 +28,7 @@ import type { RainyModelCatalogEntry, RainyModelLaunch } from "./rainy";
 import type { PrivacyApi } from "./privacy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
+import type { LinearIntegrationStatus } from "./linear-integration";
 import type {
   MobileBridgeDeviceSession,
   MobilePendingPairingRequest,
@@ -200,6 +201,9 @@ export interface SettingsApi {
   getAppSettings: () => Promise<AppSettings>;
   updateAppSettings: (settings: AppSettings) => Promise<AppSettings>;
   getBackgroundImagePath: (file: File) => string;
+  getLinearStatus: () => Promise<LinearIntegrationStatus>;
+  connectLinear: () => Promise<void>;
+  disconnectLinear: () => Promise<void>;
 }
 
 export interface PolicyApi {
