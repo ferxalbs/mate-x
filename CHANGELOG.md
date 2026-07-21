@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.20 (1) [Reliable Background Images]
+
+* Added a verified local-background workflow with image loading, ready, error, size-limit, and recovery states.
+* Hardened Electron local-image resolution and fixed the image-visibility slider’s single-value handling and persisted-value normalization.
+
 ## Unreleased - 2026.07.18 (1) [Premium Workspace, Trust, and Motion System]
 
 Completed the end-to-end product polish pass for MaTE X: the first run is now dependable, the primary workspace is verification-first and easier to scan, scoped autonomy is enforced consistently, and the interface uses a unified responsive and reduced-motion-aware foundation.

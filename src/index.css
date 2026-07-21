@@ -516,6 +516,19 @@ label:has(> select#reasoning-effort) select {
  */
 
 /* Ambient mesh — what glass blurs when native desktop materials are off. */
+.app-custom-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: saturate(0.92) contrast(0.94);
+  transform: scale(1.015);
+  transition: opacity 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .app-ambient {
   position: fixed;
   inset: 0;
@@ -524,13 +537,19 @@ label:has(> select#reasoning-effort) select {
   background:
     radial-gradient(120% 80% at 8% 12%, var(--ambient-a) 0%, transparent 55%),
     radial-gradient(100% 70% at 92% 18%, var(--ambient-b) 0%, transparent 50%),
-    radial-gradient(90% 90% at 50% 100%, var(--ambient-c) 0%, transparent 60%),
-    var(--background);
+    radial-gradient(90% 90% at 50% 100%, var(--ambient-c) 0%, transparent 60%);
   opacity: 1;
 }
 
 .vibrancy-solid .app-ambient {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-custom-background {
+    transform: none;
+    transition-duration: 120ms;
+  }
 }
 
 /* Solid mode — fully opaque chrome */
@@ -544,6 +563,20 @@ label:has(> select#reasoning-effort) select {
   background-color: var(--background) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* A chosen wallpaper is intentionally quiet: it is visible throughout the
+ * workspace, while a substantial canvas tint keeps dense security work clear. */
+.has-custom-background.vibrancy-solid .app-sidebar-container,
+.has-custom-background.vibrancy-sidebar .app-sidebar-container,
+.has-custom-background.vibrancy-special .app-sidebar-container {
+  background-color: color-mix(in srgb, var(--sidebar) 82%, transparent) !important;
+}
+
+.has-custom-background.vibrancy-solid .app-main-content-container,
+.has-custom-background.vibrancy-sidebar .app-main-content-container,
+.has-custom-background.vibrancy-special .app-main-content-container {
+  background-color: color-mix(in srgb, var(--background) 72%, transparent) !important;
 }
 
 /*
@@ -807,4 +840,3 @@ pre, code {
 .token.deleted {
   color: var(--code-deleted, #dc2626);
 }
-

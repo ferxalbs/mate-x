@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 import type {
   GitApi,
@@ -197,6 +197,7 @@ const settingsApi: SettingsApi = {
   getAppSettings: () => ipcRenderer.invoke("settings:get-app-settings"),
   updateAppSettings: (settings) =>
     ipcRenderer.invoke("settings:update-app-settings", settings),
+  getBackgroundImagePath: (file) => webUtils.getPathForFile(file),
 };
 
 const githubApi: GitHubIntegrationApi = {

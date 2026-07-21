@@ -98,6 +98,8 @@ const APP_SETTING_KEYS = new Set([
   "agentFirewallMode",
   "supermemoryApiKey",
   "onboardingCompleted",
+  "customBackgroundImage",
+  "customBackgroundOpacity",
 ]);
 const frontierStartedAt = Date.now();
 const frontierPerformanceMetrics: PerformanceMetric[] = [];

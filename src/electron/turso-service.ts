@@ -1850,6 +1850,15 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.onboardingCompleted === 'boolean'
         ? input.onboardingCompleted
         : DEFAULT_APP_SETTINGS.onboardingCompleted,
+    customBackgroundImage:
+      typeof input.customBackgroundImage === 'string'
+        ? input.customBackgroundImage
+        : DEFAULT_APP_SETTINGS.customBackgroundImage,
+    customBackgroundOpacity:
+      typeof input.customBackgroundOpacity === 'number' &&
+      Number.isFinite(input.customBackgroundOpacity)
+        ? Math.min(1, Math.max(0, input.customBackgroundOpacity))
+        : DEFAULT_APP_SETTINGS.customBackgroundOpacity,
   };
 }
 
