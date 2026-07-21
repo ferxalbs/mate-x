@@ -198,6 +198,9 @@ const settingsApi: SettingsApi = {
   updateAppSettings: (settings) =>
     ipcRenderer.invoke("settings:update-app-settings", settings),
   getBackgroundImagePath: (file) => webUtils.getPathForFile(file),
+  getLinearStatus: () => ipcRenderer.invoke("linear:get-status"),
+  connectLinear: () => ipcRenderer.invoke("linear:connect"),
+  disconnectLinear: () => ipcRenderer.invoke("linear:disconnect"),
 };
 
 const githubApi: GitHubIntegrationApi = {

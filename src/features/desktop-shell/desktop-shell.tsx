@@ -171,7 +171,7 @@ export function DesktopShell() {
         if (cancelled) return;
         setBackgroundImageState("error");
 
-        const failedPath = settings.customBackgroundImage;
+        const failedPath = backgroundImage;
         if (failedBackgroundPath.current === failedPath) return;
         failedBackgroundPath.current = failedPath;
 

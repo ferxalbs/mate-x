@@ -21,6 +21,26 @@ if (!hasSingleInstanceLock) {
   process.exit(0);
 }
 
+app.setAsDefaultProtocolClient('matex');
+app.on('open-url', (event, rawUrl) => {
+  event.preventDefault();
+  void completeLinearOAuthCallback(rawUrl);
+});
+
+async function completeLinearOAuthCallback(rawUrl: string): Promise<void> {
+  try {
+    const url = new URL(rawUrl);
+    if (url.hostname !== 'linear' || url.pathname !== '/callback') return;
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    if (!code || !state) throw new Error('Linear OAuth callback is missing code or state');
+    const { getLinearConnectionService } = await import('./linear');
+    await getLinearConnectionService().complete(code, state);
+  } catch (error) {
+    console.error('Linear OAuth callback failed:', error);
+  }
+}
+
 app.on('second-instance', () => {
   const [mainWindow] = BrowserWindow.getAllWindows();
   if (!mainWindow) return;

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.20 (2) [Native Linear Agent]
+
+* Added the v0.1.3 native Linear agent integration with PKCE S256 app-actor OAuth, encrypted rotating credentials, permission/revocation handling, and a minimal connection status surface.
+* Added a Bun webhook relay with official Linear raw-body verification, timestamp checks, delivery deduplication, persist-before-response behavior, and authenticated ACK/replay delivery to Electron main.
+* Bound each Linear Agent Session idempotently to one canonical EngineeringTask and one Graph Runtime run, including follow-up resume, native activities, repository selection elicitation, stop cancellation, best-effort plan projection, and run/PR external URLs.
+* Added durable Linear installation, session binding, webhook inbox, and activity outbox state with restart recovery and focused coverage for security, replay, mapping, ambiguity, cancellation, refresh rotation, and API failure behavior.
+* Removed unused Chat SDK adapter packages and pinned `@linear/sdk` exactly to `88.2.0`.
+
 ## Unreleased - 2026.07.20 (1) [Reliable Background Images]
 
 * Added a verified local-background workflow with image loading, ready, error, size-limit, and recovery states.

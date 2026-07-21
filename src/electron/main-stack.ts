@@ -30,6 +30,8 @@ export async function initStack(): Promise<void> {
     );
   }
   initDurableEngineeringRepository(dbPath);
+  const { initializeLinearIntegration } = await import('./linear');
+  await initializeLinearIntegration();
   startupPerfMark('stack:engineering-repo');
 
   // Production Rainy agent adapter + optional migration + config load can proceed in parallel
@@ -212,6 +214,8 @@ export function getConfigSnapshot(): MaTeXConfig {
 }
 
 export async function teardownStack(): Promise<void> {
+  const { teardownLinearIntegration } = await import('./linear');
+  teardownLinearIntegration();
   if (!stack) {
     setSDKOrchestrator(null);
     configSnapshot = null;
