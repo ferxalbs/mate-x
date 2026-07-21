@@ -9,6 +9,7 @@ import {
   getAppSettings,
   updateAppSettings,
 } from "../../services/settings-client";
+import { Vibrant } from "node-vibrant/browser";
 import { useChatStore } from "../../store/chat-store";
 import { cn } from "../../lib/utils";
 import { EnhancementPanel } from "./components/enhancement-panel";
@@ -152,6 +153,9 @@ export function DesktopShell() {
   useEffect(() => {
     if (!backgroundImage || !settings.customBackgroundImage) {
       setBackgroundImageState("idle");
+      const root = document.documentElement;
+      root.style.removeProperty("--app-dynamic-muted");
+      root.style.removeProperty("--app-dynamic-vibrant");
       return;
     }
 
@@ -159,12 +163,32 @@ export function DesktopShell() {
     let hasVerifiedImage = false;
     const verifyBackgroundImage = () => {
       const image = new Image();
+      // Bypass the image cache when checking a long-running desktop session.
+      image.src = `${backgroundImage}?background-probe=${Date.now()}`;
       if (!hasVerifiedImage) setBackgroundImageState("loading");
       image.onload = () => {
         if (!cancelled) {
           hasVerifiedImage = true;
           failedBackgroundPath.current = null;
           setBackgroundImageState("ready");
+          
+          // Safely extract colors without blocking image display
+          Vibrant.from(image)
+            .getPalette()
+            .then((palette) => {
+              if (cancelled) return;
+              const root = document.documentElement;
+              if (palette.DarkVibrant?.hex) {
+                root.style.setProperty("--app-dynamic-muted", palette.DarkVibrant.hex);
+              }
+              if (palette.Vibrant?.hex) {
+                root.style.setProperty("--app-dynamic-vibrant", palette.Vibrant.hex);
+              }
+            })
+            .catch((err) => {
+              // Ignore canvas taint or color extraction failure gracefully
+              console.warn("Failed to extract vibrant colors from background:", err);
+            });
         }
       };
       image.onerror = () => {
@@ -196,8 +220,6 @@ export function DesktopShell() {
             // The visual fallback still applies even if storage is unavailable.
           });
       };
-      // Bypass the image cache when checking a long-running desktop session.
-      image.src = `${backgroundImage}?background-probe=${Date.now()}`;
     };
 
     verifyBackgroundImage();
