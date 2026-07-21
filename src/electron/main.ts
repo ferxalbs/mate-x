@@ -21,6 +21,19 @@ if (!hasSingleInstanceLock) {
   process.exit(0);
 }
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'mate-local',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      bypassCSP: true,
+    },
+  },
+]);
+
 app.setAsDefaultProtocolClient('matex');
 app.on('open-url', (event, rawUrl) => {
   event.preventDefault();
