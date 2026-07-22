@@ -27,9 +27,10 @@ import type { CSSProperties } from "react";
 const EMPTY_SHELL_STYLE: CSSProperties = Object.freeze({});
 
 function toLocalImageUrl(filePath: string): string {
-  // Keep local paths inside Electron's explicitly registered protocol instead
-  // of exposing a file:// URL to the renderer.
-  return `mate-local://${filePath.split('/').map(encodeURIComponent).join('/')}`;
+  if (!filePath) return "";
+  // Normalize Windows backslashes before splitting
+  const normalized = filePath.replace(/\\/g, '/');
+  return `mate-local://${normalized.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 export function DesktopShell() {
@@ -203,7 +204,7 @@ export function DesktopShell() {
         // broken wallpaper reference. Fall back to the normal canvas and retain
         // every other setting.
         const latestSettings = useChatStore.getState().settings;
-        if (latestSettings.customBackgroundImage !== failedPath) return;
+        if (!latestSettings.customBackgroundImage || toLocalImageUrl(latestSettings.customBackgroundImage) !== failedPath) return;
         void updateAppSettings({
           ...latestSettings,
           customBackgroundImage: undefined,
