@@ -272,7 +272,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (section !== 'connections' || !mobilePairingPayload) return;
-    const timer = window.setInterval(() => void refreshMobileBridge(), 1500);
+    const timer = window.setInterval((): void => void refreshMobileBridge(), 1500);
     return () => window.clearInterval(timer);
   }, [mobilePairingPayload, refreshMobileBridge, section]);
 
@@ -923,16 +923,29 @@ export function SettingsPage() {
                         <img
                           alt="Selected background preview"
                           className="h-full w-full object-cover opacity-70"
-                          src={backgroundPreviewUrl ?? `mate-local://${appSettings.customBackgroundImage.split('/').map(encodeURIComponent).join('/')}`}
+                          src={backgroundPreviewUrl ?? `mate-local://${appSettings.customBackgroundImage.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/')}`}
                           onLoad={() => setBackgroundImageState('ready')}
                           onError={() => {
-                            setBackgroundImageState('error');
-                            setBackgroundImageError('This image is corrupt or uses an unsupported format.');
-                            setBackgroundPreviewUrl(null);
-                            setAppSettings((current) => ({
-                              ...current,
-                              customBackgroundImage: '',
-                            }));
+                            if (backgroundPreviewUrl !== null) {
+                              // The freshly-selected blob failed (corrupt file).
+                              // Clear the blob, show the error, but keep the
+                              // previously-saved path so the user isn't left empty.
+                              setBackgroundImageState('error');
+                              setBackgroundImageError('This image is corrupt or uses an unsupported format.');
+                              setBackgroundPreviewUrl(null);
+                            } else {
+                              // The saved DB path failed (file moved/deleted).
+                              // Clear it locally so the UI resets cleanly.
+                              // DesktopShell will also clear it from the DB async.
+                              setBackgroundImageState('idle');
+                              setBackgroundImageError(null);
+                              setBackgroundPreviewUrl(null);
+                              setAppSettings((current) => ({
+                                ...current,
+                                customBackgroundImage: '',
+                              }));
+                              if (saveState === 'saved') setSaveState('idle');
+                            }
                           }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-transparent to-transparent" />

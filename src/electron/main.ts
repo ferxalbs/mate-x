@@ -5,6 +5,10 @@ import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
 import { initializeUpdater } from './updater';
+import {
+  setAuthorizedBackgroundImagePath,
+  getAuthorizedBackgroundImagePath,
+} from './background-image-auth';
 
 import { registerIpcHandlers } from './ipc-handlers';
 import { initStack, teardownStack } from './main-stack';
@@ -21,6 +25,11 @@ if (!hasSingleInstanceLock) {
   app.quit();
   process.exit(0);
 }
+
+/** Image MIME/extension allowlist — protocol serves only these types. */
+const ALLOWED_IMAGE_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.tiff', '.tif', '.svg',
+]);
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -218,27 +227,42 @@ app.on('ready', async () => {
   protocol.handle('mate-local', async (request) => {
     let requestedPath: string;
     try {
-      requestedPath = decodeURIComponent(new URL(request.url).pathname);
+      const parsedUrl = new URL(request.url);
+      // pathname is already percent-encoded by the browser engine;
+      // decode it once to get the real filesystem path.
+      requestedPath = decodeURIComponent(parsedUrl.pathname);
+      // Windows: URL pathname for C:\foo is /C:/foo — strip the leading slash.
+      if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(requestedPath)) {
+        requestedPath = requestedPath.slice(1);
+      }
     } catch {
       return new Response('Not found', { status: 404 });
     }
 
-    const settings = await tursoService.getAppSettings();
+    const resolvedPath = path.resolve(requestedPath);
 
-    // This protocol is deliberately single-purpose: renderer content can read
-    // only the one local image the user explicitly saved as their background.
-    if (
-      !settings.customBackgroundImage ||
-      !path.isAbsolute(requestedPath) ||
-      path.resolve(requestedPath) !== path.resolve(settings.customBackgroundImage)
-    ) {
+    // ── Extension allowlist ──────────────────────────────────────────────────
+    // Reject any request that isn't to a known image format so the protocol
+    // cannot be used to exfiltrate arbitrary files even if the auth check below
+    // were somehow bypassed.
+    const ext = path.extname(resolvedPath).toLowerCase();
+    if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    // ── Authorization check ──────────────────────────────────────────────────
+    // Only serve the single path the user explicitly saved as their background.
+    // The authorized path is an in-memory cache populated from the DB at startup
+    // and kept current by setAuthorizedBackgroundImagePath() — no DB I/O here.
+    const authorizedPath = getAuthorizedBackgroundImagePath();
+    if (!authorizedPath || resolvedPath !== authorizedPath) {
       return new Response('Not found', { status: 404 });
     }
 
     try {
-      const file = await stat(requestedPath);
+      const file = await stat(resolvedPath);
       if (!file.isFile()) return new Response('Not found', { status: 404 });
-      return net.fetch(pathToFileURL(requestedPath).toString());
+      return net.fetch(pathToFileURL(resolvedPath).toString());
     } catch {
       return new Response('Not found', { status: 404 });
     }
@@ -256,6 +280,9 @@ app.on('ready', async () => {
   let appSettings = DEFAULT_APP_SETTINGS;
   try {
     appSettings = await tursoService.getAppSettings();
+    // Prime the protocol authorization cache from DB so the renderer can
+    // load the saved background image immediately after startup.
+    setAuthorizedBackgroundImagePath(appSettings.customBackgroundImage);
     startupPerfMark('settings-loaded');
   } catch (error) {
     console.warn('Failed to load window appearance settings on startup, using defaults:', error);

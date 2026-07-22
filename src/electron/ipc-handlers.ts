@@ -39,6 +39,7 @@ import { tursoService } from "./turso-service";
 import { checkForUpdates } from "./updater";
 import { applyWindowAppearance } from "./window-appearance";
 import { getStack } from "./main-stack";
+import { setAuthorizedBackgroundImagePath } from "./background-image-auth";
 
 // ── Lazy service loaders (keep main-process cold start free of assistant/SDK bulk) ──
 const loadRepoService = () => import("./repo-service");
@@ -1440,6 +1441,9 @@ export function registerIpcHandlers() {
     "settings:update-app-settings",
     async (_event, settings: AppSettings) => {
       const updatedSettings = await tursoService.updateAppSettings(validateAppSettings(settings));
+      // Keep the protocol authorization cache in sync so the renderer can
+      // immediately load the new background image without restarting the app.
+      setAuthorizedBackgroundImagePath(updatedSettings.customBackgroundImage);
       const [win] = BrowserWindow.getAllWindows();
       if (win) {
         applyWindowAppearance(
