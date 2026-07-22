@@ -120,8 +120,11 @@ Design direction: compact native-macOS utility, flat canvas, subtle borders, rar
 - **`blurEnabled` (Interface blur)** and **`vibrancyMode` (Transparency Mode)** are independent. Do not couple them. Interface blur toggles `:root.blur-enabled` for controls and overlays; transparency mode only changes layout chrome (`solid` | `sidebar` | `special`).
 - **Single-layer rule:** only the glass leaf may use `backdrop-filter`. Never put `backdrop-filter` on `.app-main-content-container` or other ancestors of inputs/composer/menus — nested filters make children look transparent.
 - Prefer global glass tokens and `data-slot` rules in `src/index.css` / theme CSS (`--control-glass-blur`, `--overlay-glass-blur`, `.mate-glass-float`, `.control-surface`) over one-off `backdrop-blur-*` classes.
-- Controls stay solid/`--control` when blur is off; high-tint small blur when on. Overlays use stronger blur only when portaled.
-- **Performance:** do not animate `backdrop-filter`; animate transform/opacity only (~150–250ms, `cubic-bezier(0.2, 0.8, 0.2, 1)`). For `framer-motion`, use snappy springs (`damping: 25, stiffness: 400`) and avoid bouncy hover translations (prefer subtle `scale: 1.01`). Respect reduced motion. Keep blur opt-in by default.
+- Controls stay solid/`--control` when blur is off; refined small blur when on (`--control-glass-blur: 14px`, `--overlay-glass-blur: 18px`). Overlays use stronger blur only when portaled. Keep blur radii under 20px to prevent GPU composite lag.
+- **Performance (STRICT):**
+  - **No `scale` animations over `backdrop-filter`**: NEVER animate `scale` on an element or container while `backdrop-filter` is active (e.g. popovers, dropdown selectors, glass cards). Scaling causes Chromium to re-rasterize heavy blur buffers on every frame, causing popup opening delay and render lag.
+  - **Glass Entrance Motion**: Use `opacity` + subtle translation (`translate-y-[-2px]` or `y: 6`) only (NO scale). Dropdown popups must use fast `150ms` `transition-[opacity,transform]` with `translate-y-[-2px]` instead of `scale-[0.98]`.
+  - Do **not** animate `backdrop-filter`; animate opacity/transform only. Always use `transform: translateZ(0)` and `isolation: isolate` on floating glass (`.mate-glass-float`, popovers). Respect reduced motion.
 - **Component Composition:** Avoid redundant scrollbars (`overflow-y-auto`) on dropdown contents. Expose active context directly on triggers (with subtle dividers) rather than hiding it inside menus.
 
 Motion should be functional, interruptible, and reduced-motion aware.
