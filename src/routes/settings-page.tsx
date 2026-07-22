@@ -102,6 +102,13 @@ function normalizeBackgroundImageOpacity(value: unknown): number {
   }
   return Math.min(1, Math.max(0, value));
 }
+
+function toLocalImageUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  const fileName = normalized.split('/').pop() ?? '';
+  return fileName ? `mate-local://background/${encodeURIComponent(fileName)}` : '';
+}
+
 type SettingsSectionId =
   | 'general'
   | 'connections'
@@ -923,7 +930,7 @@ export function SettingsPage() {
                         <img
                           alt="Selected background preview"
                           className="h-full w-full object-cover opacity-70"
-                          src={backgroundPreviewUrl ?? `mate-local://${appSettings.customBackgroundImage.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/')}`}
+                          src={backgroundPreviewUrl ?? toLocalImageUrl(appSettings.customBackgroundImage)}
                           onLoad={() => setBackgroundImageState('ready')}
                           onError={() => {
                             if (backgroundPreviewUrl !== null) {
@@ -934,17 +941,14 @@ export function SettingsPage() {
                               setBackgroundImageError('This image is corrupt or uses an unsupported format.');
                               setBackgroundPreviewUrl(null);
                             } else {
-                              // The saved DB path failed (file moved/deleted).
-                              // Clear it locally so the UI resets cleanly.
-                              // DesktopShell will also clear it from the DB async.
-                              setBackgroundImageState('idle');
-                              setBackgroundImageError(null);
+                              // A protocol/cache failure must not erase the
+                              // saved state. Keep it visible so the user can
+                              // explicitly replace or remove it.
+                              setBackgroundImageState('error');
+                              setBackgroundImageError(
+                                'The saved image could not be loaded. It remains saved; choose another image or remove it.',
+                              );
                               setBackgroundPreviewUrl(null);
-                              setAppSettings((current) => ({
-                                ...current,
-                                customBackgroundImage: '',
-                              }));
-                              if (saveState === 'saved') setSaveState('idle');
                             }
                           }}
                         />
