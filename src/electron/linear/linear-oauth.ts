@@ -3,6 +3,7 @@ import { LINEAR_OAUTH_SCOPES, type LinearOAuthConfiguration } from "../../contra
 
 const AUTHORIZE_URL = "https://linear.app/oauth/authorize";
 const TOKEN_URL = "https://api.linear.app/oauth/token";
+const REVOKE_URL = "https://api.linear.app/oauth/revoke";
 
 export interface LinearTokenResponse {
   access_token: string;
@@ -16,6 +17,18 @@ export interface LinearOAuthAttempt {
   state: string;
   verifier: string;
   authorizeUrl: string;
+}
+
+export function requireMatchingLinearOAuthState(expected: string | null, actual: string): void {
+  if (!expected || expected !== actual) {
+    throw new Error("Linear authorization could not be verified. Start a new connection attempt.");
+  }
+}
+
+export function linearOAuthCancellationMessage(error: string): string {
+  return error === "access_denied"
+    ? "Linear authorization was cancelled."
+    : "Linear authorization did not complete. Try again.";
 }
 
 function base64Url(value: Buffer): string {
@@ -79,7 +92,18 @@ export function refreshLinearOAuthToken(input: {
   }), input.fetchImpl ?? fetch);
 }
 
+export async function revokeLinearOAuthToken(input: {
+  token: string;
+  fetchImpl?: typeof fetch;
+}): Promise<void> {
+  const response = await (input.fetchImpl ?? fetch)(REVOKE_URL, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: input.token, token_type_hint: "refresh_token" }),
+  });
+  if (!response.ok && response.status !== 400) throw new Error(`Linear OAuth revoke request failed (${response.status})`);
+}
+
 export function normalizeLinearScopes(scope: string | string[]): string[] {
   return (Array.isArray(scope) ? scope : scope.split(/[ ,]+/)).filter(Boolean).sort();
 }
-

@@ -4,7 +4,8 @@ import { LinearWebhookClient } from "@linear/sdk/webhooks";
 import { EngineeringCommandBus } from "../engineering/command-bus";
 import { InMemoryEngineeringRepository } from "../engineering/in-memory-repository";
 import { LinearAgentService, type LinearAgentApi, type LinearRuntimeAuthority } from "./linear-agent-service";
-import { createLinearOAuthAttempt, refreshLinearOAuthToken } from "./linear-oauth";
+import { createLinearOAuthAttempt, exchangeLinearOAuthCode, linearOAuthCancellationMessage, refreshLinearOAuthToken, requireMatchingLinearOAuthState } from "./linear-oauth";
+import { createLinearDeveloperSetup, resolveLinearClientId } from "./linear-product-config";
 import { LinearStore } from "./linear-store";
 
 // The repository's narrow global expect declaration intentionally exposes only
@@ -51,12 +52,54 @@ describe("Linear webhook security", () => {
 });
 
 describe("Linear OAuth PKCE and refresh", () => {
+  it("prefers built-in product configuration and limits environment overrides to development", () => {
+    bunExpect(resolveLinearClientId({ isPackaged: true, environmentClientId: "environment", builtInClientId: "built-in" })).toEqual({ clientId: "built-in", source: "built_in" });
+    bunExpect(resolveLinearClientId({ isPackaged: false, environmentClientId: "environment", builtInClientId: "built-in" })).toEqual({ clientId: "environment", source: "development_override" });
+  });
+
+  it("exposes developer setup when product configuration is missing", async () => {
+    bunExpect(resolveLinearClientId({ isPackaged: true, builtInClientId: "" }).source).toBe("missing");
+    bunExpect(createLinearDeveloperSetup().createAppUrl).toContain("linear.app/settings/api/applications/new");
+  });
+
+  it("persists a manually configured Client ID across restart", async () => {
+    const db = `file:${process.cwd()}/artifacts/linear-config-${crypto.randomUUID()}.sqlite`;
+    const first = new LinearStore(db);
+    await first.initialize();
+    stores.push(first);
+    await first.saveClientId("manual-client-id");
+    const second = new LinearStore(db);
+    await second.initialize();
+    stores.push(second);
+    bunExpect(await second.getClientId()).toBe("manual-client-id");
+  });
+
   it("uses S256, actor app, and the exact agent scopes", () => {
     const attempt = createLinearOAuthAttempt({ clientId: "client", redirectUri: "matex://linear/callback" });
     const url = new URL(attempt.authorizeUrl);
     bunExpect(url.searchParams.get("actor")).toBe("app");
     bunExpect(url.searchParams.get("code_challenge_method")).toBe("S256");
     bunExpect(url.searchParams.get("scope")).toBe("read,write,app:assignable,app:mentionable");
+  });
+
+  it("exchanges an authorization code using PKCE without a client secret", async () => {
+    const token = await exchangeLinearOAuthCode({
+      code: "authorization-code",
+      verifier: "verifier",
+      config: { clientId: "client", redirectUri: "matex://linear/callback" },
+      fetchImpl: (async (_url, init) => {
+        const body = String(init?.body);
+        bunExpect(body).toContain("code_verifier=verifier");
+        bunExpect(body).not.toContain("client_secret");
+        return new Response(JSON.stringify({ access_token: "access", refresh_token: "refresh", expires_in: 3600, scope: "read write", token_type: "Bearer" }));
+      }) as typeof fetch,
+    });
+    bunExpect(token.access_token).toBe("access");
+  });
+
+  it("surfaces cancellation and rejects an invalid state", async () => {
+    bunExpect(linearOAuthCancellationMessage("access_denied")).toContain("cancelled");
+    bunExpect(() => requireMatchingLinearOAuthState("expected", "invalid-state")).toThrow("verified");
   });
 
   it("persists the rotated refresh token returned by Linear", async () => {

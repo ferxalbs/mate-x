@@ -20,6 +20,14 @@ export interface LinearIntegrationStatus {
   relayConnected: boolean;
   lastDeliveryAt: string | null;
   message: string | null;
+  configurationSource: "built_in" | "development_override" | "local" | "missing";
+  setup: LinearDeveloperSetup;
+}
+
+export interface LinearDeveloperSetup {
+  callbackUrl: string;
+  webhookUrl: string;
+  createAppUrl: string;
 }
 
 export interface LinearOAuthConfiguration {
@@ -40,4 +48,3 @@ export interface LinearWebhookEnvelope {
   receivedAt: string;
   payload: Record<string, unknown>;
 }
-
