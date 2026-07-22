@@ -1,7 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Bug01Icon, CheckmarkCircle01Icon, GitBranchIcon, RouteIcon } from "@hugeicons/core-free-icons";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { useTheme } from "../../../hooks/use-theme";
@@ -13,7 +13,32 @@ interface QuickActionCardProps {
   title: string;
   onClick: () => void;
   disabled?: boolean;
+  variants?: Variants;
 }
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.04,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 8, scale: 0.98 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.24,
+      ease: [0.23, 1, 0.32, 1],
+    },
+  },
+};
 
 function QuickActionCard({
   evidence,
@@ -21,24 +46,28 @@ function QuickActionCard({
   title,
   onClick,
   disabled,
+  variants,
 }: QuickActionCardProps) {
   const { blurEnabled } = useTheme();
+  const shouldReduceMotion = useReducedMotion();
+
   return (
     <motion.button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: "spring", damping: 25, stiffness: 400 }}
+      variants={variants}
+      whileHover={shouldReduceMotion ? undefined : { scale: 1.015 }}
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.975 }}
+      transition={{ type: "spring", stiffness: 380, damping: 26 }}
       className={cn(
-        "group relative flex w-full flex-col items-start gap-2 rounded-2xl border border-border/40 p-3 text-left shadow-none transition-colors duration-[250ms] hover:border-foreground/15 hover:bg-foreground/[0.04] motion-reduce:transform-none",
-        blurEnabled ? "mate-glass-float" : "bg-transparent",
+        "group relative flex w-full flex-col items-start gap-2 rounded-2xl border border-border/40 p-3 text-left shadow-none transition-[background-color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-foreground/20 hover:bg-foreground/[0.05] hover:shadow-sm motion-reduce:transform-none",
+        blurEnabled ? "mate-glass-float hover:border-foreground/25" : "bg-transparent",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
-      <div className="flex items-center gap-2 text-foreground/75 transition-colors duration-[150ms] group-hover:text-foreground">
-        <div className="shrink-0">{icon}</div>
+      <div className="flex items-center gap-2 text-foreground/75 transition-colors duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-foreground">
+        <div className="shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-105">{icon}</div>
         <div className="text-[12px] font-medium leading-none text-foreground/90">
           {title}
         </div>
@@ -116,17 +145,23 @@ export function QuickActionCards({
   }, [disabled]);
 
   return (
-      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
-        {QUICK_ACTIONS.map((action) => (
-          <QuickActionCard
-            key={action.id}
-            evidence={action.evidence}
-            title={action.title}
-            icon={action.icon}
-            disabled={disabled}
-            onClick={() => onSelectAction(action.prompt)}
-          />
-        ))}
-      </div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4"
+    >
+      {QUICK_ACTIONS.map((action) => (
+        <QuickActionCard
+          key={action.id}
+          variants={cardVariants}
+          evidence={action.evidence}
+          title={action.title}
+          icon={action.icon}
+          disabled={disabled}
+          onClick={() => onSelectAction(action.prompt)}
+        />
+      ))}
+    </motion.div>
   );
 }

@@ -1,7 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderOpenIcon } from "@hugeicons/core-free-icons";
 import { useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 
 import { Button } from "../../../components/ui/button";
@@ -31,6 +31,7 @@ export function EmptyChatState({
   composer,
   onOpenRepository,
 }: EmptyChatStateProps) {
+  const shouldReduceMotion = useReducedMotion();
   const title = lastError
     ? "Something needs attention"
     : !isBootstrapped
@@ -62,9 +63,9 @@ export function EmptyChatState({
     return (
       <div className="grid min-h-full place-items-center px-4 py-10">
         <motion.div 
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+          transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
           className="w-full max-w-[820px] text-center"
         >
           <h1 className="text-2xl font-medium text-foreground/90 sm:text-[32px]">
@@ -80,9 +81,9 @@ export function EmptyChatState({
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", bounce: 0, duration: 0.6, delay: 0.1 }}
+      transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
       className="flex min-h-full flex-col items-center justify-center px-4 py-8 sm:px-8"
     >
       <div className="w-full max-w-[820px]">
