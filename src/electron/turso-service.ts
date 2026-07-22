@@ -36,6 +36,7 @@ import {
   type PersistedWorkspaceTrustContract,
 } from './workspace-trust';
 import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
+import { persistBackgroundImagePath } from './background-image-auth';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -589,6 +590,27 @@ export class TursoService {
   async updateAppSettings(settings: AppSettings): Promise<AppSettings> {
     await this.initialize();
     const normalizedSettings = normalizeAppSettings(settings);
+    if (normalizedSettings.customBackgroundImage) {
+      try {
+        normalizedSettings.customBackgroundImage = await persistBackgroundImagePath(
+          normalizedSettings.customBackgroundImage,
+          app.getPath('userData'),
+        );
+      } catch (error) {
+        // A previously persisted path may be stale because the source was
+        // removed externally. Preserve it during unrelated settings saves so
+        // a read failure cannot silently erase the user's saved state.
+        const persistedSettings = await this.getAppSettings();
+        const samePersistedPath =
+          persistedSettings.customBackgroundImage &&
+          path.resolve(persistedSettings.customBackgroundImage) ===
+            path.resolve(normalizedSettings.customBackgroundImage);
+        if (!samePersistedPath) {
+          throw error;
+        }
+        normalizedSettings.customBackgroundImage = persistedSettings.customBackgroundImage;
+      }
+    }
     await this.getClient().execute({
       sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
