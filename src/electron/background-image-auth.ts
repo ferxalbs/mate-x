@@ -8,7 +8,8 @@
  * Lifecycle:
  *  - Initialised from the DB by main.ts after tursoService.initialize().
  *  - Updated by ipc-handlers.ts whenever settings:update-app-settings runs.
- *  - Read synchronously by the protocol handler on every mate-local:// request.
+ *  - Read by the protocol handler on the hot path, with a DB recovery lookup
+ *    only when the cache does not match the requested filename.
  */
 
 import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
@@ -53,34 +54,37 @@ export function getAuthorizedBackgroundImagePath(): string | null {
 }
 
 /**
- * Build a URL without exposing a file:// URL to renderer content.
- * Encoding each path segment preserves spaces, #, ?, %, and unicode in macOS
- * filenames instead of allowing them to change URL parsing semantics.
+ * Build an opaque URL without exposing an absolute macOS path to renderer
+ * content. The protocol handler authorizes this filename against the full path
+ * stored in app settings before reading the file.
  */
 export function toLocalImageUrl(filePath: string): string {
   if (!filePath) return '';
   const normalized = filePath.replace(/\\/g, '/');
-  return `mate-local://${normalized.split('/').map(encodeURIComponent).join('/')}`;
+  const fileName = normalized.split('/').pop() ?? '';
+  if (!fileName) return '';
+  return `mate-local://background/${encodeURIComponent(fileName)}`;
 }
 
 /** Parse and validate a mate-local request before it reaches the filesystem. */
-export function parseLocalImageRequest(
-  requestUrl: string,
-  platform: NodeJS.Platform = process.platform,
-): string | null {
+export function parseLocalImageRequest(requestUrl: string): string | null {
   try {
     const parsedUrl = new URL(requestUrl);
-    if (parsedUrl.protocol !== 'mate-local:') return null;
-
-    let requestedPath = decodeURIComponent(parsedUrl.pathname);
-    if (platform === 'win32' && /^\/[a-zA-Z]:/.test(requestedPath)) {
-      requestedPath = requestedPath.slice(1);
+    if (parsedUrl.protocol !== 'mate-local:' || parsedUrl.hostname !== 'background') return null;
+    const segments = parsedUrl.pathname.split('/').filter(Boolean);
+    if (segments.length !== 1) return null;
+    const fileName = decodeURIComponent(segments[0]);
+    if (
+      !fileName ||
+      fileName === '.' ||
+      fileName === '..' ||
+      fileName.includes('/') ||
+      fileName.includes('\\')
+    ) {
+      return null;
     }
-
-    if (!path.isAbsolute(requestedPath)) return null;
-    const resolvedPath = path.resolve(requestedPath);
-    return ALLOWED_IMAGE_EXTENSIONS.has(path.extname(resolvedPath).toLowerCase())
-      ? resolvedPath
+    return ALLOWED_IMAGE_EXTENSIONS.has(path.extname(fileName).toLowerCase())
+      ? fileName
       : null;
   } catch {
     return null;
@@ -111,12 +115,16 @@ export async function persistBackgroundImagePath(
   }
 
   const destinationDirectory = path.join(userDataPath, 'background-images');
-  const destinationPath = path.join(destinationDirectory, `background${extension}`);
-  if (resolvedSourcePath === destinationPath) {
-    return destinationPath;
+  const managedDirectory = `${path.resolve(destinationDirectory)}${path.sep}`;
+  if (resolvedSourcePath.startsWith(managedDirectory)) {
+    return resolvedSourcePath;
   }
 
   await mkdir(destinationDirectory, { recursive: true });
+  const destinationPath = path.join(
+    destinationDirectory,
+    `background-${randomUUID()}${extension}`,
+  );
   const temporaryPath = path.join(
     destinationDirectory,
     `.background-${randomUUID()}${extension}.tmp`,

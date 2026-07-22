@@ -222,23 +222,44 @@ app.on('ready', async () => {
   startupPerfBegin('app-ready');
 
   protocol.handle('mate-local', async (request) => {
-    const resolvedPath = parseLocalImageRequest(request.url);
-    if (!resolvedPath) return new Response('Not found', { status: 404 });
+    const requestedFileName = parseLocalImageRequest(request.url);
+    if (!requestedFileName) return new Response('Not found', { status: 404 });
 
     // ── Authorization check ──────────────────────────────────────────────────
     // Only serve the single path the user explicitly saved as their background.
     // The authorized path is an in-memory cache populated from the DB at startup
-    // and kept current by setAuthorizedBackgroundImagePath() — no DB I/O here.
-    const authorizedPath = getAuthorizedBackgroundImagePath();
-    if (!authorizedPath || resolvedPath !== authorizedPath) {
+    // and kept current by setAuthorizedBackgroundImagePath(). A cache miss can
+    // happen after a renderer/main-process reload in development, so recover it
+    // from persisted settings before rejecting the request.
+    let authorizedPath = getAuthorizedBackgroundImagePath();
+    if (!authorizedPath || path.basename(authorizedPath) !== requestedFileName) {
+      try {
+        const persistedSettings = await tursoService.getAppSettings();
+        const persistedPath = persistedSettings.customBackgroundImage
+          ? path.resolve(persistedSettings.customBackgroundImage)
+          : null;
+        if (persistedPath && path.basename(persistedPath) === requestedFileName) {
+          setAuthorizedBackgroundImagePath(persistedPath);
+          authorizedPath = persistedPath;
+        }
+      } catch (error) {
+        console.warn('Could not recover persisted background image authorization:', error);
+      }
+    }
+    if (!authorizedPath || path.basename(authorizedPath) !== requestedFileName) {
+      console.warn('Rejected mate-local background image request:', {
+        requestedExtension: path.extname(requestedFileName),
+        authorizationRecovered: false,
+      });
       return new Response('Not found', { status: 404 });
     }
 
     try {
-      const file = await stat(resolvedPath);
+      const file = await stat(authorizedPath);
       if (!file.isFile()) return new Response('Not found', { status: 404 });
-      return net.fetch(pathToFileURL(resolvedPath).toString());
-    } catch {
+      return net.fetch(pathToFileURL(authorizedPath).toString());
+    } catch (error) {
+      console.warn('Could not read authorized mate-local background image:', error);
       return new Response('Not found', { status: 404 });
     }
   });

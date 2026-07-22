@@ -7,7 +7,6 @@ import { usePlatform } from "../../hooks/use-platform";
 import {
   applyRendererSettings,
   getAppSettings,
-  updateAppSettings,
 } from "../../services/settings-client";
 import { Vibrant } from "node-vibrant/browser";
 import { useChatStore } from "../../store/chat-store";
@@ -28,9 +27,10 @@ const EMPTY_SHELL_STYLE: CSSProperties = Object.freeze({});
 
 function toLocalImageUrl(filePath: string): string {
   if (!filePath) return "";
-  // Normalize Windows backslashes before splitting
   const normalized = filePath.replace(/\\/g, '/');
-  return `mate-local://${normalized.split('/').map(encodeURIComponent).join('/')}`;
+  const fileName = normalized.split('/').pop() ?? '';
+  if (!fileName) return "";
+  return `mate-local://background/${encodeURIComponent(fileName)}`;
 }
 
 export function DesktopShell() {
@@ -200,26 +200,13 @@ export function DesktopShell() {
         if (failedBackgroundPath.current === failedPath) return;
         failedBackgroundPath.current = failedPath;
 
-        // A moved, deleted, or corrupt file should never leave a permanent
-        // broken wallpaper reference. Fall back to the normal canvas and retain
-        // every other setting.
-        const latestSettings = useChatStore.getState().settings;
-        if (!latestSettings.customBackgroundImage || toLocalImageUrl(latestSettings.customBackgroundImage) !== failedPath) return;
-        void updateAppSettings({
-          ...latestSettings,
-          customBackgroundImage: undefined,
-        })
-          .then((nextSettings) => {
-            useChatStore.getState().setSettings(nextSettings);
-            toastManager.add({
-              type: "warning",
-              title: "Background image unavailable",
-              description: "The source image was removed or could not be read. MaTE X returned to the standard background.",
-            });
-          })
-          .catch(() => {
-            // The visual fallback still applies even if storage is unavailable.
-          });
+        // A transient protocol failure must not erase the user's saved state.
+        // Keep the setting intact; the user can explicitly replace or remove it.
+        toastManager.add({
+          type: "warning",
+          title: "Background image unavailable",
+          description: "The saved image was kept. Reopen Settings to replace or remove it.",
+        });
       };
     };
 
