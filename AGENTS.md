@@ -205,12 +205,14 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 5. **Flat canvas + elevated controls**
    - Default app canvas is pure **`#ffffff` (light)** and **`#111111` (dark)** for `background`, `sidebar`, `panel`, `titlebar`, `surface`, `card`, and `popover`.
    - Exception: inputs, selects, composer, menus, dialogs use elevated `--control` (`#f2f3f5` light / `#1a1a1a` dark) so they read on the flat canvas.
-   - When Interface blur is on, those elevated surfaces get stronger glass (`--control-glass-blur` ~20–22px, overlays ~28–30px). Never make inputs pure transparent with no fill.
+   - When Interface blur is on, elevated surfaces use refined glass (`--control-glass-blur` ~14px, overlays `--overlay-glass-blur` ~18px). Never make inputs pure transparent with no fill.
 
-6. **Performance**
+6. **Performance & Glass Motion Rules (STRICT)**
+   - **No `scale` animations over `backdrop-filter`**: NEVER animate `scale` on an element or container while `backdrop-filter` is active (e.g., popovers, dropdown selectors, glass card staggers). Bounding-box scaling forces Chromium to re-sample and re-rasterize heavy blur buffers on every single frame, causing severe popup open delay and render lag.
+   - **Glass Entrance Motion**: Use `opacity` + subtle translation (`translate-y-[-2px]` or `y: 6`) only (NO scale). Dropdown popups must use fast `150ms` `transition-[opacity,transform]` with `translate-y-[-2px]` instead of `scale-[0.98]`.
+   - **Blur Radius Limits**: Keep control glass blur at `14px` (`--control-glass-blur: 14px`) and overlay glass blur at `18px` (`--overlay-glass-blur: 18px`). High blur radii (28–30px) trigger expensive GPU composite passes.
+   - **GPU Layer Isolation**: Always apply `transform: translateZ(0)` and `isolation: isolate` to floating glass surfaces (`.mate-glass-float`, popovers) so GPU compositor treats them as isolated layers.
    - Do **not** animate `backdrop-filter`. Animate only `transform` and `opacity`.
-   - Prefer smaller blur on always-visible controls; reserve larger blur for portaled overlays.
-   - Use `isolation: isolate` on glass surfaces; avoid `will-change` on every control.
    - Respect `prefers-reduced-motion` (lower blur radii already wired in `index.css`).
    - Keep blur opt-in (`blurEnabled` default false) for low-power machines.
 

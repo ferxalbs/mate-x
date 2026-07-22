@@ -49,13 +49,13 @@
    * Single-layer backdrop-filter; never on main-content ancestors.
    */
   --blur-opacity: 0.72;
-  --glass-blur: 28px;
+  --glass-blur: 20px;
   --glass-saturate: 1.55;
   --glass-tint: 0.78;
   --glass-tint-strong: 0.88;
-  --control-glass-blur: 20px;
+  --control-glass-blur: 14px;
   --control-glass-tint: 0.72;
-  --overlay-glass-blur: 28px;
+  --overlay-glass-blur: 18px;
   --overlay-glass-tint: 0.66;
   --glass-border: color-mix(in srgb, var(--border) 75%, transparent);
   --glass-bg: var(--control);
