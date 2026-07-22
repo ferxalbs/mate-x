@@ -12,6 +12,7 @@ import { setSDKOrchestratorInitializationError } from './sdk-orchestrator-state'
 import { startupPerfBegin, startupPerfMark } from './startup-perf';
 import { tursoService } from './turso-service';
 import { resolveWindowAppearance } from './window-appearance';
+import { linearOAuthCancellationMessage } from './linear/linear-oauth';
 
 // Electron Forge can start the app more than once when a dev process is
 // restarted quickly. Keep one runtime and bring the existing window forward.
@@ -44,13 +45,26 @@ async function completeLinearOAuthCallback(rawUrl: string): Promise<void> {
   try {
     const url = new URL(rawUrl);
     if (url.hostname !== 'linear' || url.pathname !== '/callback') return;
+    const { getLinearConnectionService } = await import('./linear');
+    const oauthError = url.searchParams.get('error');
+    if (oauthError) {
+      getLinearConnectionService().cancel(linearOAuthCancellationMessage(oauthError));
+      return;
+    }
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     if (!code || !state) throw new Error('Linear OAuth callback is missing code or state');
-    const { getLinearConnectionService } = await import('./linear');
     await getLinearConnectionService().complete(code, state);
   } catch (error) {
     console.error('Linear OAuth callback failed:', error);
+    try {
+      const { getLinearConnectionService } = await import('./linear');
+      getLinearConnectionService().failCallback(
+        error instanceof Error && error.message.includes('verified')
+          ? error.message
+          : 'Linear authorization could not be completed. Try again.',
+      );
+    } catch { /* Optional integration may be unavailable; app startup remains unaffected. */ }
   }
 }
 

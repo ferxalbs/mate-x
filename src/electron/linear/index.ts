@@ -9,6 +9,8 @@ import { LinearConnectionService } from "./linear-connection-service";
 import { LinearRelayClient } from "./linear-relay-client";
 import { GraphRuntimeLinearAdapter } from "./linear-runtime";
 import { LinearStore } from "./linear-store";
+import { LINEAR_CALLBACK_URL, resolveLinearClientId } from "./linear-product-config";
+import { app } from "electron";
 
 let store: LinearStore | null = null;
 let connection: LinearConnectionService | null = null;
@@ -20,10 +22,15 @@ export async function initializeLinearIntegration(): Promise<void> {
   if (!databasePath) return;
   store = new LinearStore(pathToFileURL(databasePath).toString());
   await store.initialize();
-  connection = new LinearConnectionService(store, {
-    clientId: process.env.LINEAR_CLIENT_ID ?? "",
-    redirectUri: process.env.LINEAR_REDIRECT_URI ?? "matex://linear/callback",
+  const resolvedConfig = resolveLinearClientId({
+    isPackaged: app.isPackaged,
+    environmentClientId: process.env.LINEAR_CLIENT_ID,
+    localClientId: await store.getClientId(),
   });
+  connection = new LinearConnectionService(store, {
+    clientId: resolvedConfig.clientId,
+    redirectUri: LINEAR_CALLBACK_URL,
+  }, resolvedConfig.source);
   const existingInstallation = await store.firstInstallation();
   if (existingInstallation?.state === "connected") {
     try { await connection.accessToken(existingInstallation.organizationId); } catch { /* Status exposes refresh failure. */ }

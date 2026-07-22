@@ -30,8 +30,12 @@ export async function initStack(): Promise<void> {
     );
   }
   initDurableEngineeringRepository(dbPath);
-  const { initializeLinearIntegration } = await import('./linear');
-  await initializeLinearIntegration();
+  try {
+    const { initializeLinearIntegration } = await import('./linear');
+    await initializeLinearIntegration();
+  } catch (error) {
+    console.error('Optional Linear integration failed to initialize:', error);
+  }
   startupPerfMark('stack:engineering-repo');
 
   // Production Rainy agent adapter + optional migration + config load can proceed in parallel

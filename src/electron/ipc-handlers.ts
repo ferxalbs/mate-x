@@ -681,11 +681,28 @@ async function resolveGitService() {
 
 export function registerIpcHandlers() {
   const handle = registerGuardedIpcHandler;
+  const linearAction = async <T>(action: (service: import("./linear/linear-connection-service").LinearConnectionService) => Promise<T>): Promise<T> => {
+    try {
+      const service = (await import("./linear")).getLinearConnectionService();
+      return await action(service);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const safeMessage = /^(Enter a valid Linear Client ID\.|MaTE X could not open Linear\. Try again\.|Linear authorization .{0,160}|Linear OAuth token request failed \(\d{3}\))$/.test(message)
+        ? message
+        : "Linear could not complete that action. Try again.";
+      throw new Error(safeMessage, { cause: error });
+    }
+  };
 
   handle("app:check-updates", async () => checkForUpdates(true));
-  handle("linear:get-status", async () => (await import("./linear")).getLinearConnectionService().status());
-  handle("linear:connect", async () => (await import("./linear")).getLinearConnectionService().begin());
-  handle("linear:disconnect", async () => (await import("./linear")).getLinearConnectionService().revoke());
+  handle("linear:get-status", async () => linearAction((service) => service.status()));
+  handle("linear:connect", async () => linearAction((service) => service.begin()));
+  handle("linear:open-developer-setup", async () => linearAction((service) => service.openDeveloperSetup()));
+  handle("linear:save-client-id-and-connect", async (_event, clientId: unknown) => {
+    if (typeof clientId !== "string" || clientId.length > 200) throw new Error("Enter a valid Linear Client ID.");
+    return linearAction((service) => service.saveClientIdAndBegin(clientId));
+  });
+  handle("linear:disconnect", async () => linearAction((service) => service.revoke()));
   handle("privacy:scan-text", async (_event, text: string) => {
     if (typeof text !== "string") {
       throw new Error("privacy scan text must be a string.");
