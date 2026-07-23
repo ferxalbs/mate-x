@@ -23,7 +23,7 @@ export function ComposerCoreInput({
   }
 
   return (
-    <div className="relative z-10 px-5 pt-4 sm:px-6">
+    <div className="relative z-10 px-5 pt-3.5 sm:px-6">
       {workspace?.branch ? (
         <span className="sr-only" data-testid="composer-branch">
           {workspace.branch.trim()}
@@ -31,7 +31,7 @@ export function ComposerCoreInput({
       ) : null}
       <textarea
         aria-label="Objective"
-        className="min-h-[56px] w-full resize-none bg-transparent text-[15px] font-medium leading-6 text-foreground outline-none placeholder:text-foreground/45 focus:placeholder:text-foreground/60"
+        className="min-h-[52px] w-full resize-none bg-transparent text-[14.5px] font-medium leading-6 text-foreground outline-none placeholder:text-foreground/45 focus:placeholder:text-foreground/60"
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={
