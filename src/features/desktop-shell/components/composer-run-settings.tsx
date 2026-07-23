@@ -114,7 +114,7 @@ export function ComposerRunSettings({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="mate-glass-float max-h-[min(32rem,var(--available-height))] w-[268px] rounded-2xl border-border/60 p-1.5 shadow-xl shadow-black/20"
+        className="max-h-[min(32rem,var(--available-height))] w-[268px] rounded-2xl border-border/40 p-1.5 shadow-none"
         sideOffset={6}
       >
         <MenuSectionLabel>Run settings</MenuSectionLabel>
@@ -205,7 +205,7 @@ export function ComposerRunSettings({
               {modelLabel}
             </span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="mate-glass-float max-h-64 w-60 rounded-xl border-border/60 p-1 shadow-lg">
+          <DropdownMenuSubContent className="max-h-64 w-60 rounded-xl border-border/40 p-1 shadow-none">
             <DropdownMenuRadioGroup value={modelValue} onValueChange={onModelChange}>
               {catalog.map((model) => (
                 <DropdownMenuRadioItem
@@ -228,7 +228,7 @@ export function ComposerRunSettings({
                 {formatReasoningEffort(reasoningValue)}
               </span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="mate-glass-float w-40 rounded-xl border-border/60 p-1 shadow-lg">
+            <DropdownMenuSubContent className="w-40 rounded-xl border-border/40 p-1 shadow-none">
               <DropdownMenuRadioGroup
                 onValueChange={(value) =>
                   onReasoningChange(value as AssistantRunOptions["reasoning"])
@@ -257,7 +257,7 @@ export function ComposerRunSettings({
                 {formatServiceTier(serviceTier)}
               </span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="mate-glass-float w-40 rounded-xl border-border/60 p-1 shadow-lg">
+            <DropdownMenuSubContent className="w-40 rounded-xl border-border/40 p-1 shadow-none">
               <DropdownMenuRadioGroup
                 onValueChange={(value) =>
                   onServiceTierChange(value as RainyServiceTier)

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.23 (1) [Linear Connection Reliability]
+
+* Improved Linear connection setup and recovery so authorization, retry, disconnect, and workspace status remain reliable.
+* Fixed a stale status message that could remain visible after a successful Linear connection and added regression coverage for the connected state.
+
 ## Unreleased - 2026.07.20 (2) [Native Linear Agent]
 
 * Added the v0.1.3 native Linear agent integration with PKCE S256 app-actor OAuth, encrypted rotating credentials, permission/revocation handling, and a minimal connection status surface.

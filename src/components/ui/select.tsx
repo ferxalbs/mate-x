@@ -137,32 +137,35 @@ function SelectPopup({
         sideOffset={sideOffset}
       >
         <SelectPrimitive.Popup
-          className="origin-(--transform-origin) text-foreground transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:translate-y-[-2px] data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0"
+          className={cn(
+            "relative flex not-[class*='w-']:min-w-36 origin-(--transform-origin) flex-col rounded-xl border border-border/40 text-foreground shadow-none outline-none focus:outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:translate-y-[-2px] data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
+            className,
+          )}
           data-slot="select-popup"
           {...props}
         >
           <SelectPrimitive.ScrollUpArrow
-            className="top-0 z-50 flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[calc(var(--radius-xl)-1px)] before:bg-linear-to-b before:from-50% before:from-popover"
+            className="top-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-t-xl bg-popover/80 text-muted-foreground"
             data-slot="select-scroll-up-arrow"
           >
-            <ChevronUp className="relative size-4.5 sm:size-4" />
+            <ChevronUp className="size-3.5" />
           </SelectPrimitive.ScrollUpArrow>
           <div
-            className="relative h-full min-w-(--anchor-width) rounded-[16px] border border-border/30 bg-popover/50 not-dark:bg-clip-padding shadow-[0_12px_40px_rgba(0,0,0,0.12)] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]"
+            className="relative size-full min-w-(--anchor-width) overflow-hidden rounded-xl"
             data-slot="select-content"
           >
             <SelectPrimitive.List
-              className={cn("max-h-(--available-height) overflow-y-auto p-1", className)}
+              className="max-h-[min(24rem,var(--available-height))] overflow-y-auto p-1.5"
               data-slot="select-list"
             >
               {children}
             </SelectPrimitive.List>
           </div>
           <SelectPrimitive.ScrollDownArrow
-            className="bottom-0 z-50 flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:bottom-px before:h-[200%] before:rounded-b-[calc(var(--radius-xl)-1px)] before:bg-linear-to-t before:from-50% before:from-popover"
+            className="bottom-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-b-xl bg-popover/80 text-muted-foreground"
             data-slot="select-scroll-down-arrow"
           >
-            <ChevronDown className="relative size-4.5 sm:size-4" />
+            <ChevronDown className="size-3.5" />
           </SelectPrimitive.ScrollDownArrow>
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
@@ -181,8 +184,8 @@ function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        "grid min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default items-center gap-2 rounded-lg py-1 text-base outline-none data-disabled:pointer-events-none data-highlighted:bg-foreground/5 data-highlighted:text-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-        hideIndicator ? "grid-cols-[1fr] ps-3 pe-3" : "grid-cols-[1rem_1fr] ps-2 pe-4",
+        "grid min-h-7 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default select-none items-center gap-1.5 rounded-lg py-1 text-xs text-foreground outline-none transition-colors duration-100 data-disabled:pointer-events-none data-highlighted:bg-accent/80 data-highlighted:text-accent-foreground data-disabled:opacity-64 active:scale-[0.99] [&_svg:not([class*='size-'])]:size-3.5 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        hideIndicator ? "grid-cols-[1fr] ps-2.5 pe-2.5" : "grid-cols-[1rem_1fr] ps-1.5 pe-3",
         className,
       )}
       data-slot="select-item"
@@ -192,14 +195,14 @@ function SelectItem({
         <SelectPrimitive.ItemIndicator className="col-start-1" data-slot="select-item-indicator">
           <svg
             fill="none"
-            height="24"
+            height="16"
             stroke="currentColor"
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth="2"
             viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/1500/svg"
+            width="16"
+            xmlns="http://www.w3.org/2000/svg"
           >
             <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
           </svg>
