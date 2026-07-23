@@ -97,29 +97,35 @@ export function ShipStatusStrip({
           ? `${hasChanges} under safety check.`
           : "Safety check running."
         : state.status === "unknown"
-          ? "Repo safety check is available when you need it."
+          ? "Repo safety check is available."
           : hasChanges
-            ? "Blocked because this change has no proof yet."
+            ? "Blocked: change has no proof yet."
             : "Repo needs a safety check before commit.";
 
+  const badgeLabel =
+    state.status === "trusted"
+      ? "Trusted"
+      : state.status === "resolving"
+        ? "Checking"
+        : state.status === "unknown"
+          ? "Available"
+          : "Needs check";
+
   return (
-    <div
-      className={cn(
-        "mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-panel px-3 py-2 shadow-none",
-      )}
-    >
-      <div className="min-w-0">
-        <p className="mate-text-metadata">
+    <div className="mb-3 rounded-2xl border border-border/60 bg-accent/25 p-3 shadow-none">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
           Repo Safety
-        </p>
-        <p className="truncate text-[13px] font-medium text-foreground">
-          {message}
-        </p>
+        </span>
+        <TonePill label={badgeLabel} tone={state.tone} />
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
+      <p className="mt-1 text-[12.5px] font-medium leading-snug text-foreground">
+        {message}
+      </p>
+      <div className="mt-2.5 flex items-center gap-2">
         {state.status !== "trusted" ? (
           <button
-            className="min-h-8 rounded-xl border border-border/60 bg-transparent px-2.5 py-1 text-[12px] font-medium text-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none"
+            className="h-7.5 flex-1 rounded-xl bg-foreground px-3 text-[11.5px] font-medium text-background transition-transform active:scale-[0.97] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isRunning}
             onClick={onMakeTrustworthy}
             type="button"
@@ -128,7 +134,7 @@ export function ShipStatusStrip({
           </button>
         ) : null}
         <button
-          className="min-h-8 rounded-xl border border-transparent bg-transparent px-2 py-1 text-[12px] font-medium text-muted-foreground transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.97] motion-reduce:transform-none"
+          className="h-7.5 rounded-xl border border-border/60 bg-panel px-3 text-[11.5px] font-medium text-muted-foreground transition-transform hover:text-foreground active:scale-[0.97]"
           onClick={onReviewLater}
           type="button"
         >
