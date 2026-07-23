@@ -688,7 +688,7 @@ export function registerIpcHandlers() {
       return await action(service);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      const safeMessage = /^(Connect Rainy API in Settings → Connections first\.|Rainy (?:could not be reached|API authentication failed|returned an invalid Linear response|returned an invalid Linear authorization URL|does not have the Linear connection service enabled)\.|Rainy Linear request failed \(\d{3}\)\. Try again\.|Linear (?:authorization is still pending|could not complete that action|installation needs to be reconnected)\..{0,120})$/.test(message)
+      const safeMessage = /^(Connect Rainy API in Settings → Connections first\.|Rainy (?:could not be reached|API authentication failed|returned an invalid Linear response|returned an invalid Linear authorization URL|does not have the Linear connection service enabled)\.|Rainy Linear request failed \(\d{3}\)\. Try again\.|Linear (?:authorization is already in progress|authorization is rate-limited|authorization is still pending|could not complete that action|installation needs to be reconnected)\..{0,160})$/.test(message)
         ? message.slice(0, 240)
         : "Linear could not complete that action. Try again.";
       throw new Error(safeMessage, { cause: error });

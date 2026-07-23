@@ -73,6 +73,17 @@ export class RainyLinearClient {
       if (response.status === 401 || response.status === 403) {
         throw new Error('Rainy API authentication failed. Update Settings → Connections and try again.');
       }
+      if (response.status === 409 && path === RAINY_LINEAR_ENDPOINTS.oauthStart) {
+        throw new Error('Linear authorization is already in progress. Complete the opened Linear authorization before retrying.');
+      }
+      if (response.status === 429 && path === RAINY_LINEAR_ENDPOINTS.oauthStart) {
+        const retryAfter = parseRetryAfter(response.headers.get('Retry-After'));
+        throw new Error(
+          retryAfter
+            ? `Linear authorization is rate-limited. Wait ${formatRetryAfter(retryAfter)} before retrying.`
+            : 'Linear authorization is rate-limited. Wait before retrying.',
+        );
+      }
       if (response.status === 404) {
         throw new Error('Rainy does not have the Linear connection service enabled.');
       }
@@ -161,4 +172,16 @@ function firstScopes(record: Record<string, unknown> | null): string[] {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string');
   if (typeof value === 'string') return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
   return [];
+}
+
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number.parseInt(value, 10);
+  return Number.isFinite(seconds) && seconds > 0 && seconds <= 86_400 ? seconds : null;
+}
+
+function formatRetryAfter(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconds`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }

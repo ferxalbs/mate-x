@@ -101,6 +101,30 @@ describe("Rainy-managed Linear connection", () => {
     await bunExpect(client.status()).rejects.toThrow("Rainy Linear request failed (500). Try again.");
     await bunExpect(client.status()).rejects.not.toThrow("secret token");
   });
+
+  it("explains an existing OAuth transaction without amplifying it into retries", async () => {
+    const client = new RainyLinearClient(
+      async () => "ra-test-key",
+      (async () => new Response("secret transaction details", { status: 409 })) as typeof fetch,
+    );
+
+    await bunExpect(client.start()).rejects.toThrow(
+      "Linear authorization is already in progress. Complete the opened Linear authorization before retrying.",
+    );
+    await bunExpect(client.start()).rejects.not.toThrow("secret transaction details");
+  });
+
+  it("honors Rainy's retry window for OAuth rate limits", async () => {
+    const client = new RainyLinearClient(
+      async () => "ra-test-key",
+      (async () => new Response("secret rate-limit details", { status: 429, headers: { "Retry-After": "120" } })) as typeof fetch,
+    );
+
+    await bunExpect(client.start()).rejects.toThrow(
+      "Linear authorization is rate-limited. Wait 2 minutes before retrying.",
+    );
+    await bunExpect(client.start()).rejects.not.toThrow("secret rate-limit details");
+  });
 });
 
 describe("Linear session authority and recovery", () => {
