@@ -216,6 +216,11 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
    - Respect `prefers-reduced-motion` (lower blur radii already wired in `index.css`).
    - Keep blur opt-in (`blurEnabled` default false) for low-power machines.
 
+7. **No Mixing Tailwind Utility Colors with CSS Glass System (STRICT)**
+   - Never combine inline Tailwind background/opacity/blur utility classes (e.g. `bg-popover/95`, `bg-popover/80`, `bg-panel/70`, `backdrop-blur-*`) on elements that carry `data-slot` hooks (`data-slot="select-popup"`, `data-slot="menu-popup"`, `data-slot="popover-popup"`, `data-slot="combobox-content"`) or `.mate-glass-float`.
+   - MaTE X dynamically toggles between Interface Blur (`blurEnabled: true` → `:root.blur-enabled`) and solid mode (`blurEnabled: false` → `:root:not(.blur-enabled)`).
+   - Component primitives MUST delegate ALL background fills, translucency, and blur calculations to `src/index.css` and the active theme CSS tokens (`--overlay-glass-tint`, `--overlay-glass-blur`, `--control`). Mixing Tailwind background utilities in JSX breaks theme variables, causes double-rendering, and destroys visual coherence between blur modes.
+
 ***
 
 ## User Design & Aesthetic Preferences

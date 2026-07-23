@@ -127,6 +127,7 @@ Date zero-padded. `(N)` = daily sequence number. `[Entry Name]` required.
 - Sidebar branding: `MaTE X` with `ALPHA` pill. Do not introduce alternate branding.
 - Route-driven subsections: `/settings/<section>`.
 - T3 Code density: compact sidebar nav, 52px titlebar rhythm, restrained settings sections, no marketing hero blocks inside product settings.
+- **Glass System & No Tailwind Class Mixing (STRICT)**: Never mix inline Tailwind background/opacity/blur classes (e.g. `bg-popover/95`, `backdrop-blur-*`) on elements carrying `data-slot` hooks (`data-slot="select-popup"`, `data-slot="menu-popup"`, etc.). All fills, translucency, and blur filters MUST be managed via `src/index.css` and theme variables (`--overlay-glass-tint`, `--control`) to maintain visual coherence between blur and non-blur modes.
 
 ***
 
