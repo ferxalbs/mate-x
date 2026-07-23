@@ -83,7 +83,7 @@ Sweep for these seams — each is a known class of genuine opportunity:
 
 **Missing spatial story**
 
-- Panels, popovers, menus that appear with no connection to their trigger → scale in with `transform-origin` at the trigger (Radix: `var(--radix-popover-content-transform-origin)`; Base UI: `var(--transform-origin)`); modals are exempt — they stay centered
+- Panels, popovers, menus that appear with no connection to their trigger → scale in with `transform-origin` at the trigger (Base UI: `var(--transform-origin)`); modals are exempt — they stay centered
 - Dismissable surfaces (toasts, sheets) that exit a different way than they entered → symmetric paths; `translateY(100%)` percentages, not hardcoded pixels
 
 **Group entrances**
