@@ -6,22 +6,18 @@ const DARK_BACKGROUND = '#111111';
 type WindowAppearancePlatform = 'darwin' | 'win32' | string;
 
 /**
- * Electron window chrome target. Mica / acrylic / native vibrancy are never used:
- * they fight CSS backdrop-filter and produce unstable transparent controls.
- * Window stays solid; glass is CSS-only on single-layer surfaces.
+ * Electron window chrome target.
+ * Native window materials (Mica, Acrylic, Windows OS vibrancy) are permanently disabled:
+ * they interfere with Chromium/Windows DWM subpixel rendering and fight CSS backdrop-filter.
+ * Window backing stays 100% opaque (#ffffff light / #111111 dark); all glass/blur is CSS-only.
  */
 type WindowAppearanceTarget = {
   setBackgroundColor(color: string): void;
-  setBackgroundMaterial?(material: 'none'): void;
-  setVibrancy?(type: null): void;
 };
 
 type WindowAppearance = {
   backgroundColor: string;
-  /** Always 'none' on Windows; undefined elsewhere. Mica is permanently disabled. */
-  backgroundMaterial: 'none' | undefined;
   nativeMaterialEnabled: false;
-  vibrancy: undefined;
 };
 
 function resolveDarkAppearance(settings: AppSettings, systemDark: boolean): boolean {
@@ -30,7 +26,7 @@ function resolveDarkAppearance(settings: AppSettings, systemDark: boolean): bool
 
 export function resolveWindowAppearance(
   settings: AppSettings,
-  platform: WindowAppearancePlatform,
+  _platform: WindowAppearancePlatform,
   systemDark: boolean,
 ): WindowAppearance {
   return {
@@ -39,9 +35,7 @@ export function resolveWindowAppearance(
     backgroundColor: resolveDarkAppearance(settings, systemDark)
       ? DARK_BACKGROUND
       : LIGHT_BACKGROUND,
-    backgroundMaterial: platform === 'win32' ? 'none' : undefined,
     nativeMaterialEnabled: false,
-    vibrancy: undefined,
   };
 }
 
@@ -53,13 +47,7 @@ export function applyWindowAppearance(
 ): WindowAppearance {
   const appearance = resolveWindowAppearance(settings, platform, systemDark);
 
-  // Force-clear any leftover native materials from older builds.
-  if (platform === 'darwin' && typeof window.setVibrancy === 'function') {
-    window.setVibrancy(null);
-  } else if (platform === 'win32' && typeof window.setBackgroundMaterial === 'function') {
-    window.setBackgroundMaterial('none');
-  }
-
   window.setBackgroundColor(appearance.backgroundColor);
   return appearance;
 }
+

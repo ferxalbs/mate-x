@@ -14,9 +14,7 @@ describe('window appearance policy', () => {
       resolveWindowAppearance(settings({ appearance: 'light' }), 'darwin', true),
       {
         backgroundColor: '#ffffff',
-        backgroundMaterial: undefined,
         nativeMaterialEnabled: false,
-        vibrancy: undefined,
       },
     );
     assert.equal(
@@ -44,9 +42,7 @@ describe('window appearance policy', () => {
       resolveWindowAppearance(settings({ vibrancyMode: 'sidebar' }), 'darwin', true),
       {
         backgroundColor: '#111111',
-        backgroundMaterial: undefined,
         nativeMaterialEnabled: false,
-        vibrancy: undefined,
       },
     );
     assert.deepEqual(
@@ -57,9 +53,7 @@ describe('window appearance policy', () => {
       ),
       {
         backgroundColor: '#ffffff',
-        backgroundMaterial: 'none',
         nativeMaterialEnabled: false,
-        vibrancy: undefined,
       },
     );
   });
@@ -69,19 +63,15 @@ describe('window appearance policy', () => {
       resolveWindowAppearance(settings({ vibrancyMode: 'special' }), 'linux', true),
       {
         backgroundColor: '#111111',
-        backgroundMaterial: undefined,
         nativeMaterialEnabled: false,
-        vibrancy: undefined,
       },
     );
   });
 
-  it('clears native materials and keeps an opaque backing at runtime', () => {
+  it('sets opaque window backing at runtime without native material calls', () => {
     const calls: string[] = [];
     const window = {
       setBackgroundColor: (color: string) => calls.push(`background:${color}`),
-      setBackgroundMaterial: (material: 'none') => calls.push(`material:${material}`),
-      setVibrancy: (type: null) => calls.push(`vibrancy:${type}`),
     };
 
     applyWindowAppearance(
@@ -104,12 +94,10 @@ describe('window appearance policy', () => {
     );
 
     assert.deepEqual(calls, [
-      'vibrancy:null',
       'background:#111111',
-      'vibrancy:null',
       'background:#111111',
-      'material:none',
       'background:#ffffff',
     ]);
   });
 });
+
