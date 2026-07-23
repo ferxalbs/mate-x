@@ -223,11 +223,11 @@ export function DesktopShell() {
     <SidebarProvider defaultOpen>
       <main
         className={cn(
-          "relative flex h-screen w-full overflow-hidden text-foreground",
+          "relative flex h-screen w-full overflow-hidden text-foreground bg-background",
           backgroundImage && "has-custom-background",
-          vibrancyMode === "solid" && "vibrancy-solid bg-background",
-          vibrancyMode === "sidebar" && "vibrancy-sidebar bg-transparent",
-          vibrancyMode === "special" && "vibrancy-special bg-transparent",
+          vibrancyMode === "solid" && "vibrancy-solid",
+          vibrancyMode === "sidebar" && "vibrancy-sidebar",
+          vibrancyMode === "special" && "vibrancy-special",
           platform === "mac" ? "platform-mac" : platform === "windows" ? "platform-windows" : ""
         )}
         style={shellStyle}
