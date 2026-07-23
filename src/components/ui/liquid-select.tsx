@@ -9,11 +9,10 @@ import {
   ZStack,
 } from "@liquid-dom/react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
-import { ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
+import { ChevronUp, ChevronDown } from "lucide-react";
 
 /**
  * Liquid-glass compatible select popup.
@@ -141,7 +140,7 @@ export function LiquidSelectPopup({
               className="relative z-10 flex h-6 w-full cursor-default items-center justify-center text-foreground/50"
               data-slot="select-scroll-up-arrow"
             >
-              <HugeiconsIcon icon={ArrowUp01Icon} className="size-3.5" />
+              <ChevronUp className="size-3.5" />
             </SelectPrimitive.ScrollUpArrow>
 
             <SelectPrimitive.List
@@ -189,7 +188,7 @@ export function LiquidSelectPopup({
               className="relative z-10 flex h-6 w-full cursor-default items-center justify-center text-foreground/50"
               data-slot="select-scroll-down-arrow"
             >
-              <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" />
+              <ChevronDown className="size-3.5" />
             </SelectPrimitive.ScrollDownArrow>
 
           </div>
