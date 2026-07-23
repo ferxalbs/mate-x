@@ -56,7 +56,7 @@
   --control-glass-blur: 14px;
   --control-glass-tint: 0.72;
   --overlay-glass-blur: 18px;
-  --overlay-glass-tint: 0.66;
+  --overlay-glass-tint: 0.20;
   --glass-border: color-mix(in srgb, var(--border) 75%, transparent);
   --glass-bg: var(--control);
   --ambient-a: color-mix(in srgb, var(--primary) 10%, #ffffff);

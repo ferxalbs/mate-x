@@ -1,5 +1,6 @@
 import { app, safeStorage } from 'electron';
 import { createClient, type Client } from '@libsql/client';
+import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -491,6 +492,18 @@ export class TursoService {
 
   async getApiKey(): Promise<string | null> {
     return this.getAppStateValue('rainy_api_key');
+  }
+
+  async getLinearDeviceId(): Promise<string> {
+    const existing = await this.getAppStateValue('linear_device_id');
+    if (existing && /^[A-Za-z0-9._:-]{8,255}$/.test(existing)) return existing;
+    const deviceId = `matex-${randomUUID()}`;
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: ['linear_device_id', deviceId],
+    });
+    return deviceId;
   }
 
   async getApiKeyStatus(): Promise<ApiKeyStatus> {

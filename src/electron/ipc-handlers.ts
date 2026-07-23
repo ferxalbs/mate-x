@@ -688,8 +688,8 @@ export function registerIpcHandlers() {
       return await action(service);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      const safeMessage = /^(Enter a valid Linear Client ID\.|MaTE X could not open Linear\. Try again\.|Linear authorization .{0,160}|Linear OAuth token request failed \(\d{3}\))$/.test(message)
-        ? message
+      const safeMessage = /^(Connect Rainy API in Settings → Connections first\.|Rainy (?:could not be reached|API authentication failed|returned an invalid Linear response|returned an invalid Linear authorization URL|does not have the Linear connection service enabled)\.|Rainy Linear request failed \(\d{3}\)\. Try again\.|Linear (?:authorization is still pending|could not complete that action|installation needs to be reconnected)\..{0,120})$/.test(message)
+        ? message.slice(0, 240)
         : "Linear could not complete that action. Try again.";
       throw new Error(safeMessage, { cause: error });
     }
@@ -698,11 +698,6 @@ export function registerIpcHandlers() {
   handle("app:check-updates", async () => checkForUpdates(true));
   handle("linear:get-status", async () => linearAction((service) => service.status()));
   handle("linear:connect", async () => linearAction((service) => service.begin()));
-  handle("linear:open-developer-setup", async () => linearAction((service) => service.openDeveloperSetup()));
-  handle("linear:save-client-id-and-connect", async (_event, clientId: unknown) => {
-    if (typeof clientId !== "string" || clientId.length > 200) throw new Error("Enter a valid Linear Client ID.");
-    return linearAction((service) => service.saveClientIdAndBegin(clientId));
-  });
   handle("linear:disconnect", async () => linearAction((service) => service.revoke()));
   handle("privacy:scan-text", async (_event, text: string) => {
     if (typeof text !== "string") {

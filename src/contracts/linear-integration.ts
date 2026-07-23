@@ -15,24 +15,14 @@ export type LinearConnectionState =
 
 export interface LinearIntegrationStatus {
   state: LinearConnectionState;
+  installationState: string | null;
+  workspaceId: string | null;
+  workspaceName: string | null;
   organizationName: string | null;
   scopes: string[];
   relayConnected: boolean;
   lastDeliveryAt: string | null;
   message: string | null;
-  configurationSource: "built_in" | "development_override" | "local" | "missing";
-  setup: LinearDeveloperSetup;
-}
-
-export interface LinearDeveloperSetup {
-  callbackUrl: string;
-  webhookUrl: string;
-  createAppUrl: string;
-}
-
-export interface LinearOAuthConfiguration {
-  clientId: string;
-  redirectUri: string;
 }
 
 export interface LinearRepositoryCandidate {
