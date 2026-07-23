@@ -108,6 +108,8 @@ export class LinearConnectionService {
 
   private toIntegrationStatus(status: RainyLinearStatus): LinearIntegrationStatus {
     const state: LinearConnectionState = this.pending
+      && status.state !== 'connected'
+      && status.state !== 'permission_changed'
       ? 'connecting'
       : status.state;
     return {
