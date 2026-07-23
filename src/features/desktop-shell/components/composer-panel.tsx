@@ -364,7 +364,7 @@ export function ComposerPanel({
   return (
       <div
         className={cn(
-          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border border-panel-border/40 shadow-none transition-[background-color,border-color] duration-[var(--motion-menu)] ease-[var(--ease-out)] focus-within:border-foreground/20",
+          "relative mx-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-[26px] border border-panel-border/40 shadow-none transition-[background-color,border-color] duration-[var(--motion-menu)] ease-[var(--ease-out)] focus-within:border-foreground/20",
           blurEnabled
             ? "mate-glass-float focus-within:border-foreground/25"
             : "bg-mate-control-bg focus-within:bg-mate-control-bg",

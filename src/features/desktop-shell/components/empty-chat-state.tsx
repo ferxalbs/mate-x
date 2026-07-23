@@ -85,15 +85,15 @@ export function EmptyChatState({
       transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
       className="flex min-h-full flex-col items-center justify-center px-4 py-8 sm:px-8"
     >
-      <div className="w-full max-w-[820px]">
+      <div className="w-full max-w-[760px]">
         <div className="mb-6 flex flex-col items-center text-center sm:mb-8">
-          <h1 className="max-w-[680px] text-balance text-[28px] font-semibold leading-[1.08] tracking-[-0.035em] text-foreground sm:text-[38px]">
+          <h1 className="max-w-[640px] text-balance text-[28px] font-semibold leading-[1.08] tracking-[-0.035em] text-foreground sm:text-[38px]">
             {title}
           </h1>
         </div>
 
         {composer && workspace ? (
-          <div className="rounded-[32px]">{composer}</div>
+          <div className="rounded-[26px]">{composer}</div>
         ) : null}
 
         {workspace ? (
