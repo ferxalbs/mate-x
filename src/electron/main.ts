@@ -188,7 +188,8 @@ const createWindow = (settings: AppSettings) => {
     title: 'MaTE X',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
-    // Native vibrancy/mica permanently disabled — CSS glass owns blur.
+    // Native vibrancy/mica permanently disabled — window frame is opaque for CSS glass rendering.
+    transparent: false,
     backgroundColor: windowAppearance.backgroundColor,
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
