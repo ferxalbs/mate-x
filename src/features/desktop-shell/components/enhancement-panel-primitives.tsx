@@ -11,7 +11,7 @@ export function TonePill({ label, tone }: { label: string; tone: SignalTone }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-tight",
         toneTextClassName(tone),
       )}
     >
@@ -42,8 +42,8 @@ export function PanelTitle({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <HugeiconsIcon icon={Icon} className="size-4 shrink-0 text-primary"  />
-      <h3 className="mate-text-compact truncate font-semibold">
+      <HugeiconsIcon icon={Icon} className="size-3.5 shrink-0 text-primary" />
+      <h3 className="truncate text-[12.5px] font-semibold text-foreground">
         {title}
       </h3>
     </div>
@@ -52,10 +52,10 @@ export function PanelTitle({
 
 export function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="border-border/70 shadow-none bg-transparent">
-      <CardContent className="px-2 py-1.5">
-        <dt className="mate-text-metadata">{label}</dt>
-        <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
+    <Card className="rounded-xl border-border/60 bg-control/20 shadow-none">
+      <CardContent className="px-2.5 py-1.5">
+        <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</dt>
+        <dd className="mt-0.5 text-[14px] font-semibold tabular-nums text-foreground">{value}</dd>
       </CardContent>
     </Card>
   );
