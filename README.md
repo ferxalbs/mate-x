@@ -167,7 +167,7 @@ bun run make
 
 ## License
 
-MaTE X is source-available/OpenCore under the [MaTE X Licence](LICENSE). Commercial use by companies, organizations, or teams requires a separate commercial licence from Enosis Labs, Inc.
+MaTE X is source-available under the [MaTE X Licence](LICENSE). Commercial use by companies, organizations, or teams requires a separate commercial licence from Enosis Labs, Inc.
 
 ## Links
 
