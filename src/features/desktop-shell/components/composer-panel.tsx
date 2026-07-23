@@ -408,15 +408,6 @@ export function ComposerPanel({
           workspace={workspace}
         />
 
-        {catalogError || capabilityNotice ? (
-          <p
-            className="relative z-10 break-words px-6 pb-1 text-[11px] text-amber-600 dark:text-amber-300"
-            role="status"
-          >
-            {catalogError || capabilityNotice}
-          </p>
-        ) : null}
-
         <div className="relative z-10 flex min-w-0 items-center justify-between gap-2 px-4 pb-3 pt-2">
           <div className="flex min-w-0 items-center gap-2">
             <input

@@ -37,7 +37,7 @@ export function EmptyChatState({
     : !isBootstrapped
       ? "Loading workspace"
       : workspace
-        ? `What do you want to verify in ${workspace.name}?`
+        ? "What do you want to verify?"
         : "Open a repository to begin";
   const statusText =
     lastError ??

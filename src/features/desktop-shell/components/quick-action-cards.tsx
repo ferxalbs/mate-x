@@ -8,7 +8,6 @@ import { useTheme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
 
 interface QuickActionCardProps {
-  evidence: string;
   icon: ReactNode;
   title: string;
   onClick: () => void;
@@ -40,7 +39,6 @@ const cardVariants: Variants = {
 };
 
 function QuickActionCard({
-  evidence,
   icon,
   title,
   onClick,
@@ -56,24 +54,21 @@ function QuickActionCard({
       disabled={disabled}
       onClick={onClick}
       variants={variants}
-      whileHover={shouldReduceMotion ? undefined : { scale: 1.015 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.975 }}
-      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+      whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.96 }}
+      transition={{ type: "spring", stiffness: 450, damping: 28 }}
       className={cn(
-        "group relative flex w-full flex-col items-start gap-2 rounded-2xl border border-border/40 p-3 text-left shadow-none transition-[background-color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-foreground/20 hover:bg-foreground/[0.05] hover:shadow-sm motion-reduce:transform-none",
-        blurEnabled ? "mate-glass-float hover:border-foreground/25" : "bg-transparent",
+        "group relative flex items-center gap-2 rounded-full border border-border/40 px-3.5 py-1.5 text-left shadow-none transition-all duration-150 ease-out hover:border-foreground/25 hover:bg-foreground/[0.08] motion-reduce:transform-none cursor-pointer",
+        blurEnabled ? "mate-glass-float" : "bg-foreground/[0.03]",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
-      <div className="flex items-center gap-2 text-foreground/75 transition-colors duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-foreground">
-        <div className="shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-105">{icon}</div>
-        <div className="text-[12px] font-medium leading-none text-foreground/90">
-          {title}
-        </div>
+      <div className="shrink-0 text-muted-foreground/80 transition-colors duration-150 group-hover:text-foreground">
+        {icon}
       </div>
-      <div className="mt-1 text-[11px] leading-snug text-muted-foreground/70">
-        {evidence}
-      </div>
+      <span className="text-[12.5px] font-medium leading-none tracking-tight text-foreground/85 transition-colors duration-150 group-hover:text-foreground">
+        {title}
+      </span>
     </motion.button>
   );
 }
@@ -88,7 +83,7 @@ const QUICK_ACTIONS = [
     id: "review",
     title: "Review current changes",
     evidence: "Risk-ranked findings with file evidence",
-    icon: <HugeiconsIcon icon={GitBranchIcon} className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={GitBranchIcon} className="size-3.5" />,
     prompt:
       "Review the current repository changes. Rank concrete risks, cite the affected files, and recommend the smallest safe next step.",
   },
@@ -96,7 +91,7 @@ const QUICK_ACTIONS = [
     id: "validate",
     title: "Validate a fix",
     evidence: "Checks run, results, and remaining risk",
-    icon: <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3.5" />,
     prompt:
       "Validate the current fix. Run the relevant checks, explain the evidence, and identify any remaining risk without changing unrelated code.",
   },
@@ -104,7 +99,7 @@ const QUICK_ACTIONS = [
     id: "trace",
     title: "Trace a risky path",
     evidence: "Source-to-sink path and trust boundaries",
-    icon: <HugeiconsIcon icon={RouteIcon} className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={RouteIcon} className="size-3.5" />,
     prompt:
       "Trace a risky path through this repository from input to sensitive sink. Cite the data flow, trust boundaries, and missing controls.",
   },
@@ -112,7 +107,7 @@ const QUICK_ACTIONS = [
     id: "explain",
     title: "Explain repository risk",
     evidence: "Risk model grounded in repository signals",
-    icon: <HugeiconsIcon icon={Bug01Icon} className="size-[20px]" />,
+    icon: <HugeiconsIcon icon={Bug01Icon} className="size-3.5" />,
     prompt:
       "Explain this repository's most important security and reliability risks using concrete local evidence and confidence levels.",
   },
@@ -148,13 +143,12 @@ export function QuickActionCards({
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4"
+      className="flex flex-wrap items-center justify-center gap-2.5 w-full"
     >
       {QUICK_ACTIONS.map((action) => (
         <QuickActionCard
           key={action.id}
           variants={cardVariants}
-          evidence={action.evidence}
           title={action.title}
           icon={action.icon}
           disabled={disabled}
