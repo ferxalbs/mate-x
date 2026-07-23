@@ -4,9 +4,8 @@ import { LinearWebhookClient } from "@linear/sdk/webhooks";
 import { EngineeringCommandBus } from "../engineering/command-bus";
 import { InMemoryEngineeringRepository } from "../engineering/in-memory-repository";
 import { LinearAgentService, type LinearAgentApi, type LinearRuntimeAuthority } from "./linear-agent-service";
-import { createLinearOAuthAttempt, exchangeLinearOAuthCode, linearOAuthCancellationMessage, refreshLinearOAuthToken, requireMatchingLinearOAuthState } from "./linear-oauth";
-import { createLinearDeveloperSetup, resolveLinearClientId } from "./linear-product-config";
 import { LinearStore } from "./linear-store";
+import { RAINY_LINEAR_ENDPOINTS, RainyLinearClient } from "./rainy-linear-client";
 
 // The repository's narrow global expect declaration intentionally exposes only
 // two matchers; Bun provides the full runtime matcher set used in this focused suite.
@@ -51,63 +50,56 @@ describe("Linear webhook security", () => {
   });
 });
 
-describe("Linear OAuth PKCE and refresh", () => {
-  it("prefers built-in product configuration and limits environment overrides to development", () => {
-    bunExpect(resolveLinearClientId({ isPackaged: true, environmentClientId: "environment", builtInClientId: "built-in" })).toEqual({ clientId: "built-in", source: "built_in" });
-    bunExpect(resolveLinearClientId({ isPackaged: false, environmentClientId: "environment", builtInClientId: "built-in" })).toEqual({ clientId: "environment", source: "development_override" });
-  });
-
-  it("exposes developer setup when product configuration is missing", async () => {
-    bunExpect(resolveLinearClientId({ isPackaged: true, builtInClientId: "" }).source).toBe("missing");
-    bunExpect(createLinearDeveloperSetup().createAppUrl).toContain("linear.app/settings/api/applications/new");
-  });
-
-  it("persists a manually configured Client ID across restart", async () => {
-    const db = `file:${process.cwd()}/artifacts/linear-config-${crypto.randomUUID()}.sqlite`;
-    const first = new LinearStore(db);
-    await first.initialize();
-    stores.push(first);
-    await first.saveClientId("manual-client-id");
-    const second = new LinearStore(db);
-    await second.initialize();
-    stores.push(second);
-    bunExpect(await second.getClientId()).toBe("manual-client-id");
-  });
-
-  it("uses S256, actor app, and the exact agent scopes", () => {
-    const attempt = createLinearOAuthAttempt({ clientId: "client", redirectUri: "matex://linear/callback" });
-    const url = new URL(attempt.authorizeUrl);
-    bunExpect(url.searchParams.get("actor")).toBe("app");
-    bunExpect(url.searchParams.get("code_challenge_method")).toBe("S256");
-    bunExpect(url.searchParams.get("scope")).toBe("read,write,app:assignable,app:mentionable");
-  });
-
-  it("exchanges an authorization code using PKCE without a client secret", async () => {
-    const token = await exchangeLinearOAuthCode({
-      code: "authorization-code",
-      verifier: "verifier",
-      config: { clientId: "client", redirectUri: "matex://linear/callback" },
-      fetchImpl: (async (_url, init) => {
-        const body = String(init?.body);
-        bunExpect(body).toContain("code_verifier=verifier");
-        bunExpect(body).not.toContain("client_secret");
-        return new Response(JSON.stringify({ access_token: "access", refresh_token: "refresh", expires_in: 3600, scope: "read write", token_type: "Bearer" }));
+describe("Rainy-managed Linear connection", () => {
+  it("starts OAuth with the authenticated Rainy API and returns Linear's URL", async () => {
+    const requests: Request[] = [];
+    const client = new RainyLinearClient(
+      async () => "ra-test-key",
+      (async (input, init) => {
+        requests.push(new Request(input, init));
+        return new Response(JSON.stringify({ data: { authorizationUrl: "https://linear.app/oauth/authorize?state=test" } }));
       }) as typeof fetch,
+    );
+
+    bunExpect(await client.start()).toContain("https://linear.app/oauth/authorize");
+    bunExpect(requests[0]?.url).toContain(RAINY_LINEAR_ENDPOINTS.oauthStart);
+    bunExpect(requests[0]?.method).toBe("GET");
+    bunExpect(requests[0]?.headers.get("authorization")).toBe("Bearer ra-test-key");
+    bunExpect(requests[0]?.headers.get("x-mate-device-id")).toMatch(/^matex-/);
+  });
+
+  it("normalizes the Rainy status into workspace and installation state", async () => {
+    const client = new RainyLinearClient(
+      async () => "ra-test-key",
+      (async () => new Response(JSON.stringify({
+        data: {
+          connected: true,
+          workspace: { id: "workspace-1", name: "Acme" },
+          installation: { state: "connected" },
+          granted_scopes: "read,write",
+        },
+      }))) as typeof fetch,
+    );
+
+    bunExpect(await client.status()).toEqual({
+      state: "connected",
+      installationState: "connected",
+      workspaceId: "workspace-1",
+      workspaceName: "Acme",
+      organizationName: "Acme",
+      scopes: ["read", "write"],
+      message: null,
     });
-    bunExpect(token.access_token).toBe("access");
   });
 
-  it("surfaces cancellation and rejects an invalid state", async () => {
-    bunExpect(linearOAuthCancellationMessage("access_denied")).toContain("cancelled");
-    bunExpect(() => requireMatchingLinearOAuthState("expected", "invalid-state")).toThrow("verified");
-  });
+  it("sanitizes API failures and never exposes response bodies", async () => {
+    const client = new RainyLinearClient(
+      async () => "ra-test-key",
+      (async () => new Response("secret token and stack trace", { status: 500 })) as typeof fetch,
+    );
 
-  it("persists the rotated refresh token returned by Linear", async () => {
-    const token = await refreshLinearOAuthToken({ refreshToken: "old", clientId: "client", fetchImpl: (async (_url, init) => {
-      bunExpect(String(init?.body)).toContain("refresh_token=old");
-      return new Response(JSON.stringify({ access_token: "new-access", refresh_token: "new-refresh", expires_in: 3600, scope: "read write", token_type: "Bearer" }));
-    }) as typeof fetch });
-    bunExpect(token.refresh_token).toBe("new-refresh");
+    await bunExpect(client.status()).rejects.toThrow("Rainy Linear request failed (500). Try again.");
+    await bunExpect(client.status()).rejects.not.toThrow("secret token");
   });
 });
 

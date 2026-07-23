@@ -203,8 +203,6 @@ export interface SettingsApi {
   getBackgroundImagePath: (file: File) => string;
   getLinearStatus: () => Promise<LinearIntegrationStatus>;
   connectLinear: () => Promise<void>;
-  openLinearDeveloperSetup: () => Promise<void>;
-  saveLinearClientIdAndConnect: (clientId: string) => Promise<void>;
   disconnectLinear: () => Promise<void>;
 }
 

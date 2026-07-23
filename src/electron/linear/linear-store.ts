@@ -34,18 +34,8 @@ export class LinearStore {
       `CREATE TABLE IF NOT EXISTS linear_session_bindings (session_id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, issue_id TEXT, workspace_id TEXT NOT NULL, engineering_task_id TEXT NOT NULL UNIQUE, graph_run_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
       `CREATE TABLE IF NOT EXISTS linear_webhook_deliveries (delivery_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, received_at TEXT NOT NULL, processed_at TEXT, error TEXT)`,
       `CREATE TABLE IF NOT EXISTS linear_outbound_activities (activity_key TEXT PRIMARY KEY, session_id TEXT NOT NULL, content_json TEXT NOT NULL, ephemeral INTEGER NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at TEXT NOT NULL, delivered_at TEXT)`,
-      `CREATE TABLE IF NOT EXISTS linear_configuration (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)`,
       `CREATE INDEX IF NOT EXISTS idx_linear_outbound_state ON linear_outbound_activities(state, created_at)`,
     ], "write");
-  }
-
-  async getClientId(): Promise<string | null> {
-    const row = (await this.client.execute({ sql: `SELECT value FROM linear_configuration WHERE key='client_id' LIMIT 1`, args: [] })).rows[0];
-    return row ? String(row.value) : null;
-  }
-
-  async saveClientId(clientId: string): Promise<void> {
-    await this.client.execute({ sql: `INSERT INTO linear_configuration(key,value,updated_at) VALUES('client_id',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`, args: [clientId, new Date().toISOString()] });
   }
 
   async saveInstallation(value: StoredLinearInstallation): Promise<void> {

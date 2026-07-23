@@ -51,7 +51,7 @@
     --glass-bg: var(--control);
     --control-glass-blur: 22px;
     --control-glass-tint: 0.68;
-    --overlay-glass-blur: 30px;
-    --overlay-glass-tint: 0.62;
+    --overlay-glass-blur: 18px;
+    --overlay-glass-tint: 0.10;
   }
 }

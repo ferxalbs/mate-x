@@ -200,8 +200,6 @@ const settingsApi: SettingsApi = {
   getBackgroundImagePath: (file) => webUtils.getPathForFile(file),
   getLinearStatus: () => ipcRenderer.invoke("linear:get-status"),
   connectLinear: () => ipcRenderer.invoke("linear:connect"),
-  openLinearDeveloperSetup: () => ipcRenderer.invoke("linear:open-developer-setup"),
-  saveLinearClientIdAndConnect: (clientId) => ipcRenderer.invoke("linear:save-client-id-and-connect", clientId),
   disconnectLinear: () => ipcRenderer.invoke("linear:disconnect"),
 };
 
