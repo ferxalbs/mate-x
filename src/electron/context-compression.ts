@@ -3,7 +3,6 @@ import type { TokenEstimator } from "./token-estimator";
 import type { ToolEvent } from "../contracts/chat";
 
 const DEFAULT_CONTEXT_CAPACITY = 272_000;
-const DEFAULT_CONTEXT_TARGET = 252_000;
 const MAX_COMPLETION_RESERVE = 20_000;
 
 /** Per-item character budget for Responses function_call_output / long text. */
@@ -26,7 +25,7 @@ export function resolveContextCompressionLimits(modelContextTokens?: number): {
   );
   const maxLimit = Math.max(
     1,
-    Math.min(DEFAULT_CONTEXT_TARGET, capacity - completionReserve),
+    capacity - completionReserve,
   );
 
   return {

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.23 (2) [Plan-Aware Massive Context]
+
+* Added authenticated Rainy catalog support for the effective context available to the current plan and selected model, without duplicating billing or entitlement policy in MaTE X.
+* Replaced the legacy fixed 60K/75K/80K cleanup thresholds with adaptive context compression that scales from smaller model windows through Starter 272K, Pro 1M, and the 2M extreme tier.
+* Reserved up to 20K tokens for completion, producing a safe 252K working target on the default Starter window while allowing 980K and 1.98M working targets when Rainy authorizes larger plans.
+* Kept tool-output cleanup, LLM history summarization, and oldest-message trimming progressive so long-running tasks preserve recent instructions and useful evidence.
+* Ensured an oversized generated summary continues into the final trim instead of escaping the configured working limit.
+* Added regression coverage for default, 128K, 1M, and 2M context windows and for authenticated catalog normalization.
+
 ## Unreleased - 2026.07.23 (1) [Linear Connection Reliability]
 
 * Improved Linear connection setup and recovery so authorization, retry, disconnect, and workspace status remain reliable.
