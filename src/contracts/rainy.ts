@@ -59,6 +59,7 @@ export interface RainyModelCatalogEntry {
   description: string | null;
   ownedBy: string | null;
   contextLength?: number;
+  effectiveContextLength?: number;
   supportedApiModes: RainyApiMode[];
   preferredApiMode: RainyApiMode | null;
   architecture?: {

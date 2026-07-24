@@ -21,6 +21,19 @@ test("adapts compaction to models with smaller context windows", () => {
   });
 });
 
+test("scales compaction through 1M and 2M authenticated plan limits", () => {
+  assert.deepEqual(resolveContextCompressionLimits(1_000_000), {
+    truncateThreshold: 784_000,
+    compactThreshold: 882_000,
+    maxLimit: 980_000,
+  });
+  assert.deepEqual(resolveContextCompressionLimits(2_000_000), {
+    truncateThreshold: 1_584_000,
+    compactThreshold: 1_782_000,
+    maxLimit: 1_980_000,
+  });
+});
+
 describe("compressResponsesInputItems", () => {
   test("truncates large function_call_output items", () => {
     const big = "a".repeat(10_000);

@@ -655,6 +655,8 @@ function mergeRainyModels(
       description: existing.description ?? model.description,
       ownedBy: existing.ownedBy ?? model.ownedBy,
       contextLength: existing.contextLength ?? model.contextLength,
+      effectiveContextLength:
+        existing.effectiveContextLength ?? model.effectiveContextLength,
       supportedApiModes: Array.from(
         new Set([...existing.supportedApiModes, ...model.supportedApiModes]),
       ),
@@ -1278,6 +1280,10 @@ function normalizeRainyModelItem(item: unknown): RainyModelCatalogEntry | null {
     description: firstString(item.description, item.summary),
     ownedBy: firstString(item.owned_by, item.owner, item.provider, item.vendor),
     contextLength: firstNumber(item.context_length, item.contextLength),
+    effectiveContextLength: firstNumber(
+      item.rainy_effective_context_length,
+      item.effectiveContextLength,
+    ),
     supportedApiModes,
     preferredApiMode: extractPreferredApiMode(item, supportedApiModes),
     architecture: extractArchitecture(item),

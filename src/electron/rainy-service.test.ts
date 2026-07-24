@@ -108,6 +108,8 @@ describe("listRainyModels", () => {
               {
                 id: "openai/gpt-5.4-mini",
                 display_name: "OpenAI: GPT-5.4 Mini",
+                context_length: 1_050_000,
+                rainy_effective_context_length: 272_000,
               },
               {
                 id: "anthropic/claude-sonnet-4.6",
@@ -162,6 +164,11 @@ describe("listRainyModels", () => {
           "meta/llama-4-maverick",
           "openai/gpt-5.4-mini",
         ],
+      );
+      assert.equal(
+        models.find((entry) => entry.id === "openai/gpt-5.4-mini")
+          ?.effectiveContextLength,
+        272_000,
       );
     } finally {
       global.fetch = originalFetch;
