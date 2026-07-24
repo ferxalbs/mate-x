@@ -231,9 +231,9 @@ export function EnhancementPanel({
   }
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-[60] flex h-full w-[min(316px,calc(100vw-32px))] shrink-0 border-l border-[var(--panel-border)]/45 bg-background min-[1275px]:static min-[1275px]:z-auto min-[1275px]:w-[292px] 2xl:w-[316px]">
+    <aside className="fixed inset-y-0 right-0 z-[60] flex h-full w-[min(316px,calc(100vw-32px))] shrink-0 border-l border-[var(--panel-border)]/45 bg-transparent min-[1275px]:static min-[1275px]:z-auto min-[1275px]:w-[292px] 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
-        <div className="border-b border-[var(--panel-border)]/45 px-4 py-4">
+        <div className="border-b border-[var(--panel-border)]/45 px-4 py-4 bg-transparent">
           <PanelHeader
             activeRunTitle={runtime.activeRunTitle}
             eventCount={runtime.events.length}

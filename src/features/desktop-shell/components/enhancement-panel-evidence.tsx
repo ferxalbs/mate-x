@@ -92,8 +92,8 @@ export function EvidencePackSection({
         value={formatScoreBasis(scoreBreakdown)}
       />
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
-        <Card className="border-border/70 shadow-none bg-transparent">
-          <CardContent className="mate-text-secondary px-3 py-2">
+        <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
+          <CardContent className="px-3.5 py-3 text-[11.5px] leading-relaxed text-muted-foreground">
             Local repo signals show {fallbackFileCount} changed file
             {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
             command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
@@ -153,13 +153,13 @@ export function EvidencePackSection({
               : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
         }
       />
-      <Card className="border-border/70 shadow-none bg-transparent">
-        <CardContent className="p-2.5">
-          <p className="mate-text-metadata">
+      <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
+        <CardContent className="p-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Compliance Actions
           </p>
           <button
-            className="mt-2 flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[13px] font-medium text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
+            className="control-surface mt-2 flex min-h-8.5 w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 text-[12px] font-semibold text-foreground transition-all duration-150 hover:bg-card/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
             disabled={!canExportCompliance}
             onClick={() => {
               const taskId = evidencePack?.attestation?.taskId;
@@ -169,11 +169,11 @@ export function EvidencePackSection({
             title="Export SOC 2 / Procurement Package"
             type="button"
           >
-            <HugeiconsIcon icon={File01Icon} className="size-4" />
+            <HugeiconsIcon icon={File01Icon} className="size-4 text-primary" />
             Generate Compliance Report
           </button>
           <button
-            className="mt-2 flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)]/35 bg-[var(--mate-control-bg)] px-3 py-2 text-[13px] font-medium text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
+            className="control-surface mt-2 flex min-h-8.5 w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 text-[12px] font-semibold text-foreground transition-all duration-150 hover:bg-card/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
             disabled={!canExportCompliance}
             onClick={() => {
               const taskId = evidencePack?.attestation?.taskId;
@@ -183,7 +183,7 @@ export function EvidencePackSection({
             title="Export Agent Runbook"
             type="button"
           >
-            <HugeiconsIcon icon={File01Icon} className="size-4" />
+            <HugeiconsIcon icon={File01Icon} className="size-4 text-primary" />
             Export Agent Runbook
           </button>
         </CardContent>
@@ -220,12 +220,12 @@ function EvidenceConfidenceCard({
   return (
     <Card
       className={cn(
-        "rounded-2xl border-border/70 shadow-none",
+        "control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none",
         toneSurfaceClassName(hasVerifiedScore ? scoreTone : "watch"),
       )}
     >
-      <CardContent className="p-3">
-        <p className="mate-text-metadata">
+      <CardContent className="p-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Proof Confidence
         </p>
         <div className="mt-1 flex items-baseline gap-1">
@@ -242,7 +242,7 @@ function EvidenceConfidenceCard({
             <span className="text-[12px] text-muted-foreground">/100</span>
           ) : null}
         </div>
-        <p className="mate-text-secondary mt-2">
+        <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
           {getEvidenceScoreReason(
             hasVerifiedScore ? score : null,
             verdict,
@@ -266,15 +266,15 @@ function FailureReasonCard({
   verdict: string;
 }) {
   return (
-    <Card className="border-destructive/35 shadow-none bg-destructive/[0.045]">
-      <CardContent className="p-3">
-        <p className="text-[10px] tracking-wider font-medium uppercase text-destructive">
+    <Card className="control-surface rounded-2xl border border-destructive/60 bg-card text-card-foreground shadow-none">
+      <CardContent className="p-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">
           Blocking issue
         </p>
         <p className="mt-1 text-[13px] font-semibold text-foreground">
           {verdict}: evidence run did not complete cleanly.
         </p>
-        <p className="mate-text-secondary mt-1">
+        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
           Captured {commandCount} command signals and {filesCount} file signal
           {filesCount === 1 ? "" : "s"}, but review cannot be trusted until
           file-level diff evidence completes.
@@ -294,11 +294,12 @@ function EvidenceRow({
   value: string;
 }) {
   return (
-    <Card className="border-border/50 shadow-none bg-transparent">
-      <CardContent className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
-          <HugeiconsIcon icon={CheckmarkCircle01Icon}
+    <Card className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground shadow-none hover:border-border transition-all duration-150">
+      <CardContent className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-[12.5px]">
+        <span className="text-muted-foreground font-medium">{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold">
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
             className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
           />
           <span className="truncate text-foreground">{value}</span>

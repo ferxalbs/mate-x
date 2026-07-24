@@ -18,7 +18,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useIsMobile } from "~/hooks/useMediaQuery";
 import { getLocalStorageItem, numberCodec, setLocalStorageItem } from "~/hooks/useLocalStorage";
-import { PanelLeft } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SidebarLeftIcon } from "@hugeicons/core-free-icons";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -329,7 +330,7 @@ function SidebarTrigger({
         render={<Button />}
         {...props}
       >
-        {showSidebarIcon ? <PanelLeft className="size-3.5" /> : <PanelLeft className="size-3.5" />}
+        {showSidebarIcon ? <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} className="size-3.5" /> : <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} className="size-3.5" />}
         <span className="sr-only">Toggle Sidebar</span>
       </TooltipTrigger>
       <TooltipContent side="bottom" align="center" className="text-[10px]">

@@ -4,7 +4,8 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { X } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -100,7 +101,7 @@ function SheetPopup({
               className="absolute end-2 top-2"
               render={<Button size="icon" variant="ghost" />}
             >
-              <X />
+              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
             </SheetPrimitive.Close>
           )}
         </SheetPrimitive.Popup>

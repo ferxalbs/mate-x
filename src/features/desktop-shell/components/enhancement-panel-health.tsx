@@ -38,29 +38,29 @@ export function RepoHealthSection({
       </div>
       <div
         className={cn(
-          "rounded-2xl border border-border/70 px-3 py-2.5 shadow-none",
+          "control-surface rounded-2xl border border-border/70 px-3.5 py-3 shadow-none bg-card text-card-foreground",
           toneSurfaceClassName(verdict.tone),
         )}
       >
-        <p className="mate-text-metadata">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {hasProfile ? "Live repo verdict" : "Metadata only"}
         </p>
-        <p className="mt-1 break-words text-[12px] font-semibold leading-5">
+        <p className="mt-1 break-words text-[12.5px] font-semibold leading-5 text-foreground">
           {verdict.detail}
         </p>
       </div>
       {workspace ? (
-        <div className="rounded-2xl border border-border/50 bg-transparent px-2.5 py-2">
-          <p className="mate-text-metadata">
+        <div className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground px-3.5 py-3 shadow-none">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Workspace
           </p>
           <p className="mt-1 break-words text-[13px] font-semibold text-foreground">
             {workspace.name}
           </p>
-          <p className="mate-text-secondary mt-1 break-all font-mono">
+          <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
             {workspace.path}
           </p>
-          <p className="mate-text-secondary mt-1 break-words">
+          <p className="mt-1 break-words text-[11.5px] text-muted-foreground">
             {workspace.branch ? `Branch ${workspace.branch}` : "Branch unknown"}
           </p>
         </div>
@@ -70,7 +70,7 @@ export function RepoHealthSection({
           <HealthSignalCell signal={signal} key={signal.label} />
         ))}
       </dl>
-      <div className="mate-text-secondary break-words rounded-2xl border border-border/50 bg-transparent px-2.5 py-2">
+      <div className="control-surface break-words rounded-2xl border border-border/70 bg-card text-card-foreground px-3.5 py-2.5 text-[12px] text-muted-foreground">
         {action}
       </div>
     </section>
@@ -83,7 +83,7 @@ function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
   return (
     <Card
       className={cn(
-        "min-w-0 border-border/50 shadow-none bg-transparent",
+        "control-surface min-w-0 rounded-xl border border-border/70 bg-card text-card-foreground shadow-none hover:border-border transition-all duration-150",
       )}
     >
       <CardContent className="px-2.5 py-2">

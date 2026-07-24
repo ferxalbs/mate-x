@@ -67,7 +67,7 @@ export function PanelHeader({
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <Button
-          className="h-7.5 rounded-xl border-border/50 bg-panel px-2.5 text-[11.5px] font-medium text-muted-foreground shadow-none hover:text-foreground active:scale-[0.97]"
+          className="control-surface h-7.5 rounded-xl border border-border/70 bg-card px-2.5 text-[11.5px] font-medium text-foreground shadow-none hover:border-border transition-all duration-150 active:scale-[0.97]"
           disabled={isLoading}
           onClick={onScan}
           size="xs"
@@ -78,7 +78,7 @@ export function PanelHeader({
         </Button>
         <button
           aria-label="Hide enhancement panel"
-          className="flex size-7.5 items-center justify-center rounded-xl border border-border/50 bg-panel text-muted-foreground hover:text-foreground active:scale-[0.97]"
+          className="control-surface flex size-7.5 items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground hover:text-foreground hover:border-border transition-all duration-150 active:scale-[0.97]"
           onClick={onCollapse}
           type="button"
         >
@@ -102,7 +102,7 @@ export function PanelTabs({
 
   return (
     <LazyMotion features={domMax} strict>
-      <div className="mt-3 flex items-center justify-between gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-0.5">
+      <div className="control-surface mt-3 flex items-center justify-between gap-0.5 rounded-xl border border-border/70 bg-card/60 p-0.5">
         {tabs.map((view) => (
           <m.button
             className={cn(
@@ -124,7 +124,7 @@ export function PanelTabs({
           >
             {activeView === view.id && (
               <m.div
-                className="absolute inset-0 rounded-lg border border-border/60 bg-panel shadow-sm"
+                className="control-surface absolute inset-0 rounded-lg border border-border/70 bg-card shadow-xs"
                 layoutId="activeTabEnhancement"
                 transition={
                   reducedMotion ? { duration: 0 } : RESPONSIVE_SPRING
