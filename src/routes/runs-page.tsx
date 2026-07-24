@@ -1,5 +1,19 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Activity01Icon, ChatIcon, CheckmarkCircle01Icon, CircleIcon, CodeIcon, GitBranchIcon, Task01Icon, TerminalIcon, Alert01Icon } from "@hugeicons/core-free-icons";
+import {
+  Activity01Icon,
+  ChatIcon,
+  CheckmarkCircle01Icon,
+  CircleIcon,
+  CodeIcon,
+  GitBranchIcon,
+  Task01Icon,
+  TerminalIcon,
+  Alert01Icon,
+  Search01Icon,
+  Download01Icon,
+  CheckmarkCircle02Icon,
+  Shield01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { useMemo, useState } from "react";
 
@@ -52,27 +66,27 @@ function StandalonePackItem({
   return (
     <Card
       className={cn(
-        "w-[min(280px,calc(100vw-3rem))] shrink-0 cursor-pointer rounded-2xl transition-colors",
-        isSelected ? "border-sky-500 bg-sky-500/5" : "hover:border-border",
+        "w-[min(280px,calc(100vw-3rem))] shrink-0 cursor-pointer rounded-2xl border transition-colors shadow-none",
+        isSelected ? "border-primary/60 bg-primary/5" : "border-border/60 hover:border-border",
       )}
       onClick={() => onSelect(pack.taskId)}
     >
       <CardContent className="p-3">
-        <div className="mate-text-secondary truncate font-mono">{pack.taskId}</div>
+        <div className="truncate font-mono text-[11px] text-muted-foreground">{pack.taskId}</div>
         <div className="mt-1 flex items-center gap-2">
-          <span className="font-medium">{pack.verdict?.label || pack.status}</span>
+          <span className="text-[12.5px] font-semibold text-foreground">{pack.verdict?.label || pack.status}</span>
           {pack.verifiedTaskScore && (
-            <span className="text-muted-foreground">· {pack.verifiedTaskScore.score}/100</span>
+            <span className="text-[11px] text-muted-foreground">· {pack.verifiedTaskScore.score}/100</span>
           )}
         </div>
-        <div className="mate-text-secondary mt-1">
+        <div className="mt-1 text-[11.5px] text-muted-foreground">
           {pack.filesModifiedCount ?? 0} files · {pack.attestationStatus}
         </div>
         <div className="mt-3 flex gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 rounded-xl px-3 text-[12px]"
+            className="h-7 rounded-xl border-border/60 px-3 text-[11.5px] font-medium"
             onClick={(e) => {
               e.stopPropagation();
               onVerify(pack.taskId);
@@ -83,7 +97,7 @@ function StandalonePackItem({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 rounded-xl px-3 text-[12px]"
+            className="h-7 rounded-xl border-border/60 px-3 text-[11.5px] font-medium"
             onClick={(e) => {
               e.stopPropagation();
               onExport(pack.taskId);
@@ -164,10 +178,10 @@ function buildRuns(threads: Conversation[]) {
   );
 }
 
-function statusVariant(status: MissionRun["status"]): "default" | "secondary" | "destructive" {
-  if (status === "completed") return "secondary";
-  if (status === "running") return "default";
-  return "destructive";
+function statusBadgeTone(status: MissionRun["status"]) {
+  if (status === "completed") return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+  if (status === "running") return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 animate-pulse";
+  return "bg-destructive/10 text-destructive border-destructive/20";
 }
 
 function getEventIcon(event: ToolEvent) {
@@ -278,6 +292,35 @@ function summarizeResult(message: ChatMessage) {
   return content.length > 220 ? `${content.slice(0, 220)}...` : content;
 }
 
+function renderEventDetail(detail?: string) {
+  if (!detail) return <p className="mt-1 text-[11.5px] italic text-muted-foreground/70">No detail captured for this event.</p>;
+  const trimmed = detail.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return (
+        <div className="mt-2 space-y-1 rounded-xl border border-border/50 bg-control/25 p-2.5 font-mono text-[11px]">
+          {Object.entries(parsed).map(([key, val]) => (
+            <div className="flex items-start justify-between gap-3 min-w-0" key={key}>
+              <span className="shrink-0 text-muted-foreground font-medium">{key}:</span>
+              <span className="truncate text-foreground font-semibold">
+                {typeof val === "object" ? JSON.stringify(val) : String(val)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    } catch {
+      // Fallback if not valid JSON
+    }
+  }
+  return (
+    <p className="mt-1 whitespace-pre-wrap break-all text-[12px] leading-relaxed text-muted-foreground">
+      {detail}
+    </p>
+  );
+}
+
 export function RunsPage() {
   const platform = usePlatform();
   const { state } = useSidebar();
@@ -288,7 +331,20 @@ export function RunsPage() {
   const threads = activeWorkspaceId ? (threadsByWorkspace[activeWorkspaceId] ?? []) : [];
   const runs = useMemo(() => buildRuns(threads), [threads]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredRuns = useMemo(() => {
+    if (!searchQuery.trim()) return runs;
+    const query = searchQuery.toLowerCase();
+    return runs.filter(
+      (run) =>
+        run.title.toLowerCase().includes(query) ||
+        run.threadTitle.toLowerCase().includes(query) ||
+        run.userIntent.toLowerCase().includes(query)
+    );
+  }, [runs, searchQuery]);
+
+  const selectedRun = filteredRuns.find((run) => run.id === selectedRunId) ?? filteredRuns[0] ?? runs[0] ?? null;
   const isCurrentRunActive = runStatus === "running" && selectedRun?.id === runs[0]?.id;
   const selectedStatus = isCurrentRunActive ? "running" : selectedRun?.status;
   const decisionTrail = selectedRun ? getDecisionTrail(selectedRun) : [];
@@ -298,6 +354,7 @@ export function RunsPage() {
   const [showStandalonePacks, setShowStandalonePacks] = useState(false);
   const [selectedLocalTaskId, setSelectedLocalTaskId] = useState<string | null>(null);
   const [localPackDetail, setLocalPackDetail] = useState<any>(null);
+
   async function loadStandalonePacks() {
     if (!activeWorkspaceId) return;
     try {
@@ -358,56 +415,76 @@ export function RunsPage() {
   }
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mate-page-bg)]">
-      <header className={cn(
-        "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/70 px-5",
-        state === "collapsed" && platform === "mac" && "pl-[88px]",
-        platform === "windows" && "pr-[138px]"
-      )}>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-transparent">
+      <header
+        className={cn(
+          "drag-region flex h-[52px] shrink-0 items-center justify-between border-b border-border/60 px-5 bg-transparent",
+          state === "collapsed" && platform === "mac" && "pl-[88px]",
+          platform === "windows" && "pr-[138px]"
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <SidebarTrigger className="-ml-1" />
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold text-foreground">Mission Log</h1>
-            <p className="mate-text-secondary truncate">
-              Real assistant runs from current workspace, shown as reviewable execution history.
+            <h1 className="truncate text-[13px] font-semibold text-foreground tracking-tight">Mission Log</h1>
+            <p className="truncate text-[11px] text-muted-foreground">
+              Execution history and verifiable audit evidence for current workspace.
             </p>
           </div>
         </div>
-        <div className="mate-text-secondary flex min-w-0 items-center gap-2 overflow-x-auto">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 shrink-0 rounded-xl px-3 text-xs focus-visible:ring-2 focus-visible:ring-ring/45"
+            className="h-7.5 rounded-xl border-border/60 px-3 text-[11.5px] font-medium text-foreground hover:bg-accent shadow-none"
             disabled={!selectedRun?.record}
             onClick={() => void handleExportRun()}
           >
+            <HugeiconsIcon icon={Download01Icon} className="size-3.5 mr-1.5" />
             Export JSON
           </Button>
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
-            className="h-8 shrink-0 rounded-xl px-3 text-xs text-sky-600 focus-visible:ring-2 focus-visible:ring-ring/45 dark:text-sky-300"
+            className="h-7.5 rounded-xl border-border/60 px-3 text-[11.5px] font-medium text-primary hover:bg-primary/10 shadow-none"
             onClick={() => void loadStandalonePacks()}
           >
-            Browse Proof Receipts
+            <HugeiconsIcon icon={Shield01Icon} className="size-3.5 mr-1.5" />
+            Proof Receipts
           </Button>
-          <HugeiconsIcon icon={GitBranchIcon} className="size-3.5" />
-          <span className="max-w-[280px] truncate">{workspace?.path ?? "No workspace selected"}</span>
+          <div className="h-4 w-px bg-border/50 mx-1" />
+          <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground truncate max-w-[240px]">
+            <HugeiconsIcon icon={GitBranchIcon} className="size-3.5 shrink-0" />
+            <span className="truncate">{workspace?.path ?? "No workspace"}</span>
+          </div>
         </div>
       </header>
 
       {showStandalonePacks && (
-        <div className="border-b border-border/70 bg-[var(--panel)]/80 px-4 py-3 text-xs">
+        <div className="border-b border-border/60 bg-control/40 px-4 py-3 text-xs">
           <div className="mb-2 flex items-center justify-between">
-            <div className="font-medium text-foreground">Workspace proof receipts from .mate-x/evidence</div>
-            <Button variant="ghost" size="sm" onClick={() => { setShowStandalonePacks(false); setSelectedLocalTaskId(null); setLocalPackDetail(null); }}>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Workspace proof receipts from .mate-x/evidence
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 rounded-lg px-2 text-[11px]"
+              onClick={() => {
+                setShowStandalonePacks(false);
+                setSelectedLocalTaskId(null);
+                setLocalPackDetail(null);
+              }}
+            >
               Close
             </Button>
           </div>
           {localPacks.length === 0 ? (
-            <div className="text-muted-foreground">No packs found on disk for this workspace. Run an assistant task to generate one.</div>
+            <div className="text-muted-foreground text-[12px]">
+              No evidence packs found on disk for this workspace.
+            </div>
           ) : (
-            <ScrollArea className="w-full whitespace-nowrap pb-4">
+            <ScrollArea className="w-full whitespace-nowrap pb-2">
               <div className="flex w-max space-x-2">
                 {localPacks.map((p) => (
                   <StandalonePackItem
@@ -423,13 +500,21 @@ export function RunsPage() {
             </ScrollArea>
           )}
           {localPackDetail && (
-            <Card className="mt-3 bg-background/60">
+            <Card className="mt-2.5 rounded-xl border-border/60 bg-panel shadow-none">
               <CardContent className="p-3">
-                <div className="mate-text-metadata break-all">Loaded from disk • {selectedLocalTaskId}</div>
-                <div className="mt-1 text-sm font-medium">{localPackDetail.verdict?.label}</div>
-                <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{localPackDetail.verdict?.summary}</div>
-                <div className="mate-text-secondary mt-2">Score: {localPackDetail.verifiedTaskScore?.score ?? "n/a"} • Attestation: {localPackDetail.attestation?.status || "n/a"}</div>
-                <div className="mate-text-secondary mt-1">Files: {(localPackDetail.filesModified || []).length} • Commands: {(localPackDetail.commandsExecuted || []).length}</div>
+                <div className="text-[10px] font-mono text-muted-foreground break-all">
+                  Loaded from disk • {selectedLocalTaskId}
+                </div>
+                <div className="mt-1 text-[13px] font-semibold text-foreground">
+                  {localPackDetail.verdict?.label}
+                </div>
+                <div className="mt-0.5 text-[11.5px] text-muted-foreground line-clamp-2">
+                  {localPackDetail.verdict?.summary}
+                </div>
+                <div className="mt-2 text-[11px] text-muted-foreground">
+                  Score: {localPackDetail.verifiedTaskScore?.score ?? "n/a"} • Attestation:{" "}
+                  {localPackDetail.attestation?.status || "n/a"}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -437,39 +522,51 @@ export function RunsPage() {
       )}
 
       {selectedRun ? (
-        <div className="flex flex-col md:flex-row flex-1 min-h-0 min-w-0 overflow-y-auto md:overflow-hidden bg-[var(--mate-page-bg)]">
-          <aside className="shrink-0 w-full md:w-[260px] xl:w-[280px] border-b md:border-b-0 md:border-r border-border/70 flex flex-col min-h-[300px] md:min-h-0 bg-[var(--mate-panel-bg)] z-20">
-            <div className="sticky top-0 z-10 border-b border-border/70 px-4 py-3 bg-[var(--mate-panel-bg)]/80 backdrop-blur-xl">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 min-w-0 overflow-y-auto md:overflow-hidden">
+          {/* Left Sidebar: Runs List */}
+          <aside className="shrink-0 w-full md:w-[260px] xl:w-[280px] border-b md:border-b-0 md:border-r border-border/60 flex flex-col min-h-[260px] md:min-h-0 bg-transparent">
+            <div className="sticky top-0 z-10 border-b border-border/60 p-2.5 space-y-2 bg-transparent">
+              <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Captured Runs
+              </div>
+              <div className="relative">
+                <HugeiconsIcon icon={Search01Icon} className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Filter runs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-7.5 w-full rounded-xl border border-border/60 bg-card/60 pl-8 pr-2.5 text-[11.5px] text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/60 control-surface transition-all"
+                />
               </div>
             </div>
             <ScrollArea className="flex-1 min-h-0">
-              <div className="flex flex-col gap-1 p-2">
-                {runs.map((run) => {
+              <div className="flex flex-col gap-1.5 p-2">
+                {filteredRuns.map((run) => {
                   const status = runStatus === "running" && run.id === runs[0]?.id ? "running" : run.status;
+                  const isSelected = run.id === selectedRun.id;
                   return (
                     <button
                       className={cn(
-                        "min-h-8 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
-                        run.id === selectedRun.id
-                          ? "bg-accent text-foreground"
-                          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                        "rounded-xl border px-3 py-2 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                        isSelected
+                          ? "control-surface border-border/70 bg-card text-foreground font-semibold shadow-xs"
+                          : "border-transparent text-muted-foreground hover:bg-card/50 hover:border-border/50 hover:text-foreground"
                       )}
                       key={run.id}
                       onClick={() => setSelectedRunId(run.id)}
                       type="button"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-medium">{run.title}</div>
-                          <div className="mate-text-secondary mt-1 truncate">{run.threadTitle}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12.5px] font-medium leading-snug">{run.title}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{run.threadTitle}</div>
                         </div>
-                        <Badge variant={statusVariant(status)} className="px-2 py-0.5 text-[10px]">
+                        <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider", statusBadgeTone(status))}>
                           {status}
-                        </Badge>
+                        </span>
                       </div>
-                      <div className="mate-text-secondary mt-2 flex items-center justify-between">
+                      <div className="mt-2 flex items-center justify-between text-[10.5px] text-muted-foreground">
                         <span>{formatTimestamp(run.startedAt)}</span>
                         <span>{run.events.length} events</span>
                       </div>
@@ -480,10 +577,12 @@ export function RunsPage() {
             </ScrollArea>
           </aside>
 
+          {/* Center Main Content: Timeline */}
           <main className="flex-1 min-w-0 flex flex-col min-h-[500px] md:min-h-0 relative z-0">
             <ScrollArea className="flex-1 min-h-0">
-              <div className="p-6">
-                <div className="mb-5 grid grid-cols-5 gap-2">
+              <div className="p-5 max-w-[900px] mx-auto space-y-4">
+                {/* Stat Metrics Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <Metric label="Status" value={selectedStatus ?? "unknown"} />
                   <Metric label="Events" value={String(selectedRun.events.length)} />
                   <Metric
@@ -504,44 +603,47 @@ export function RunsPage() {
                   />
                 </div>
 
-                <Card className="mb-5 border-border/70">
-                  <CardContent className="px-5 py-4">
-                    <div className="mate-text-metadata mb-2 flex items-center gap-2">
-                      <HugeiconsIcon icon={ChatIcon} className="size-4" />
+                {/* Initial Intent Card */}
+                <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
+                  <CardContent className="px-4.5 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+                      <HugeiconsIcon icon={ChatIcon} className="size-3.5 text-primary" />
                       Initial Intent
                     </div>
-                    <p className="whitespace-pre-wrap text-xs leading-5 text-foreground">{selectedRun.userIntent}</p>
+                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed font-medium text-foreground">
+                      {selectedRun.userIntent}
+                    </p>
                   </CardContent>
                 </Card>
 
-                <div className="space-y-3">
+                {/* Event Timeline Stream */}
+                <div className="space-y-3 pt-1">
                   {selectedRun.events.length > 0 ? (
                     selectedRun.events.map((event, index) => {
                       const Icon = getEventIcon(event);
                       return (
-                        <article className="grid grid-cols-[42px_24px_minmax(0,1fr)] gap-3" key={event.id}>
-                          <div className="mate-text-secondary pt-1 text-right">{index + 1}</div>
-                          <div className="flex flex-col items-center">
-                            <div className="flex size-6 items-center justify-center rounded-full border border-border bg-[var(--mate-control-bg)] backdrop-blur-md z-10">
-                              <HugeiconsIcon icon={Icon} className="size-3.5 text-muted-foreground" />
-                            </div>
-                            <Separator orientation="vertical" className="h-full bg-border/70" />
+                        <article className="grid grid-cols-[36px_20px_minmax(0,1fr)] gap-3 items-start" key={event.id}>
+                          <div className="pt-1.5 text-right font-mono text-[11px] text-muted-foreground font-medium">
+                            {index + 1}
                           </div>
-                          <Card className="border-border/50 shadow-sm bg-[var(--mate-surface-bg)] mb-3">
-                            <CardContent className="px-4 py-3">
+                          <div className="flex flex-col items-center h-full">
+                            <div className="flex size-5.5 items-center justify-center rounded-full border border-border/70 bg-control text-muted-foreground shrink-0 mt-1">
+                              <HugeiconsIcon icon={Icon} className="size-3" />
+                            </div>
+                            {index < selectedRun.events.length - 1 && (
+                              <div className="w-px flex-1 bg-border/50 my-1" />
+                            )}
+                          </div>
+                          <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none hover:border-border transition-colors">
+                            <CardContent className="p-4">
                               <div className="flex items-center justify-between gap-3">
-                                <h2 className="text-xs font-semibold text-foreground">{getSemanticEventLabel(event)}</h2>
-                                <Badge 
-                                  variant={event.status === "error" ? "destructive" : event.status === "active" ? "default" : "secondary"}
-                                  className="px-2 py-0.5 text-[10px] uppercase tracking-wider"
-                                >
+                                <h2 className="text-[13px] font-semibold text-foreground tracking-tight">{getSemanticEventLabel(event)}</h2>
+                                <span className={cn("px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider rounded-full border", statusBadgeTone(event.status === "error" ? "failed" : event.status === "active" ? "running" : "completed"))}>
                                   {event.status}
-                                </Badge>
+                                </span>
                               </div>
-                              <div className="mt-1 break-words text-[13px] font-medium text-foreground">{event.label}</div>
-                              <p className="mt-1 whitespace-pre-wrap break-all text-xs leading-5 text-muted-foreground">
-                                {event.detail || "No detail captured for this event."}
-                              </p>
+                              <div className="mt-1.5 text-[13px] font-medium text-foreground">{event.label}</div>
+                              {renderEventDetail(event.detail)}
                             </CardContent>
                           </Card>
                         </article>
@@ -549,8 +651,8 @@ export function RunsPage() {
                     })
                   ) : (
                     <Empty>
-                      <EmptyTitle>No tool timeline was captured</EmptyTitle>
-                      <EmptyDescription>For this assistant turn.</EmptyDescription>
+                      <EmptyTitle>No tool timeline captured</EmptyTitle>
+                      <EmptyDescription>No events were recorded for this assistant turn.</EmptyDescription>
                     </Empty>
                   )}
                 </div>
@@ -558,52 +660,58 @@ export function RunsPage() {
             </ScrollArea>
           </main>
 
-          <aside className="shrink-0 w-full md:w-[280px] xl:w-[300px] border-t md:border-t-0 md:border-l border-border/70 flex flex-col min-h-[400px] md:min-h-0 bg-[var(--mate-panel-bg)] z-10">
-            <div className="sticky top-0 z-10 border-b border-border/70 px-5 py-3 bg-[var(--mate-panel-bg)]/80 backdrop-blur-xl">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {/* Right Sidebar: Run Evidence */}
+          <aside className="shrink-0 w-full md:w-[280px] xl:w-[300px] border-t md:border-t-0 md:border-l border-border/60 flex flex-col min-h-[380px] md:min-h-0 bg-transparent">
+            <div className="sticky top-0 z-10 border-b border-border/60 px-4 py-3 bg-transparent">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Run Evidence
               </div>
             </div>
             <ScrollArea className="flex-1 min-h-0">
-              <div className="p-5">
-                <h2 className="text-sm font-semibold text-foreground">{selectedRun.title}</h2>
-                
-                <Separator className="my-4" />
-                
-                <dl className="space-y-4 text-xs">
-                  <Detail label="Thread" value={selectedRun.threadTitle} />
-                  <Detail label="Initial state" value={selectedRun.record ? `${selectedRun.record.initialState.workspaceName}\n${selectedRun.record.initialState.workspacePath}\nbranch ${selectedRun.record.initialState.branch}` : "Legacy run inferred from assistant message"} />
+              <div className="p-4 space-y-4">
+                <div>
+                  <h2 className="text-[13px] font-semibold text-foreground">{selectedRun.title}</h2>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{selectedRun.threadTitle}</p>
+                </div>
+
+                <Separator className="bg-border/50" />
+
+                <dl className="space-y-3.5 text-[12px]">
+                  <Detail label="Initial state" value={selectedRun.record ? `${selectedRun.record.initialState.workspaceName}\n${selectedRun.record.initialState.workspacePath}\nbranch ${selectedRun.record.initialState.branch}` : "Legacy run inferred"} />
                   <div>
-                    <dt className="text-muted-foreground">Decisions</dt>
-                    <dd className="mt-2 flex flex-col gap-2">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Decisions</dt>
+                    <dd className="mt-1.5 flex flex-col gap-1.5">
                       {decisionTrail.map((decision) => (
-                        <Card key={`${decision.label}:${decision.detail}`} className="border-border/60 shadow-none">
-                          <CardContent className="px-2.5 py-2">
-                            <div className="font-medium text-foreground break-words">{decision.label}</div>
-                            <div className="mate-text-secondary mt-0.5 break-all">{decision.detail}</div>
+                        <Card key={`${decision.label}:${decision.detail}`} className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground shadow-none">
+                          <CardContent className="p-3">
+                            <div className="text-[12.5px] font-semibold text-foreground">{decision.label}</div>
+                            <div className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground break-words">{decision.detail}</div>
                           </CardContent>
                         </Card>
                       ))}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Integrity</dt>
-                    <dd className="mt-2">
-                      <Card className="border-border/60 shadow-none">
-                        <CardContent className="px-2.5 py-2">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Integrity</dt>
+                    <dd className="mt-1.5">
+                      <Card className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground shadow-none">
+                        <CardContent className="p-3">
                           {selectedRun.record?.integrity ? (
                             <>
-                              <div className="font-medium text-emerald-600 dark:text-emerald-300">Sealed run</div>
-                              <div className="mate-text-secondary mt-1 break-all font-mono">
+                              <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3.5" />
+                                Sealed run
+                              </div>
+                              <div className="mt-1.5 font-mono text-[10.5px] text-muted-foreground break-all rounded-lg bg-secondary/40 p-2 border border-border/50">
                                 {selectedRun.record.integrity.rootHash}
                               </div>
-                              <div className="mate-text-secondary mt-1">Exportable proof receipt · replay material preserved</div>
+                              <div className="mt-1.5 text-[10.5px] text-muted-foreground">Exportable proof receipt · replay preserved</div>
                             </>
                           ) : (
                             <>
-                              <div className="font-medium text-sky-600 dark:text-sky-300">Sealing pending</div>
-                              <div className="mate-text-secondary mt-1">
-                                Run is still active or from legacy history. Final export will seal artifact.
+                              <div className="text-[12.5px] font-semibold text-primary">Sealing pending</div>
+                              <div className="mt-1 text-[11.5px] text-muted-foreground">
+                                Run active or legacy. Final export seals artifact.
                               </div>
                             </>
                           )}
@@ -615,39 +723,39 @@ export function RunsPage() {
                   <Detail label="Completed" value={formatTimestamp(selectedRun.completedAt)} />
                   <Detail label="Tools used" value={(selectedRun.assistantMessage.evidencePack?.toolsUsed ?? []).map((tool) => tool.name).join(", ") || "None reported"} />
                   <div>
-                    <dt className="text-muted-foreground">Commands</dt>
-                    <dd className="mt-2 flex flex-col gap-2">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Commands</dt>
+                    <dd className="mt-1.5 flex flex-col gap-1.5">
                       {commandEvidence.length > 0 ? (
                         commandEvidence.map((command) => (
-                          <Card key={`${command.tool}:${command.target}:${command.result}`} className="border-border/60 shadow-none">
-                            <CardContent className="px-2.5 py-2">
+                          <Card key={`${command.tool}:${command.target}:${command.result}`} className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground shadow-none">
+                            <CardContent className="p-3">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-[13px] font-medium text-foreground">{command.tool}</span>
-                                <Badge variant="secondary" className="px-1.5 py-0.5 text-[10px] rounded">{command.result}</Badge>
+                                <span className="font-mono text-[11.5px] font-semibold text-foreground">{command.tool}</span>
+                                <span className="rounded-full border border-border/60 bg-secondary/50 px-2 py-0.5 font-mono text-[9.5px] text-muted-foreground">{command.result}</span>
                               </div>
-                              <div className="mate-text-secondary mt-1">{command.action}</div>
-                              <div className="mate-text-secondary mt-1 truncate font-mono">{command.target}</div>
+                              <div className="mt-1 text-[11.5px] text-muted-foreground">{command.action}</div>
+                              <div className="mt-1 font-mono text-[10.5px] text-muted-foreground/80 truncate rounded-md bg-secondary/30 px-1.5 py-0.5">{command.target}</div>
                             </CardContent>
                           </Card>
                         ))
                       ) : (
-                        <div className="mate-text-secondary rounded-xl border border-border/60 px-2.5 py-2">
-                          No command artifacts reported. Tool activity remains available in timeline.
+                        <div className="rounded-xl border border-border/60 bg-secondary/30 p-2.5 text-[11px] text-muted-foreground">
+                          No command artifacts reported.
                         </div>
                       )}
                     </dd>
                   </div>
                 </dl>
-                
-                <Separator className="my-5" />
-                
-                <Card className="border-border/70 shadow-none">
-                  <CardContent className="px-4 py-3">
-                    <div className="mate-text-metadata mb-1 flex items-center gap-2">
-                      <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-4" />
+
+                <Separator className="bg-border/50 my-4" />
+
+                <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
+                  <CardContent className="p-3.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                      <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3.5 text-primary" />
                       Final Result
                     </div>
-                    <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                    <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
                       {summarizeResult(selectedRun.assistantMessage)}
                     </p>
                   </CardContent>
@@ -678,10 +786,10 @@ export function RunsPage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="border-border/70 shadow-none">
-      <CardContent className="px-4 py-3">
-        <div className="mate-text-metadata">{label}</div>
-        <div className="mt-1 truncate text-sm font-semibold">{value}</div>
+    <Card className="rounded-xl border border-border/60 bg-control/20 shadow-none">
+      <CardContent className="px-3.5 py-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</div>
+        <div className="mt-0.5 truncate text-[15px] font-semibold tabular-nums text-foreground">{value}</div>
       </CardContent>
     </Card>
   );
@@ -690,8 +798,8 @@ function Metric({ label, value }: { label: string; value: string }) {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="mt-1 whitespace-pre-wrap break-words text-foreground">{value}</dd>
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</dt>
+      <dd className="mt-1 whitespace-pre-wrap break-words text-[12px] font-medium text-foreground">{value}</dd>
     </div>
   );
 }
