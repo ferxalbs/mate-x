@@ -23,8 +23,8 @@ export function ValidationSection({
     <section className="space-y-3">
       <PanelTitle icon={TerminalIcon} title="Validation Terminal" />
       {isLoading ? <SkeletonStack /> : null}
-      <Card className="border-border/70 bg-transparent font-mono text-[12px] shadow-none">
-        <CardContent className="p-3">
+      <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground font-mono text-[12px] shadow-none">
+        <CardContent className="p-3.5">
           <div className="mb-3 flex items-center gap-1.5 border-b border-border/70 pb-2 text-muted-foreground">
             <span className="size-2 rounded-full bg-border" />
             <span className="size-2 rounded-full bg-border" />

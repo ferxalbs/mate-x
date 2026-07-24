@@ -38,7 +38,7 @@ export function TrustGateCard({
   return (
     <Card
       className={cn(
-        "mb-4 rounded-2xl border-border/70 shadow-none",
+        "control-surface mb-4 rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none",
         toneSurfaceClassName(state.tone),
       )}
     >
@@ -112,9 +112,9 @@ export function ShipStatusStrip({
           : "Needs check";
 
   return (
-    <div className="mb-3 rounded-2xl border border-border/60 bg-accent/25 p-3 shadow-none">
+    <div className="control-surface mb-3 rounded-2xl border border-border/70 bg-card text-card-foreground p-3.5 shadow-none">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Repo Safety
         </span>
         <TonePill label={badgeLabel} tone={state.tone} />
@@ -125,7 +125,7 @@ export function ShipStatusStrip({
       <div className="mt-2.5 flex items-center gap-2">
         {state.status !== "trusted" ? (
           <button
-            className="h-7.5 flex-1 rounded-xl bg-foreground px-3 text-[11.5px] font-medium text-background transition-transform active:scale-[0.97] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-7.5 flex-1 rounded-xl bg-primary px-3 text-[11.5px] font-semibold text-primary-foreground transition-all duration-150 active:scale-[0.97] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isRunning}
             onClick={onMakeTrustworthy}
             type="button"
@@ -134,7 +134,7 @@ export function ShipStatusStrip({
           </button>
         ) : null}
         <button
-          className="h-7.5 rounded-xl border border-border/60 bg-panel px-3 text-[11.5px] font-medium text-muted-foreground transition-transform hover:text-foreground active:scale-[0.97]"
+          className="control-surface h-7.5 rounded-xl border border-border/70 bg-card px-3 text-[11.5px] font-medium text-muted-foreground transition-all duration-150 hover:text-foreground hover:border-border active:scale-[0.97]"
           onClick={onReviewLater}
           type="button"
         >
@@ -167,7 +167,7 @@ function TrustGateFactGrid({ facts }: { facts: TrustGateFact[] }) {
   return (
     <dl className="mt-3 grid grid-cols-2 gap-2">
       {facts.map((fact) => (
-        <div className="rounded-2xl border border-border/60 bg-panel/35 px-2.5 py-2" key={fact.label}>
+        <div className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground px-2.5 py-2" key={fact.label}>
           <dt className="mate-text-metadata">
             {fact.label}
           </dt>

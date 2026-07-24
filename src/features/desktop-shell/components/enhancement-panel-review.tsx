@@ -42,15 +42,15 @@ export function ReviewQueueSection({
         <Metric label="Likely radius" value={summary.affectedCount} />
         <Metric label="Mapped tests" value={impactedFiles.length} />
       </dl>
-      <Card className="border-border/70 bg-transparent shadow-none">
-        <CardContent className="p-3">
-          <p className="mate-text-metadata">
+      <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
+        <CardContent className="p-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Look at first
           </p>
-          <p className="mt-1 break-all font-mono text-[12px] text-foreground">
+          <p className="mt-1 break-all font-mono text-[12px] text-foreground font-medium">
             {firstLook}
           </p>
-          <p className="mate-text-secondary mt-2 break-words">
+          <p className="mt-2 break-words text-[11.5px] leading-relaxed text-muted-foreground">
             {changedFiles.length > 0
               ? "Review changed and impacted paths before trusting the result."
               : "No detailed change queue is loaded yet. Map changes to classify the current diff."}
@@ -59,7 +59,7 @@ export function ReviewQueueSection({
       </Card>
       {changedFiles.length === 0 ? (
         <button
-          className="flex min-h-8 w-full items-center justify-center rounded-xl border border-[var(--panel-border)]/45 bg-[var(--mate-control-bg)] px-3 py-2 text-[13px] font-medium text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
+          className="control-surface flex min-h-8.5 w-full items-center justify-center rounded-xl border border-border/70 bg-card px-3 py-2 text-[12.5px] font-semibold text-foreground transition-all duration-150 hover:bg-card/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
           disabled={!onMapChanges}
           onClick={onMapChanges}
           type="button"

@@ -10,7 +10,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
 import { buildVisibleToastLayout, shouldHideCollapsedToastContent } from "./toast.logic";
-import { Copy } from "lucide-react";
+import { Copy01Icon } from "@hugeicons/core-free-icons";
 
 type ThreadId = string;
 
@@ -58,7 +58,7 @@ function CopyErrorButton({ text }: { text: string }) {
       {isCopied ? (
         <HugeiconsIcon icon={Tick01Icon} className="size-3.5 text-success" />
       ) : (
-        <Copy className="size-3.5" />
+        <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} className="size-3.5" />
       )}
     </button>
   );

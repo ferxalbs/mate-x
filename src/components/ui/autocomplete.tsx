@@ -7,7 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { X } from "lucide-react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 const Autocomplete = AutocompletePrimitive.Root;
 
@@ -70,7 +70,7 @@ function AutocompleteInput({
             sizeValue === "sm" ? "end-0" : "end-0.5",
           )}
         >
-          <X />
+          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
         </AutocompleteClear>
       )}
     </div>
@@ -213,7 +213,7 @@ function AutocompleteClear({ className, ...props }: AutocompletePrimitive.Clear.
       data-slot="autocomplete-clear"
       {...props}
     >
-      <X />
+      <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
     </AutocompletePrimitive.Clear>
   );
 }

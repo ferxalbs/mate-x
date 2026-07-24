@@ -9,7 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowDown01Icon, ArrowUp01Icon } from "@hugeicons/core-free-icons";
 
 const Select = SelectPrimitive.Root;
 
@@ -56,7 +56,7 @@ function SelectButton({ className, size, variant, render, children, ...props }: 
           {children}
         </span>
         {variant === "ghost" ? (
-          <ChevronDown className="size-3 opacity-50" />
+          <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
         ) : (
           <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} className={selectTriggerIconClassName} />
         )}
@@ -90,7 +90,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon data-slot="select-icon">
-        <ChevronDown className="size-3 opacity-50" />
+        <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -148,7 +148,7 @@ function SelectPopup({
             className="top-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-t-xl bg-popover/80 text-muted-foreground"
             data-slot="select-scroll-up-arrow"
           >
-            <ChevronUp className="size-3.5" />
+            <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} className="size-3.5" />
           </SelectPrimitive.ScrollUpArrow>
           <div
             className="relative size-full min-w-(--anchor-width) overflow-hidden rounded-xl"
@@ -165,7 +165,7 @@ function SelectPopup({
             className="bottom-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-b-xl bg-popover/80 text-muted-foreground"
             data-slot="select-scroll-down-arrow"
           >
-            <ChevronDown className="size-3.5" />
+            <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3.5" />
           </SelectPrimitive.ScrollDownArrow>
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>

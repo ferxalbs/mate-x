@@ -8,7 +8,7 @@ import * as React from "react";
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { X } from "lucide-react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 const ComboboxContext = React.createContext<{
   chipsRef: React.RefObject<Element | null> | null;
@@ -122,7 +122,7 @@ function ComboboxInput({
             sizeValue === "sm" ? "end-0" : "end-0.5",
           )}
         >
-          <X />
+          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
         </ComboboxClear>
       )}
     </div>
@@ -354,7 +354,7 @@ function ComboboxChipRemove(props: ComboboxPrimitive.ChipRemove.Props) {
       data-slot="combobox-chip-remove"
       {...props}
     >
-      <X />
+      <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
     </ComboboxPrimitive.ChipRemove>
   );
 }
