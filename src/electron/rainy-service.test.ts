@@ -36,11 +36,64 @@ import {
 
 const {
   buildChatCompletionRequest,
+  isReasoningNotAllowedError,
+  isToolsNotAllowedError,
   isOpenAIGpt5OrNewerModel,
   listRainyModelLaunches,
   listRainyModels,
   resolvePreferredRainyApiMode,
 } = await import("./rainy-service");
+
+describe("Rainy plan compatibility errors", () => {
+  it("recognizes the structured tool entitlement rejection", () => {
+    assert.equal(
+      isToolsNotAllowedError({
+        status: 403,
+        error: {
+          code: "TOOLS_NOT_ALLOWED",
+          message: "Custom tools are not available on your plan",
+        },
+      }),
+      true,
+    );
+  });
+
+  it("does not downgrade unrelated access denials", () => {
+    assert.equal(
+      isToolsNotAllowedError({
+        status: 403,
+        error: {
+          code: "MODEL_TIER_NOT_ALLOWED",
+          message: "Model tier is not available on your plan",
+        },
+      }),
+      false,
+    );
+  });
+
+  it("recognizes only the structured reasoning entitlement rejection", () => {
+    assert.equal(
+      isReasoningNotAllowedError({
+        status: 403,
+        error: {
+          code: "REASONING_NOT_ALLOWED",
+          message: "Reasoning is not available on your plan",
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      isReasoningNotAllowedError({
+        status: 403,
+        error: {
+          code: "MODEL_TIER_NOT_ALLOWED",
+          message: "Model tier is not available on your plan",
+        },
+      }),
+      false,
+    );
+  });
+});
 
 describe("listRainyModels", () => {
   it("keeps providers returned by /models even when catalog is partial", async () => {

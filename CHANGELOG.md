@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.23 (2) [Starter Plan Compatibility]
+
+* Kept custom tools active for paid Starter runs while retrying without reasoning only when Rainy returns the exact `REASONING_NOT_ALLOWED` entitlement error.
+* Added bounded capability fallback so sequential tool, reasoning, or `tool_choice` rejections cannot break otherwise valid agent runs.
+
 ## Unreleased - 2026.07.23 (1) [Linear Connection Reliability]
 
 * Improved Linear connection setup and recovery so authorization, retry, disconnect, and workspace status remain reliable.
