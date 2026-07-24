@@ -366,6 +366,44 @@ function isUnsupportedToolChoiceError(error: unknown) {
   );
 }
 
+export function isToolsNotAllowedError(error: unknown) {
+  const candidate = error as {
+    status?: unknown;
+    code?: unknown;
+    error?: { code?: unknown; message?: unknown };
+  } | null;
+  const status = Number(candidate?.status);
+  const code = String(candidate?.code ?? candidate?.error?.code ?? "");
+  const message = extractRainyErrorMessage(error);
+
+  return (
+    status === 403 &&
+    (
+      code === "TOOLS_NOT_ALLOWED" ||
+      /custom tools are not available on your plan/i.test(message)
+    )
+  );
+}
+
+export function isReasoningNotAllowedError(error: unknown) {
+  const candidate = error as {
+    status?: unknown;
+    code?: unknown;
+    error?: { code?: unknown; message?: unknown };
+  } | null;
+  const status = Number(candidate?.status);
+  const code = String(candidate?.code ?? candidate?.error?.code ?? "");
+  const message = extractRainyErrorMessage(error);
+
+  return (
+    status === 403 &&
+    (
+      code === "REASONING_NOT_ALLOWED" ||
+      /reasoning is not available on your plan/i.test(message)
+    )
+  );
+}
+
 export async function listRainyModels(params: {
   apiKey?: string | null;
   forceRefresh?: boolean;
@@ -722,6 +760,18 @@ export async function requestRainyChatCompletion(params: {
       timeout: RAINY_REQUEST_TIMEOUT_MS,
     });
   } catch (error) {
+    if (isToolsNotAllowedError(error)) {
+      return client.chat.completions.create(
+        buildChatCompletionRequest({
+          model: params.model,
+          messages: sanitized.payload.messages,
+          toolChoice: "none",
+          serviceTier: params.serviceTier,
+        }) as any,
+        { timeout: RAINY_REQUEST_TIMEOUT_MS },
+      );
+    }
+
     if (params.toolChoice && isUnsupportedToolChoiceError(error)) {
       return client.chat.completions.create(
         buildChatCompletionRequest({
@@ -893,34 +943,55 @@ export async function requestRainyChatCompletionStream(params: {
     function: { name?: string; arguments: string };
   }> = [];
 
-  let stream: AsyncIterable<any>;
-  try {
-    stream = (await client.chat.completions.create(
-      { ...request, stream: true } as any,
-      { signal: params.signal, timeout: requestTimeoutMs },
-    )) as unknown as AsyncIterable<any>;
-  } catch (error) {
-    if (!params.toolChoice || !isUnsupportedToolChoiceError(error)) {
-      throw error;
-    }
+  let stream: AsyncIterable<any> | undefined;
+  let lastCompatibleRequest = request;
+  let omitTools = false;
+  let omitReasoning = false;
+  let omitToolChoice = false;
 
-    stream = (await client.chat.completions.create(
-      {
-        ...buildChatCompletionRequest({
+  for (let attempt = 0; attempt < 4 && !stream; attempt += 1) {
+    const compatibleRequest = attempt === 0
+      ? request
+      : buildChatCompletionRequest({
           model: params.model,
           messages: sanitized.payload.messages,
-          tools: sanitized.payload.tools,
-          reasoning: params.reasoning,
-          includeReasoning: params.includeReasoning,
-          reasoningEffort: params.reasoningEffort,
+          tools: omitTools ? undefined : sanitized.payload.tools,
+          toolChoice: omitToolChoice
+            ? undefined
+            : omitTools ? "none" : params.toolChoice,
+          reasoning: omitReasoning ? undefined : params.reasoning,
+          includeReasoning: omitReasoning ? false : params.includeReasoning,
+          reasoningEffort: omitReasoning ? undefined : params.reasoningEffort,
           capabilities: params.capabilities,
           maxTokens: params.maxTokens,
           serviceTier: params.serviceTier,
-        }),
-        stream: true,
-      } as any,
-      { signal: params.signal, timeout: requestTimeoutMs },
-    )) as unknown as AsyncIterable<any>;
+        });
+    lastCompatibleRequest = compatibleRequest;
+
+    try {
+      stream = (await client.chat.completions.create(
+        { ...compatibleRequest, stream: true } as any,
+        { signal: params.signal, timeout: requestTimeoutMs },
+      )) as unknown as AsyncIterable<any>;
+    } catch (error) {
+      if (isToolsNotAllowedError(error) && !omitTools) {
+        omitTools = true;
+        continue;
+      }
+      if (isReasoningNotAllowedError(error) && !omitReasoning) {
+        omitReasoning = true;
+        continue;
+      }
+      if (isUnsupportedToolChoiceError(error) && !omitToolChoice) {
+        omitToolChoice = true;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (!stream) {
+    throw new Error("Rainy stream could not start after capability fallback.");
   }
 
   try {
@@ -957,7 +1028,7 @@ export async function requestRainyChatCompletionStream(params: {
       throw error;
     }
 
-    const response = await client.chat.completions.create(request as any, {
+    const response = await client.chat.completions.create(lastCompatibleRequest as any, {
       timeout: requestTimeoutMs,
     });
     const message = response.choices?.[0]?.message;
@@ -1019,22 +1090,39 @@ export async function requestRainyResponsesCompletion(params: {
 
   const serviceTier = normalizeRainyServiceTier(params.serviceTier);
   // store: false — do not retain agent turns on the provider for privacy/local-first.
-  return client.responses.create(
-    {
-      model: params.model,
-      input: sanitized.payload.input,
-      instructions: sanitized.payload.instructions,
-      previous_response_id: params.previousResponseId,
-      tools: sanitized.payload.tools,
-      tool_choice: params.toolChoice,
-      store: false,
-      ...(serviceTier === "standard" ? {} : { service_tier: serviceTier }),
-    } as any,
-    {
+  const request = {
+    model: params.model,
+    input: sanitized.payload.input,
+    instructions: sanitized.payload.instructions,
+    previous_response_id: params.previousResponseId,
+    tools: sanitized.payload.tools,
+    tool_choice: params.toolChoice,
+    store: false,
+    ...(serviceTier === "standard" ? {} : { service_tier: serviceTier }),
+  };
+
+  try {
+    return await client.responses.create(request as any, {
       signal: params.signal,
       timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
-    },
-  );
+    });
+  } catch (error) {
+    if (!isToolsNotAllowedError(error)) {
+      throw error;
+    }
+
+    return client.responses.create(
+      {
+        ...request,
+        tools: undefined,
+        tool_choice: "none",
+      } as any,
+      {
+        signal: params.signal,
+        timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
+      },
+    );
+  }
 }
 
 export function extractResponseFunctionCalls(
