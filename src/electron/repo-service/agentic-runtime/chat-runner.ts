@@ -170,6 +170,7 @@ export async function requestRainyChatAgenticResponse({
       model,
       events,
       emitProgress,
+      modelCatalogEntry?.contextLength,
     );
 
     const maxTokens = resolveRainyMaxTokensForMessages(
