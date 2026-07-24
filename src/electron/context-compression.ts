@@ -2,12 +2,39 @@ import { requestRainyChatCompletion } from "./rainy-service";
 import type { TokenEstimator } from "./token-estimator";
 import type { ToolEvent } from "../contracts/chat";
 
-const CONTEXT_TRUNCATE_THRESHOLD = 60000;
-const CONTEXT_COMPACT_THRESHOLD = 75000;
-const CONTEXT_MAX_LIMIT = 80000;
+const DEFAULT_CONTEXT_CAPACITY = 272_000;
+const DEFAULT_CONTEXT_TARGET = 252_000;
+const MAX_COMPLETION_RESERVE = 20_000;
 
 /** Per-item character budget for Responses function_call_output / long text. */
 const RESPONSES_ITEM_TRUNCATE_CHARS = 4000;
+
+export function resolveContextCompressionLimits(modelContextTokens?: number): {
+  truncateThreshold: number;
+  compactThreshold: number;
+  maxLimit: number;
+} {
+  const capacity =
+    typeof modelContextTokens === "number" &&
+    Number.isFinite(modelContextTokens) &&
+    modelContextTokens > 0
+      ? Math.floor(modelContextTokens)
+      : DEFAULT_CONTEXT_CAPACITY;
+  const completionReserve = Math.min(
+    MAX_COMPLETION_RESERVE,
+    Math.floor(capacity * 0.25),
+  );
+  const maxLimit = Math.max(
+    1,
+    Math.min(DEFAULT_CONTEXT_TARGET, capacity - completionReserve),
+  );
+
+  return {
+    truncateThreshold: Math.floor(maxLimit * 0.8),
+    compactThreshold: Math.floor(maxLimit * 0.9),
+    maxLimit,
+  };
+}
 
 function estimateMessagesTokens(
   messages: any[],
@@ -36,10 +63,12 @@ export async function applyContextCompressionChat(
   model: string,
   events: ToolEvent[],
   emitProgress: () => void,
+  modelContextTokens?: number,
 ): Promise<any[]> {
+  const limits = resolveContextCompressionLimits(modelContextTokens);
   let tokenCount = estimateMessagesTokens(messages, estimator);
 
-  if (tokenCount <= CONTEXT_TRUNCATE_THRESHOLD) {
+  if (tokenCount <= limits.truncateThreshold) {
     return messages;
   }
 
@@ -70,7 +99,7 @@ export async function applyContextCompressionChat(
 
   tokenCount = estimateMessagesTokens(compressedMessages, estimator);
 
-  if (tokenCount <= CONTEXT_COMPACT_THRESHOLD) {
+  if (tokenCount <= limits.compactThreshold) {
     const event = events[events.length - 1];
     event.status = "done";
     event.detail = `Truncated tool outputs. New size: ${tokenCount} tokens.`;
@@ -133,12 +162,18 @@ export async function applyContextCompressionChat(
         newMessages.push(...recentMessages);
 
         tokenCount = estimateMessagesTokens(newMessages, estimator);
-        events[events.length - 1].status = "done";
-        events[events.length - 1].detail =
-          `History compacted. New size: ${tokenCount} tokens.`;
-        emitProgress();
+        if (tokenCount <= limits.maxLimit) {
+          events[events.length - 1].status = "done";
+          events[events.length - 1].detail =
+            `History compacted. New size: ${tokenCount} tokens.`;
+          emitProgress();
+          return newMessages;
+        }
 
-        return newMessages;
+        compressedMessages.splice(0, compressedMessages.length, ...newMessages);
+        events[events.length - 1].detail =
+          `Compacted history is still large (${tokenCount} tokens). Applying final trim...`;
+        emitProgress();
       }
     } catch (_e) {
       events[events.length - 1].detail =
@@ -148,7 +183,7 @@ export async function applyContextCompressionChat(
   }
 
   // Phase 3: Hard cut if still over max limit
-  if (tokenCount > CONTEXT_MAX_LIMIT) {
+  if (tokenCount > limits.maxLimit) {
     events[events.length - 1].detail =
       `Context over hard limit. Slicing oldest messages.`;
     emitProgress();
@@ -158,7 +193,7 @@ export async function applyContextCompressionChat(
     if (userPrompt) finalMessages.push(userPrompt);
 
     const currentTokens = estimateMessagesTokens(finalMessages, estimator);
-    const allowedRemaining = CONTEXT_MAX_LIMIT - currentTokens;
+    const allowedRemaining = limits.maxLimit - currentTokens;
 
     const allowedRecent = [];
     let recentTokens = 0;

@@ -1,6 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
-import { compressResponsesInputItems } from "./context-compression";
+import {
+  compressResponsesInputItems,
+  resolveContextCompressionLimits,
+} from "./context-compression";
+
+test("uses a 252k prompt target inside the 272k default context budget", () => {
+  assert.deepEqual(resolveContextCompressionLimits(), {
+    truncateThreshold: 201_600,
+    compactThreshold: 226_800,
+    maxLimit: 252_000,
+  });
+});
+
+test("adapts compaction to models with smaller context windows", () => {
+  assert.deepEqual(resolveContextCompressionLimits(128_000), {
+    truncateThreshold: 86_400,
+    compactThreshold: 97_200,
+    maxLimit: 108_000,
+  });
+});
 
 describe("compressResponsesInputItems", () => {
   test("truncates large function_call_output items", () => {
