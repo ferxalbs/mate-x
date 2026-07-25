@@ -124,6 +124,78 @@ describe("parseRainyModelLaunchesPayload", () => {
     assert.equal(launch.presentation.gradient.angleDegrees, 125);
   });
 
+  it("keeps a callable variant during a rolling deploy with an incomplete UI shell", () => {
+    const modelId = "anthropic/claude-opus-5";
+    const rollingDeployPayload = {
+      success: true,
+      data: {
+        data: [
+          {
+            ...samplePayload.data.data[0],
+            id: "claude-opus-5",
+            status: "available",
+            title: "Introducing Claude Opus 5",
+            summary: "Claude Opus 5 is available for long-horizon reasoning.",
+            variants: [
+              {
+                model_id: modelId,
+                label: "Opus 5",
+                family: "opus",
+                // The live rolling-deploy payload only has variant-level
+                // accent/gradient here; the full launch theme is the fallback.
+                presentation: {
+                  accent: "#D97706",
+                  gradient: {
+                    colors: ["#92400E", "#D97706", "#FBBF24"],
+                    angle_degrees: 118,
+                  },
+                },
+                availability: "callable",
+                selectable: true,
+                primary_action: {
+                  kind: "start_chat",
+                  label: "Try Opus 5",
+                  model_id: modelId,
+                },
+              },
+            ],
+            ui: {
+              selector: "single",
+              initial_model_id: modelId,
+              primary_action: {
+                kind: "start_chat",
+                label: "Try Opus 5",
+                model_id: modelId,
+              },
+              // The deployed server can briefly omit ui.variants during rollout.
+            },
+          },
+        ],
+      },
+    };
+
+    const launch = parseRainyModelLaunchesPayload(rollingDeployPayload)[0]!;
+    assert.equal(launch.ui.selector, "single");
+    assert.equal(launch.ui.initial_model_id, modelId);
+    assert.deepEqual(launch.ui.primary_action, {
+      kind: "start_chat",
+      label: "Try Opus 5",
+      model_id: modelId,
+    });
+    assert.deepEqual(launch.ui.variants[0], {
+      id: modelId,
+      label: "Opus 5",
+      availability: "callable",
+      selectable: true,
+      presentation: launch.presentation,
+      primary_action: {
+        kind: "start_chat",
+        label: "Try Opus 5",
+        model_id: modelId,
+      },
+    });
+  });
+
   it("drops malformed entries and rows without presentation", () => {
     const launches = parseRainyModelLaunchesPayload({
       data: [

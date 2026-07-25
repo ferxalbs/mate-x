@@ -172,8 +172,9 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
     return null;
   }
 
-  const variants = Array.isArray(item.variants)
-    ? item.variants
+  const rawVariantItems = Array.isArray(item.variants) ? item.variants : [];
+  const variants = rawVariantItems.length > 0
+    ? rawVariantItems
         .map((variant) => normalizeLaunchVariant(variant))
         .filter((variant): variant is RainyModelLaunch["variants"][number] => variant !== null)
     : [];
@@ -211,7 +212,7 @@ function normalizeLaunchItem(item: unknown): RainyModelLaunch | null {
 
   // Prefer server-resolved ui block; synthesize from legacy fields when absent.
   const ui =
-    normalizeLaunchUi(item.ui) ??
+    normalizeLaunchUi(item.ui, rawVariantItems, presentation, selection) ??
     synthesizeLaunchUi(variants, presentation, selection);
 
   return {
@@ -315,7 +316,11 @@ function normalizeLaunchAction(raw: unknown): LaunchPrimaryAction | null {
   return { kind, label, model_id };
 }
 
-function normalizeLaunchUiVariant(raw: unknown): LaunchVariant | null {
+function normalizeLaunchUiVariant(
+  raw: unknown,
+  fallbackPresentation?: RainyModelLaunchPresentation,
+  fallbackSelection?: RainyModelLaunchSelection,
+): LaunchVariant | null {
   if (!isRecord(raw)) {
     return null;
   }
@@ -324,31 +329,56 @@ function normalizeLaunchUiVariant(raw: unknown): LaunchVariant | null {
   if (!id || !label) {
     return null;
   }
-  const presentation = normalizeLaunchPresentation(raw.presentation);
+  const presentation = normalizeLaunchPresentation(raw.presentation) ?? fallbackPresentation ?? null;
   if (!presentation) {
     return null;
   }
-  const primary_action = normalizeLaunchAction(raw.primary_action ?? raw.primaryAction);
+  const primary_action =
+    normalizeLaunchAction(raw.primary_action ?? raw.primaryAction) ??
+    (fallbackSelection
+      ? {
+          kind: "disabled" as const,
+          label: fallbackSelection.stagedCtaLabel,
+          model_id: null,
+        }
+      : null);
   if (!primary_action) {
     return null;
   }
+  const selectable =
+    typeof raw.selectable === "boolean"
+      ? raw.selectable
+      : fallbackSelection
+        ? raw.availability === "callable" || fallbackSelection.allowPreviewSelection === true
+        : true;
   return {
     id,
     label,
     availability: normalizeVariantAvailability(raw.availability),
-    selectable: raw.selectable !== false, // default true
+    selectable,
     presentation,
     primary_action,
   };
 }
 
-function normalizeLaunchUi(raw: unknown): LaunchUi | null {
+function normalizeLaunchUi(
+  raw: unknown,
+  fallbackVariantItems: unknown[],
+  presentation: RainyModelLaunchPresentation,
+  selection: RainyModelLaunchSelection,
+): LaunchUi | null {
   if (!isRecord(raw)) {
     return null;
   }
-  const variantsRaw = Array.isArray(raw.variants) ? raw.variants : [];
+  // During a rolling deploy, the server may expose the new UI shell before
+  // `ui.variants` is present. The top-level variants are still server-resolved
+  // data, so use them as a compatibility source instead of synthesizing every
+  // model as unavailable on the client.
+  const variantsRaw = Array.isArray(raw.variants) && raw.variants.length > 0
+    ? raw.variants
+    : fallbackVariantItems;
   const variants = variantsRaw
-    .map(normalizeLaunchUiVariant)
+    .map((variant) => normalizeLaunchUiVariant(variant, presentation, selection))
     .filter((v): v is LaunchVariant => v !== null);
   if (variants.length === 0) {
     return null;

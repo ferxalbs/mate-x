@@ -206,8 +206,8 @@ export interface RainyModelLaunch {
   pricing: RainyModelLaunchPricing;
   presentation: RainyModelLaunchPresentation;
   selection: RainyModelLaunchSelection;
-  /** API-resolved UI specification. Synthesized from variants+selection for
-   *  backward compat when the server does not yet return this field. */
+  /** API-resolved UI specification. During rolling deploys, a partially
+   *  populated server UI block may be completed from server-resolved variants. */
   ui: LaunchUi;
 }
 
