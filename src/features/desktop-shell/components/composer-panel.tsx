@@ -47,6 +47,7 @@ import {
   listModelLaunches,
   listModels,
   setModel,
+  subscribeToModelChanges,
 } from "../../../services/settings-client";
 import { useChatStore } from "../../../store/chat-store";
 import {
@@ -153,6 +154,32 @@ export function ComposerPanel({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() =>
+    subscribeToModelChanges((nextModel) => {
+      // A launch card lives outside this route's component tree. Reflect the
+      // successful IPC update immediately, then refresh metadata so the new
+      // model has its current label and capability controls.
+      setModelValue(nextModel);
+      setCatalogError("");
+      void Promise.all([
+        listModels(true),
+        listModelLaunches(true).catch(() => [] as RainyModelLaunch[]),
+      ])
+        .then(([nextCatalog, nextLaunches]) => {
+          setCatalog(nextCatalog);
+          setLaunches(nextLaunches);
+          setModelValue(resolveModelValue(nextModel, nextCatalog));
+        })
+        .catch((error) => {
+          setCatalogError(
+            error instanceof Error
+              ? error.message
+              : "Could not refresh Rainy models.",
+          );
+        });
+    }),
+  []);
 
   const selectedModel = useMemo(
     () => catalog.find((entry) => entry.id === modelValue) ?? null,

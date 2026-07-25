@@ -2,6 +2,19 @@ import type { SettingsApi } from '../contracts/ipc';
 import type { RainyModelCatalogEntry, RainyModelLaunch } from '../contracts/rainy';
 import type { AppSettings, TimeFormat } from '../contracts/settings';
 
+type ModelChangeListener = (model: string) => void;
+
+// The launch card is rendered outside the route outlet that owns the composer.
+// Keep the selected model synchronized across those independent UI trees after
+// the IPC write succeeds.
+const modelChangeListeners = new Set<ModelChangeListener>();
+
+function notifyModelChange(model: string) {
+  for (const listener of modelChangeListeners) {
+    listener(model);
+  }
+}
+
 function getSettingsApi(): SettingsApi {
   if (!window.mate?.settings) {
     throw new Error('Mate settings API is not available in the renderer.');
@@ -34,8 +47,16 @@ export function getModel() {
   return getSettingsApi().getModel();
 }
 
-export function setModel(model: string) {
-  return getSettingsApi().setModel(model);
+export async function setModel(model: string) {
+  await getSettingsApi().setModel(model);
+  notifyModelChange(model);
+}
+
+export function subscribeToModelChanges(listener: ModelChangeListener) {
+  modelChangeListeners.add(listener);
+  return () => {
+    modelChangeListeners.delete(listener);
+  };
 }
 
 export function listEmbeddingModels() {

@@ -58,6 +58,15 @@ test("composer keeps scoped trust choices and direct cancellation", async () => 
   assert.match(source, /Attach files/);
 });
 
+test("composer reflects a model activated outside its route tree", async () => {
+  const source = await readComposerSurface();
+
+  assert.match(source, /subscribeToModelChanges/);
+  assert.match(source, /setModelValue\(nextModel\)/);
+  assert.match(source, /listModels\(true\)/);
+  assert.match(source, /listModelLaunches\(true\)/);
+});
+
 test("composer keyboard order stays objective, essentials, then Run", async () => {
   const source = await readComposerSurface();
   const objective = source.indexOf("<ComposerCoreInput");
