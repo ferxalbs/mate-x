@@ -2,7 +2,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import { useChatStore } from "../../../store/chat-store";
-import { useSidebar } from "../../../components/ui/sidebar";
 import { ComposerScrollButton } from "./composer-scroll-button";
 
 interface ComposerDockProps {
@@ -13,7 +12,8 @@ const COMPOSER_INSET_VAR = "--mate-composer-inset";
 const DEFAULT_INSET_PX = 148;
 
 /**
- * Fixed bottom composer dock.
+ * Bottom composer dock.
+ * - Dynamically centers within the chat workspace between left sidebar and right enhancement panel.
  * - Reserves scroll space via CSS variable on documentElement (actual measured height).
  * - Does not couple padding to blurEnabled.
  * - Outer shell is pointer-events-none; only the composer chrome captures clicks.
@@ -22,7 +22,6 @@ export function ComposerDock({
   children,
 }: ComposerDockProps) {
   const settings = useChatStore((state) => state.settings);
-  const { state: sidebarState } = useSidebar();
   const measureRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,10 +51,7 @@ export function ComposerDock({
 
   return (
     <div
-      className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8",
-        sidebarState === "expanded" ? "md:left-(--sidebar-width)" : "md:left-0",
-      )}
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8"
       data-testid="composer-dock"
     >
       <div
