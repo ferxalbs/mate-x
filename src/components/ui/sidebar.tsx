@@ -276,7 +276,7 @@ function Sidebar({
         />
         <div
           className={cn(
-            "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex",
+            "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transform-gpu md:flex",
             side === "left"
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -290,7 +290,7 @@ function Sidebar({
           {...props}
         >
           <div
-            className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm/5"
+            className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm/5 overflow-hidden transition-opacity duration-300 ease-[var(--ease-apple)]"
             data-sidebar="sidebar"
             data-slot="sidebar-inner"
           >
@@ -317,7 +317,10 @@ function SidebarTrigger({
   return (
     <Tooltip>
       <TooltipTrigger
-        className={cn("size-7", className)}
+        className={cn(
+          "size-7 transition-all duration-150 ease-out active:scale-92 active:opacity-80 hover:bg-foreground/[0.06]",
+          className,
+        )}
         data-sidebar="trigger"
         data-slot="sidebar-trigger"
         onClick={(event) => {
@@ -330,7 +333,14 @@ function SidebarTrigger({
         render={<Button />}
         {...props}
       >
-        {showSidebarIcon ? <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} className="size-3.5" /> : <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} className="size-3.5" />}
+        <HugeiconsIcon
+          icon={SidebarLeftIcon}
+          strokeWidth={2}
+          className={cn(
+            "size-3.5 transition-transform duration-300 ease-[var(--ease-apple)]",
+            !showSidebarIcon && "rotate-180 opacity-70",
+          )}
+        />
         <span className="sr-only">Toggle Sidebar</span>
       </TooltipTrigger>
       <TooltipContent side="bottom" align="center" className="text-[10px]">

@@ -98,7 +98,7 @@ export function ChatTopbar({
   return (
     <header
       className={cn(
-        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4",
+        "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding,background-color] duration-300 ease-[var(--ease-apple)]",
         // Flat canvas titlebar — matches #111 / #fff; glass only if blur + special.
         isSpecialMode
           ? "border-b border-[var(--titlebar-border)]/50 bg-background"

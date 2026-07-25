@@ -646,6 +646,26 @@ label:has(> select#reasoning-effort) select {
   -webkit-backdrop-filter: none !important;
 }
 
+/* Apple-style hardware-accelerated sidebar transition rules */
+[data-slot="sidebar-gap"] {
+  transition: width var(--motion-sidebar) var(--ease-apple);
+  will-change: width;
+}
+
+[data-slot="sidebar-container"] {
+  transition: transform var(--motion-sidebar) var(--ease-apple), left var(--motion-sidebar) var(--ease-apple), right var(--motion-sidebar) var(--ease-apple), width var(--motion-sidebar) var(--ease-apple);
+  will-change: transform, left, right, width;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"] {
+    transition-duration: 150ms;
+    will-change: auto;
+  }
+}
+
+
 /*
  * Elevated glass exception over flat #fff / #111 canvas.
  * Composer, inputs, selects, menus — stronger than layout chrome.

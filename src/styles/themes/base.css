@@ -5,10 +5,13 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-apple-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-press: 150ms;
   --motion-tooltip: 150ms;
   --motion-menu: 180ms;
   --motion-drawer: 250ms;
+  --motion-sidebar: 300ms;
   /* Canonical light canvas — entire app chrome uses pure white. */
   --background: #ffffff;
   --foreground: oklch(0.28 0.014 260);

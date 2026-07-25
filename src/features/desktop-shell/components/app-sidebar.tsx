@@ -169,7 +169,7 @@ export function AppSidebar({
   const sidebarContent = (
     <div className="relative z-10 flex h-full min-h-0 flex-col">
       <SidebarHeader className={cn(
-        "drag-region h-[52px] flex-row items-center gap-2 px-4 py-0",
+        "drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 transition-[padding] duration-300 ease-[var(--ease-apple)]",
         platform === "mac" && "pl-[88px]"
       )}>
         <div className="flex min-w-0 items-center gap-2">
