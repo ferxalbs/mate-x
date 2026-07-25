@@ -23,7 +23,11 @@ import type {
   RainyServiceTier,
 } from "../../../contracts/rainy";
 import type { WorkspaceTrustAutonomy } from "../../../contracts/workspace";
-import { ComposerPolicySummary, BEHAVIOR_MODE_LABELS } from "./composer-policy-summary";
+import {
+  BEHAVIOR_MODE_DESCRIPTIONS,
+  ComposerPolicySummary,
+  BEHAVIOR_MODE_LABELS,
+} from "./composer-policy-summary";
 
 const TRUST_OPTIONS: Array<{
   description: string;
@@ -154,8 +158,15 @@ export function ComposerRunSettings({
           value={behavior.mode}
         >
           {(Object.keys(BEHAVIOR_MODE_LABELS) as BehaviorMode[]).map((mode) => (
-            <DropdownMenuRadioItem className="rounded-lg px-2 py-1.5 text-[12px]" key={mode} value={mode}>
-              {BEHAVIOR_MODE_LABELS[mode]}
+            <DropdownMenuRadioItem className="items-start rounded-lg px-2 py-1.5" key={mode} value={mode}>
+              <span className="min-w-0">
+                <span className="block text-[12px] font-medium text-foreground">
+                  {BEHAVIOR_MODE_LABELS[mode]}
+                </span>
+                <span className="mt-0.5 block break-words text-[10.5px] leading-tight text-muted-foreground/80">
+                  {BEHAVIOR_MODE_DESCRIPTIONS[mode]}
+                </span>
+              </span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -166,7 +177,6 @@ export function ComposerRunSettings({
               ["askBeforeEdits", "Ask before edits"],
               ["askBeforeCommands", "Ask before commands"],
               ["askBeforeNetwork", "Ask before network"],
-              ["askBeforeGit", "Ask before Git"],
               ["autoValidate", "Automatically validate"],
             ] as const).map(([key, label]) => (
               <label
@@ -190,6 +200,9 @@ export function ComposerRunSettings({
                 />
               </label>
             ))}
+            <p className="mt-1 text-[10px] leading-tight text-muted-foreground/70">
+              Git writes always require explicit approval.
+            </p>
           </div>
         ) : null}
 

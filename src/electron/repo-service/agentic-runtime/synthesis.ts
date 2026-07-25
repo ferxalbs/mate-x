@@ -37,8 +37,9 @@ export async function attemptFinalChatSynthesis({
     role: "user",
     content:
       "Tool use is now disabled. Provide a concise delta or structured summary using evidence collected. " +
-      "Do not repeat prior paragraphs or full drafts verbatim. Reference evidence by id or short claim. " +
-      "One-line verdict + key findings + unresolved risks + next steps. Begin.",
+      "Do not repeat prior paragraphs, full drafts, the user request, or tool output verbatim. " +
+      "Use one verdict line, at most five high-value bullets, unresolved risks only when present, and one next action. " +
+      "Keep casual answers to two sentences or fewer. Begin.",
   });
 
   try {
@@ -135,8 +136,9 @@ export async function attemptFinalResponsesSynthesis({
               type: "input_text",
               text:
                 "Tool use is now disabled. Provide a concise delta or structured summary using evidence collected. " +
-                "Do not repeat prior paragraphs or full drafts verbatim. Reference evidence by id or short claim. " +
-                "One-line verdict + key findings + unresolved risks + next steps. Begin.",
+                "Do not repeat prior paragraphs, full drafts, the user request, or tool output verbatim. " +
+                "Use one verdict line, at most five high-value bullets, unresolved risks only when present, and one next action. " +
+                "Keep casual answers to two sentences or fewer. Begin.",
             },
           ],
         },

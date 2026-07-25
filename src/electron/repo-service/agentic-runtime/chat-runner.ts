@@ -42,7 +42,7 @@ import {
   buildTimeoutFinalResponse,
   buildNoContentFinalResponse,
   buildChatUserContent,
-  appendAssistantPass,
+  selectFinalAssistantText,
 } from "./helpers";
 import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
@@ -289,7 +289,9 @@ export async function requestRainyChatAgenticResponse({
         detail: responseText,
         status: "completed",
       });
-      lastNonEmptyAssistantText = appendAssistantPass(lastNonEmptyAssistantText, responseText);
+      // Intermediate pass text is already preserved in events. Keep only the
+      // latest draft visible so final output cannot accumulate repeated drafts.
+      lastNonEmptyAssistantText = responseText.trim();
       emitProgress(lastNonEmptyAssistantText);
     }
 
@@ -382,11 +384,10 @@ export async function requestRainyChatAgenticResponse({
             emitProgress,
           });
 
-      const finalContentText = forcedFinalText
-        ? lastNonEmptyAssistantText
-          ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}`
-          : forcedFinalText
-        : lastNonEmptyAssistantText;
+      const finalContentText = selectFinalAssistantText(
+        lastNonEmptyAssistantText,
+        forcedFinalText,
+      );
 
       return {
         toolExecutions,
@@ -494,6 +495,7 @@ export async function requestRainyChatAgenticResponse({
           runId,
           engineeringTaskStatus,
           autonomyPolicy: options.autonomyPolicy,
+          signal,
         }),
     );
 
@@ -561,11 +563,10 @@ export async function requestRainyChatAgenticResponse({
     emitProgress,
   });
 
-  const finalContentText = forcedFinalText
-    ? lastNonEmptyAssistantText
-      ? `${lastNonEmptyAssistantText}\n\n${forcedFinalText}`
-      : forcedFinalText
-    : lastNonEmptyAssistantText;
+  const finalContentText = selectFinalAssistantText(
+    lastNonEmptyAssistantText,
+    forcedFinalText,
+  );
 
   return {
     toolExecutions,

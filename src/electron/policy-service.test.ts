@@ -50,3 +50,56 @@ test("scoped changes cannot bypass high-impact or out-of-workspace policy", () =
   });
   assert.equal(outsideStop?.policyId, "workspace.scope.write");
 });
+
+test("policy approval waits can be cancelled and clean up their resolver", async () => {
+  const stop = policyService.createStop({
+    runId: "run-cancelled-policy",
+    workspacePath: "/tmp/policy-cancelled",
+    toolName: "sandbox_run",
+    severity: "warning",
+    policyId: "command.direct_workspace_execution",
+    title: "Approval required",
+    explanation: "Test approval stop.",
+    kind: "command",
+    recommendation: "approve_once",
+    availableActions: ["approve_once", "abort"],
+  });
+  const controller = new AbortController();
+  const waiting = policyService.waitForResolution(stop.id, controller.signal);
+  controller.abort();
+
+  await assert.rejects(waiting, { name: "AbortError" });
+  policyService.resolveStop({ stopId: stop.id, action: "abort" });
+  assert.equal(policyService.getRunState(stop.runId).status, "clear");
+});
+
+test("one-time approvals are scoped to the approving run", () => {
+  const args = { command: "bun add dependency" };
+  const stop = policyService.evaluateToolCall({
+    runId: "run-approval-owner",
+    workspacePath: "/tmp/policy-run-scope",
+    toolName: "sandbox_run",
+    args,
+  });
+  assert.ok(stop);
+  policyService.resolveStop({ stopId: stop.id, action: "approve_once" });
+
+  assert.equal(
+    policyService.isApprovedToolCall({
+      runId: "run-approval-owner",
+      workspacePath: "/tmp/policy-run-scope",
+      toolName: "sandbox_run",
+      args,
+    }),
+    true,
+  );
+  assert.equal(
+    policyService.isApprovedToolCall({
+      runId: "run-other",
+      workspacePath: "/tmp/policy-run-scope",
+      toolName: "sandbox_run",
+      args,
+    }),
+    false,
+  );
+});

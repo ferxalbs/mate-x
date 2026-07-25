@@ -115,6 +115,45 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
     assert.equal(authorizeToolForEngineeringStatus("file_editor", "executing", {}, { id: "review_read_only" }).allowed, false);
   });
 
+  it("Review rejects network and process tools while Custom applies network gates", () => {
+    assert.equal(
+      authorizeToolForEngineeringStatus(
+        "network",
+        "executing",
+        {},
+        { id: "review_read_only" },
+      ).allowed,
+      false,
+    );
+    assert.equal(
+      authorizeToolForEngineeringStatus(
+        "sandbox_run",
+        "executing",
+        { command: "bun test" },
+        { id: "review_read_only" },
+      ).allowed,
+      false,
+    );
+    assert.equal(
+      authorizeToolForEngineeringStatus(
+        "network",
+        "captured",
+        {},
+        {
+          id: "custom",
+          custom: {
+            askBeforeEdits: false,
+            askBeforeCommands: false,
+            askBeforeNetwork: true,
+            askBeforeGit: true,
+            autoValidate: true,
+          },
+        },
+      ).allowed,
+      false,
+    );
+  });
+
   it("A–E: capture + planning phase does not fail Work Engine; no mutation", () => {
     const { bus, repo } = openBus();
     // A. Submit exact founder prompt via CaptureTask

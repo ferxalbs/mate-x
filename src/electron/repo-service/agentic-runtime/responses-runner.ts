@@ -27,7 +27,7 @@ import {
   isCurrentChangeReviewPrompt,
   executeToolBatchWithSafety,
   summarizeCheckpoint,
-  appendAssistantPass,
+  selectFinalAssistantText,
 } from "./helpers";
 import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
@@ -156,7 +156,8 @@ export async function requestRainyResponsesAgenticResponse({
       });
     }
     if (responseText.trim()) {
-      lastContent = appendAssistantPass(lastContent, responseText);
+      // Keep intermediate drafts in the event trace, not in the final answer.
+      lastContent = responseText.trim();
     }
     lastThought = responseThought || lastThought;
     emitProgress(lastContent, lastThought);
@@ -245,11 +246,7 @@ export async function requestRainyResponsesAgenticResponse({
             emitProgress,
           });
 
-      const finalContentText = forcedFinalText
-        ? lastContent
-          ? `${lastContent}\n\n${forcedFinalText}`
-          : forcedFinalText
-        : lastContent;
+      const finalContentText = selectFinalAssistantText(lastContent, forcedFinalText);
 
       return {
         thought: lastThought,
@@ -364,6 +361,7 @@ export async function requestRainyResponsesAgenticResponse({
           runId,
           engineeringTaskStatus,
           autonomyPolicy: options.autonomyPolicy,
+          signal,
         }),
     );
 
@@ -433,11 +431,7 @@ export async function requestRainyResponsesAgenticResponse({
     emitProgress,
   });
 
-  const finalContentText = forcedFinalText
-    ? lastContent
-      ? `${lastContent}\n\n${forcedFinalText}`
-      : forcedFinalText
-    : lastContent;
+  const finalContentText = selectFinalAssistantText(lastContent, forcedFinalText);
 
   return {
     thought: lastThought,

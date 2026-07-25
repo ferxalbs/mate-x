@@ -245,22 +245,11 @@ export function buildHistoryMessages(
   });
 }
 
-/**
- * Append assistant pass text while avoiding obvious full repetition within one run.
- * Used to mitigate the "repeats the same thing multiple times" symptom when the
- * model echoes prior passes or when nudges/synthesis feed large prior context.
- */
-export function appendAssistantPass(current: string, next: string): string {
-  const trimmed = next.trim();
-  if (!trimmed) return current;
-  // Simple, cheap, no-dep heuristic: if the head of the new text already appears
-  // in the accumulated text, treat as repeat (the prior passes + events already
-  // captured it for the EvidencePack).
-  const head = trimmed.slice(0, 80);
-  if (head.length > 20 && current.includes(head)) {
-    return current;
-  }
-  return current ? `${current}\n\n${trimmed}` : trimmed;
+export function selectFinalAssistantText(
+  latestDraft: string,
+  finalSynthesis: string,
+): string {
+  return finalSynthesis.trim() || latestDraft.trim();
 }
 
 export function parseToolArguments(rawArguments: string | undefined): Record<string, unknown> {

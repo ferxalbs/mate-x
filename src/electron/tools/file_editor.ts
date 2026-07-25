@@ -78,7 +78,7 @@ export const fileEditorTool: Tool = {
     },
     required: ["path"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const {
       path,
       startLine,
@@ -137,6 +137,7 @@ export const fileEditorTool: Tool = {
           target: String(path),
           summary: editPlan.summary,
           riskScore: decision.level,
+          signal,
         });
         if (!approval) {
           return JSON.stringify({
@@ -178,6 +179,7 @@ async function requestHighImpactPatchApproval(input: {
   target: string;
   summary: string;
   riskScore: string;
+  signal?: AbortSignal;
 }) {
   const stop = policyService.createStop({
     runId: `tool-${Date.now()}`,
@@ -198,7 +200,7 @@ async function requestHighImpactPatchApproval(input: {
     recommendation: "approve_once",
     availableActions: ["approve_once", "abort", "safer_alternative"],
   });
-  const resolvedStop = await policyService.waitForResolution(stop.id);
+  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
   policyService.markStopCompleted(stop.id);
   return resolvedStop.resolution?.action === "approve_once";
 }

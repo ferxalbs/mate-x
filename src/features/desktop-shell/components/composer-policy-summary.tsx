@@ -15,6 +15,13 @@ export const BEHAVIOR_MODE_LABELS: Record<BehaviorMode, string> = {
   custom: "Custom",
 };
 
+export const BEHAVIOR_MODE_DESCRIPTIONS: Record<BehaviorMode, string> = {
+  auto: "Fix and validate scoped work automatically.",
+  guided: "Inspect first, then wait before changes.",
+  review: "Read-only findings with no mutations.",
+  custom: "Choose the gates for edits, commands, and network.",
+};
+
 export const TRUST_LABELS: Record<WorkspaceTrustAutonomy, string> = {
   "plan-only": "Plan only",
   "approval-required": "Ask before changes",

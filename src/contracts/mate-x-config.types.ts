@@ -62,6 +62,6 @@ export interface CreateMaTeXStackDependencies {
     privacySentinel?: SDKOrchestratorPrivacySentinel;
     evidenceRecorder?: SDKOrchestratorEvidenceRecorder;
     failureMemory?: SDKOrchestratorFailureMemory;
-    confirmHighImpact?: (action: AgentAction) => Promise<boolean>;
+    confirmHighImpact?: (action: AgentAction, signal?: AbortSignal) => Promise<boolean>;
   };
 }

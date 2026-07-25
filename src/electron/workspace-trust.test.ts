@@ -112,3 +112,28 @@ test("scoped trust allows an in-workspace edit and lint but rejects outside writ
   assert.equal(evaluateTrustForToolCall({ toolName: "sandbox_run", args: { command: "bun run lint" }, contract }), null);
   assert.match(evaluateTrustForToolCall({ toolName: "file_editor", args: { path: "../outside.ts" }, contract }) ?? "", /blocks/);
 });
+
+test("plan-only workspace trust remains the hard ceiling for Auto behavior", () => {
+  const contract = createDefaultWorkspaceTrustContract("workspace-plan-only", "Repo", {
+    packageManager: "bun",
+    hasPackageJson: true,
+  });
+  contract.autonomy = "plan-only";
+
+  assert.equal(
+    evaluateTrustForToolCall({
+      toolName: "read",
+      args: { path: "src/index.ts" },
+      contract,
+    }),
+    null,
+  );
+  assert.match(
+    evaluateTrustForToolCall({
+      toolName: "file_editor",
+      args: { path: "src/index.ts" },
+      contract,
+    }) ?? "",
+    /autonomy is plan-only/,
+  );
+});

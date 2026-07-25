@@ -304,6 +304,7 @@ export class ToolService {
         contract: context.trustContract,
       });
       const approvedOnce = policyService.isApprovedToolCall({
+        runId: context.runId ?? "unknown-run",
         workspacePath: context.workspacePath,
         toolName: tool.name,
         args,
@@ -312,6 +313,7 @@ export class ToolService {
       const approvedByAlias =
         name !== tool.name &&
         policyService.isApprovedToolCall({
+          runId: context.runId ?? "unknown-run",
           workspacePath: context.workspacePath,
           toolName: name,
           args,
@@ -329,6 +331,7 @@ export class ToolService {
       }
       if (trustError) {
         policyService.consumeApprovedToolCall({
+          runId: context.runId ?? "unknown-run",
           workspacePath: context.workspacePath,
           toolName: approvedOnce ? tool.name : name,
           args,

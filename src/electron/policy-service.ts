@@ -93,7 +93,15 @@ const HIGH_IMPACT_PATH_PATTERNS = [
 class PolicyService {
   private stops = new Map<string, PolicyStop>();
   private approvedOnce = new Set<string>();
-  private stopResolvers = new Map<string, (stop: PolicyStop) => void>();
+  private stopResolvers = new Map<
+    string,
+    {
+      resolve: (stop: PolicyStop) => void;
+      reject: (error: Error) => void;
+      signal?: AbortSignal;
+      onAbort?: () => void;
+    }
+  >();
 
   classifyToolCall(input: Omit<PolicyEvaluationInput, "runId">): ToolPolicyClassification {
     const action = this.getRequiredAction(input.toolName, input.args);
@@ -248,6 +256,7 @@ class PolicyService {
     this.stops.set(stop.id, resolvedStop);
     if (request.action === "approve_once") {
       this.approvedOnce.add(this.approvalKey({
+        runId: stop.runId,
         workspacePath: stop.workspacePath,
         toolName: stop.attemptedAction.toolName ?? "",
         target: stop.attemptedAction.target,
@@ -258,13 +267,16 @@ class PolicyService {
     const resolver = this.stopResolvers.get(stop.id);
     if (resolver) {
       this.stopResolvers.delete(stop.id);
-      resolver(resolvedStop);
+      if (resolver.signal && resolver.onAbort) {
+        resolver.signal.removeEventListener("abort", resolver.onAbort);
+      }
+      resolver.resolve(resolvedStop);
     }
 
     return resolvedStop;
   }
 
-  waitForResolution(stopId: string): Promise<PolicyStop> {
+  waitForResolution(stopId: string, signal?: AbortSignal): Promise<PolicyStop> {
     const stop = this.stops.get(stopId);
     if (!stop) {
       return Promise.reject(new Error("Policy stop not found."));
@@ -274,8 +286,24 @@ class PolicyService {
       return Promise.resolve(stop);
     }
 
-    return new Promise((resolve) => {
-      this.stopResolvers.set(stopId, resolve);
+    if (signal?.aborted) {
+      return Promise.reject(createPolicyAbortError());
+    }
+
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        const current = this.stopResolvers.get(stopId);
+        if (current?.onAbort !== onAbort) return;
+        this.stopResolvers.delete(stopId);
+        reject(createPolicyAbortError());
+      };
+      this.stopResolvers.set(stopId, {
+        resolve,
+        reject,
+        signal,
+        onAbort,
+      });
+      signal?.addEventListener("abort", onAbort, { once: true });
     });
   }
 
@@ -291,12 +319,13 @@ class PolicyService {
     return this.updateStopStatus(stopId, "failed");
   }
 
-  isApprovedToolCall(input: Omit<PolicyEvaluationInput, "runId" | "contract">) {
+  isApprovedToolCall(input: Omit<PolicyEvaluationInput, "contract">) {
     return this.isApprovedOnce(input);
   }
 
-  consumeApprovedToolCall(input: Omit<PolicyEvaluationInput, "runId" | "contract">) {
+  consumeApprovedToolCall(input: Omit<PolicyEvaluationInput, "contract">) {
     const key = this.approvalKey({
+      runId: input.runId,
       workspacePath: input.workspacePath,
       toolName: input.toolName,
       target: this.findHighImpactPath(input.args) ?? this.findFirstPathValue(input.args),
@@ -464,11 +493,13 @@ class PolicyService {
   }
 
   private isApprovedOnce(input: {
+    runId: string;
     workspacePath: string;
     toolName: string;
     args: Record<string, unknown>;
   }) {
     return this.approvedOnce.has(this.approvalKey({
+      runId: input.runId,
       workspacePath: input.workspacePath,
       toolName: input.toolName,
       target: this.findHighImpactPath(input.args) ?? this.findFirstPathValue(input.args),
@@ -477,12 +508,14 @@ class PolicyService {
   }
 
   private approvalKey(input: {
+    runId: string;
     workspacePath: string;
     toolName: string;
     target?: string;
     command?: string;
   }) {
     return [
+      input.runId,
       input.workspacePath,
       input.toolName,
       input.command ?? "",
@@ -672,6 +705,12 @@ class PolicyService {
     this.stops.set(stopId, nextStop);
     return nextStop;
   }
+}
+
+function createPolicyAbortError() {
+  const error = new Error("Policy approval wait was cancelled.");
+  error.name = "AbortError";
+  return error;
 }
 
 export const policyService = new PolicyService();

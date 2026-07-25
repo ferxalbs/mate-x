@@ -238,7 +238,12 @@ function normalizeAllowedDomains(values: string[]) {
 }
 
 function getRequiredAction(toolName: string, args: Record<string, unknown>) {
-  if (toolName === "auto_patch") {
+  if (
+    toolName === "auto_patch" ||
+    toolName === "file_editor" ||
+    toolName === "mutation" ||
+    toolName.includes("edit")
+  ) {
     return "patch";
   }
 

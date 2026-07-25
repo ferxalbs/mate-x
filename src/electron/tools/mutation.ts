@@ -108,7 +108,7 @@ export const mutationTesterTool: Tool = {
     },
     required: ["path", "searchString", "mutationString", "verificationCommand"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const { path, searchString, mutationString, verificationCommand } = args;
     let cmd: string;
     let cmdArgs: string[];
@@ -136,6 +136,7 @@ export const mutationTesterTool: Tool = {
         workspacePath,
         target: String(path),
         command: `${cmd} ${cmdArgs.join(" ")}`.trim(),
+        signal,
       });
       if (!approved) {
         return JSON.stringify({
@@ -200,6 +201,7 @@ async function requestMutationApproval(input: {
   workspacePath: string;
   target: string;
   command: string;
+  signal?: AbortSignal;
 }) {
   const stop = policyService.createStop({
     runId: `tool-${Date.now()}`,
@@ -217,7 +219,7 @@ async function requestMutationApproval(input: {
     recommendation: "approve_once",
     availableActions: ["approve_once", "abort", "safer_alternative"],
   });
-  const resolvedStop = await policyService.waitForResolution(stop.id);
+  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
   policyService.markStopCompleted(stop.id);
   return resolvedStop.resolution?.action === "approve_once";
 }

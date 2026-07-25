@@ -177,7 +177,7 @@ export async function initStack(): Promise<void> {
           return failureMemoryEngine.recordFailure(input);
         },
       },
-      confirmHighImpact: (action) => requestPolicyApproval(`sdk:${action.agentId}`, action.actionType, action),
+      confirmHighImpact: (action, signal) => requestPolicyApproval(`sdk:${action.agentId}`, action.actionType, action, signal),
     },
   });
   configSnapshot = resolvedConfig;
@@ -316,7 +316,12 @@ async function listLocalFiles(root: string, currentPath: string): Promise<Array<
   return files.flat();
 }
 
-async function requestPolicyApproval(toolName: string, actionType: string, payload: unknown): Promise<boolean> {
+async function requestPolicyApproval(
+  toolName: string,
+  actionType: string,
+  payload: unknown,
+  signal?: AbortSignal,
+): Promise<boolean> {
   const { policyService } = await import('./policy-service');
   const runId = `policy-${Date.now()}`;
   const stop = policyService.createStop({
@@ -337,7 +342,13 @@ async function requestPolicyApproval(toolName: string, actionType: string, paylo
     recommendation: 'abort',
     availableActions: ['approve_once', 'abort', 'safer_alternative'],
   });
-  const resolved = await policyService.waitForResolution(stop.id);
+  let resolved;
+  try {
+    resolved = await policyService.waitForResolution(stop.id, signal);
+  } catch (error) {
+    policyService.markStopFailed(stop.id);
+    throw error;
+  }
   return resolved.status === 'approved';
 }
 

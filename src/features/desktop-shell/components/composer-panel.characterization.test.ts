@@ -26,14 +26,14 @@ test("composer preserves canonical run payload options", async () => {
   for (const field of [
     "reasoningEnabled:",
     "reasoning:",
-    "pathKind:",
-    "access:",
     "serviceTier,",
-    "runbookId:",
     "attachments:",
   ]) {
     assert.match(source, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+  assert.doesNotMatch(source, /pathKind:\s*["']full["']/);
+  assert.doesNotMatch(source, /access:\s*["']approval["']/);
+  assert.doesNotMatch(source, /runbookId:\s*["']patch_test_verify["']/);
 });
 
 test("composer keeps policy approval actions visible and wired", async () => {

@@ -17,7 +17,7 @@ describe('resolveAssistantRunOptions', () => {
     );
   });
 
-  it('maps verify_only pathKind to verification runbook', () => {
+  it('preserves an explicit review runbook for verify_only', () => {
     const options = resolveAssistantRunOptions({
       access: 'full',
       pathKind: 'verify_only',
@@ -25,7 +25,49 @@ describe('resolveAssistantRunOptions', () => {
     } as Parameters<typeof resolveAssistantRunOptions>[0]);
 
     assert.equal(options.pathKind, 'verify_only');
+    assert.equal(options.runbookId, 'review_classify_summarize');
+  });
+
+  it('defaults verify_only to the verification runbook when no runbook is supplied', () => {
+    const options = resolveAssistantRunOptions({
+      access: 'approval',
+      pathKind: 'verify_only',
+    } as Parameters<typeof resolveAssistantRunOptions>[0]);
+
     assert.equal(options.runbookId, 'patch_test_verify');
+  });
+
+  it('preserves and defaults the canonical autonomy policy', () => {
+    assert.deepEqual(resolveAssistantRunOptions().autonomyPolicy, {
+      id: 'auto_scoped',
+    });
+
+    const custom = resolveAssistantRunOptions({
+      access: 'approval',
+      autonomyPolicy: {
+        id: 'custom',
+        custom: {
+          askBeforeEdits: false,
+          askBeforeCommands: true,
+          askBeforeNetwork: false,
+          askBeforeGit: true,
+          autoValidate: false,
+        },
+      },
+      reasoningEnabled: true,
+      reasoning: 'high',
+    });
+
+    assert.deepEqual(custom.autonomyPolicy, {
+      id: 'custom',
+      custom: {
+        askBeforeEdits: false,
+        askBeforeCommands: true,
+        askBeforeNetwork: false,
+        askBeforeGit: true,
+        autoValidate: false,
+      },
+    });
   });
 
   it('maps chat_help pathKind to review runbook', () => {

@@ -1,6 +1,7 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
 import type { WorkStage, WorkStageId } from "./stages";
+import { isConversationalPrompt } from "../../lib/conversational-intent";
 
 export type FinalRunVerdict =
   | "success"
@@ -489,9 +490,7 @@ function rewritePrivacySentinelPlaceholderMisuse(content: string) {
 }
 
 function appendHonestStatus(content: string, verdict: FinalRunVerdict, warnings: string[], objective: string = "") {
-  const isCasual = /^(hi|hello|hey|how are you|thanks|thank you|ok|okay|cool|nice|great|casual conversation|general chat\b.*)$/i.test(objective.toLowerCase().replace(/[^\w\s?]/g, " ").replace(/\s+/g, " ").trim());
-
-  if (isCasual) {
+  if (isConversationalPrompt(objective)) {
     return content.replace(/\n*Work Engine verdict: (?:success|partial|blocked|failed|needs_validation|needs_evidence)\.[\s\S]*$/i, "").trim();
   }
 

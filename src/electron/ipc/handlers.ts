@@ -102,9 +102,23 @@ function guardIpc<T>(
 }
 
 export function registerMaTeXStackIpcHandlers() {
-  ipcMain.handle(IPC.ORCHESTRATOR_RUN, guardIpc(IPC.ORCHESTRATOR_RUN, (_event, payload) =>
-    getStack().orchestrator.execute(agentActionSchema.parse(payload) as AgentActionRequest),
-  ));
+  ipcMain.handle(IPC.ORCHESTRATOR_RUN, guardIpc(IPC.ORCHESTRATOR_RUN, async (event, payload) => {
+    const controller = new AbortController();
+    const onDestroyed = () => controller.abort();
+    if (event.sender.isDestroyed()) {
+      controller.abort();
+    } else {
+      event.sender.once("destroyed", onDestroyed);
+    }
+    try {
+      return await getStack().orchestrator.execute(
+        agentActionSchema.parse(payload) as AgentActionRequest,
+        { signal: controller.signal },
+      );
+    } finally {
+      event.sender.removeListener("destroyed", onDestroyed);
+    }
+  }));
 
   ipcMain.handle(IPC.ORCHESTRATOR_ROUTING, guardIpc(IPC.ORCHESTRATOR_ROUTING, () =>
     getStack().orchestrator.getRoutingRecommendations(),

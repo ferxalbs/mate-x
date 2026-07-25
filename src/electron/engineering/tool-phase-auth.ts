@@ -25,6 +25,10 @@ const SHIP_PROOF_TOOLS = new Set(["evidence_pack", "issue_ship_proof", "ship_pro
 
 const GIT_WRITE_TOOLS = new Set(["git_commit", "git_push", "commit", "push"]);
 
+const NETWORK_TOOL_PATTERN = /(?:network|browser|http|fetch|cve|traffic|poison|supermemory|github)/i;
+const NETWORK_COMMAND_PATTERN = /\b(?:curl|wget|gh|git\s+(?:clone|fetch|pull|push)|bun\s+audit|npm\s+audit|pnpm\s+audit|yarn\s+audit)\b/i;
+const PROCESS_TOOL_PATTERN = /(?:process|server|fuzzer|sandbox|mock_poison|traffic_poison)/i;
+
 export type ToolPhaseAuthDecision =
   | { allowed: true }
   | { allowed: false; code: "ERR_APPROVAL_REQUIRED"; message: string };
@@ -52,14 +56,24 @@ export function authorizeToolForEngineeringStatus(
   const isMutation = isMutationToolName(toolName);
   const isGitWrite = GIT_WRITE_TOOLS.has(toolName) || GIT_WRITE_TOOLS.has(toolName.toLowerCase());
   const command = String(args?.command ?? args?.script ?? "").toLowerCase();
+  const isShellCommand = MUTATING_SHELL_TOOLS.has(toolName);
+  const isNetwork = NETWORK_TOOL_PATTERN.test(toolName) || NETWORK_COMMAND_PATTERN.test(command);
+  const isProcess = PROCESS_TOOL_PATTERN.test(toolName);
   if (isGitWrite) {
     return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Git write tool "${toolName}" always requires explicit authorization.` };
   }
   if (/\bgit\s+(commit|push|reset|rebase|branch\s+-[dD])\b/.test(command)) {
     return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Git write command always requires explicit authorization: ${command.slice(0, 120)}` };
   }
-  if (autonomyPolicy.id === "review_read_only" && (isMutation || MUTATING_SHELL_TOOLS.has(toolName))) {
-    return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Review mode is read-only and rejects ${toolName}.` };
+  if (
+    autonomyPolicy.id === "review_read_only" &&
+    (isMutation || isShellCommand || isNetwork || isProcess)
+  ) {
+    return {
+      allowed: false,
+      code: "ERR_APPROVAL_REQUIRED",
+      message: `Review mode is local read-only and rejects ${toolName}.`,
+    };
   }
   const preApproval = Boolean(status && isPreApprovalStatus(status));
   if (autonomyPolicy.id === "guided_approval" && preApproval && isMutation) {
@@ -69,11 +83,14 @@ export function authorizeToolForEngineeringStatus(
     if (preApproval && isMutation && autonomyPolicy.custom?.askBeforeEdits) {
       return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Custom policy needs approval before editing the repository.` };
     }
-    if (preApproval && MUTATING_SHELL_TOOLS.has(toolName) && autonomyPolicy.custom?.askBeforeCommands) {
+    if (preApproval && isShellCommand && autonomyPolicy.custom?.askBeforeCommands) {
       return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Custom policy needs approval before running commands.` };
     }
+    if (preApproval && isNetwork && autonomyPolicy.custom?.askBeforeNetwork) {
+      return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Custom policy needs approval before network access.` };
+    }
   }
-  if (autonomyPolicy.id === "auto_scoped" && (isMutation || MUTATING_SHELL_TOOLS.has(toolName))) {
+  if (autonomyPolicy.id === "auto_scoped" && (isMutation || isShellCommand)) {
     return { allowed: true };
   }
   if (!status || !isPreApprovalStatus(status)) {

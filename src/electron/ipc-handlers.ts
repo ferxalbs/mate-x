@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 
 import type { AssistantRunOptions, Conversation, EvidencePack } from "../contracts/chat";
 import { validateAssistantRunOptions } from "../contracts/assistant-run-options";
@@ -117,6 +118,7 @@ async function requireSensitiveIpcApproval(input: {
   action: string;
   target?: string;
   metadata?: Record<string, unknown>;
+  event?: IpcMainInvokeEvent;
 }) {
   const workspace = await resolveActiveWorkspace().catch(() => ({
     path: app.getPath("userData"),
@@ -138,7 +140,24 @@ async function requireSensitiveIpcApproval(input: {
     recommendation: "approve_once",
     availableActions: ["approve_once", "abort", "safer_alternative"],
   });
-  const resolvedStop = await policyService.waitForResolution(stop.id);
+  const controller = new AbortController();
+  const onDestroyed = () => controller.abort();
+  if (input.event) {
+    if (input.event.sender.isDestroyed()) {
+      controller.abort();
+    } else {
+      input.event.sender.once("destroyed", onDestroyed);
+    }
+  }
+  let resolvedStop;
+  try {
+    resolvedStop = await policyService.waitForResolution(stop.id, controller.signal);
+  } catch (error) {
+    policyService.markStopFailed(stop.id);
+    throw error;
+  } finally {
+    input.event?.sender.removeListener("destroyed", onDestroyed);
+  }
   policyService.markStopCompleted(stop.id);
   if (resolvedStop.resolution?.action !== "approve_once") {
     throw new Error(`IPC action "${input.action}" was not approved.`);
@@ -716,8 +735,8 @@ export function registerIpcHandlers() {
       event.sender.send("privacy:model-download-progress", progress);
     }),
   );
-  handle("privacy:clear-vault", async () => {
-    await requireSensitiveIpcApproval({ action: "privacy:clear-vault" });
+  handle("privacy:clear-vault", async (event) => {
+    await requireSensitiveIpcApproval({ action: "privacy:clear-vault", event });
     return (await loadPrivacyFirewall()).privacyFirewall.clearVault();
   });
 
@@ -870,7 +889,7 @@ export function registerIpcHandlers() {
   });
   handle(
     "repo:open-workspace-path",
-    async (_event, target: string) => {
+    async (event, target: string) => {
       const validTargets = new Set(["folder", "vscode", "terminal"]);
       if (!validTargets.has(target)) {
         throw new Error(`Invalid target: ${target}. Must be one of: folder, vscode, terminal.`);
@@ -889,7 +908,7 @@ export function registerIpcHandlers() {
       }
 
       if (target === "terminal") {
-        await requireSensitiveIpcApproval({ action: "repo:open-workspace-path", target: "terminal" });
+        await requireSensitiveIpcApproval({ action: "repo:open-workspace-path", target: "terminal", event });
 
         if (process.platform === "darwin") {
           const terminal = spawn("osascript", [
@@ -1002,6 +1021,8 @@ export function registerIpcHandlers() {
         ? requireBoundedString(runId, "runId", 200)
         : undefined;
       const assistantAbortController = new AbortController();
+      const abortWhenSenderDestroyed = () => assistantAbortController.abort();
+      event.sender.once("destroyed", abortWhenSenderDestroyed);
       if (normalizedRunId) {
         activeAssistantRunControllers.set(normalizedRunId, assistantAbortController);
       }
@@ -1093,6 +1114,7 @@ export function registerIpcHandlers() {
         if (normalizedRunId) {
           activeAssistantRunControllers.delete(normalizedRunId);
         }
+        event.sender.removeListener("destroyed", abortWhenSenderDestroyed);
         flushProgress();
       }
     },
@@ -1182,7 +1204,21 @@ export function registerIpcHandlers() {
       throw new Error("SDK action must be an object.");
     }
     try {
-      const result = await getStack().orchestrator.execute(action as never);
+      const controller = new AbortController();
+      const onDestroyed = () => controller.abort();
+      if (_event.sender.isDestroyed()) {
+        controller.abort();
+      } else {
+        _event.sender.once("destroyed", onDestroyed);
+      }
+      let result;
+      try {
+        result = await getStack().orchestrator.execute(action as never, {
+          signal: controller.signal,
+        });
+      } finally {
+        _event.sender.removeListener("destroyed", onDestroyed);
+      }
       return { success: true, result };
     } catch (error) {
       if (
@@ -1213,8 +1249,8 @@ export function registerIpcHandlers() {
     routing: getStack().orchestrator.getRoutingRecommendations(),
   }));
 
-  handle("mate-x:storage:force-sync", async () => {
-    await requireSensitiveIpcApproval({ action: "mate-x:storage:force-sync" });
+  handle("mate-x:storage:force-sync", async (event) => {
+    await requireSensitiveIpcApproval({ action: "mate-x:storage:force-sync", event });
     return getStack().failureMemorySync.sync();
   });
 
@@ -1227,18 +1263,19 @@ export function registerIpcHandlers() {
   handle("git:log", async (_event, limit?: number) =>
     (await resolveGitService()).getLog(validateLimit(limit)),
   );
-  handle("git:stage-files", async (_event, files: string[]) => {
+  handle("git:stage-files", async (event, files: string[]) => {
     const safeFiles = requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files"));
     await requireSensitiveIpcApproval({
       action: "git:stage-files",
       metadata: { fileCount: safeFiles.length },
+      event,
     });
     return (await resolveGitService()).stageFiles(safeFiles);
   });
   handle(
     "git:commit",
     async (
-      _event,
+      event,
       messageOrPayload:
         | string
         | { message: string; proofHandle?: string | null },
@@ -1252,7 +1289,7 @@ export function registerIpcHandlers() {
         "message",
         20_000,
       );
-      await requireSensitiveIpcApproval({ action: "git:commit" });
+      await requireSensitiveIpcApproval({ action: "git:commit", event });
       // R3: GitGate always active in release; no emergency bypass
       const { assertMainProcessGitWrite } = await import(
         "./engineering/git-gate-ipc"
@@ -1268,8 +1305,8 @@ export function registerIpcHandlers() {
   );
   handle(
     "git:push",
-    async (_event, payload?: { proofHandle?: string | null }) => {
-      await requireSensitiveIpcApproval({ action: "git:push" });
+    async (event, payload?: { proofHandle?: string | null }) => {
+      await requireSensitiveIpcApproval({ action: "git:push", event });
       const { assertMainProcessGitWrite } = await import(
         "./engineering/git-gate-ipc"
       );
@@ -1344,16 +1381,17 @@ export function registerIpcHandlers() {
       return toGitGateMirror(evaluation);
     },
   );
-  handle("git:pull", async () => {
-    await requireSensitiveIpcApproval({ action: "git:pull" });
+  handle("git:pull", async (event) => {
+    await requireSensitiveIpcApproval({ action: "git:pull", event });
     return (await resolveGitService()).pull();
   });
   handle("git:diff", async () => (await resolveGitService()).getDiff());
-  handle("git:unstage", async (_event, files: string[]) => {
+  handle("git:unstage", async (event, files: string[]) => {
     const safeFiles = requireStringArray(files, "files").map((file) => assertSafeRelativePath(file, "files"));
     await requireSensitiveIpcApproval({
       action: "git:unstage",
       metadata: { fileCount: safeFiles.length },
+      event,
     });
     return (await resolveGitService()).unstageFiles(safeFiles);
   });
@@ -1377,10 +1415,10 @@ export function registerIpcHandlers() {
 
   // ── Settings ─────────────────────────────────────────────────────────────
   handle("settings:get-api-key-status", async () => tursoService.getApiKeyStatus());
-  handle("settings:set-api-key", async (_event, apiKey: string) => {
+  handle("settings:set-api-key", async (event, apiKey: string) => {
     const normalizedApiKey = normalizeRainyApiKey(requireBoundedString(apiKey, "apiKey", 2_000));
     if (requiresSensitiveIpcApproval("settings:set-api-key")) {
-      await requireSensitiveIpcApproval({ action: "settings:set-api-key" });
+      await requireSensitiveIpcApproval({ action: "settings:set-api-key", event });
     }
     return tursoService.setApiKey(normalizedApiKey);
   });
@@ -1453,29 +1491,31 @@ export function registerIpcHandlers() {
   );
 
   // ── Mobile Companion ───────────────────────────────────────────────────
-  handle("mobile:start-pairing", async () => {
-    await requireSensitiveIpcApproval({ action: "mobile:start-pairing" });
+  handle("mobile:start-pairing", async (event) => {
+    await requireSensitiveIpcApproval({ action: "mobile:start-pairing", event });
     return (await loadMobileBridge()).mobileBridgeService.startPairing();
   });
-  handle("mobile:stop-pairing", async () => {
-    await requireSensitiveIpcApproval({ action: "mobile:stop-pairing" });
+  handle("mobile:stop-pairing", async (event) => {
+    await requireSensitiveIpcApproval({ action: "mobile:stop-pairing", event });
     return (await loadMobileBridge()).mobileBridgeService.stopPairing();
   });
   handle("mobile:get-status", async () => (await loadMobileBridge()).mobileBridgeService.getStatus());
   handle("mobile:get-pending-pairing", async () => (await loadMobileBridge()).mobileBridgeService.getPendingPairing());
-  handle("mobile:approve-pending-pairing", async (_event, approved: boolean) => {
+  handle("mobile:approve-pending-pairing", async (event, approved: boolean) => {
     await requireSensitiveIpcApproval({
       action: "mobile:approve-pending-pairing",
       metadata: { approved: approved === true },
+      event,
     });
     return (await loadMobileBridge()).mobileBridgeService.approvePendingPairing(approved === true);
   });
   handle("mobile:list-devices", async () => (await loadMobileBridge()).mobileBridgeService.listDevices());
-  handle("mobile:revoke-device", async (_event, deviceId: string) => {
+  handle("mobile:revoke-device", async (event, deviceId: string) => {
     const normalizedDeviceId = requireBoundedString(deviceId, "deviceId", 200);
     await requireSensitiveIpcApproval({
       action: "mobile:revoke-device",
       target: normalizedDeviceId,
+      event,
     });
     return (await loadMobileBridge()).mobileBridgeService.revokeDevice(normalizedDeviceId);
   });
@@ -1497,9 +1537,9 @@ export function registerIpcHandlers() {
     const workspacePath = await resolveActiveWorkspacePath();
     return (await loadGitHubIntegration()).getChangedFiles(workspacePath);
   });
-  handle("github:collect-local-evidence", async () => {
+  handle("github:collect-local-evidence", async (event) => {
     const workspacePath = await resolveActiveWorkspacePath();
-    await requireSensitiveIpcApproval({ action: "github:collect-local-evidence" });
+    await requireSensitiveIpcApproval({ action: "github:collect-local-evidence", event });
     return (await loadGitHubIntegration()).collectGitHubLocalEvidence(workspacePath);
   });
   handle("github:get-status", async () => {

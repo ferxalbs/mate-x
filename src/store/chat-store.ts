@@ -35,6 +35,7 @@ import {
 import { type AppSettings, DEFAULT_APP_SETTINGS } from "../contracts/settings";
 import { getAppSettings } from "../services/settings-client";
 import { compactConversationSnapshotForPersistence } from "../lib/conversation-persistence";
+import { isConversationalPrompt } from "../lib/conversational-intent";
 
 interface ChatState {
   workspaces: WorkspaceEntry[];
@@ -804,14 +805,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
   async submitPrompt(prompt: string, options: AssistantRunOptions) {
-    const runOptions = normalizeFactoryRunOptions(options);
+    const normalizedOptions = normalizeFactoryRunOptions(options);
     const trimmedPrompt = prompt.trim();
-    const attachmentNames = runOptions.attachments?.map((attachment) => attachment.name) ?? [];
+    const attachmentNames = normalizedOptions.attachments?.map((attachment) => attachment.name) ?? [];
     const displayedPrompt =
       trimmedPrompt ||
       (attachmentNames.length > 0
         ? `Attached ${attachmentNames.join(", ")}`
         : "");
+    const conversational =
+      normalizedOptions.pathKind === "chat_help" ||
+      isConversationalPrompt(displayedPrompt);
+    const runOptions = conversational
+      ? {
+          ...normalizedOptions,
+          pathKind: "chat_help" as const,
+          runbookId: "review_classify_summarize" as const,
+        }
+      : normalizedOptions;
     const workspaceId = get().activeWorkspaceId;
 
     if (!displayedPrompt || get().runStatus === "running" || !workspaceId) {
@@ -833,7 +844,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       typeof runOptions.engineeringTaskId === "string"
         ? runOptions.engineeringTaskId
         : null;
-    if (!engineeringTaskId) {
+    if (!engineeringTaskId && !conversational) {
       try {
         const { captureEngineeringTask } = await import(
           "../services/engineering-client"

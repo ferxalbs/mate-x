@@ -22,6 +22,7 @@ export async function executeAgentToolCall({
   runId,
   engineeringTaskStatus,
   autonomyPolicy,
+  signal,
 }: {
   toolCall: AgentToolCall;
   toolIndex: number;
@@ -34,6 +35,7 @@ export async function executeAgentToolCall({
   /** Control-plane status authority for pre-approval tool restrictions. */
   engineeringTaskStatus?: EngineeringTaskStatus | null;
   autonomyPolicy?: import("../../../contracts/behavior-mode").AutonomyPolicy;
+  signal?: AbortSignal;
 }): Promise<{
   toolCallId: string;
   content: string;
@@ -121,7 +123,36 @@ export async function executeAgentToolCall({
     });
     emitProgress();
 
-    const resolvedStop = await policyService.waitForResolution(policyStop.id);
+    let resolvedStop;
+    try {
+      resolvedStop = await policyService.waitForResolution(policyStop.id, signal);
+    } catch (error) {
+      const cancelled = error instanceof Error && error.name === "AbortError";
+      const cancelledMessage = cancelled
+        ? `Policy approval for ${toolName} was cancelled before execution.`
+        : `Policy approval for ${toolName} failed before execution.`;
+      const toolEvent = events.find((event) => event.id === eventId);
+      if (toolEvent) {
+        toolEvent.status = "error";
+        toolEvent.detail = cancelledMessage;
+      }
+      policyService.markStopFailed(policyStop.id);
+      emitProgress();
+
+      return {
+        toolCallId: toolCall.id,
+        content: cancelledMessage,
+        toolExecution: {
+          toolName,
+          args: toolArgs,
+          output: cancelledMessage,
+          parsedOutput: {
+            policyStop,
+            status: cancelled ? "cancelled" : "error",
+          },
+        } satisfies ToolExecutionRecord,
+      };
+    }
     const toolEvent = events.find((event) => event.id === eventId);
     if (resolvedStop.resolution?.action !== "approve_once") {
       const declinedMessage = `Policy stop ${policyStop.id} was ${resolvedStop.resolution?.action ?? "declined"}. Continue with allowed safer alternatives; do not execute ${toolName}.`;

@@ -84,7 +84,7 @@ export function behaviorInstruction(preference: BehaviorPreference): string {
     case "review":
       return "REVIEW: Read-only. Inspect and explain one evidence-grounded finding. Never edit files or run mutating commands.";
     case "custom":
-      return `CUSTOM: askBeforeEdits=${preference.custom.askBeforeEdits}; askBeforeCommands=${preference.custom.askBeforeCommands}; askBeforeNetwork=${preference.custom.askBeforeNetwork}; askBeforeGit=${preference.custom.askBeforeGit}; autoValidate=${preference.custom.autoValidate}. Inspect evidence before any question.`;
+      return `CUSTOM: askBeforeEdits=${preference.custom.askBeforeEdits}; askBeforeCommands=${preference.custom.askBeforeCommands}; askBeforeNetwork=${preference.custom.askBeforeNetwork}; autoValidate=${preference.custom.autoValidate}. Git writes always require approval. Inspect evidence before any question.`;
   }
 }
 

@@ -37,7 +37,7 @@ export const mockPoisonerTool: Tool = {
     },
     required: ["action"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const { action, port = 9999, payloadType = "MALFORMED_JSON" } = args;
     const serverKey = `port_${port}`;
 
@@ -74,6 +74,7 @@ export const mockPoisonerTool: Tool = {
         workspacePath,
         port,
         payloadType,
+        signal,
       });
       if (!approval) {
         return JSON.stringify({
@@ -164,6 +165,7 @@ async function requestMockPoisonApproval(input: {
   workspacePath: string;
   port: number;
   payloadType: string;
+  signal?: AbortSignal;
 }) {
   const stop = policyService.createStop({
     runId: `tool-${Date.now()}`,
@@ -181,7 +183,7 @@ async function requestMockPoisonApproval(input: {
     recommendation: "approve_once",
     availableActions: ["approve_once", "abort", "safer_alternative"],
   });
-  const resolvedStop = await policyService.waitForResolution(stop.id);
+  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
   policyService.markStopCompleted(stop.id);
   return resolvedStop.resolution?.action === "approve_once";
 }

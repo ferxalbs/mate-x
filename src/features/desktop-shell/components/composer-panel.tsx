@@ -68,7 +68,10 @@ interface ComposerPanelProps {
     action: PolicyStopAction,
   ) => Promise<void>;
   workspace: WorkspaceSummary | null;
-  onSubmit: (prompt: string, options: AssistantRunOptions) => Promise<void>;
+  onSubmit: (
+    prompt: string,
+    options: Partial<AssistantRunOptions>,
+  ) => Promise<void>;
   onUndoLastTurn: () => Promise<string | null>;
   pendingPolicyStop: PolicyStop | null;
   trustContract: WorkspaceTrustContract | null;
@@ -96,14 +99,14 @@ export function ComposerPanel({
   const [modelValue, setModelValue] = useState("");
   const [catalog, setCatalog] = useState<RainyModelCatalogEntry[]>([]);
   const [launches, setLaunches] = useState<RainyModelLaunch[]>([]);
-  const [catalogError, setCatalogError] = useState("");
+  const [, setCatalogError] = useState("");
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [isModelSaving, setIsModelSaving] = useState(false);
   const [reasoningEnabled, setReasoningEnabled] = useState(true);
   const [reasoningValue, setReasoningValue] =
     useState<AssistantRunOptions["reasoning"]>("high");
   const [serviceTier, setServiceTier] = useState<RainyServiceTier>("standard");
-  const [capabilityNotice, setCapabilityNotice] = useState("");
+  const [, setCapabilityNotice] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
@@ -310,10 +313,7 @@ export function ComposerPanel({
     await onSubmit(nextPrompt, {
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
-      pathKind: "full",
-      access: "approval",
       serviceTier,
-      runbookId: "patch_test_verify",
       attachments: submittedAttachments,
     });
   }
@@ -391,7 +391,7 @@ export function ComposerPanel({
   return (
       <div
         className={cn(
-          "relative mx-auto flex w-full max-w-[760px] flex-col overflow-hidden rounded-[26px] border border-panel-border/40 shadow-none transition-[background-color,border-color] duration-[var(--motion-menu)] ease-[var(--ease-out)] focus-within:border-foreground/20",
+          "relative mx-auto flex w-full max-w-[820px] flex-col overflow-hidden rounded-[26px] border border-panel-border/40 shadow-none transition-[background-color,border-color] duration-[var(--motion-menu)] ease-[var(--ease-out)] focus-within:border-foreground/20",
           blurEnabled
             ? "mate-glass-float focus-within:border-foreground/25"
             : "bg-mate-control-bg focus-within:bg-mate-control-bg",

@@ -33,6 +33,7 @@ export interface SDKOrchestratorExecutionContext {
   evidenceRecorder?: SDKOrchestratorDependencies["evidenceRecorder"];
   failureMemory?: SDKOrchestratorDependencies["failureMemory"];
   confirmHighImpact?: SDKOrchestratorDependencies["confirmHighImpact"];
+  signal?: AbortSignal;
 }
 
 export class PrivacySentinelBlockError extends Error {
@@ -135,7 +136,7 @@ export class SDKOrchestrator {
     }
 
     if (action.allowHighImpact === true) {
-      const approved = await (context.confirmHighImpact ?? this.deps.confirmHighImpact)(action);
+      const approved = await (context.confirmHighImpact ?? this.deps.confirmHighImpact)(action, context.signal);
       if (!approved) {
         throw new HighImpactApprovalError();
       }

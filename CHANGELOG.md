@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.25 (1) [Workspace Policy and Behavior Mode Stabilization]
+
+* Preserved the selected Auto, Guided, Review, or Custom autonomy policy from the composer through preload, IPC, runbook resolution, and runtime execution, while keeping Workspace Trust as the hard safety ceiling.
+* Made the four behavior modes materially distinct: Auto permits scoped edits and validation, Guided inspects before approval-gated changes, Review is local read-only, and Custom applies its edit, command, network, and validation toggles. Git writes remain explicitly authorized in every mode.
+* Fixed Review routing so explicit `review_classify_summarize` runbooks are preserved instead of being converted to patch execution.
+* Made policy approvals cancellation-safe across agent tools, IPC actions, SDK actions, and renderer destruction. Pending resolvers now clean up, cancelled stops return structured failures, and one-time approvals cannot cross run boundaries.
+* Routed casual questions such as “explain the repo in 3 words” through `chat_help` without creating an EngineeringTask or exposing Work Engine status text.
+* Reduced response noise by keeping intermediate drafts in progress events, showing only the final synthesis, and constraining final answers to one verdict, up to five findings, unresolved risks when present, and one next action.
+* Added regression coverage for mode payloads, autonomy normalization, Review enforcement, Custom policy gates, trust intersections, approval lifecycle, casual routing, and final-response de-duplication.
+
 ## Unreleased - 2026.07.23 (2) [Plan-Aware Massive Context]
 
 * Added authenticated Rainy catalog support for the effective context available to the current plan and selected model, without duplicating billing or entitlement policy in MaTE X.

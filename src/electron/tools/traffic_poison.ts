@@ -30,7 +30,7 @@ export const trafficPoisonerTool: Tool = {
     },
     required: ["url", "attackType"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, signal }) {
     const { url, attackType, basePayload } = args;
 
     const localhostError = await validateLoopbackUrl(url);
@@ -42,6 +42,7 @@ export const trafficPoisonerTool: Tool = {
       workspacePath,
       target: url,
       attackType,
+      signal,
     });
     if (!approval) {
       return JSON.stringify({
@@ -155,6 +156,7 @@ async function requestTrafficPoisonApproval(input: {
   workspacePath: string;
   target: string;
   attackType: string;
+  signal?: AbortSignal;
 }) {
   const stop = policyService.createStop({
     runId: `tool-${Date.now()}`,
@@ -172,7 +174,7 @@ async function requestTrafficPoisonApproval(input: {
     recommendation: "approve_once",
     availableActions: ["approve_once", "abort", "safer_alternative"],
   });
-  const resolvedStop = await policyService.waitForResolution(stop.id);
+  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
   policyService.markStopCompleted(stop.id);
   return resolvedStop.resolution?.action === "approve_once";
 }
