@@ -18,9 +18,12 @@ import {
   type RainyServiceTier,
 } from "../contracts/rainy";
 
-const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:dismissed-model-launches:v4:";
-const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:v4:";
+// v5 separates activation state from the three-impression announcement policy.
+// Older v4 values conflated "Keep current model" with successful activation.
+const LAUNCH_DISMISSAL_STORAGE_PREFIX = "mate-x:activated-model-launches:v5:";
+const LAUNCH_VIEW_COUNT_PREFIX = "mate-x:launch-views:v5:";
 const GPT56_HIGH_CONTEXT_NOTICE_TOKENS = 272_000;
+const MAX_LAUNCH_VIEWS = 3;
 
 export type LaunchDismissalStore = {
   getItem: (key: string) => string | null;
@@ -333,15 +336,15 @@ function normalizeLaunchUiVariant(
   if (!presentation) {
     return null;
   }
-  const primary_action =
-    normalizeLaunchAction(raw.primary_action ?? raw.primaryAction) ??
-    (fallbackSelection
-      ? {
-          kind: "disabled" as const,
-          label: fallbackSelection.stagedCtaLabel,
-          model_id: null,
-        }
-      : null);
+  const fallbackAction: LaunchPrimaryAction | null = fallbackSelection
+    ? {
+        kind: "disabled",
+        label: fallbackSelection.stagedCtaLabel,
+        model_id: null,
+      }
+    : null;
+  const primary_action: LaunchPrimaryAction | null =
+    normalizeLaunchAction(raw.primary_action ?? raw.primaryAction) ?? fallbackAction;
   if (!primary_action) {
     return null;
   }
@@ -669,23 +672,29 @@ export function selectUnseenLaunches(
   launches: RainyModelLaunch[],
   dismissedIds: readonly string[],
   viewCounts?: Record<string, number>,
-  catalog?: Array<Pick<RainyModelCatalogEntry, "id">>
+  catalog?: Array<Pick<RainyModelCatalogEntry, "id">>,
+  activeModelId?: string,
 ) {
   const dismissed = new Set(dismissedIds);
+  const normalizedActiveModelId = activeModelId?.trim() ?? "";
   return launches.filter(
     (launch) => {
-      if (launch.status === "retired" || dismissed.has(launch.id)) {
+      if (
+        launch.status === "retired" ||
+        dismissed.has(launch.id) ||
+        (normalizedActiveModelId.length > 0 &&
+          launch.variants.some((variant) => variant.modelId === normalizedActiveModelId))
+      ) {
         return false;
       }
       if (!viewCounts || !catalog) {
         return true;
       }
       const views = viewCounts[launch.id] || 0;
-      const isAvailable = canTryLaunchModel(launch, catalog);
-      if (isAvailable) {
-        return views < 1;
-      }
-      return views < 4;
+      // Keep showing an unactivated announcement up to three times. The
+      // catalog argument remains part of the compatibility signature, but
+      // visibility no longer depends on a local availability guess.
+      return views < MAX_LAUNCH_VIEWS;
     }
   );
 }

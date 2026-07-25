@@ -32,6 +32,7 @@ import {
 } from "../../../lib/rainy-model-launches";
 import {
   getApiKeyStatus,
+  getModel,
   listModelLaunches,
   listModels,
   setModel,
@@ -487,8 +488,9 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
 
     async function loadLaunches() {
       try {
-        const [apiKeyStatus, launches, catalog] = await Promise.all([
+        const [apiKeyStatus, activeModelId, launches, catalog] = await Promise.all([
           getApiKeyStatus().catch(() => ({ configured: false as const })),
+          getModel().catch(() => ""),
           listModelLaunches(false).catch(() => [] as RainyModelLaunch[]),
           // Catalog is still fetched for selectUnseenLaunches view-count gating,
           // not for UI availability decisions.
@@ -507,7 +509,13 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
 
         const dismissed = loadDismissedLaunchIds(nextUserKey);
         const views = loadLaunchViewCounts(nextUserKey);
-        const unseen = selectUnseenLaunches(launches, dismissed, views, catalog);
+        const unseen = selectUnseenLaunches(
+          launches,
+          dismissed,
+          views,
+          catalog,
+          activeModelId ?? undefined,
+        );
         const next = unseen[0] ?? null;
         setLaunch(next);
         setOpen(Boolean(next));
@@ -526,14 +534,11 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
   }, []);
 
   const dismiss = useCallback(() => {
-    if (!launch) {
-      setOpen(false);
-      return;
-    }
-    persistDismissedLaunchId(userKey, launch.id);
+    // "Keep current model" and closing the dialog are impressions, not
+    // activation. The view counter allows up to three impressions.
     setOpen(false);
     setLaunch(null);
-  }, [launch, userKey]);
+  }, []);
 
   const handleTry = useCallback(async (modelId: string) => {
     if (!launch || !modelId) {
@@ -546,6 +551,8 @@ export function ModelLaunchCard({ onModelActivated }: ModelLaunchCardProps) {
     try {
       await setModel(modelId);
       onModelActivated?.(modelId);
+      // Persist only successful activation. Keeping the current model must
+      // not permanently suppress the announcement.
       persistDismissedLaunchId(userKey, launch.id);
       setOpen(false);
       setLaunch(null);

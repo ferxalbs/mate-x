@@ -273,6 +273,38 @@ describe("dismissal persistence", () => {
     assert.equal(selectUnseenLaunches(launches, []).length, 1);
     assert.equal(selectUnseenLaunches(launches, ["gpt-5.6-series"]).length, 0);
   });
+
+  it("shows an unactivated announcement up to three times", () => {
+    const launch = parseRainyModelLaunchesPayload(samplePayload)[0]!;
+    const catalog = [{ id: "openai/gpt-5.6-sol" }];
+
+    assert.equal(
+      selectUnseenLaunches([launch], [], { [launch.id]: 0 }, catalog).length,
+      1,
+    );
+    assert.equal(
+      selectUnseenLaunches([launch], [], { [launch.id]: 1 }, catalog).length,
+      1,
+    );
+    assert.equal(
+      selectUnseenLaunches([launch], [], { [launch.id]: 2 }, catalog).length,
+      1,
+    );
+    assert.equal(
+      selectUnseenLaunches([launch], [], { [launch.id]: 3 }, catalog).length,
+      0,
+    );
+    assert.equal(
+      selectUnseenLaunches(
+        [launch],
+        [],
+        { [launch.id]: 0 },
+        catalog,
+        "openai/gpt-5.6-sol",
+      ).length,
+      0,
+    );
+  });
 });
 
 describe("staged gating", () => {
