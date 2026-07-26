@@ -22,7 +22,6 @@ import { useChatStore } from "../../../store/chat-store";
 interface ChatTopbarProps {
   workspace: WorkspaceSummary | null;
   conversation: Conversation | null;
-  taskDetails?: ReactNode;
   liquidGlassEnabled?: boolean;
   resolvedTheme: "light" | "dark";
   runStatus: RunStatus;
@@ -65,7 +64,6 @@ function TitlebarButton({
 export function ChatTopbar({
   workspace,
   conversation,
-  taskDetails,
   runStatus,
   onCreateThread,
 }: ChatTopbarProps) {
@@ -222,9 +220,6 @@ export function ChatTopbar({
             </MenuItem>
           </MenuPopup>
         </Menu>
-        {taskDetails ? (
-          <div className="hidden min-[1120px]:block">{taskDetails}</div>
-        ) : null}
         <Button
           aria-label="Create thread"
           size="icon-xs"
