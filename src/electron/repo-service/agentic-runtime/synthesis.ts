@@ -1,6 +1,13 @@
 import { requestRainyChatCompletion, requestRainyResponsesCompletion } from "../../rainy-service";
 import type { AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
+import type { ExecutionSynthesisStatus } from "../../../contracts/execution";
 import { buildNoContentFinalResponse, normalizeAssistantText } from "./helpers";
+
+export interface FinalSynthesisResult {
+  text: string;
+  status: ExecutionSynthesisStatus;
+  summary?: string;
+}
 
 export async function attemptFinalChatSynthesis({
   apiKey,
@@ -22,7 +29,7 @@ export async function attemptFinalChatSynthesis({
   serviceTier?: AssistantRunOptions["serviceTier"];
   events: ToolEvent[];
   emitProgress: () => void;
-}): Promise<string> {
+}): Promise<FinalSynthesisResult> {
   const eventId = "step-agent-final-synthesis";
   events.push({
     id: eventId,
@@ -58,17 +65,20 @@ export async function attemptFinalChatSynthesis({
     const finalText = normalizeAssistantText(finalMessage?.content).trim();
     const event = events.find((item) => item.id === eventId);
     if (event) {
-      event.status = "done";
+      event.status = finalText ? "done" : "error";
       event.detail = finalText
         ? "Final synthesis generated."
         : `No text returned. Ending after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`;
     }
     emitProgress();
 
-    return (
-      finalText ||
-      buildNoContentFinalResponse({ iterations, toolRounds, totalToolCalls, events })
-    );
+    return finalText
+      ? { text: finalText, status: "valid", summary: "Final synthesis generated." }
+      : {
+          text: buildNoContentFinalResponse({ iterations, toolRounds, totalToolCalls, events }),
+          status: "missing",
+          summary: "The model returned no final synthesis text.",
+        };
   } catch (error) {
     const fallbackText = buildNoContentFinalResponse({
       iterations,
@@ -78,14 +88,18 @@ export async function attemptFinalChatSynthesis({
     });
     const event = events.find((item) => item.id === eventId);
     if (event) {
-      event.status = "done";
+      event.status = "error";
       event.detail =
         error instanceof Error
           ? `Final synthesis unavailable: ${error.message}. Returned local run summary.`
           : "Final synthesis unavailable. Returned local run summary.";
     }
     emitProgress();
-    return fallbackText;
+    return {
+      text: fallbackText,
+      status: "failed",
+      summary: error instanceof Error ? error.message : "Final synthesis was unavailable.",
+    };
   }
 }
 
@@ -109,7 +123,7 @@ export async function attemptFinalResponsesSynthesis({
   serviceTier?: AssistantRunOptions["serviceTier"];
   events: ToolEvent[];
   emitProgress: () => void;
-}): Promise<string> {
+}): Promise<FinalSynthesisResult> {
   const eventId = "step-agent-final-synthesis";
   events.push({
     id: eventId,
@@ -148,17 +162,20 @@ export async function attemptFinalResponsesSynthesis({
 
     const event = events.find((item) => item.id === eventId);
     if (event) {
-      event.status = "done";
+      event.status = finalText ? "done" : "error";
       event.detail = finalText
         ? "Final synthesis generated."
         : `No text returned. Ending after ${iterations} passes, ${toolRounds} tool rounds, and ${totalToolCalls} tool calls.`;
     }
     emitProgress();
 
-    return (
-      finalText ||
-      buildNoContentFinalResponse({ iterations, toolRounds, totalToolCalls, events })
-    );
+    return finalText
+      ? { text: finalText, status: "valid", summary: "Final synthesis generated." }
+      : {
+          text: buildNoContentFinalResponse({ iterations, toolRounds, totalToolCalls, events }),
+          status: "missing",
+          summary: "The model returned no final synthesis text.",
+        };
   } catch (error) {
     const fallbackText = buildNoContentFinalResponse({
       iterations,
@@ -168,13 +185,17 @@ export async function attemptFinalResponsesSynthesis({
     });
     const event = events.find((item) => item.id === eventId);
     if (event) {
-      event.status = "done";
+      event.status = "error";
       event.detail =
         error instanceof Error
           ? `Final synthesis unavailable: ${error.message}. Returned local run summary.`
           : "Final synthesis unavailable. Returned local run summary.";
     }
     emitProgress();
-    return fallbackText;
-  }
+    return {
+      text: fallbackText,
+      status: "failed",
+      summary: error instanceof Error ? error.message : "Final synthesis was unavailable.",
+    };
+}
 }

@@ -71,6 +71,13 @@ function compactMessage(message: ChatMessage): ChatMessage {
           >,
         }
       : {}),
+    ...(message.executionOutcome
+      ? {
+          executionOutcome: compactValue(message.executionOutcome) as NonNullable<
+            ChatMessage["executionOutcome"]
+          >,
+        }
+      : {}),
     // Working-set snippets are available in the run evidence and are too large
     // to duplicate in every persisted message.
   };
@@ -123,6 +130,7 @@ function compactConversationCore(
       role: message.role,
       content: truncate(message.content, maxMessageLength),
       createdAt: message.createdAt,
+      ...(message.executionOutcome ? { executionOutcome: message.executionOutcome } : {}),
     })),
   };
 }
@@ -140,7 +148,7 @@ function fitCoreSnapshot(
   );
   const active = byRecency.find((thread) => thread.id === activeThreadId);
   const fitThread = (thread: Conversation): Conversation => {
-    const base = { ...thread, messages: [] };
+    const base: Conversation = { ...thread, messages: [] };
     const fittedMessages: Conversation["messages"] = [];
     let size = JSON.stringify(base).length;
 

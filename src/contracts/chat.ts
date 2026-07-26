@@ -2,6 +2,7 @@ import type { ToolPolicyClassification } from "./tool-policy";
 import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
 import type { AutonomyPolicy } from "./behavior-mode";
+import type { ExecutionOutcome, ExecutionTerminalState } from "./execution";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
@@ -355,6 +356,7 @@ export interface EvidencePackPolicyStop {
 
 export interface EvidencePack {
   status: EvidencePackStatus;
+  executionOutcome?: ExecutionOutcome;
   governanceMode?: "governed" | "unrestricted";
   verdict: EvidencePackVerdict;
   verifiedTaskScore?: VerifiedTaskScore;
@@ -422,8 +424,9 @@ export interface ReproducibleRunDecision {
 }
 
 export interface ReproducibleRunResult {
-  status: "completed" | "failed";
+  status: ExecutionTerminalState;
   summary: string;
+  executionOutcome?: ExecutionOutcome;
   evidencePack?: EvidencePack;
   workingSet?: WorkingSetMetadata;
 }
@@ -463,6 +466,7 @@ export interface ChatMessage {
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
   evidencePack?: EvidencePack;
+  executionOutcome?: ExecutionOutcome;
   /** @deprecated Never written by product path — migration decoder only may attach historical payload */
   engineeringTaskId?: string | null;
   workingSet?: WorkingSet;
@@ -479,5 +483,6 @@ export interface Conversation {
 
 export interface AssistantExecution {
   message: ChatMessage;
+  executionOutcome?: ExecutionOutcome;
   suggestedTitle?: string;
 }

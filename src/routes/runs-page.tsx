@@ -18,13 +18,13 @@ import {
 import { useMemo, useState } from "react";
 
 import type { ChatMessage, Conversation, ReproducibleRun, ToolEvent } from "@/contracts/chat";
+import type { ExecutionTerminalState } from "@/contracts/execution";
 import { formatTimestamp } from "@/lib/time";
 import { useChatStore } from "@/store/chat-store";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { usePlatform } from "@/hooks/use-platform";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -38,7 +38,7 @@ type MissionRun = {
   assistantMessage: ChatMessage;
   startedAt: string;
   completedAt: string;
-  status: "completed" | "failed" | "running";
+  status: ExecutionTerminalState | "running";
   events: ToolEvent[];
   record?: ReproducibleRun;
 };
@@ -125,7 +125,15 @@ function buildRuns(threads: Conversation[]) {
         events: run.events,
         artifacts: run.artifacts,
         evidencePack: run.result?.evidencePack,
+        executionOutcome: run.result?.executionOutcome,
       };
+      const executionState = reconcileExecutionState(
+        run.result?.executionOutcome?.terminalState ??
+          assistantMessage?.executionOutcome?.terminalState ??
+          deriveLegacyRunState(run),
+        run.events,
+        run.result?.executionOutcome ?? assistantMessage?.executionOutcome,
+      );
 
       runs.push({
         id: run.id,
@@ -135,7 +143,7 @@ function buildRuns(threads: Conversation[]) {
         assistantMessage: assistantMessage ?? fallbackAssistantMessage,
         startedAt: run.startedAt,
         completedAt: run.completedAt ?? run.startedAt,
-        status: run.status,
+        status: run.status === "running" ? "running" : executionState ?? "failed",
         events: run.events,
         record: run,
       });
@@ -153,11 +161,21 @@ function buildRuns(threads: Conversation[]) {
         .reverse()
         .find((candidate) => candidate.role === "user");
       const events = message.events ?? [];
-      const evidence = message.evidencePack;
-      const hasFailure =
-        events.some((event) => event.status === "error") ||
-        evidence?.status === "failed" ||
-        evidence?.status === "blocked";
+      const executionState = reconcileExecutionState(
+        message.executionOutcome?.terminalState ??
+          message.evidencePack?.executionOutcome?.terminalState ??
+          (events.some((event) => event.status === "error")
+            ? "failed"
+            : message.evidencePack?.status === "partial"
+              ? "partial"
+              : message.evidencePack?.status === "blocked"
+                ? "blocked"
+                : message.evidencePack?.status === "failed"
+                  ? "failed"
+                  : "succeeded"),
+        events,
+        message.executionOutcome ?? message.evidencePack?.executionOutcome,
+      );
 
       runs.push({
         id: `${thread.id}:${message.id}`,
@@ -167,7 +185,7 @@ function buildRuns(threads: Conversation[]) {
         assistantMessage: message,
         startedAt: previousUserMessage?.createdAt ?? message.createdAt,
         completedAt: message.createdAt,
-        status: hasFailure ? "failed" : "completed",
+        status: executionState ?? "failed",
         events,
       });
     });
@@ -178,10 +196,52 @@ function buildRuns(threads: Conversation[]) {
   );
 }
 
+function reconcileExecutionState(
+  state: ExecutionTerminalState | undefined,
+  events: ToolEvent[],
+  outcome?: ChatMessage["executionOutcome"],
+): ExecutionTerminalState | undefined {
+  if (state !== "succeeded") return state;
+  const hasBlocked = events.some(
+    (event) => event.status === "blocked" || /blocked|trust|approval/i.test(event.label ?? ""),
+  );
+  const hasError = events.some(
+    (event) => event.status === "error" || event.status === "failed",
+  );
+  if (!hasBlocked && !hasError) return state;
+  if ((outcome?.evidence.changedFiles.length ?? 0) > 0) return "partial";
+  return hasBlocked ? "blocked" : "failed";
+}
+
+function deriveLegacyRunState(run: ReproducibleRun): ExecutionTerminalState | undefined {
+  const rawResultStatus = String(run.result?.status ?? "");
+  if (rawResultStatus === "succeeded" || rawResultStatus === "partial" || rawResultStatus === "blocked" || rawResultStatus === "failed" || rawResultStatus === "awaiting_approval") {
+    return rawResultStatus;
+  }
+  const hasBlocked = run.events.some((event) => event.status === "blocked" || /blocked|trust|approval/i.test(event.label ?? ""));
+  if (hasBlocked) return "blocked";
+  if (run.events.some((event) => event.status === "error" || event.status === "failed")) return "failed";
+  return run.status === "completed" ? "succeeded" : undefined;
+}
+
 function statusBadgeTone(status: MissionRun["status"]) {
-  if (status === "completed") return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+  if (status === "succeeded") return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+  if (status === "partial") return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+  if (status === "awaiting_approval") return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+  if (status === "blocked") return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
   if (status === "running") return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 animate-pulse";
   return "bg-destructive/10 text-destructive border-destructive/20";
+}
+
+function formatRunStatus(status: MissionRun["status"]) {
+  switch (status) {
+    case "succeeded": return "Succeeded";
+    case "partial": return "Partially completed";
+    case "awaiting_approval": return "Awaiting approval";
+    case "blocked": return "Blocked";
+    case "failed": return "Failed";
+    default: return "Running";
+  }
 }
 
 function getEventIcon(event: ToolEvent) {
@@ -563,7 +623,7 @@ export function RunsPage() {
                           <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{run.threadTitle}</div>
                         </div>
                         <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider", statusBadgeTone(status))}>
-                          {status}
+                          {formatRunStatus(status)}
                         </span>
                       </div>
                       <div className="mt-2 flex items-center justify-between text-[10.5px] text-muted-foreground">
@@ -583,7 +643,7 @@ export function RunsPage() {
               <div className="p-5 max-w-[900px] mx-auto space-y-4">
                 {/* Stat Metrics Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  <Metric label="Status" value={selectedStatus ?? "unknown"} />
+                  <Metric label="Status" value={selectedStatus ? formatRunStatus(selectedStatus) : "Unknown"} />
                   <Metric label="Events" value={String(selectedRun.events.length)} />
                   <Metric
                     label="Changed"
@@ -638,7 +698,7 @@ export function RunsPage() {
                             <CardContent className="p-4">
                               <div className="flex items-center justify-between gap-3">
                                 <h2 className="text-[13px] font-semibold text-foreground tracking-tight">{getSemanticEventLabel(event)}</h2>
-                                <span className={cn("px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider rounded-full border", statusBadgeTone(event.status === "error" ? "failed" : event.status === "active" ? "running" : "completed"))}>
+                                <span className={cn("px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider rounded-full border", statusBadgeTone(event.status === "error" ? "failed" : event.status === "active" ? "running" : "succeeded"))}>
                                   {event.status}
                                 </span>
                               </div>

@@ -7,6 +7,7 @@ import type {
   ReproducibleRun,
   RunStatus,
 } from "../contracts/chat";
+import type { ExecutionEvidence, ExecutionOutcome, ExecutionTerminalState } from "../contracts/execution";
 import { normalizeToolEvent } from "../contracts/chat";
 import type {
   SearchMatch,
@@ -359,6 +360,77 @@ function applyAssistantProgress(
       threadsByWorkspace: nextThreadsByWorkspace,
     };
   });
+}
+
+export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
+  const events = message.events ?? [];
+  const hasBlocked = events.some((event) => event.status === "blocked" || /blocked|trust|approval/i.test(event.label ?? ""));
+  const hasError = events.some((event) => event.status === "error" || event.status === "failed");
+  const hasMutation = (message.evidencePack?.filesModified?.length ?? 0) > 0;
+
+  const existingOutcome = message.executionOutcome ?? message.evidencePack?.executionOutcome;
+  if (existingOutcome) {
+    if (existingOutcome.terminalState !== "succeeded" || (!hasBlocked && !hasError)) {
+      return existingOutcome;
+    }
+
+    const terminalState: ExecutionTerminalState = hasMutation
+      ? "partial"
+      : hasBlocked
+        ? "blocked"
+        : "failed";
+    return {
+      ...existingOutcome,
+      terminalState,
+      summary: hasMutation
+        ? "The run changed files but did not complete all required steps."
+        : hasBlocked
+          ? "The run was blocked before completion."
+          : "The run failed before completion.",
+    };
+  }
+
+  const terminalState: ExecutionTerminalState = hasMutation && (hasBlocked || hasError)
+    ? "partial"
+    : hasBlocked
+      ? "blocked"
+      : hasError
+        ? "failed"
+        : message.evidencePack?.status === "partial"
+          ? "partial"
+          : message.evidencePack?.status === "blocked"
+            ? "blocked"
+            : message.evidencePack?.status === "failed"
+              ? "failed"
+              : message.content.trim()
+                ? "succeeded"
+                : "failed";
+
+  const evidence: ExecutionEvidence = {
+    completedSteps: [],
+    failedSteps: [],
+    blockedSteps: [],
+    changedFiles: (message.evidencePack?.filesModified ?? []).map((file) => ({
+      path: file.path,
+      operation: file.changeType ?? "unknown",
+      backupCreated: false,
+      impactAnalysis: "unknown" as const,
+    })),
+    validation: {
+      status: message.evidencePack?.checks?.some((check) => check.status === "passed")
+        ? "passed"
+        : "not_run",
+    },
+    synthesis: {
+      status: message.content.trim() ? "valid" : "missing",
+    },
+  };
+
+  return {
+    terminalState,
+    evidence,
+    summary: message.evidencePack?.verdict.summary ?? (message.content.trim() || "The run did not produce a final result."),
+  };
 }
 
 function redactRun(run: ReproducibleRun): ReproducibleRun {
@@ -1016,6 +1088,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const finalMessage: ChatMessage = {
         ...execution.message,
       };
+      const executionOutcome = deriveExecutionOutcome({
+        ...finalMessage,
+        executionOutcome: execution.executionOutcome,
+      });
+      finalMessage.executionOutcome = executionOutcome;
       // Prove dead write path — completeFactoryRun never restores authority
       void completeFactoryRun(undefined, {
         events: execution.message.events ?? [],
@@ -1031,11 +1108,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         events: finalMessage.events ?? [],
         artifacts: finalMessage.artifacts ?? [],
         result: {
-          status: "completed",
-          summary:
-            finalMessage.evidencePack?.verdict.summary ??
-            finalMessage.content.trim().slice(0, 600) ??
-            "Assistant completed without final synthesis text.",
+          status: executionOutcome.terminalState,
+          summary: executionOutcome.summary,
+          executionOutcome,
           evidencePack: finalMessage.evidencePack,
           workingSet: finalMessage.workingSet?.metadata,
         },

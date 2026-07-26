@@ -1,6 +1,7 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { ToolEvent } from "../../contracts/chat";
 import type { WorkPlan } from "./types";
+import { normalizeToolExecution } from "./execution-evidence";
 
 export type WorkStageId =
   | "context_compiled"
@@ -50,7 +51,20 @@ const STAGE_IDS: WorkStageId[] = [
 ];
 
 const FILE_INSPECTION_TOOLS = new Set(["read", "read_many", "rg", "ast_grep", "repo_graph"]);
-const PATCH_TOOLS = new Set(["file_editor", "mutation"]);
+const PATCH_TOOLS = new Set([
+  "auto_patch",
+  "file_editor",
+  "apply_patch",
+  "write_file",
+  "str_replace",
+  "search_replace",
+  "patch",
+  "edit_file",
+  "replace_range",
+  "insert_before",
+  "insert_after",
+  "mutation",
+]);
 const VALIDATION_PLAN_TOOLS = new Set(["plan_validation"]);
 const VALIDATION_EXEC_TOOLS = new Set(["run_tests", "sandbox_run"]);
 const FAILURE_MEMORY_TOOLS = new Set(["find_similar_failures"]);
@@ -58,7 +72,7 @@ const SECURITY_PROOF_TOOLS = new Set(["security_path_trace", "candidate_revalida
 const EVIDENCE_TOOLS = new Set(["evidence_pack"]);
 
 export function createInitialWorkStages(): WorkStage[] {
-  return STAGE_IDS.map((id) => ({
+  return STAGE_IDS.map((id): WorkStage => ({
     id,
     status: "pending",
     source: "deterministic",
@@ -80,15 +94,24 @@ export function deriveWorkStages(input: {
   const stages = createInitialWorkStages();
   pass(stages, "context_compiled", "deterministic", "WorkPlan and working set compiled.", ["step-work-engine", "step-working-set"]);
 
-  const toolNames = new Set(input.toolExecutions.map((execution) => execution.toolName));
+  const normalizedExecutions = input.toolExecutions.map((execution) => ({
+    execution,
+    evidence: normalizeToolExecution(execution),
+  }));
+  const completedToolNames = new Set(
+    normalizedExecutions
+      .filter((item) => item.evidence.outcome === "completed")
+      .map((item) => item.execution.toolName),
+  );
   const eventIdsByTool = buildEventIdsByTool(input.events);
   const planningPhase = Boolean(input.planningPhase);
 
-  if (hasAny(toolNames, FILE_INSPECTION_TOOLS) || input.workPlan.workingSet.primaryFiles.length > 0) {
+  if (hasAny(completedToolNames, FILE_INSPECTION_TOOLS) || input.workPlan.workingSet.primaryFiles.length > 0) {
     pass(stages, "files_inspected", "runtime", "Relevant file context exists from working set or inspection tool.", idsFor(eventIdsByTool, FILE_INSPECTION_TOOLS));
   }
 
-  if (planningPhase) {
+  const patchExecutions = normalizedExecutions.filter((item) => PATCH_TOOLS.has(item.execution.toolName));
+  if (planningPhase && patchExecutions.length === 0) {
     set(
       stages,
       "patch_attempted",
@@ -113,24 +136,28 @@ export function deriveWorkStages(input: {
       "Validation execution is not applicable before execution.",
       [],
     );
-  } else if (hasAny(toolNames, PATCH_TOOLS)) {
+  } else if (patchExecutions.some((item) => item.evidence.outcome === "completed")) {
     pass(stages, "patch_attempted", "runtime", "Patch/edit tool ran.", idsFor(eventIdsByTool, PATCH_TOOLS));
+  } else if (patchExecutions.some((item) => item.evidence.outcome === "awaiting_approval")) {
+    set(stages, "patch_attempted", "blocked", "runtime", "Patch/edit tool requires approval before execution.", idsFor(eventIdsByTool, PATCH_TOOLS));
+  } else if (patchExecutions.length > 0) {
+    set(stages, "patch_attempted", "failed", "runtime", "Patch/edit tool did not complete.", idsFor(eventIdsByTool, PATCH_TOOLS));
   } else if (input.noPatchNeeded) {
     skip(stages, "patch_attempted", "deterministic", "Run explicitly concluded no patch was needed.");
   }
 
-  if (!planningPhase) {
-  if (hasAny(toolNames, VALIDATION_PLAN_TOOLS)) {
+  const validationExecutions = normalizedExecutions.filter((item) => VALIDATION_EXEC_TOOLS.has(item.execution.toolName));
+  if (!planningPhase || validationExecutions.length > 0) {
+  if (hasAny(completedToolNames, VALIDATION_PLAN_TOOLS)) {
     pass(stages, "validation_planned", "runtime", "Validation plan tool ran.", idsFor(eventIdsByTool, VALIDATION_PLAN_TOOLS));
   } else if (!input.workPlan.validationPlan.required) {
     skip(stages, "validation_planned", "deterministic", "Validation not required for this WorkPlan.");
   }
 
-  if (hasAny(toolNames, VALIDATION_EXEC_TOOLS)) {
-    const failed = input.toolExecutions.some(
-      (execution) => VALIDATION_EXEC_TOOLS.has(execution.toolName) && toolFailed(execution.output),
-    );
-    set(stages, "validation_executed", failed ? "failed" : "passed", "runtime", failed ? "Validation command failed." : "Validation command ran.", idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS));
+  if (validationExecutions.length > 0) {
+    const blocked = validationExecutions.some((item) => item.evidence.outcome === "blocked" || item.evidence.outcome === "awaiting_approval");
+    const failed = validationExecutions.some((item) => item.evidence.outcome === "failed");
+    set(stages, "validation_executed", blocked ? "blocked" : failed ? "failed" : "passed", "runtime", blocked ? "Validation requires approval or access." : failed ? "Validation command failed." : "Validation command ran.", idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS));
   } else if (!input.workPlan.validationPlan.required) {
     skip(stages, "validation_executed", "deterministic", "Validation not required for this WorkPlan.");
   } else if (input.privacyBlocked) {
@@ -138,17 +165,17 @@ export function deriveWorkStages(input: {
   }
   }
 
-  if (hasAny(toolNames, FAILURE_MEMORY_TOOLS) || input.workPlan.workingSet.knownFailures.length > 0) {
+  if (hasAny(completedToolNames, FAILURE_MEMORY_TOOLS) || input.workPlan.workingSet.knownFailures.length > 0) {
     pass(stages, "failure_memory_checked", "runtime", "Failure memory checked or injected from working set.", idsFor(eventIdsByTool, FAILURE_MEMORY_TOOLS));
   }
 
   if (input.workPlan.runbook !== "audit_reproduce_remediate" && input.workPlan.runbook !== "trace_source_to_sink") {
     skip(stages, "security_proof_checked", "deterministic", "Security proof not required for this runbook.");
-  } else if (hasAny(toolNames, SECURITY_PROOF_TOOLS)) {
+  } else if (hasAny(completedToolNames, SECURITY_PROOF_TOOLS)) {
     pass(stages, "security_proof_checked", "runtime", "Security proof/revalidation tool ran.", idsFor(eventIdsByTool, SECURITY_PROOF_TOOLS));
   }
 
-  derivePreventiveStages(stages, input.workPlan, toolNames, eventIdsByTool);
+  derivePreventiveStages(stages, input.workPlan, completedToolNames, eventIdsByTool);
 
   if (input.privacyBlocked) {
     block(stages, "privacy_preflight_passed", "deterministic", "Privacy Sentinel blocked outbound context.");
@@ -156,7 +183,7 @@ export function deriveWorkStages(input: {
     pass(stages, "privacy_preflight_passed", "deterministic", "Privacy preflight did not block this run.", ["step-privacy-preflight"]);
   }
 
-  if (input.evidenceAttached || hasAny(toolNames, EVIDENCE_TOOLS)) {
+  if (input.evidenceAttached || hasAny(completedToolNames, EVIDENCE_TOOLS)) {
     pass(stages, "evidence_attached", "runtime", "Evidence Pack attached or evidence tool ran.", idsFor(eventIdsByTool, EVIDENCE_TOOLS));
   } else if (!input.workPlan.evidencePlan.required) {
     skip(stages, "evidence_attached", "deterministic", "No evidence artifact required for read-only review with no changes.");
@@ -168,10 +195,15 @@ export function deriveWorkStages(input: {
 export function shouldEmitPreventiveWarning(workPlan: WorkPlan, toolExecutions: ToolExecutionRecord[]) {
   if (!workPlan.preventivePlan.enabled || workPlan.preventivePlan.strictness !== "warn") return false;
   if (workPlan.workingSet.sensitiveSurfaces.length === 0 && workPlan.preventivePlan.riskAreas.length === 0) return false;
-  const toolNames = new Set(toolExecutions.map((execution) => execution.toolName));
-  const hasValidation = hasAny(toolNames, VALIDATION_EXEC_TOOLS);
+  const completedToolNames = new Set(
+    toolExecutions
+      .map(normalizeToolExecution)
+      .filter((evidence) => evidence.outcome === "completed")
+      .map((evidence) => evidence.toolName),
+  );
+  const hasValidation = hasAny(completedToolNames, VALIDATION_EXEC_TOOLS);
   const needsSecurityProof = workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
-  const hasSecurityProof = hasAny(toolNames, SECURITY_PROOF_TOOLS);
+  const hasSecurityProof = hasAny(completedToolNames, SECURITY_PROOF_TOOLS);
   return !hasValidation || (needsSecurityProof && !hasSecurityProof);
 }
 
@@ -263,63 +295,4 @@ function buildEventIdsByTool(events: ToolEvent[]) {
 
 function idsFor(eventIdsByTool: Map<string, string[]>, tools: Set<string>) {
   return [...tools].flatMap((tool) => eventIdsByTool.get(tool) ?? []);
-}
-
-/**
- * Strips the "Known similar failure" preamble that sandbox_run prepends so
- * it never poisons Status/Exit-code detection or the fallback regex.
- * The preamble ends at the first blank line that precedes the structured report.
- */
-function stripSandboxPreamble(text: string): string {
-  // The structured report always starts with "Sandbox Report:"
-  const reportStart = text.indexOf("Sandbox Report:");
-  return reportStart > 0 ? text.slice(reportStart) : text;
-}
-
-function toolFailed(output: unknown) {
-  const raw = String(output ?? "");
-  // Strip priorWarning preamble so structured-report lines are unambiguous.
-  const text = stripSandboxPreamble(raw);
-
-  // Structured sandbox report: Status line takes priority.
-  const sandboxStatus = text.match(/^Status:\s*(PASSED|READY|FAILED|TIMED_OUT|START_FAILED|TERMINATED)$/im)?.[1];
-  if (sandboxStatus) {
-    return sandboxStatus !== "PASSED" && sandboxStatus !== "READY";
-  }
-
-  // Structured sandbox report: explicit exit code.
-  const sandboxExitCode = text.match(/^Exit code:\s*(-?\d+)$/im)?.[1];
-  if (sandboxExitCode) {
-    return Number(sandboxExitCode) !== 0;
-  }
-
-  // JSON-returning tools (non-sandbox).
-  try {
-    const parsed = JSON.parse(text) as { status?: unknown; exitCode?: unknown; error?: unknown; verdict?: unknown };
-    if (typeof parsed.error === "string" && parsed.error.trim()) {
-      return true;
-    }
-    if (typeof parsed.exitCode === "number") {
-      return parsed.exitCode !== 0;
-    }
-    if (parsed.status === "success" || parsed.status === "passed" || parsed.status === "ready") {
-      return false;
-    }
-    if (parsed.status === "failed" || parsed.status === "blocked" || parsed.status === "timed_out") {
-      return true;
-    }
-    // verdict field (some tools emit this instead of status).
-    if (parsed.verdict === "success" || parsed.verdict === "passed") {
-      return false;
-    }
-    if (parsed.verdict === "failed" || parsed.verdict === "blocked") {
-      return true;
-    }
-  } catch {
-    // Fall through to legacy text heuristic for unstructured tools.
-  }
-
-  // Fallback heuristic on the preamble-stripped text.
-  // Use \bfailed\b (verb) — does NOT match the noun "failure".
-  return /(?:^|\b)(failed|error|exit code [1-9]|not ok|blocked)\b/i.test(text);
 }

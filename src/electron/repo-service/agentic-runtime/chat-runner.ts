@@ -1,6 +1,7 @@
 import type { ToolExecutionRecord } from "../../evidence-pack";
 import type { RepoSnapshot } from "../workspace";
 import type { AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
+import type { ExecutionSynthesisStatus } from "../../../contracts/execution";
 import type { RainyModelCapabilities, RainyModelCatalogEntry } from "../../../contracts/rainy";
 import type { AppSettings } from "../../../contracts/settings";
 import {
@@ -89,6 +90,8 @@ export async function requestRainyChatAgenticResponse({
 }): Promise<{
   toolExecutions: ToolExecutionRecord[];
   content: string;
+  synthesisStatus: ExecutionSynthesisStatus;
+  synthesisSummary?: string;
 }> {
   const historyMessages = buildHistoryMessages(history);
   const rainyReasoning = resolveRainyReasoningPayload(options, capabilities);
@@ -228,14 +231,38 @@ export async function requestRainyChatAgenticResponse({
         },
       });
     } catch (error) {
-      if (!isRainyConnectionTimeout(error)) {
-        throw error;
-      }
-
       const partialText = [lastNonEmptyAssistantText, streamedPassText]
         .map((part) => part.trim())
         .filter(Boolean)
         .join("\n\n");
+      if (!isRainyConnectionTimeout(error)) {
+        events.push({
+          id: `step-agent-failure-${iterations}`,
+          label: "Agent runtime stopped",
+          detail:
+            error instanceof Error
+              ? `Model request failed before final synthesis: ${error.message}`
+              : "Model request failed before final synthesis.",
+          status: "error",
+          visibility: "technical",
+        });
+        emitProgress(partialText || undefined, streamedThought || undefined);
+        return {
+          toolExecutions,
+          synthesisStatus: "failed",
+          synthesisSummary: "The model request failed before a final synthesis was available.",
+          content: await finalizeContent(
+            partialText ||
+              buildNoContentFinalResponse({
+                iterations,
+                toolRounds,
+                totalToolCalls,
+                events,
+              }),
+          ),
+        };
+      }
+
       events.push({
         id: `step-agent-timeout-${iterations}`,
         label: "Rainy timeout recovery",
@@ -249,6 +276,8 @@ export async function requestRainyChatAgenticResponse({
 
       return {
         toolExecutions,
+        synthesisStatus: "failed",
+        synthesisSummary: "The model request timed out before a final synthesis was available.",
         content: await finalizeContent(
           buildTimeoutFinalResponse({
             iterations,
@@ -370,8 +399,8 @@ export async function requestRainyChatAgenticResponse({
       });
       emitProgress();
 
-      const forcedFinalText = responseText.trim()
-        ? ""
+      const synthesis = responseText.trim()
+        ? { text: responseText.trim(), status: "valid" as const }
         : await attemptFinalChatSynthesis({
             apiKey,
             model,
@@ -386,11 +415,13 @@ export async function requestRainyChatAgenticResponse({
 
       const finalContentText = selectFinalAssistantText(
         lastNonEmptyAssistantText,
-        forcedFinalText,
+        synthesis.text,
       );
 
       return {
         toolExecutions,
+        synthesisStatus: synthesis.status,
+        synthesisSummary: synthesis.summary,
         content: await finalizeContent(
           finalContentText ||
             buildNoContentFinalResponse({
@@ -448,6 +479,7 @@ export async function requestRainyChatAgenticResponse({
 
         return {
           toolExecutions,
+          synthesisStatus: "valid",
           content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
         };
       }
@@ -516,6 +548,7 @@ export async function requestRainyChatAgenticResponse({
 
       return {
         toolExecutions,
+        synthesisStatus: "valid",
         content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
       };
     }
@@ -551,7 +584,7 @@ export async function requestRainyChatAgenticResponse({
     }
   }
 
-  const forcedFinalText = await attemptFinalChatSynthesis({
+  const synthesis = await attemptFinalChatSynthesis({
     apiKey,
     model,
     messages,
@@ -565,11 +598,13 @@ export async function requestRainyChatAgenticResponse({
 
   const finalContentText = selectFinalAssistantText(
     lastNonEmptyAssistantText,
-    forcedFinalText,
+    synthesis.text,
   );
 
   return {
     toolExecutions,
+    synthesisStatus: synthesis.status,
+    synthesisSummary: synthesis.summary,
     content: await finalizeContent(
       finalContentText ||
         buildNoContentFinalResponse({

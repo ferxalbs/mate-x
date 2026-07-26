@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import type { AssistantRunOptions } from "../contracts/chat";
+import type { AssistantRunOptions, ChatMessage } from "../contracts/chat";
 
 const runAssistantMock: {
   calls: Array<[string, string[], AssistantRunOptions, string]>;
@@ -185,6 +185,33 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
       }),
       undefined,
     );
+  });
+
+  it("never derives success when the same message contains an execution error", async () => {
+    const { deriveExecutionOutcome } = await import("./chat-store");
+    const message: ChatMessage = {
+      id: "assistant-error",
+      role: "assistant",
+      content: "The run succeeded.",
+      createdAt: new Date().toISOString(),
+      events: [{
+        id: "tool-sandbox",
+        label: "Sandbox run",
+        detail: "Command failed.",
+        status: "error",
+      }],
+    };
+    const optimisticOutcome = deriveExecutionOutcome({
+      ...message,
+      events: [],
+    });
+    const outcome = deriveExecutionOutcome({
+      ...message,
+      executionOutcome: optimisticOutcome,
+    });
+
+    assert.equal(outcome.terminalState, "failed");
+    assert.notEqual(outcome.terminalState, "succeeded");
   });
 
   it("reuses an unused thread and only creates another after the current one has a prompt", () => {

@@ -6,6 +6,7 @@ import { renderWorkPlanForPrompt } from "../work-engine/work-engine";
 import { renderFailureMemoryInstruction } from "../work-engine/failure-memory-gate";
 import type { WorkPlan, WorkRunbook } from "../work-engine/types";
 import type { AssistantRunbookDefinition, AssistantRunOptions, ToolEvent } from "../../contracts/chat";
+import type { ExecutionSynthesisStatus } from "../../contracts/execution";
 import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } from "../../contracts/rainy";
 import { supportsTools } from "../../lib/rainy-model-capabilities";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../config/mate-agent";
@@ -134,6 +135,8 @@ export async function requestRainyAgenticResponse({
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
   content: string;
+  synthesisStatus: ExecutionSynthesisStatus;
+  synthesisSummary?: string;
 }> {
   const runtime = buildAgentRuntimeConfig(options, prompt);
   if (runtime.executionIntent && !supportsTools(capabilities)) {
@@ -149,6 +152,8 @@ export async function requestRainyAgenticResponse({
 
     return {
       toolExecutions: [],
+      synthesisStatus: "failed",
+      synthesisSummary: "The configured model does not support the required repository tools.",
       content:
         `Model ${model} cannot run repository tools for this task. ` +
         "Choose a model with tool-calling support, then retry patch/validation.",

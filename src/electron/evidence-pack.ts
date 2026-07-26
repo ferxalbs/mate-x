@@ -5,12 +5,15 @@ import { policyService } from "./policy-service";
 
 import type { EvidencePack, EvidencePackReproduction, ToolEvent } from "../contracts/chat";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type { NormalizedToolEvidence } from "../contracts/execution";
+import { normalizeToolEvidence } from "./work-engine/execution-evidence";
 
 export interface ToolExecutionRecord {
   toolName: string;
   args: Record<string, unknown>;
   output: string;
   parsedOutput?: Record<string, unknown>;
+  evidence?: NormalizedToolEvidence;
 }
 
 function summarizeToolOutput(content: string) {
@@ -175,7 +178,7 @@ export async function buildEvidencePack(params: {
   const testsRun = toolExecutions
     .filter((execution) => execution.toolName === "run_tests")
     .map((execution) => {
-      const parsedStatus = execution.parsedOutput?.status;
+      const parsedStatus = execution.evidence?.validationStatus ?? execution.parsedOutput?.status;
       const statusValue =
         parsedStatus === "success"
           ? "passed"
@@ -335,37 +338,18 @@ function extractToolTouchedPaths(toolExecutions: ToolExecutionRecord[]): string[
 
   for (const execution of toolExecutions) {
     const name = execution.toolName;
-    const isPatchish =
-      knownPatchTools.has(name) ||
-      /edit|patch|write|replace/i.test(name);
-
+    const isPatchish = knownPatchTools.has(name) || /edit|patch|write|replace/i.test(name);
     if (!isPatchish) continue;
 
-    // 1. Top-level args (most edit tools put the primary target path or paths here)
-    for (const v of Object.values(execution.args)) {
-      if (typeof v === "string") addIfPlausibleRepoPath(candidates, v);
-      else if (Array.isArray(v)) {
-        for (const item of v) if (typeof item === "string") addIfPlausibleRepoPath(candidates, item);
-      }
-    }
-
-    // 2. parsedOutput — tools that succeed often return { path, filesModified, modified, ... }
-    const po = execution.parsedOutput;
-    if (po && typeof po === "object") {
-      const keys = ["path", "file", "target", "modified", "files", "touched", "changed", "filesModified"];
-      for (const k of keys) {
-        const val = (po as Record<string, unknown>)[k];
-        if (typeof val === "string") addIfPlausibleRepoPath(candidates, val);
-        else if (Array.isArray(val)) {
-          for (const item of val) {
-            if (typeof item === "string") addIfPlausibleRepoPath(candidates, item);
-            else if (item && typeof item === "object" && typeof (item as any).path === "string") {
-              addIfPlausibleRepoPath(candidates, (item as any).path);
-            }
-          }
-        }
-      }
-    }
+    // Only a confirmed successful mutation may rescue a path from the post-run git status.
+    // Blocked/failed attempts must never be reported as changed files.
+    const evidence = execution.evidence ?? normalizeToolEvidence(
+      execution.toolName,
+      execution.args,
+      execution.output,
+      execution.parsedOutput,
+    );
+    for (const file of evidence.changedFiles) addIfPlausibleRepoPath(candidates, file.path);
   }
 
   return [...candidates];

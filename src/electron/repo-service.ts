@@ -12,9 +12,11 @@ import { runPrivacyPreflight } from "./work-engine/privacy-preflight";
 import { appendValidationGateWarning, evaluateValidationGate } from "./work-engine/validation-gate";
 import { deriveWorkStages, preventiveWarningDetail, shouldEmitPreventiveWarning } from "./work-engine/stages";
 import { finalizeWorkRun } from "./work-engine/finalizer";
+import { normalizeToolEvidence } from "./work-engine/execution-evidence";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
 import { RAINY_API_BASE_URL } from "../config/rainy";
 import type { AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
+import type { ExecutionSynthesisStatus } from "../contracts/execution";
 import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
 import { resolveAssistantRunOptions, resolveRunbookDefinition, toAssistantRunbookId } from "./assistant-runbooks";
 import { canQueryDomain } from "./workspace-trust";
@@ -160,6 +162,13 @@ export async function runAssistant(
       visibility: "technical",
     },
   ];
+  let artifacts: MessageArtifact[] = [];
+  let privacyPreflight: Awaited<ReturnType<typeof runPrivacyPreflight>> | null = null;
+  let thought = "";
+  let content = "";
+  let toolExecutions: ToolExecutionRecord[] = [];
+  let synthesisStatus: ExecutionSynthesisStatus = "failed";
+  let synthesisSummary = "No valid final synthesis was returned.";
 
   try {
   const [apiKey, storedModel, appSettings] = await Promise.all([
@@ -185,13 +194,13 @@ export async function runAssistant(
     resolvedOptions.serviceTier = "standard";
   }
   const hasRainyConfig = Boolean(apiKey && configuredModel && rainyHostAllowed);
-  const artifacts = buildArtifacts(
+  artifacts = buildArtifacts(
     snapshot,
     hasRainyConfig,
     configuredModel,
     resolvedOptions,
   );
-  const privacyPreflight =
+  privacyPreflight =
     hasRainyConfig && workPlan.privacyPlan.requireSanitization
       ? await runPrivacyPreflight(
           {
@@ -223,9 +232,6 @@ export async function runAssistant(
     });
   }
   const createdAt = new Date().toISOString();
-  let thought = "";
-  let content = "";
-  let toolExecutions: ToolExecutionRecord[] = [];
   let handledDirectTool = false;
   const appendSdkEvidenceEvent = (event: AgentActionEvidenceEvent) => {
     events.push({
@@ -298,6 +304,8 @@ export async function runAssistant(
 
     content = result.content;
     toolExecutions = [result.toolExecution];
+    synthesisStatus = "valid";
+    synthesisSummary = "Direct tool response returned.";
     events.push({
       id: "step-direct-deep-analysis-pipeline",
       label: "Direct tool response",
@@ -328,6 +336,8 @@ export async function runAssistant(
 
     content = result.content;
     toolExecutions = [result.toolExecution];
+    synthesisStatus = "valid";
+    synthesisSummary = "Direct tool response returned.";
     events.push({
       id: "step-direct-security-path-trace",
       label: "Direct tool response",
@@ -358,8 +368,19 @@ export async function runAssistant(
           status: "success",
           summary: `SDK action ${sdkResult.actionType} completed with VTS ${sdkResult.vts}.`,
         },
+        evidence: normalizeToolEvidence(
+          `sdk:${sdkResult.agentId}`,
+          { ...resolvedOptions.sdkAction },
+          content,
+          {
+            status: "success",
+            summary: `SDK action ${sdkResult.actionType} completed with VTS ${sdkResult.vts}.`,
+          },
+        ),
       },
     ];
+    synthesisStatus = "valid";
+    synthesisSummary = "SDK action returned a final response.";
     handledDirectTool = true;
     emitProgress(content);
   }
@@ -408,6 +429,8 @@ export async function runAssistant(
           : thought;
       content = result.content;
       toolExecutions = result.toolExecutions;
+      synthesisStatus = result.synthesisStatus;
+      synthesisSummary = result.synthesisSummary ?? synthesisSummary;
     } catch (error) {
       console.error("Agentic loop failed:", error);
       content = buildFallbackResponse(prompt, snapshot, error);
@@ -508,8 +531,80 @@ export async function runAssistant(
     policySources: await loadCompliancePolicySources(snapshot.workspace.path),
   });
   const identityEvidencePack = attachAgentIdentity(baseEvidencePack, agentIdentity);
-  const { evidencePack } = await generateEvidenceAttestation({
-    evidencePack: identityEvidencePack,
+  let evidencePack = identityEvidencePack;
+  const evidenceStages = deriveWorkStages({
+    workPlan,
+    events,
+    toolExecutions,
+    privacyBlocked: privacyPreflight?.status === "blocked",
+    evidenceAttached: true,
+    noPatchNeeded,
+    planningPhase,
+  });
+  const evidenceFinalization = finalizeWorkRun({
+    workPlan,
+    stages: evidenceStages,
+    toolExecutions,
+    content,
+    evidenceAttached: true,
+    planningPhase,
+    synthesisStatus,
+    synthesisSummary,
+  });
+  content = evidenceFinalization.content;
+  const executionOutcome = {
+    terminalState: evidenceFinalization.terminalState,
+    evidence: evidenceFinalization.evidence,
+    summary: evidenceFinalization.summary,
+  };
+  evidencePack = {
+    ...evidencePack,
+    status:
+      evidenceFinalization.terminalState === "succeeded"
+        ? "complete"
+        : evidenceFinalization.terminalState === "partial"
+          ? "partial"
+          : evidenceFinalization.terminalState === "failed"
+            ? "failed"
+            : "blocked",
+    executionOutcome,
+    verifiedTaskScore: evidencePack.verifiedTaskScore
+      ? {
+          ...evidencePack.verifiedTaskScore,
+          status:
+            evidenceFinalization.terminalState === "succeeded"
+              ? evidencePack.verifiedTaskScore.status
+              : evidenceFinalization.terminalState === "partial"
+                ? "partially_verified"
+                : "failed",
+          missingEvidence:
+            evidenceFinalization.terminalState === "succeeded"
+              ? evidencePack.verifiedTaskScore.missingEvidence
+              : Array.from(
+                  new Set([
+                    ...evidencePack.verifiedTaskScore.missingEvidence,
+                    evidenceFinalization.summary,
+                  ]),
+                ),
+        }
+      : undefined,
+    verdict: {
+      ...evidencePack.verdict,
+      label:
+        evidenceFinalization.terminalState === "succeeded"
+          ? "Completed"
+          : evidenceFinalization.terminalState === "partial"
+            ? "Completed partially"
+            : evidenceFinalization.terminalState === "awaiting_approval"
+              ? "Approval required"
+              : evidenceFinalization.terminalState === "blocked"
+                ? "Blocked"
+                : "Run failed",
+      summary: evidenceFinalization.summary,
+    },
+  };
+  const attestationResult = await generateEvidenceAttestation({
+    evidencePack,
     workspacePath: snapshot.workspace.path,
     taskId,
     policyApplied: resolvedOptions.runbookId ?? "workspace-trust-contract",
@@ -530,24 +625,7 @@ export async function runAssistant(
       };
     },
   });
-  const evidenceStages = deriveWorkStages({
-    workPlan,
-    events,
-    toolExecutions,
-    privacyBlocked: privacyPreflight?.status === "blocked",
-    evidenceAttached: true,
-    noPatchNeeded,
-    planningPhase,
-  });
-  const evidenceFinalization = finalizeWorkRun({
-    workPlan,
-    stages: evidenceStages,
-    toolExecutions,
-    content,
-    evidenceAttached: true,
-    planningPhase,
-  });
-  content = evidenceFinalization.content;
+  evidencePack = attestationResult.evidencePack;
   events.push({
     id: "step-work-engine-evidence",
     label: "WorkPlan evidence gate",
@@ -558,14 +636,11 @@ export async function runAssistant(
       verdict: evidenceFinalization.verdict,
       planningPhase,
     }),
-    status:
-      planningPhase
-        ? "done"
-        : ["blocked", "failed", "needs_validation", "needs_evidence"].includes(
-              evidenceFinalization.verdict,
-            )
-          ? "error"
-          : "done",
+    status: ["partial", "blocked", "failed", "awaiting_approval"].includes(
+      evidenceFinalization.verdict,
+    )
+      ? "error"
+      : "done",
   });
   const artifactResult = await persistWorkEngineRunArtifactSafely({
     appDataRoot: app.getPath("userData"),
@@ -582,6 +657,7 @@ export async function runAssistant(
     workPlan,
     stages: evidenceStages,
     finalVerdict: evidenceFinalization.verdict,
+    executionOutcome,
     toolEvents: events,
     evidenceAttached: true,
     downgradedClaims: evidenceFinalization.warnings,
@@ -639,6 +715,7 @@ export async function runAssistant(
 
   return {
     suggestedTitle: history.length === 0 ? buildThreadTitle(prompt) : undefined,
+    executionOutcome,
     message: {
       id: `assistant-${Date.now()}`,
       role: "assistant",
@@ -648,18 +725,60 @@ export async function runAssistant(
       events,
       artifacts: finalArtifacts,
       evidencePack,
+      executionOutcome,
       workingSet,
     },
   };
   } catch (error) {
+    const recoveryReason = "The execution runtime stopped before final synthesis.";
+    events.push({
+      id: "step-agent-runtime-recovery",
+      label: "Execution stopped",
+      detail:
+        error instanceof Error
+          ? `Runtime recovery: ${error.message}`
+          : "Runtime recovery: execution stopped before final synthesis.",
+      status: "error",
+      segmentKind: "tool",
+      visibility: "technical",
+    });
+    const recoveryToolExecution: ToolExecutionRecord = {
+      toolName: "agent_runtime",
+      args: {},
+      output: recoveryReason,
+      parsedOutput: { status: "failed" },
+      evidence: normalizeToolEvidence(
+        "agent_runtime",
+        {},
+        recoveryReason,
+        { status: "failed" },
+      ),
+    };
+    const recoveryToolExecutions = [...toolExecutions, recoveryToolExecution];
     const failureStages = deriveWorkStages({
       workPlan,
       events,
-      toolExecutions: [],
-      privacyBlocked: false,
+      toolExecutions: recoveryToolExecutions,
+      privacyBlocked: privacyPreflight?.status === "blocked",
       evidenceAttached: false,
       noPatchNeeded: false,
+      planningPhase,
     });
+    const recoveryFinalization = finalizeWorkRun({
+      workPlan,
+      stages: failureStages,
+      toolExecutions: recoveryToolExecutions,
+      content: content || "The run stopped before a final synthesis was available.",
+      evidenceAttached: false,
+      planningPhase,
+      synthesisStatus: "failed",
+      synthesisSummary: recoveryReason,
+    });
+    const recoveryOutcome = {
+      terminalState: recoveryFinalization.terminalState,
+      evidence: recoveryFinalization.evidence,
+      summary: recoveryFinalization.summary,
+    };
     await persistWorkEngineRunArtifactSafely({
       appDataRoot: app.getPath("userData"),
       runId: progressReporter?.runId ?? `assistant-failed-${Date.now()}`,
@@ -669,16 +788,31 @@ export async function runAssistant(
         workspace: snapshot.workspace,
         statusLines: snapshot.statusLines,
         workPlan,
-        privacyPreflight: null,
+        privacyPreflight,
       }),
       workPlan,
       stages: failureStages,
-      finalVerdict: "failed",
+      finalVerdict: recoveryFinalization.verdict,
+      executionOutcome: recoveryOutcome,
       toolEvents: events,
       evidenceAttached: false,
-      downgradedClaims: ["Run failed after WorkPlan creation before final response."],
+      downgradedClaims: recoveryFinalization.warnings,
     });
-    throw error;
+    return {
+      suggestedTitle: history.length === 0 ? buildThreadTitle(prompt) : undefined,
+      executionOutcome: recoveryOutcome,
+      message: {
+        id: `assistant-recovered-${Date.now()}`,
+        role: "assistant",
+        content: recoveryFinalization.content,
+        thought: thought || undefined,
+        createdAt: new Date().toISOString(),
+        events,
+        artifacts,
+        executionOutcome: recoveryOutcome,
+        workingSet,
+      },
+    };
   }
 }
 

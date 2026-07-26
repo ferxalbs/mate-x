@@ -1,6 +1,7 @@
 import type { ToolExecutionRecord } from "../../evidence-pack";
 import type { RepoSnapshot } from "../workspace";
 import type { AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
+import type { ExecutionSynthesisStatus } from "../../../contracts/execution";
 import type { AppSettings } from "../../../contracts/settings";
 import {
   buildResponsesMessageInput,
@@ -49,7 +50,7 @@ export async function requestRainyResponsesAgenticResponse({
   serviceTier,
   signal,
   engineeringTaskStatus,
-  planningPhase: _planningPhase,
+  planningPhase,
 }: {
   apiKey: string;
   history: string[];
@@ -71,8 +72,10 @@ export async function requestRainyResponsesAgenticResponse({
   thought?: string;
   toolExecutions: ToolExecutionRecord[];
   content: string;
+  synthesisStatus: ExecutionSynthesisStatus;
+  synthesisSummary?: string;
 }> {
-  void _planningPhase;
+  void planningPhase;
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
     { role: "user", content: prompt },
@@ -122,28 +125,53 @@ export async function requestRainyResponsesAgenticResponse({
       nextInput = compressResponsesInputItems(nextInput);
     }
 
-    const response = await requestRainyResponsesCompletion({
-      apiKey,
-      model,
-      instructions: iterations === 1 ? systemPrompt : undefined,
-      input: nextInput,
-      previousResponseId,
-      tools: responseTools,
-      toolChoice:
-        runtime.requireToolingFirst &&
-        toolRounds < runtime.minToolRounds &&
-        totalToolCalls < runtime.maxToolCalls
-          ? "required"
-          : totalToolCalls >= runtime.maxToolCalls
-            ? "none"
-            : "auto",
-      serviceTier,
-      signal,
-      timeoutMs: resolveRainyAgentTimeoutMs({
-        reasoningEnabled: options.reasoningEnabled,
-        reasoning: options.reasoning,
-      }),
-    });
+    let response: Awaited<ReturnType<typeof requestRainyResponsesCompletion>>;
+    try {
+      response = await requestRainyResponsesCompletion({
+        apiKey,
+        model,
+        instructions: iterations === 1 ? systemPrompt : undefined,
+        input: nextInput,
+        previousResponseId,
+        tools: responseTools,
+        toolChoice:
+          runtime.requireToolingFirst &&
+          toolRounds < runtime.minToolRounds &&
+          totalToolCalls < runtime.maxToolCalls
+            ? "required"
+            : totalToolCalls >= runtime.maxToolCalls
+              ? "none"
+              : "auto",
+        serviceTier,
+        signal,
+        timeoutMs: resolveRainyAgentTimeoutMs({
+          reasoningEnabled: options.reasoningEnabled,
+          reasoning: options.reasoning,
+        }),
+      });
+    } catch (error) {
+      events.push({
+        id: `step-agent-failure-${iterations}`,
+        label: "Agent runtime stopped",
+        detail:
+          error instanceof Error
+            ? `Model request failed before final synthesis: ${error.message}`
+            : "Model request failed before final synthesis.",
+        status: "error",
+        visibility: "technical",
+      });
+      emitProgress(lastContent || undefined, lastThought || undefined);
+      return {
+        thought: lastThought,
+        toolExecutions,
+        synthesisStatus: "failed",
+        synthesisSummary: "The model request failed before a final synthesis was available.",
+        content: await finalizeContent(
+          lastContent ||
+            "The model request stopped before a final synthesis was available.",
+        ),
+      };
+    }
 
     previousResponseId = response.id;
     const responseText = response.output_text || "";
@@ -232,8 +260,8 @@ export async function requestRainyResponsesAgenticResponse({
       });
       emitProgress();
 
-      const forcedFinalText = response.output_text?.trim()
-        ? ""
+      const synthesis = response.output_text?.trim()
+        ? { text: response.output_text.trim(), status: "valid" as const }
         : await attemptFinalResponsesSynthesis({
             apiKey,
             model,
@@ -246,11 +274,13 @@ export async function requestRainyResponsesAgenticResponse({
             emitProgress,
           });
 
-      const finalContentText = selectFinalAssistantText(lastContent, forcedFinalText);
+      const finalContentText = selectFinalAssistantText(lastContent, synthesis.text);
 
       return {
         thought: lastThought,
         toolExecutions,
+        synthesisStatus: synthesis.status,
+        synthesisSummary: synthesis.summary,
         content: await finalizeContent(
           finalContentText ||
             "The model completed the tool loop without returning text.",
@@ -301,6 +331,7 @@ export async function requestRainyResponsesAgenticResponse({
         return {
           thought: lastThought,
           toolExecutions,
+          synthesisStatus: "valid",
           content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
         };
       }
@@ -382,6 +413,7 @@ export async function requestRainyResponsesAgenticResponse({
       return {
         thought: lastThought,
         toolExecutions,
+        synthesisStatus: "valid",
         content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
       };
     }
@@ -419,7 +451,7 @@ export async function requestRainyResponsesAgenticResponse({
     }
   }
 
-  const forcedFinalText = await attemptFinalResponsesSynthesis({
+  const synthesis = await attemptFinalResponsesSynthesis({
     apiKey,
     model,
     previousResponseId,
@@ -431,11 +463,13 @@ export async function requestRainyResponsesAgenticResponse({
     emitProgress,
   });
 
-  const finalContentText = selectFinalAssistantText(lastContent, forcedFinalText);
+  const finalContentText = selectFinalAssistantText(lastContent, synthesis.text);
 
   return {
     thought: lastThought,
     toolExecutions,
+    synthesisStatus: synthesis.status,
+    synthesisSummary: synthesis.summary,
     content: await finalizeContent(
       finalContentText ||
         "Maximum agent iterations reached without a final response.",

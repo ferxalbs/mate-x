@@ -69,8 +69,8 @@ test("candidate-level security review without proof and tools is partial", () =>
   });
 
   assert.equal(result.verdict, "partial");
-  assert.match(result.content, /Security proof was not run/);
-  assert.match(result.content, /No repository tool evidence was captured/);
+  assert.match(result.warnings.join("\n"), /Security proof was not run/);
+  assert.match(result.warnings.join("\n"), /No repository tool evidence was captured/);
 });
 
 test("strong auth risk wording without proof downgrades verdict and wording", () => {
@@ -91,7 +91,7 @@ test("strong auth risk wording without proof downgrades verdict and wording", ()
   assert.match(result.content, /automated-abuse candidate/);
   assert.match(result.content, /resource-exhaustion candidate/);
   assert.match(result.content, /severity-unproven/);
-  assert.match(result.content, /Confirmed vulnerability wording unsupported by security proof stage/);
+  assert.match(result.warnings.join("\n"), /Confirmed (?:vulnerability|security claim) wording unsupported by security proof stage/);
 });
 
 test("finalizer replaces prior Work Engine verdict instead of duplicating", () => {
@@ -103,8 +103,9 @@ test("finalizer replaces prior Work Engine verdict instead of duplicating", () =
     evidenceAttached: true,
   });
 
-  assert.equal(result.content.match(/Work Engine verdict:/g)?.length, 1);
-  assert.match(result.content, /Work Engine verdict: partial\./);
+  assert.equal(result.content.match(/Work Engine verdict:/g)?.length ?? 0, 0);
+  assert.match(result.content, /Completed partially/);
+  assert.equal(result.terminalState, "partial");
 });
 
 test("preparatory answer without tool evidence cannot be success", () => {
@@ -122,8 +123,8 @@ test("preparatory answer without tool evidence cannot be success", () => {
   });
 
   assert.equal(result.verdict, "partial");
-  assert.match(result.content, /progress plan instead of a final repo-grounded answer/);
-  assert.match(result.content, /No repository tool evidence was captured/);
+  assert.match(result.warnings.join("\n"), /progress plan instead of a final repo-grounded answer/);
+  assert.match(result.warnings.join("\n"), /No repository tool evidence was captured/);
 });
 
 test("Privacy Sentinel placeholders are not treated as source evidence", () => {
@@ -144,5 +145,5 @@ test("Privacy Sentinel placeholders are not treated as source evidence", () => {
   assert.equal(result.verdict, "partial");
   assert.match(result.content, /Privacy Sentinel redaction token \[WORKSPACE_IDENTITY\] only shows/);
   assert.match(result.content, /Do not treat Privacy Sentinel redaction tokens as raw source values/);
-  assert.match(result.content, /Privacy Sentinel placeholder was treated as source evidence/);
+  assert.match(result.warnings.join("\n"), /Privacy Sentinel placeholder was treated as source evidence/);
 });

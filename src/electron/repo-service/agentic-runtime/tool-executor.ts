@@ -10,6 +10,7 @@ import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateT
 import { resolveToolExecutionTimeoutMs } from "./config";
 import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
 import { authorizeToolForEngineeringStatus } from "../../engineering/tool-phase-auth";
+import { normalizeToolEvidence } from "../../work-engine/execution-evidence";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -66,6 +67,12 @@ export async function executeAgentToolCall({
         toolName,
         args: {},
         output: `Tool argument parsing failed for ${toolName}: ${reason}`,
+        evidence: normalizeToolEvidence(
+          toolName,
+          {},
+          `Tool argument parsing failed for ${toolName}: ${reason}`,
+          { status: "failed", error: reason },
+        ),
       } satisfies ToolExecutionRecord,
     };
   }
@@ -76,7 +83,7 @@ export async function executeAgentToolCall({
     toolArgs,
     autonomyPolicy,
   );
-  if (!phaseAuth.allowed) {
+  if (phaseAuth.allowed === false) {
     events.push({
       id: eventId,
       label: `Blocked ${toolName}`,
@@ -95,6 +102,10 @@ export async function executeAgentToolCall({
           status: "blocked",
           code: phaseAuth.code,
         },
+        evidence: normalizeToolEvidence(toolName, toolArgs, phaseAuth.message, {
+          status: "blocked",
+          code: phaseAuth.code,
+        }),
       } satisfies ToolExecutionRecord,
     };
   }
@@ -150,6 +161,10 @@ export async function executeAgentToolCall({
             policyStop,
             status: cancelled ? "cancelled" : "error",
           },
+          evidence: normalizeToolEvidence(toolName, toolArgs, cancelledMessage, {
+            policyStop,
+            status: cancelled ? "cancelled" : "error",
+          }),
         } satisfies ToolExecutionRecord,
       };
     }
@@ -174,6 +189,10 @@ export async function executeAgentToolCall({
             policyStop: resolvedStop,
             status: "declined",
           },
+          evidence: normalizeToolEvidence(toolName, toolArgs, declinedMessage, {
+            policyStop: resolvedStop,
+            status: "declined",
+          }),
         } satisfies ToolExecutionRecord,
       };
     }
@@ -265,6 +284,12 @@ export async function executeAgentToolCall({
         args: toolArgs,
         output: rawResult,
         parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
+        evidence: normalizeToolEvidence(
+          toolName,
+          toolArgs,
+          rawResult,
+          enrichedParsed ?? parsedOutput ?? undefined,
+        ),
       } satisfies ToolExecutionRecord,
     };
   } catch (error) {
@@ -288,6 +313,12 @@ export async function executeAgentToolCall({
         args: toolArgs,
         output: `Tool ${toolName} failed: ${message}`,
         parsedOutput: { status: "error", error: message },
+        evidence: normalizeToolEvidence(
+          toolName,
+          toolArgs,
+          `Tool ${toolName} failed: ${message}`,
+          { status: "error", error: message },
+        ),
       } satisfies ToolExecutionRecord,
     };
   }

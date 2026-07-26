@@ -1,4 +1,5 @@
 import type { ToolEvent } from "../../contracts/chat";
+import type { ExecutionOutcome } from "../../contracts/execution";
 import type { FinalRunVerdict } from "./finalizer";
 import { buildWorkEngineRunArtifact, type WorkEngineRunArtifact } from "./run-artifact";
 import { persistWorkEngineRunArtifact } from "./run-artifact-persistence";
@@ -27,6 +28,7 @@ export async function persistWorkEngineRunArtifactSafely(input: {
   workPlan: WorkPlan;
   stages: WorkStage[];
   finalVerdict: FinalRunVerdict;
+  executionOutcome?: ExecutionOutcome;
   toolEvents: ToolEvent[];
   validationStatus?: NonNullable<WorkEngineRunArtifact["validation"]>["status"];
   evidenceAttached: boolean;
@@ -44,6 +46,7 @@ export async function persistWorkEngineRunArtifactSafely(input: {
       workPlan: input.workPlan,
       stages: input.stages,
       finalVerdict: input.finalVerdict,
+      executionOutcome: input.executionOutcome,
       toolEvents: input.toolEvents,
       validationStatus: input.validationStatus,
       evidenceAttached: input.evidenceAttached,

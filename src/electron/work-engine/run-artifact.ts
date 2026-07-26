@@ -1,4 +1,5 @@
 import type { ToolEvent } from "../../contracts/chat";
+import type { ExecutionOutcome } from "../../contracts/execution";
 import type { FinalRunVerdict } from "./finalizer";
 import type { WorkStage } from "./stages";
 import type { WorkPlan } from "./types";
@@ -18,6 +19,7 @@ export type WorkEngineRunArtifact = {
   workPlan: WorkPlan;
   stages: WorkStage[];
   finalVerdict: FinalRunVerdict;
+  executionOutcome?: ExecutionOutcome;
   toolEvents: Array<{
     id: string;
     name: string;
@@ -60,6 +62,7 @@ export type BuildWorkEngineRunArtifactInput = {
   workPlan: WorkPlan;
   stages: WorkStage[];
   finalVerdict: FinalRunVerdict;
+  executionOutcome?: ExecutionOutcome;
   toolEvents?: ToolEvent[];
   validationStatus?: NonNullable<WorkEngineRunArtifact["validation"]>["status"];
   evidenceAttached: boolean;
@@ -87,6 +90,7 @@ export function buildWorkEngineRunArtifact(input: BuildWorkEngineRunArtifactInpu
     workPlan: sanitizeWorkPlan(input.workPlan),
     stages: input.stages,
     finalVerdict: input.finalVerdict,
+    executionOutcome: input.executionOutcome,
     toolEvents: (input.toolEvents ?? []).map(summarizeToolEvent),
     validation: {
       required: input.workPlan.validationPlan.required,
@@ -117,6 +121,43 @@ export function exportSanitizedWorkEngineRunArtifact(
     ...artifact,
     snapshot: sanitizeSnapshot(artifact.snapshot),
     workPlan: sanitizeWorkPlan(artifact.workPlan),
+    executionOutcome: artifact.executionOutcome
+      ? {
+          ...artifact.executionOutcome,
+          summary: sanitizeText(artifact.executionOutcome.summary),
+          evidence: {
+            ...artifact.executionOutcome.evidence,
+            completedSteps: sanitizeStringList(artifact.executionOutcome.evidence.completedSteps),
+            failedSteps: artifact.executionOutcome.evidence.failedSteps.map((step) => ({
+              name: sanitizeText(step.name),
+              reason: sanitizeText(step.reason),
+            })),
+            blockedSteps: artifact.executionOutcome.evidence.blockedSteps.map((step) => ({
+              name: sanitizeText(step.name),
+              reason: sanitizeText(step.reason),
+            })),
+            changedFiles: artifact.executionOutcome.evidence.changedFiles.map((file) => ({
+              ...file,
+              path: sanitizeText(file.path),
+            })),
+            validation: {
+              ...artifact.executionOutcome.evidence.validation,
+              summary: artifact.executionOutcome.evidence.validation.summary
+                ? sanitizeText(artifact.executionOutcome.evidence.validation.summary)
+                : undefined,
+            },
+            synthesis: {
+              ...artifact.executionOutcome.evidence.synthesis,
+              summary: artifact.executionOutcome.evidence.synthesis.summary
+                ? sanitizeText(artifact.executionOutcome.evidence.synthesis.summary)
+                : undefined,
+            },
+            requiredUserAction: artifact.executionOutcome.evidence.requiredUserAction
+              ? sanitizeText(artifact.executionOutcome.evidence.requiredUserAction)
+              : undefined,
+          },
+        }
+      : undefined,
     toolEvents: artifact.toolEvents.map((event) => ({
       ...event,
       summary: event.summary ? sanitizeText(event.summary) : event.summary,

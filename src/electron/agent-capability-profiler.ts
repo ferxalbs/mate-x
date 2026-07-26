@@ -99,7 +99,8 @@ export function buildAgentCapabilityRunMetrics(params: {
   const patchQaPassCount =
     patchSuccessCount > 0 && patchQaIssueCount === 0 ? patchSuccessCount : 0;
   const verified =
-    params.evidencePack.status === 'complete' &&
+    (params.evidencePack.executionOutcome?.terminalState === 'succeeded' ||
+      (!params.evidencePack.executionOutcome && params.evidencePack.status === 'complete')) &&
     (validationExecutions.length === 0 ||
       validationPassCount === validationExecutions.length);
 

@@ -60,18 +60,18 @@ describe('validation gate NES-5.1 [strict ledger]', () => {
   });
 
   it('mutationOccurredInLedger detects patch tools', () => {
-    assert.equal(mutationOccurredInLedger([tool('auto_patch')]), true);
+    assert.equal(mutationOccurredInLedger([tool('auto_patch', 'patched src/foo.ts')]), true);
     assert.equal(mutationOccurredInLedger([tool('read')]), false);
     assert.equal(
       mutationOccurredInLedger([tool('run_tests', 'patch_attempted')]),
-      true,
+      false,
     );
   });
 
   it('allows when validation tools ran after mutation', () => {
     const gate = evaluateValidationGate(
       plan(),
-      [tool('auto_patch', 'ok'), tool('run_tests', 'pass')],
+      [tool('auto_patch', 'patched src/foo.ts'), tool('run_tests', 'pass')],
       'All tests passed',
     );
     assert.equal(gate.allowed, true);

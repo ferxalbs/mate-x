@@ -15,6 +15,7 @@ import type {
 } from "../../contracts/sdk-orchestrator.types";
 import type { EvidencePack } from "../../contracts/chat";
 import type { ToolExecutionRecord } from "../evidence-pack";
+import { normalizeToolEvidence } from "../work-engine/execution-evidence";
 
 const AGENTS: AgentId[] = ["codex", "cursor", "antigravity"];
 const DEFAULT_MIN_VTS = 0.85;
@@ -388,15 +389,18 @@ function validationReproduction(
 }
 
 function toToolExecutionRecord(event: ToolExecutionEvent): ToolExecutionRecord {
+  const output = event.output ?? "";
+  const parsedOutput = {
+    ...event.parsedOutput,
+    status: event.status ?? "success",
+    durationMs: event.durationMs,
+  };
   return {
     toolName: event.toolName,
     args: event.args ?? {},
-    output: event.output ?? "",
-    parsedOutput: {
-      ...event.parsedOutput,
-      status: event.status ?? "success",
-      durationMs: event.durationMs,
-    },
+    output,
+    parsedOutput,
+    evidence: normalizeToolEvidence(event.toolName, event.args ?? {}, output, parsedOutput),
   };
 }
 

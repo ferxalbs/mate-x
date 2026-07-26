@@ -1,18 +1,20 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
 import type { WorkStage, WorkStageId } from "./stages";
-import { isConversationalPrompt } from "../../lib/conversational-intent";
+import type { ExecutionSynthesisStatus, ExecutionTerminalState } from "../../contracts/execution";
+import {
+  buildExecutionEvidence,
+  buildUserFacingExecutionSummary,
+  resolveExecutionTerminalState,
+} from "./execution-evidence";
 
-export type FinalRunVerdict =
-  | "success"
-  | "partial"
-  | "blocked"
-  | "failed"
-  | "needs_validation"
-  | "needs_evidence";
+export type FinalRunVerdict = ExecutionTerminalState;
 
 export interface WorkEngineFinalization {
   verdict: FinalRunVerdict;
+  terminalState: ExecutionTerminalState;
+  evidence: ReturnType<typeof buildExecutionEvidence>;
+  summary: string;
   content: string;
   warnings: string[];
 }
@@ -84,40 +86,40 @@ export function finalizeWorkRun(input: {
   evidenceAttached: boolean;
   /** Planning / pre-approval: do not apply final-result preparatory rejection or hard validation. */
   planningPhase?: boolean;
+  synthesisStatus?: ExecutionSynthesisStatus;
+  synthesisSummary?: string;
 }): WorkEngineFinalization {
   const warnings: string[] = [];
-  const planningPhase = Boolean(input.planningPhase);
   const securityProofLedger = buildSecurityProofLedger(input.toolExecutions);
   const confirmedSecurityClaims = extractConfirmedSecurityClaims(input.content);
   const unmatchedSecurityClaims = confirmedSecurityClaims.filter(
     (claim) => !claimMatchesSecurityProofLedger(claim, securityProofLedger),
   );
-  const rawMissingRequired = planningPhase
-    ? []
-    : requiredStages(input.workPlan, input.stages)
-        .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
+  const rawMissingRequired = requiredStages(input.workPlan, input.stages)
+    .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
   const missingRequired = rawMissingRequired.filter(
     (stageId) => stageId !== "security_proof_checked" || unmatchedSecurityClaims.length > 0,
   );
   const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
-  const failedValidationHardBlocker = planningPhase
-    ? false
-    : shouldFailedValidationBlock({
-        workPlan: input.workPlan,
-        stages: input.stages,
-        failedValidation,
-      });
-  const fallbackMissing = planningPhase
-    ? false
-    : fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
-  const blocked = input.stages.some((stage) => stage.status === "blocked");
-  // Preparatory-text rejection only applies to final execution results, never planning phases.
-  const preparatoryOnly = planningPhase ? false : isPreparatoryOnly(input.content);
+  const failedValidationHardBlocker = shouldFailedValidationBlock({
+    workPlan: input.workPlan,
+    stages: input.stages,
+    failedValidation,
+  });
+  const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
+  const preparatoryOnly = isPreparatoryOnly(input.content);
   const missingRuntimeEvidence =
-    !planningPhase &&
     requiresRuntimeEvidence(input.workPlan) &&
     input.toolExecutions.length === 0;
   const privacyPlaceholderMisuse = misusesPrivacySentinelPlaceholder(input.content);
+  const synthesisStatus = input.synthesisStatus ?? (input.content.trim() ? "valid" : "missing");
+  const evidence = buildExecutionEvidence({
+    workPlan: input.workPlan,
+    stages: input.stages,
+    toolExecutions: input.toolExecutions,
+    synthesisStatus,
+    synthesisSummary: input.synthesisSummary,
+  });
 
   if (missingRequired.includes("validation_executed")) {
     warnings.push("Validation evidence missing or blocked; final confidence downgraded.");
@@ -153,9 +155,6 @@ export function finalizeWorkRun(input: {
   if (preparatoryOnly) {
     warnings.push("Assistant returned a progress plan instead of a final repo-grounded answer.");
   }
-  if (planningPhase) {
-    warnings.push("Planning phase: patch/test evidence is not_applicable_for_phase until after approval.");
-  }
   if (missingRuntimeEvidence) {
     warnings.push("No repository tool evidence was captured for a tool-backed security workflow.");
   }
@@ -166,21 +165,36 @@ export function finalizeWorkRun(input: {
     warnings.push("Confirmed security claim wording was downgraded because no matching proof ledger entry referenced the claimed file/path.");
   }
 
-  const verdict = resolveVerdict({
-    missingRequired,
-    failedValidationHardBlocker,
-    fallbackMissing,
-    blocked,
-    preparatoryOnly,
-    missingRuntimeEvidence,
-    privacyPlaceholderMisuse,
-    unmatchedSecurityClaims: unmatchedSecurityClaims.length,
-    evidenceRequired: input.workPlan.evidencePlan.required,
+  if (synthesisStatus !== "valid") {
+    warnings.push("Final synthesis was missing or unavailable; the run cannot be marked successful.");
+  }
+  const terminalState = resolveExecutionTerminalState({
+    workPlan: input.workPlan,
+    evidence,
+    stages: input.stages,
     evidenceAttached: input.evidenceAttached,
+    awaitingApproval: Boolean(input.planningPhase),
+    incompleteEvidence:
+      fallbackMissing ||
+      missingRuntimeEvidence ||
+      privacyPlaceholderMisuse ||
+      unmatchedSecurityClaims.length > 0,
+    preparatoryOnly,
   });
-  const content = rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0);
+  const content = rewriteTerminalClaims(
+    rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0),
+    terminalState,
+  );
+  const summary = buildUserFacingExecutionSummary(terminalState, evidence);
 
-  return { verdict, content: appendHonestStatus(content, verdict, warnings, input.workPlan.objective), warnings };
+  return {
+    verdict: terminalState,
+    terminalState,
+    evidence,
+    summary,
+    content: appendExecutionSummary(content, summary),
+    warnings,
+  };
 }
 
 function shouldFailedValidationBlock(input: {
@@ -395,28 +409,6 @@ function fallbackRequiredButMissing(workPlan: WorkPlan, toolExecutions: ToolExec
   });
 }
 
-function resolveVerdict(input: {
-  missingRequired: WorkStageId[];
-  failedValidationHardBlocker: boolean;
-  fallbackMissing: boolean;
-  blocked: boolean;
-  preparatoryOnly: boolean;
-  missingRuntimeEvidence: boolean;
-  privacyPlaceholderMisuse: boolean;
-  unmatchedSecurityClaims: number;
-  evidenceRequired: boolean;
-  evidenceAttached: boolean;
-}): FinalRunVerdict {
-  if (input.blocked) return "blocked";
-  if (input.failedValidationHardBlocker) return "failed";
-  if (input.fallbackMissing) return "needs_validation";
-  if (input.missingRequired.includes("validation_executed")) return "needs_validation";
-  if (input.evidenceRequired && !input.evidenceAttached) return "needs_evidence";
-  if (input.preparatoryOnly || input.missingRuntimeEvidence || input.privacyPlaceholderMisuse || input.unmatchedSecurityClaims > 0) return "partial";
-  if (input.missingRequired.length > 0) return "partial";
-  return "success";
-}
-
 function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings: string[], forceProofDowngrade = false) {
   const validationOk = stageStatus(stages, "validation_executed") === "passed";
   const proofOk = stageStatus(stages, "security_proof_checked") === "passed" && !forceProofDowngrade;
@@ -489,14 +481,26 @@ function rewritePrivacySentinelPlaceholderMisuse(content: string) {
     .replace(/\bDo not rely on text replacement of sensitive identifiers in SQL strings\./gi, "Verify raw local source before concluding that redacted identifiers are literal SQL text.");
 }
 
-function appendHonestStatus(content: string, verdict: FinalRunVerdict, warnings: string[], objective: string = "") {
-  if (isConversationalPrompt(objective)) {
-    return content.replace(/\n*Work Engine verdict: (?:success|partial|blocked|failed|needs_validation|needs_evidence)\.[\s\S]*$/i, "").trim();
-  }
+function rewriteTerminalClaims(content: string, terminalState: ExecutionTerminalState) {
+  if (terminalState === "succeeded") return content;
+  return content
+    .replace(/\bVerdict:\s*(?:success|succeeded)\b/gi, "Verdict: completion not proven")
+    .replace(/\b(run|execution|change|patch)\s+succeed(?:ed|s|ing)\b/gi, "$1 did not complete")
+    .replace(/\b(run|execution|change|patch)\s+(?:was|is|has been\s+)?successful(?:ly)?\b/gi, "$1 did not complete successfully")
+    .replace(/\bEverything passed\b/gi, "Some required steps did not pass");
+}
 
-  const warningBlock = warnings.length > 0 ? `\nWarnings:\n${warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
+function appendExecutionSummary(
+  content: string,
+  summary: string,
+) {
   const cleanContent = content
-    .replace(/\n*Work Engine verdict: (?:success|partial|blocked|failed|needs_validation|needs_evidence)\.[\s\S]*$/i, "")
+    .replace(/\n*Work Engine verdict:\s*[^\n]+(?:\nWarnings:[\s\S]*)?$/i, "")
+    .replace(/^\s*Work Engine verdict:[^\n]*\n?/gim, "")
+    .replace(/\b(?:planningPhase|not_applicable_for_phase)\b/gi, "")
+    .replace(/\[(?:FORBIDDEN|ERR_[A-Z_]+)\]/g, "")
+    .replace(/\bERR_[A-Z_]+\b/g, "required approval")
+    .replace(/\bWorkPlan\b/g, "execution plan")
     .trim();
-  return `${cleanContent}\n\nWork Engine verdict: ${verdict}.${warningBlock}`;
+  return cleanContent ? `${cleanContent}\n\n${summary}` : summary;
 }

@@ -1,5 +1,6 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
+import { normalizeToolExecution } from "./execution-evidence";
 
 const UNSUPPORTED_DONE_RE = /\b(fixed|ready|works|no warnings|merge-ready|merge ready|done)\b/i;
 
@@ -11,18 +12,6 @@ const UNSUPPORTED_DONE_RE = /\b(fixed|ready|works|no warnings|merge-ready|merge 
 const NO_VALIDATION_NEEDED_RE =
   /\b(no changes?(?:\s+(?:detected|to\s+review|found))?|nothing\s+to\s+(?:validate|review|check)|no\s+(?:patch|code\s+change)|patch\s+not\s+needed|read[\s-]?only|clean\s+working\s+(?:tree|directory)|0\s+(?:insertions?|deletions?)|no\s+(?:uncommitted|unstaged)\s+changes?)\b/i;
 
-/** Tool names that indicate repository mutation occurred. */
-const MUTATION_TOOL_NAMES = new Set([
-  "auto_patch",
-  "file_editor",
-  "apply_patch",
-  "write_file",
-  "str_replace",
-  "search_replace",
-  "patch",
-  "edit_file",
-]);
-
 export interface ValidationGateResult {
   allowed: boolean;
   warnings: string[];
@@ -32,13 +21,8 @@ export function mutationOccurredInLedger(
   toolExecutions: ToolExecutionRecord[],
 ): boolean {
   return toolExecutions.some((execution) => {
-    if (MUTATION_TOOL_NAMES.has(execution.toolName)) return true;
-    if (execution.toolName.includes("patch")) return true;
-    const status = String((execution as { status?: string }).status ?? "");
-    if (status === "patch_attempted" || status === "mutated") return true;
-    const output = String(execution.output ?? "");
-    if (/\bpatch_attempted\b/i.test(output)) return true;
-    return false;
+    const evidence = normalizeToolExecution(execution);
+    return evidence.outcome === "completed" && evidence.changedFiles.length > 0;
   });
 }
 

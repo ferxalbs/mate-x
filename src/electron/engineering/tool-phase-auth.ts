@@ -90,9 +90,6 @@ export function authorizeToolForEngineeringStatus(
       return { allowed: false, code: "ERR_APPROVAL_REQUIRED", message: `Custom policy needs approval before network access.` };
     }
   }
-  if (autonomyPolicy.id === "auto_scoped" && (isMutation || isShellCommand)) {
-    return { allowed: true };
-  }
   if (!status || !isPreApprovalStatus(status)) {
     return { allowed: true };
   }
