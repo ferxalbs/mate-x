@@ -1224,6 +1224,19 @@ function isIndexableFile(file: string) {
 }
 
 function shouldIgnorePath(filePath: string) {
+  if (
+    filePath.includes('node_modules') ||
+    filePath.includes('.git/') ||
+    filePath.includes('.git\\') ||
+    filePath.includes('.vite') ||
+    filePath.includes('/dist/') ||
+    filePath.includes('/.next/') ||
+    filePath.includes('/out/') ||
+    filePath.endsWith('.log') ||
+    filePath.endsWith('.map')
+  ) {
+    return true;
+  }
   return normalizeRelativePath(filePath)
     .split('/')
     .some((part) => IGNORED_DIRS.has(part) || part.endsWith('.log') || part.endsWith('.map'));

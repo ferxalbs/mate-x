@@ -33,7 +33,10 @@ function toLocalImageUrl(filePath: string): string {
   return `mate-local://background/${encodeURIComponent(fileName)}`;
 }
 
+import { usePowerState } from "../../hooks/use-power-state";
+
 export function DesktopShell() {
+  usePowerState();
   const navigate = useNavigate();
   const workspaces = useChatStore((state) => state.workspaces);
   const workspace = useChatStore((state) => state.workspace);

@@ -101,6 +101,8 @@ async function loadSession(assetPath: string) {
         session: await ort.module.InferenceSession.create(path.join(assetPath, "model.onnx"), {
           executionProviders: ["cpu"],
           graphOptimizationLevel: "all",
+          intraOpNumThreads: 2,
+          interOpNumThreads: 1,
         }),
       };
     }
@@ -114,6 +116,8 @@ async function loadSession(assetPath: string) {
       session: await ort.module.InferenceSession.create(modelBytes, {
         executionProviders: ["wasm"],
         graphOptimizationLevel: "all",
+        intraOpNumThreads: 2,
+        interOpNumThreads: 1,
         externalData: dataBytes ? [{ path: "model.onnx.data", data: dataBytes }] : undefined,
       } as any),
     };

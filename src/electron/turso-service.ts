@@ -92,6 +92,15 @@ export class TursoService {
     await mkdir(app.getPath('userData'), { recursive: true });
     const client = this.getClient();
 
+    try {
+      await client.execute('PRAGMA journal_mode = WAL;');
+      await client.execute('PRAGMA synchronous = NORMAL;');
+      await client.execute('PRAGMA temp_store = MEMORY;');
+      await client.execute('PRAGMA cache_size = -64000;');
+    } catch (pragmaError) {
+      console.warn('SQLite PRAGMA initialization skipped or unsupported:', pragmaError);
+    }
+
     await client.batch(
       [
         `CREATE TABLE IF NOT EXISTS workspaces (

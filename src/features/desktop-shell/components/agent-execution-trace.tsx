@@ -133,7 +133,10 @@ function useRunDuration(timeline: ToolEvent[], isRunning: boolean) {
   useEffect(() => {
     if (!isRunning) return;
     setNow(Date.now());
-    const interval = window.setInterval(() => setNow(Date.now()), 1_000);
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      setNow(Date.now());
+    }, 1_000);
     return () => window.clearInterval(interval);
   }, [isRunning, startedAt]);
 

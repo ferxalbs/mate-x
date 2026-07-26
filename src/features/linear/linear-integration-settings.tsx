@@ -17,7 +17,10 @@ export function LinearIntegrationSettings() {
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 1_500);
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      void refresh();
+    }, 3_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 

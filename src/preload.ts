@@ -39,6 +39,12 @@ const uiApi: UiApi = {
   },
   copyToClipboard: (text) =>
     ipcRenderer.invoke("ui:copy-to-clipboard", text),
+  onPowerStateChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { onBattery: boolean; suspended: boolean }) =>
+      listener(payload);
+    ipcRenderer.on("mate:power-state-changed", handler);
+    return () => ipcRenderer.removeListener("mate:power-state-changed", handler);
+  },
 };
 
 const repoApi: RepoInspectorApi = {

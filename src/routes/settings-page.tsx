@@ -279,7 +279,10 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (section !== 'connections' || !mobilePairingPayload) return;
-    const timer = window.setInterval((): void => void refreshMobileBridge(), 1500);
+    const timer = window.setInterval((): void => {
+      if (document.hidden) return;
+      void refreshMobileBridge();
+    }, 2500);
     return () => window.clearInterval(timer);
   }, [mobilePairingPayload, refreshMobileBridge, section]);
 

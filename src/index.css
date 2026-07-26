@@ -561,8 +561,15 @@ label:has(> select#reasoning-effort) select {
   opacity: 1;
 }
 
-.vibrancy-solid .app-ambient {
-  display: none;
+.vibrancy-solid .app-ambient,
+:root.on-battery .app-ambient {
+  display: none !important;
+}
+
+:root.on-battery {
+  --glass-blur: 0px !important;
+  --control-glass-blur: 0px !important;
+  --overlay-glass-blur: 0px !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

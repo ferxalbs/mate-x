@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, shell, protocol, net } from 'electron';
+import { app, BrowserWindow, nativeTheme, shell, protocol, net, powerMonitor } from 'electron';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -287,6 +287,18 @@ app.on('ready', async () => {
 
   createWindow(appSettings);
   startupPerfMark('window-created');
+
+  const broadcastPowerState = (suspended = false) => {
+    const onBattery = powerMonitor.isOnBatteryPower();
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('mate:power-state-changed', { onBattery, suspended });
+    });
+  };
+
+  powerMonitor.on('on-battery', () => broadcastPowerState(false));
+  powerMonitor.on('on-ac', () => broadcastPowerState(false));
+  powerMonitor.on('suspend', () => broadcastPowerState(true));
+  powerMonitor.on('resume', () => broadcastPowerState(false));
 });
 
 // Electron does not wait for async before-quit handlers. Prevent default once,

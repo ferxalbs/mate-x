@@ -172,6 +172,7 @@ export function HomePage() {
     let cancelled = false;
 
     async function refreshPolicyStops() {
+      if (document.hidden) return;
       try {
         const stops = await listPolicyStops();
         if (!cancelled) {
@@ -185,7 +186,7 @@ export function HomePage() {
     }
 
     void refreshPolicyStops();
-    const interval = window.setInterval(refreshPolicyStops, 750);
+    const interval = window.setInterval(refreshPolicyStops, 2_000);
     window.addEventListener('focus', refreshPolicyStops);
     document.addEventListener('visibilitychange', refreshPolicyStops);
 
