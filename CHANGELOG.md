@@ -1,5 +1,44 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.26 (1) [Truthful Agent Execution Outcomes]
+
+Made agent execution outcomes evidence-driven and recoverable so a run cannot expose an error while simultaneously claiming success. The canonical execution contract now separates lifecycle completion from the verified result of the work.
+
+### Canonical execution outcomes
+
+* Added the shared terminal-state contract with exactly five outcomes: `succeeded`, `partial`, `blocked`, `failed`, and `awaiting_approval`.
+* Added structured execution evidence for completed steps, failed and blocked steps, confirmed changed files, validation status, synthesis status, and the required user action.
+* Carried the same outcome and evidence through `AssistantExecution`, evidence packs, reproducible run results, Work Engine artifacts, persisted run data, IPC responses, renderer state, and the runs view.
+* Removed the assumption that a completed orchestration lifecycle is equivalent to a successful execution. Each result now has one canonical terminal outcome.
+
+### Tool evidence and deterministic reduction
+
+* Normalized every tool result, including structured failure trailers and formatted sandbox output, before it can influence stages, validation, finalization, or user-facing summaries.
+* Classified workspace-trust and policy denials as blocked, pending policy or approval as awaiting approval, execution errors and timeouts as failed, and confirmed successful calls as completed.
+* Recorded changed files only from confirmed successful mutation results, preserving the exact repository-relative paths together with backup-created and impact-analysis status.
+* Derived validation from normalized tool evidence and validation stages instead of tool-name presence, planning flags, phase assumptions, or model-generated claims.
+* Added a single deterministic precedence reducer: a mutation followed by a blocker, failure, missing validation, or missing synthesis is partial; a trust denial without mutation is blocked; a pending approval is awaiting approval; a non-mutating execution failure is failed; and succeeded requires all required work, validation, evidence, and final synthesis to be valid.
+* Prevented model text such as “success” or “completed” from overriding contradictory verified tool evidence.
+
+### Authorization, synthesis, and recovery
+
+* Removed the planning and `auto_scoped` authorization bypass that could permit mutations or validation before required approval or workspace-trust decisions were resolved.
+* Preserved approval and workspace-trust requirements in the canonical result so a stopped run explains whether it is blocked or waiting for approval and what action can safely resume it.
+* Changed synthesis APIs to return both the generated text and its status. Deterministic fallback text remains available for recovery, but missing or fallback-only synthesis can never qualify a run as succeeded.
+* Preserved mutation evidence when a later model request, tool call, validation step, or final synthesis fails, returning a recoverable partial result instead of losing the files that changed.
+* Added concise recovery summaries that state what happened, which files changed, what did not run, why execution stopped, and the safest next action.
+
+### User-facing result integrity
+
+* Replaced raw Work Engine verdicts, phase flags, internal enum values, and implementation diagnostics in inline result copy with plain-language execution summaries.
+* Kept detailed tool and execution diagnostics behind the existing trace disclosure while continuing to report exact changed files and backup or impact-analysis status.
+* Updated chat-store sealing, run persistence, IPC result handling, and the runs page so an error cannot be rendered alongside a success verdict for the same execution.
+
+### Tests and verification
+
+* Added regression coverage for trust-blocked sandbox execution, failed tools without mutation, successful mutation followed by failed or blocked validation, missing and fallback-only synthesis, approval-required execution, fully successful execution, and model text that contradicts failed evidence.
+* Added renderer and store coverage proving canonical results cannot expose an error while reporting success, and that internal verdict or planning diagnostics do not appear in final user-facing copy.
+
 ## Unreleased - 2026.07.25 (1) [Workspace Policy and Behavior Mode Stabilization]
 
 * Preserved the selected Auto, Guided, Review, or Custom autonomy policy from the composer through preload, IPC, runbook resolution, and runtime execution, while keeping Workspace Trust as the hard safety ceiling.
