@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.26 (2) [Power-Aware Performance and Release Hardening]
+
+* Added a shared power-state policy that initializes correctly at cold start, reacts to battery, suspend, thermal, and CPU speed-limit events, and pauses non-essential main-process work under constrained power.
+* Replaced renderer polling timers with visibility-aware, single-flight scheduling so hidden windows do not wake periodically or overlap IPC requests.
+* Hardened repository graph refresh deferral, ONNX backend thread configuration, local SQLite durability settings, and release dependency synchronization.
+* Removed unused Liquid WebGL UI code and dependencies without changing any active visual surface.
+
 ## Unreleased - 2026.07.26 (1) [Truthful Agent Execution Outcomes]
 
 Made agent execution outcomes evidence-driven and recoverable so a run cannot expose an error while simultaneously claiming success. The canonical execution contract now separates lifecycle completion from the verified result of the work.

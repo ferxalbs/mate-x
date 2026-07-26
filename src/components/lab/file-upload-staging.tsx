@@ -300,7 +300,6 @@ export default function UploadStaging({
       ...counts,
       bytes: files.reduce((sum, f) => sum + f.size, 0),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files.length, counts.queued, counts.uploading, counts.done, counts.error, onStateChange]);
 
   const ghostBtnClass =

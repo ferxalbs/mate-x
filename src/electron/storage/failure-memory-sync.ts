@@ -11,6 +11,7 @@ import type {
   FailureMemorySyncResult,
   FailureMemoryWorkspaceExport,
 } from "../../contracts/failure-memory-sync.types";
+import { powerStateService } from "../power-state-service";
 
 const DEFAULT_PREFIX = "failure-memory/";
 const DEFAULT_SYNC_INTERVAL_MINUTES = 5;
@@ -30,6 +31,7 @@ export class FailureMemorySyncError extends Error {
 export class FailureMemorySync {
   private readonly options: FailureMemorySyncOptions;
   private timer: NodeJS.Timeout | null = null;
+  private unsubscribePowerState: (() => void) | null = null;
 
   constructor(
     private readonly adapter: MaTeXStorageAdapter,
@@ -40,10 +42,7 @@ export class FailureMemorySync {
 
   start() {
     this.stop();
-    const intervalMs = configValue(this.options.config?.syncIntervalMinutes, DEFAULT_SYNC_INTERVAL_MINUTES) * 60_000;
-    this.timer = setInterval(() => {
-      void this.sync().catch(() => undefined);
-    }, intervalMs);
+    this.unsubscribePowerState = powerStateService.subscribe(() => this.scheduleTimer(), true);
   }
 
   stop() {
@@ -51,6 +50,27 @@ export class FailureMemorySync {
       clearInterval(this.timer);
       this.timer = null;
     }
+    this.unsubscribePowerState?.();
+    this.unsubscribePowerState = null;
+  }
+
+  private scheduleTimer() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    if (!powerStateService.canRunBackgroundWork()) {
+      return;
+    }
+
+    const intervalMs = configValue(this.options.config?.syncIntervalMinutes, DEFAULT_SYNC_INTERVAL_MINUTES) * 60_000;
+    this.timer = setInterval(() => {
+      if (!powerStateService.canRunBackgroundWork()) {
+        this.scheduleTimer();
+        return;
+      }
+      void this.sync().catch(() => undefined);
+    }, intervalMs);
   }
 
   async sync(): Promise<FailureMemorySyncResult> {

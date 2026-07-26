@@ -41,6 +41,7 @@ import { checkForUpdates } from "./updater";
 import { applyWindowAppearance } from "./window-appearance";
 import { getStack } from "./main-stack";
 import { setAuthorizedBackgroundImagePath } from "./background-image-auth";
+import { powerStateService } from "./power-state-service";
 
 // ── Lazy service loaders (keep main-process cold start free of assistant/SDK bulk) ──
 const loadRepoService = () => import("./repo-service");
@@ -715,6 +716,7 @@ export function registerIpcHandlers() {
   };
 
   handle("app:check-updates", async () => checkForUpdates(true));
+  handle("ui:get-power-state", async () => powerStateService.getState());
   handle("linear:get-status", async () => linearAction((service) => service.status()));
   handle("linear:connect", async () => linearAction((service) => service.begin()));
   handle("linear:disconnect", async () => linearAction((service) => service.revoke()));

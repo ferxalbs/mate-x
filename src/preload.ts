@@ -13,6 +13,7 @@ import type {
   UiApi,
   MobileBridgeApi,
 } from "./contracts/ipc";
+import type { PowerStatePayload } from "./contracts/power";
 
 const ASSISTANT_PROGRESS_CHANNEL = "repo:assistant-progress";
 
@@ -39,8 +40,9 @@ const uiApi: UiApi = {
   },
   copyToClipboard: (text) =>
     ipcRenderer.invoke("ui:copy-to-clipboard", text),
+  getPowerState: () => ipcRenderer.invoke("ui:get-power-state"),
   onPowerStateChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: { onBattery: boolean; suspended: boolean }) =>
+    const handler = (_event: Electron.IpcRendererEvent, payload: PowerStatePayload) =>
       listener(payload);
     ipcRenderer.on("mate:power-state-changed", handler);
     return () => ipcRenderer.removeListener("mate:power-state-changed", handler);

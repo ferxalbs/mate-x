@@ -343,7 +343,6 @@ export default function MorphingCheckout({
     setCvcRaw(b === "amex" ? "4424" : "442");
     setErrors({});
     navigateRef.current(0, { force: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.key]);
 
   useEffect(

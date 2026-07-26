@@ -1,13 +1,12 @@
 "use client";
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
-import { ArrowDataTransferVerticalIcon } from "@hugeicons/core-free-icons";
+import { ArrowDataTransferVerticalIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 const Autocomplete = AutocompletePrimitive.Root;
 

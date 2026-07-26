@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
+import type { ThermalState } from '../contracts/power';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../contracts/settings';
 import { initializeUpdater } from './updater';
 import {
@@ -18,6 +19,7 @@ import { setSDKOrchestratorInitializationError } from './sdk-orchestrator-state'
 import { startupPerfBegin, startupPerfMark } from './startup-perf';
 import { tursoService } from './turso-service';
 import { resolveWindowAppearance } from './window-appearance';
+import { powerStateService } from './power-state-service';
 
 // Electron Forge can start the app more than once when a dev process is
 // restarted quickly. Keep one runtime and bring the existing window forward.
@@ -93,13 +95,6 @@ if (started) {
   app.quit();
 }
 
-// Enable canvas-draw-element (chrome://flags/#canvas-draw-element) and related
-// Blink features required by @liquid-dom/react to capture DOM content into its
-// WebGL canvas for glass refraction. Must be set before the app is ready.
-app.commandLine.appendSwitch('enable-features', 'CanvasDrawElement');
-app.commandLine.appendSwitch('enable-blink-features', 'CanvasDrawElement');
-
-
 const isTrustedAppUrl = (url: string) => {
   let parsedUrl: URL;
 
@@ -115,6 +110,59 @@ const isTrustedAppUrl = (url: string) => {
 
   return parsedUrl.protocol === 'file:';
 };
+
+let stopPowerStateMonitoring: (() => void) | null = null;
+let stopPowerStateBroadcast: (() => void) | null = null;
+
+function readThermalState(): ThermalState {
+  try {
+    return powerMonitor.getCurrentThermalState();
+  } catch {
+    return 'unknown';
+  }
+}
+
+function startPowerStateMonitoring() {
+  const update = (next: Parameters<typeof powerStateService.update>[0] = {}) => {
+    powerStateService.update(next);
+  };
+  const handleBattery = () => update({ onBattery: true, suspended: false });
+  const handleAc = () => update({ onBattery: false, suspended: false });
+  const handleSuspend = () => update({ suspended: true });
+  const handleResume = () => update({
+    onBattery: powerMonitor.isOnBatteryPower(),
+    suspended: false,
+    thermalState: readThermalState(),
+  });
+  const handleSpeedLimit = (event: Electron.Event<Electron.PowerMonitorSpeedLimitChangeEventParams>) => {
+    update({ speedLimit: event.limit });
+  };
+  const handleThermalState = (event: Electron.Event<Electron.PowerMonitorThermalStateChangeEventParams>) => {
+    update({ thermalState: event.state });
+  };
+
+  update({
+    onBattery: powerMonitor.isOnBatteryPower(),
+    suspended: false,
+    thermalState: readThermalState(),
+    speedLimit: 100,
+  });
+  powerMonitor.on('on-battery', handleBattery);
+  powerMonitor.on('on-ac', handleAc);
+  powerMonitor.on('suspend', handleSuspend);
+  powerMonitor.on('resume', handleResume);
+  powerMonitor.on('speed-limit-change', handleSpeedLimit);
+  powerMonitor.on('thermal-state-change', handleThermalState);
+
+  return () => {
+    powerMonitor.off('on-battery', handleBattery);
+    powerMonitor.off('on-ac', handleAc);
+    powerMonitor.off('suspend', handleSuspend);
+    powerMonitor.off('resume', handleResume);
+    powerMonitor.off('speed-limit-change', handleSpeedLimit);
+    powerMonitor.off('thermal-state-change', handleThermalState);
+  };
+}
 
 const hardenWindow = (window: BrowserWindow) => {
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -189,6 +237,7 @@ const createWindow = (settings: AppSettings) => {
 
 app.on('ready', async () => {
   startupPerfBegin('app-ready');
+  stopPowerStateMonitoring = startPowerStateMonitoring();
 
   protocol.handle('mate-local', async (request) => {
     const requestedFileName = parseLocalImageRequest(request.url);
@@ -287,18 +336,13 @@ app.on('ready', async () => {
 
   createWindow(appSettings);
   startupPerfMark('window-created');
-
-  const broadcastPowerState = (suspended = false) => {
-    const onBattery = powerMonitor.isOnBatteryPower();
+  stopPowerStateBroadcast = powerStateService.subscribe((state) => {
     BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send('mate:power-state-changed', { onBattery, suspended });
+      if (!win.isDestroyed()) {
+        win.webContents.send('mate:power-state-changed', state);
+      }
     });
-  };
-
-  powerMonitor.on('on-battery', () => broadcastPowerState(false));
-  powerMonitor.on('on-ac', () => broadcastPowerState(false));
-  powerMonitor.on('suspend', () => broadcastPowerState(true));
-  powerMonitor.on('resume', () => broadcastPowerState(false));
+  });
 });
 
 // Electron does not wait for async before-quit handlers. Prevent default once,
@@ -310,6 +354,8 @@ app.on('before-quit', (event) => {
   }
   event.preventDefault();
   isQuitting = true;
+  stopPowerStateMonitoring?.();
+  stopPowerStateBroadcast?.();
   void teardownStack()
     .catch((error) => {
       console.error('MaTE X stack teardown failed during quit:', error);

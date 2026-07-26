@@ -562,11 +562,13 @@ label:has(> select#reasoning-effort) select {
 }
 
 .vibrancy-solid .app-ambient,
-:root.on-battery .app-ambient {
+:root.on-battery .app-ambient,
+:root.power-suspended .app-ambient {
   display: none !important;
 }
 
-:root.on-battery {
+:root.on-battery,
+:root.power-suspended {
   --glass-blur: 0px !important;
   --control-glass-blur: 0px !important;
   --overlay-glass-blur: 0px !important;

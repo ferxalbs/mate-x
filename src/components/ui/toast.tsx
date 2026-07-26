@@ -4,13 +4,12 @@ import { Toast } from "@base-ui/react/toast";
 import * as React from "react";
 import { useEffect, type CSSProperties } from "react";
 import { useParams } from "@tanstack/react-router";
-import { Tick01Icon, Alert01Icon as CircleAlertIcon, CheckmarkCircle01Icon as CircleCheckIcon, InformationCircleIcon, Loading02Icon as LoaderCircleIcon, Alert02Icon as TriangleAlertIcon } from "@hugeicons/core-free-icons";
+import { Tick01Icon, Alert01Icon as CircleAlertIcon, CheckmarkCircle01Icon as CircleCheckIcon, InformationCircleIcon, Loading02Icon as LoaderCircleIcon, Alert02Icon as TriangleAlertIcon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
 import { buildVisibleToastLayout, shouldHideCollapsedToastContent } from "./toast.logic";
-import { Copy01Icon } from "@hugeicons/core-free-icons";
 
 type ThreadId = string;
 

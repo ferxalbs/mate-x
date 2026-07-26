@@ -92,13 +92,19 @@ export class TursoService {
     await mkdir(app.getPath('userData'), { recursive: true });
     const client = this.getClient();
 
-    try {
-      await client.execute('PRAGMA journal_mode = WAL;');
-      await client.execute('PRAGMA synchronous = NORMAL;');
-      await client.execute('PRAGMA temp_store = MEMORY;');
-      await client.execute('PRAGMA cache_size = -64000;');
-    } catch (pragmaError) {
-      console.warn('SQLite PRAGMA initialization skipped or unsupported:', pragmaError);
+    if (this.getLocalDatabaseFilePath()) {
+      try {
+        await client.execute('PRAGMA journal_mode = WAL;');
+        // MaTE X stores evidence and control-plane state locally. FULL keeps
+        // committed records durable across a power loss; WAL still allows
+        // readers and writers to proceed without the old rollback-journal cost.
+        await client.execute('PRAGMA synchronous = FULL;');
+        await client.execute('PRAGMA temp_store = MEMORY;');
+        await client.execute('PRAGMA cache_size = -32000;');
+        await client.execute('PRAGMA busy_timeout = 5000;');
+      } catch (pragmaError) {
+        console.warn('SQLite PRAGMA initialization skipped or unsupported:', pragmaError);
+      }
     }
 
     await client.batch(

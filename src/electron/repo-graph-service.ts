@@ -25,6 +25,7 @@ import {
   requestRainyEmbeddings,
 } from './rainy-service';
 import { getEmbeddingContent } from './repo-graph-embedding-privacy';
+import { powerStateService } from './power-state-service';
 import { tursoService } from './turso-service';
 
 type RepoGraphWorkspace = Pick<WorkspaceEntry, 'id' | 'name' | 'path'>;
@@ -103,7 +104,22 @@ export class RepoGraphService {
   private refreshTimers = new Map<string, NodeJS.Timeout>();
   private inFlightRefreshes = new Map<string, Promise<RepoGraphSnapshot>>();
   private pendingWatcherChanges = new Map<string, Set<string>>();
+  private deferredRefreshWorkspaces = new Set<string>();
+  private workspaceRefs = new Map<string, RepoGraphWorkspace>();
   private removedWorkspaceIds = new Set<string>();
+
+  constructor() {
+    powerStateService.subscribe(() => {
+      if (!powerStateService.canRunBackgroundWork()) return;
+
+      for (const workspaceId of this.deferredRefreshWorkspaces) {
+        const workspace = this.workspaceRefs.get(workspaceId);
+        if (workspace) {
+          this.scheduleRefresh(workspace, AUTO_INDEX_DELAY_MS);
+        }
+      }
+    });
+  }
 
   async refreshWorkspace(
     workspace: RepoGraphWorkspace,
@@ -111,6 +127,7 @@ export class RepoGraphService {
     forceRefresh = false,
   ): Promise<RepoGraphSnapshot> {
     this.removedWorkspaceIds.delete(workspace.id);
+    this.workspaceRefs.set(workspace.id, workspace);
     const existing = this.inFlightRefreshes.get(workspace.id);
     if (existing && !forceRefresh) {
       return existing;
@@ -118,6 +135,9 @@ export class RepoGraphService {
 
     const refresh = this.buildWorkspaceGraph(workspace, onEmbeddingProgress).finally(() => {
       this.inFlightRefreshes.delete(workspace.id);
+      if (!this.pendingWatcherChanges.get(workspace.id)?.size) {
+        this.deferredRefreshWorkspaces.delete(workspace.id);
+      }
     });
     this.inFlightRefreshes.set(workspace.id, refresh);
     return refresh;
@@ -125,6 +145,7 @@ export class RepoGraphService {
 
   async ensureWorkspaceGraph(workspace: RepoGraphWorkspace): Promise<RepoGraphSnapshot> {
     this.removedWorkspaceIds.delete(workspace.id);
+    this.workspaceRefs.set(workspace.id, workspace);
     this.ensureWatcher(workspace);
     const snapshot = await tursoService.getRepoGraphSnapshot(workspace.id);
     return snapshot ?? this.refreshWorkspace(workspace);
@@ -455,6 +476,7 @@ export class RepoGraphService {
     const targetFiles = files?.length
       ? files.map(normalizeRelativePath).filter(isIndexableFile)
       : await collectIndexableFiles(workspace.path);
+    const indexedContents = await readIndexedFiles(workspace.path, targetFiles);
     const seen = new Set<string>();
     const changedFiles: string[] = [];
     const unchangedFiles: string[] = [];
@@ -462,7 +484,7 @@ export class RepoGraphService {
 
     for (const file of targetFiles) {
       seen.add(file);
-      const indexedContent = await readSmallFile(path.join(workspace.path, file));
+      const indexedContent = indexedContents.get(file) ?? null;
       if (!indexedContent) {
         removedFiles.push(file);
         continue;
@@ -517,18 +539,16 @@ export class RepoGraphService {
   ) {
     const files = await collectIndexableFiles(workspace.path);
     const builder = new GraphBuilder(workspace.id);
-    const fileContents = new Map<string, IndexedFileContent>();
+    const fileContents = await readIndexedFiles(workspace.path, files);
 
     for (const file of files) {
       const kind = classifyFile(file);
       builder.node(kind, file, file, { extension: path.extname(file) });
-      const absolutePath = path.join(workspace.path, file);
-      const indexedContent = await readSmallFile(absolutePath);
-      if (indexedContent === null) {
+      const indexedContent = fileContents.get(file) ?? null;
+      if (!indexedContent) {
         continue;
       }
       const { content } = indexedContent;
-      fileContents.set(file, indexedContent);
       builder.node(kind, file, file, {
         extension: path.extname(file),
         semanticProfile: buildSemanticProfile(file, kind, content),
@@ -587,6 +607,8 @@ export class RepoGraphService {
     }
 
     this.pendingWatcherChanges.delete(workspaceId);
+    this.deferredRefreshWorkspaces.delete(workspaceId);
+    this.workspaceRefs.delete(workspaceId);
   }
 
   private async loadFileGraph(workspaceId: string) {
@@ -630,6 +652,7 @@ export class RepoGraphService {
   }
 
   private ensureWatcher(workspace: RepoGraphWorkspace) {
+    this.workspaceRefs.set(workspace.id, workspace);
     if (this.watchers.has(workspace.id)) {
       return;
     }
@@ -652,6 +675,8 @@ export class RepoGraphService {
   }
 
   private scheduleRefresh(workspace: RepoGraphWorkspace, delayMs: number) {
+    this.workspaceRefs.set(workspace.id, workspace);
+    this.deferredRefreshWorkspaces.add(workspace.id);
     const existingTimer = this.refreshTimers.get(workspace.id);
     if (existingTimer) {
       clearTimeout(existingTimer);
@@ -659,15 +684,23 @@ export class RepoGraphService {
     const timer = setTimeout(() => {
       this.refreshTimers.delete(workspace.id);
       const pendingChanges = this.pendingWatcherChanges.get(workspace.id);
-      this.pendingWatcherChanges.delete(workspace.id);
       void (async () => {
+        if (!powerStateService.canRunBackgroundWork()) {
+          return;
+        }
+
+        this.pendingWatcherChanges.delete(workspace.id);
         if (
           pendingChanges?.size &&
           !(await hasIndexableFingerprintChanges(workspace, [...pendingChanges]))
         ) {
+          this.deferredRefreshWorkspaces.delete(workspace.id);
           return;
         }
         await this.refreshWorkspace(workspace);
+        if (!this.pendingWatcherChanges.get(workspace.id)?.size) {
+          this.deferredRefreshWorkspaces.delete(workspace.id);
+        }
       })();
     }, delayMs);
     this.refreshTimers.set(workspace.id, timer);
@@ -1046,6 +1079,27 @@ async function collectIndexableFiles(rootPath: string) {
   }
   await visit(rootPath);
   return files.sort();
+}
+
+async function readIndexedFiles(rootPath: string, files: string[]) {
+  const contents = new Map<string, IndexedFileContent | null>();
+  let nextIndex = 0;
+  const concurrency = powerStateService.canRunBackgroundWork() ? 8 : 1;
+  const workerCount = Math.min(concurrency, files.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < files.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        const file = files[index];
+        if (!file) continue;
+        contents.set(file, await readSmallFile(path.join(rootPath, file)));
+      }
+    }),
+  );
+
+  return contents;
 }
 
 async function readSmallFile(filePath: string) {

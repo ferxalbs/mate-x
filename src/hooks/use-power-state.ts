@@ -1,23 +1,24 @@
 import { useEffect, useState } from 'react';
-import type { PowerStatePayload } from '../contracts/ipc';
+import { DEFAULT_POWER_STATE, type PowerStatePayload } from '../contracts/power';
 
 export function usePowerState(): PowerStatePayload {
-  const [powerState, setPowerState] = useState<PowerStatePayload>({
-    onBattery: false,
-    suspended: false,
-  });
+  const [powerState, setPowerState] = useState<PowerStatePayload>(DEFAULT_POWER_STATE);
 
   useEffect(() => {
-    if (!window.mate?.ui?.onPowerStateChanged) return;
-
-    const cleanup = window.mate.ui.onPowerStateChanged((payload) => {
+    const applyPowerState = (payload: PowerStatePayload) => {
       setPowerState(payload);
-      if (payload.onBattery) {
-        document.documentElement.classList.add('on-battery');
-      } else {
-        document.documentElement.classList.remove('on-battery');
-      }
-    });
+      document.documentElement.classList.toggle('on-battery', payload.onBattery);
+      document.documentElement.classList.toggle('power-suspended', payload.suspended);
+      document.documentElement.dataset.thermalState = payload.thermalState;
+    };
+
+    if (!window.mate?.ui) return;
+
+    const cleanup = window.mate.ui.onPowerStateChanged?.(applyPowerState);
+    const getPowerState = window.mate.ui.getPowerState;
+    if (getPowerState) {
+      void getPowerState().then(applyPowerState).catch(() => undefined);
+    }
 
     return cleanup;
   }, []);

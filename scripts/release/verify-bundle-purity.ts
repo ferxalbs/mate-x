@@ -123,7 +123,8 @@ if (requireAsar) {
   if (!asar) {
     failures.push('app.asar not found (package first; --require-asar set)');
   } else {
-    const list = spawnSync('npx', ['--yes', 'asar', 'list', asar], {
+    const asarCommand = join(root, 'node_modules', '.bin', 'asar');
+    const list = spawnSync(asarCommand, ['list', asar], {
       encoding: 'utf8',
       cwd: root,
       maxBuffer: 20 * 1024 * 1024,
@@ -148,8 +149,8 @@ if (requireAsar) {
       }
 
       spawnSync(
-        'npx',
-        ['--yes', 'asar', 'extract-file', asar, '.vite/build/main.js'],
+        asarCommand,
+        ['extract-file', asar, '.vite/build/main.js'],
         { encoding: 'utf8', cwd: root, maxBuffer: 20 * 1024 * 1024 },
       );
       const extractedMain = join(root, 'main.js');

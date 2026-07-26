@@ -163,7 +163,6 @@ export default function WheelList({
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollTop = clampIndex(initialIndex) * metricsRef.current.itemH;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => () => window.clearTimeout(settleTimer.current), []);

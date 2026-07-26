@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { SettingsRow } from "../../components/ui/settings-layout";
 import type { LinearIntegrationStatus } from "../../contracts/linear-integration";
+import { useVisibilityInterval } from "../../hooks/use-visibility-interval";
 
 function errorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : "Linear could not complete that action.";
@@ -15,14 +16,7 @@ export function LinearIntegrationSettings() {
   const [error, setError] = useState<string | null>(null);
   const refresh = useCallback(() => window.mate.settings.getLinearStatus().then(setStatus).catch((cause) => setError(errorMessage(cause))), []);
 
-  useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => {
-      if (document.hidden) return;
-      void refresh();
-    }, 3_000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+  useVisibilityInterval(refresh, 3_000);
 
   const connected = status?.state === "connected" || status?.state === "permission_changed";
   const retryable = retryAvailable || status?.state === "error" || status?.state === "revoked";

@@ -1,4 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useVisibilityInterval } from '../hooks/use-visibility-interval';
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { QRCodeSVG } from 'qrcode.react';
@@ -277,14 +278,9 @@ export function SettingsPage() {
     }
   }, [refreshMobileBridge, section]);
 
-  useEffect(() => {
-    if (section !== 'connections' || !mobilePairingPayload) return;
-    const timer = window.setInterval((): void => {
-      if (document.hidden) return;
-      void refreshMobileBridge();
-    }, 2500);
-    return () => window.clearInterval(timer);
-  }, [mobilePairingPayload, refreshMobileBridge, section]);
+  useVisibilityInterval(refreshMobileBridge, 2_500, {
+    enabled: section === 'connections' && Boolean(mobilePairingPayload),
+  });
 
   const handleStartMobilePairing = useCallback(async () => {
     setIsMobileBusy(true);

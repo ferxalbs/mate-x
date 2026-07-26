@@ -5,6 +5,7 @@ import type { PrivacyModelStatus } from "../../contracts/privacy";
 import type { PrivacyLabel, PrivacyRisk, PrivacySpan } from "./privacy-types";
 import { hashSensitiveText } from "./privacy-redactor";
 import { loadPrivacyModelStatus } from "./privacy-model-loader";
+import { powerStateService } from "../power-state-service";
 
 export interface PrivacyOnnxScanResult {
   spans: PrivacySpan[];
@@ -96,15 +97,24 @@ export async function scanWithOnnx(text: string): Promise<PrivacyOnnxScanResult>
 async function loadSession(assetPath: string) {
   sessionPromise ??= loadOrtRuntime().then(async (ort) => {
     if (ort.kind === "node") {
+      const intraOpNumThreads = powerStateService.canRunBackgroundWork() ? 2 : 1;
       return {
         ort: ort.module,
         session: await ort.module.InferenceSession.create(path.join(assetPath, "model.onnx"), {
           executionProviders: ["cpu"],
           graphOptimizationLevel: "all",
-          intraOpNumThreads: 2,
+          intraOpNumThreads,
           interOpNumThreads: 1,
         }),
       };
+    }
+
+    // The WASM backend only supports multithreading when the runtime is
+    // cross-origin isolated. MaTE X loads this fallback in the main process,
+    // so keep it single-threaded instead of passing unsupported Node options.
+    if (ort.module.env?.wasm) {
+      ort.module.env.wasm.numThreads = 1;
+      ort.module.env.wasm.proxy = false;
     }
 
     const [modelBytes, dataBytes] = await Promise.all([
@@ -116,10 +126,8 @@ async function loadSession(assetPath: string) {
       session: await ort.module.InferenceSession.create(modelBytes, {
         executionProviders: ["wasm"],
         graphOptimizationLevel: "all",
-        intraOpNumThreads: 2,
-        interOpNumThreads: 1,
         externalData: dataBytes ? [{ path: "model.onnx.data", data: dataBytes }] : undefined,
-      } as any),
+      }),
     };
   });
   return sessionPromise;

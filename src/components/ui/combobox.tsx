@@ -1,14 +1,13 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { Tick01Icon, ArrowDataTransferVerticalIcon } from "@hugeicons/core-free-icons";
+import { Tick01Icon, ArrowDataTransferVerticalIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 const ComboboxContext = React.createContext<{
   chipsRef: React.RefObject<Element | null> | null;

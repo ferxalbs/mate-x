@@ -4,6 +4,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { SidebarProvider } from "../../components/ui/sidebar";
 import { useTheme } from "../../hooks/use-theme";
 import { usePlatform } from "../../hooks/use-platform";
+import { usePowerState } from "../../hooks/use-power-state";
 import {
   applyRendererSettings,
   getAppSettings,
@@ -32,8 +33,6 @@ function toLocalImageUrl(filePath: string): string {
   if (!fileName) return "";
   return `mate-local://background/${encodeURIComponent(fileName)}`;
 }
-
-import { usePowerState } from "../../hooks/use-power-state";
 
 export function DesktopShell() {
   usePowerState();

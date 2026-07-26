@@ -20,6 +20,7 @@ import { DEFAULT_BEHAVIOR_PREFERENCE, type BehaviorPreference } from '../contrac
 import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
 import { updateWorkspaceTrustContract } from '../services/repo-client';
 import type { WorkspaceTrustAutonomy } from '../contracts/workspace';
+import { useVisibilityInterval } from '../hooks/use-visibility-interval';
 
 export function HomePage() {
   const isSubmitting = useRef(false);
@@ -168,35 +169,20 @@ export function HomePage() {
     void refreshEngineeringTasks();
   }, [refreshEngineeringTasks, runStatus, messages.length]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshPolicyStops() {
-      if (document.hidden) return;
-      try {
-        const stops = await listPolicyStops();
-        if (!cancelled) {
-          setPendingPolicyStop(stops.find((stop) => stop.status === 'open') ?? null);
-        }
-      } catch {
-        if (!cancelled) {
-          setPendingPolicyStop(null);
-        }
-      }
+  const refreshPolicyStops = useCallback(async () => {
+    try {
+      const stops = await listPolicyStops();
+      setPendingPolicyStop(stops.find((stop) => stop.status === 'open') ?? null);
+    } catch {
+      setPendingPolicyStop(null);
     }
+  }, []);
 
+  useVisibilityInterval(refreshPolicyStops, 2_000, { runImmediately: false });
+
+  useEffect(() => {
     void refreshPolicyStops();
-    const interval = window.setInterval(refreshPolicyStops, 2_000);
-    window.addEventListener('focus', refreshPolicyStops);
-    document.addEventListener('visibilitychange', refreshPolicyStops);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshPolicyStops);
-      document.removeEventListener('visibilitychange', refreshPolicyStops);
-    };
-  }, [activeThreadId, runStatus]);
+  }, [activeThreadId, refreshPolicyStops, runStatus]);
 
   useEffect(() => {
     const handleSettingsUpdated = (event: Event) => {

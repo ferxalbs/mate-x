@@ -28,6 +28,7 @@ import type { RainyModelCatalogEntry, RainyModelLaunch } from "./rainy";
 import type { PrivacyApi } from "./privacy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
+import type { PowerStatePayload } from "./power";
 import type { LinearIntegrationStatus } from "./linear-integration";
 import type {
   MobileBridgeDeviceSession,
@@ -222,17 +223,13 @@ export interface MobileBridgeApi {
   revokeDevice: (deviceId: string) => Promise<MobileBridgeDeviceSession[]>;
 }
 
-export interface PowerStatePayload {
-  onBattery: boolean;
-  suspended: boolean;
-}
-
 export interface UiApi {
   showChatContextMenu: (threadId: string) => Promise<void>;
   onRenameThread: (listener: (threadId: string) => void) => () => void;
   onArchiveThread: (listener: (threadId: string) => void) => () => void;
   onDeleteThread: (listener: (threadId: string) => void) => () => void;
   copyToClipboard: (text: string) => Promise<void>;
+  getPowerState?: () => Promise<PowerStatePayload>;
   onPowerStateChanged?: (listener: (payload: PowerStatePayload) => void) => () => void;
 }
 

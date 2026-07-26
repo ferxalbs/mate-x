@@ -4,12 +4,11 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ArrowDataTransferVerticalIcon } from "@hugeicons/core-free-icons";
+import { ArrowDataTransferVerticalIcon, ArrowDown01Icon, ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
-import { ArrowDown01Icon, ArrowUp01Icon } from "@hugeicons/core-free-icons";
 
 const Select = SelectPrimitive.Root;
 

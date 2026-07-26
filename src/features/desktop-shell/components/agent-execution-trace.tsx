@@ -12,9 +12,10 @@ import {
   Tick01Icon,
   LockKeyIcon,
 } from "@hugeicons/core-free-icons";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { normalizeToolEvent, type ToolEvent, type ToolEventType } from "../../../contracts/chat";
+import { useVisibilityInterval } from "../../../hooks/use-visibility-interval";
 import { ChatMarkdown, RawSyntaxHighlighter } from "./chat-markdown";
 import { formatDuration, getTimelineDuration, getTimelineStart } from "./agent-execution-trace-utils";
 
@@ -130,15 +131,9 @@ function useRunDuration(timeline: ToolEvent[], isRunning: boolean) {
   const completedDuration = useMemo(() => getTimelineDuration(timeline), [timeline]);
   const [now, setNow] = useState(() => Date.now());
 
-  useEffect(() => {
-    if (!isRunning) return;
-    setNow(Date.now());
-    const interval = window.setInterval(() => {
-      if (document.hidden) return;
-      setNow(Date.now());
-    }, 1_000);
-    return () => window.clearInterval(interval);
-  }, [isRunning, startedAt]);
+  useVisibilityInterval(() => setNow(Date.now()), 1_000, {
+    enabled: isRunning,
+  });
 
   return isRunning && startedAt !== null ? Math.max(0, now - startedAt) : completedDuration;
 }
@@ -249,4 +244,3 @@ function ActivityLabel({ label }: { label: string }) {
     </div>
   );
 }
-
