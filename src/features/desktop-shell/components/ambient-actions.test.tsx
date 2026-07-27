@@ -5,6 +5,8 @@ import { ScrollArea } from "@base-ui/react/scroll-area";
 import { MessageStream } from "./message-stream";
 import { MessageScrollerProvider } from "../../../components/ui/message-scroller";
 import type { ChatMessage } from "../../../contracts/chat";
+import { resolveRunIntentOutcome } from "../../../electron/capability-resolver";
+import { compactConversationSnapshotForPersistence } from "../../../lib/conversation-persistence";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import type { ReactElement } from "react";
 
@@ -100,6 +102,53 @@ describe("Ambient Safety Actions in MessageStream", () => {
 
     assert.ok(view.getByText("README updated."));
     assert.equal(view.queryByText(/hidden policy/i), null);
+  });
+
+  it("renders the persisted Review patch outcome from the live card path", async () => {
+    const outcome = resolveRunIntentOutcome({
+      behaviorMode: "review",
+      intent: "patch",
+    });
+    assert.ok(outcome);
+    const createdAt = new Date().toISOString();
+    const persisted = compactConversationSnapshotForPersistence(
+      [
+        {
+          id: "review-write-thread",
+          title: "Edit README",
+          lastUpdatedAt: createdAt,
+          messages: [
+            {
+              id: "review-write-outcome",
+              role: "assistant",
+              content: outcome.summary,
+              createdAt,
+              outcome,
+            },
+          ],
+        },
+      ],
+      "review-write-thread",
+    );
+
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={persisted[0].messages}
+        isRunning={false}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
+    );
+
+    assert.ok(view.getByText("Blocked"));
+    assert.ok(view.getByText(outcome.summary));
+    assert.ok(view.getByText("Next: Switch to Execute"));
+    assert.doesNotMatch(
+      view.container.textContent ?? "",
+      /approval|changed files|validation|synthesis|incomplete/i,
+    );
   });
 
   it("clicking Run verification submits immediately and preserves mode/intent", async () => {

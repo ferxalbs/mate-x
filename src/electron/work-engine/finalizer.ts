@@ -173,7 +173,7 @@ export function finalizeWorkRun(input: {
   if (synthesisStatus !== "valid") {
     warnings.push("Final synthesis was missing or unavailable; the run cannot be marked successful.");
   }
-  const terminalState = resolveExecutionTerminalState({
+  const evidenceTerminalState = resolveExecutionTerminalState({
     workPlan: input.workPlan,
     evidence,
     stages: input.stages,
@@ -186,6 +186,16 @@ export function finalizeWorkRun(input: {
       unmatchedSecurityClaims.length > 0,
     preparatoryOnly,
   });
+  const terminalState =
+    evidence.changedFiles.length === 0 && input.terminalOutcome?.status === "blocked"
+      ? "blocked"
+      : evidence.changedFiles.length === 0 &&
+          input.terminalOutcome?.status === "needs_approval"
+        ? "awaiting_approval"
+        : evidence.changedFiles.length === 0 &&
+            input.terminalOutcome?.status === "failed"
+          ? "failed"
+          : evidenceTerminalState;
   const rewrittenContent = rewriteTerminalClaims(
     rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0),
     terminalState,

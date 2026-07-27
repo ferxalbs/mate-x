@@ -9,6 +9,7 @@ import {
   type BehaviorMode,
 } from "../contracts/behavior-mode";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type { WorkIntent } from "./work-engine/types";
 import { getToolOperationalMeta } from "./tool-metadata";
 import { lazyToolLoaders } from "./tool-registry";
 import { evaluateTrustForToolCall } from "./workspace-trust";
@@ -88,27 +89,8 @@ export function resolveToolAuthorization(input: {
 }): ToolAuthorizationDecision {
   const args = input.args ?? {};
   const capability = classifyToolCapability(input.toolName, args);
-  const definition = BEHAVIOR_MODE_DEFINITIONS[input.behaviorMode];
-
-  // Precedence is deliberate: mode restrictions and hard workspace limits can
-  // never be overridden by an approval. Only an otherwise-authorized action may
-  // transition into the needs_approval state.
-  if (
-    capability !== "workspace.read" &&
-    (!definition.allowsMutation ||
-      (capability === "command.execute" && !definition.allowsCommands))
-  ) {
-    const summary =
-      input.behaviorMode === "review"
-        ? "Review mode only inspects existing work."
-        : "Plan mode prepares implementation without changing the repository.";
-    return blocked(
-      capability,
-      "MODE_READ_ONLY",
-      summary,
-      { type: "change_mode", target: "execute", label: "Switch to Execute" },
-    );
-  }
+  const modeBlock = resolveBehaviorModeBlock(input.behaviorMode, capability);
+  if (modeBlock) return modeBlock;
 
   const workspaceError = evaluateTrustForToolCall({
     toolName: input.toolName,
@@ -200,6 +182,51 @@ export function resolveToolAuthorization(input: {
   }
 
   return { decision: "allowed", capability };
+}
+
+/**
+ * Resolve a request-level conflict before provider execution. Review does not
+ * advertise mutation tools, so a patch request cannot rely on a rejected tool
+ * call to produce its canonical blocked outcome.
+ */
+export function resolveRunIntentOutcome(input: {
+  behaviorMode: BehaviorMode;
+  intent: WorkIntent;
+}): Extract<AgentOutcome, { status: "blocked" }> | undefined {
+  if (input.behaviorMode !== "review" || input.intent !== "patch") {
+    return undefined;
+  }
+
+  return resolveBehaviorModeBlock("review", "workspace.write")?.outcome;
+}
+
+function resolveBehaviorModeBlock(
+  behaviorMode: BehaviorMode,
+  capability: AgentCapability,
+): Extract<ToolAuthorizationDecision, { decision: "blocked" }> | undefined {
+  const definition = BEHAVIOR_MODE_DEFINITIONS[behaviorMode];
+
+  // Precedence is deliberate: mode restrictions and hard workspace limits can
+  // never be overridden by an approval. Only an otherwise-authorized action may
+  // transition into the needs_approval state.
+  if (
+    capability === "workspace.read" ||
+    (definition.allowsMutation &&
+      (capability !== "command.execute" || definition.allowsCommands))
+  ) {
+    return undefined;
+  }
+
+  const summary =
+    behaviorMode === "review"
+      ? "Review mode only inspects existing work."
+      : "Plan mode prepares implementation without changing the repository.";
+  return blocked(
+    capability,
+    "MODE_READ_ONLY",
+    summary,
+    { type: "change_mode", target: "execute", label: "Switch to Execute" },
+  );
 }
 
 function requestedPaths(args: Record<string, unknown>): string[] {

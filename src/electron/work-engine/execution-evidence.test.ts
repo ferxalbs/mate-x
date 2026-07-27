@@ -2,7 +2,10 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 
 import type { ToolExecutionRecord } from "../evidence-pack";
-import { resolveToolAuthorization } from "../capability-resolver";
+import {
+  resolveRunIntentOutcome,
+  resolveToolAuthorization,
+} from "../capability-resolver";
 import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 import { finalizeWorkRun } from "./finalizer";
 import { normalizeToolExecution } from "./execution-evidence";
@@ -227,42 +230,24 @@ test("approval-required execution waits for approval", () => {
 });
 
 test("Review write rejection stays blocked without incomplete execution bookkeeping", () => {
-  const workspacePolicy = createDefaultWorkspaceTrustContract(
-    "workspace",
-    "Repo",
-    { packageManager: "bun", hasPackageJson: true },
-  );
-  workspacePolicy.writeAccess = "workspace";
-  const authorization = resolveToolAuthorization({
-    toolName: "file_editor",
-    args: { path: "README.md" },
+  const outcome = resolveRunIntentOutcome({
     behaviorMode: "review",
-    workspacePolicy,
+    intent: "patch",
   });
-  assert.equal(authorization.decision, "blocked");
-  if (authorization.decision !== "blocked") return;
-
-  const serializedOutcome = JSON.stringify(authorization.outcome);
-  const blockedWrite = execution(
-    "file_editor",
-    serializedOutcome,
-    { status: "blocked", outcome: authorization.outcome },
-  );
+  assert.ok(outcome);
   const result = finalizeWorkRun({
     workPlan: plan,
-    stages: stages.map((item) =>
-      item.id === "patch_attempted" ? stage(item.id, "blocked") : item,
-    ),
-    toolExecutions: [blockedWrite],
-    content: authorization.outcome.summary,
+    stages,
+    toolExecutions: [],
+    content: outcome.summary,
     evidenceAttached: true,
     planningPhase: true,
     synthesisStatus: "valid",
-    terminalOutcome: authorization.outcome,
+    terminalOutcome: outcome,
   });
 
   assert.equal(result.terminalState, "blocked");
-  assert.equal(result.summary, authorization.outcome.summary);
+  assert.equal(result.summary, outcome.summary);
   assert.doesNotMatch(
     result.content,
     /approval|changed files|validation|final synthesis|execution incomplete/i,

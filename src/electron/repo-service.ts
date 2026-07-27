@@ -30,6 +30,7 @@ import {
   getSDKOrchestrator,
   getSDKOrchestratorReadinessError,
 } from "./sdk-orchestrator-state";
+import { resolveRunIntentOutcome } from "./capability-resolver";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -283,7 +284,30 @@ export async function runAssistant(
 
   emitProgress();
 
-  const directDeepAnalysisArgs = parseDirectDeepAnalysisPipelineArgs(prompt);
+  const runIntentOutcome = resolveRunIntentOutcome({
+    behaviorMode: resolvedOptions.behaviorMode,
+    intent: workPlan.intent,
+  });
+  if (runIntentOutcome) {
+    agentOutcome = runIntentOutcome;
+    content = runIntentOutcome.summary;
+    synthesisStatus = "valid";
+    synthesisSummary = runIntentOutcome.summary;
+    events.push({
+      id: "step-run-intent-blocked",
+      label: "Request blocked",
+      detail: runIntentOutcome.summary,
+      status: "blocked",
+      segmentKind: "tool",
+      visibility: "public",
+    });
+    emitProgress(content);
+    handledDirectTool = true;
+  }
+
+  const directDeepAnalysisArgs = handledDirectTool
+    ? null
+    : parseDirectDeepAnalysisPipelineArgs(prompt);
   if (directDeepAnalysisArgs) {
     const result = await executeAgentToolCall({
       toolCall: {
