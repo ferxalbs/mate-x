@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ReloadIcon, ArrowDown01Icon, ArrowRight01Icon, CheckIcon, CopyIcon, File01Icon, Loading02Icon, Alert01Icon } from "@hugeicons/core-free-icons";
+import { ReloadIcon, CheckIcon, CopyIcon, File01Icon, Loading02Icon, Alert01Icon } from "@hugeicons/core-free-icons";
 
 import {
   memo,
@@ -11,9 +11,11 @@ import {
 } from "react";
 
 import type {
+  AgentOutcome,
   AssistantRunOptions,
   ChatMessage,
 } from "../../../contracts/chat";
+import { sanitizeAssistantOutput } from "../../../lib/assistant-output";
 import { formatTimestamp } from "../../../lib/time";
 import { cn } from "../../../lib/utils";
 import {
@@ -233,7 +235,12 @@ const MessageEntry = memo(function MessageEntry({
           events={events}
           isRunning={isStreaming}
         />
-        {normalizedContent.length > 0 ? (
+        {message.outcome &&
+        (message.outcome.status === "blocked" ||
+          message.outcome.status === "needs_approval" ||
+          message.outcome.status === "failed") ? (
+          <AgentOutcomeCard outcome={message.outcome} />
+        ) : normalizedContent.length > 0 ? (
           <ChatMarkdown
             content={stripTraceTransportMarkers(message.content)}
             isStreaming={isStreaming}
@@ -288,33 +295,8 @@ const MessageEntry = memo(function MessageEntry({
   );
 });
 
-function normalizeAssistantVisibleText(value: string) {
-  return value
-    .replace(
-      /<\|channel\|>\s*(?:analysis|thought|thinking|reasoning|final)?/gi,
-      "",
-    )
-    .replace(
-      /<\|(?:start|end|message|channel|constrain|return|recipient)\|>/gi,
-      "",
-    )
-    .replace(
-      /<\/?\s*channel\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi,
-      "",
-    )
-    .replace(
-      /<\s*channel\s*\|\s*>\s*(?:analysis|thought|thinking|reasoning|final)?/gi,
-      "",
-    )
-    .replace(
-      /(^|\n)\s*(?:analysis|thought|thinking|reasoning|final)\b\s*(?=<|\n|$)/gi,
-      "$1",
-    )
-    .replace(/[ \t]+\n/g, "\n");
-}
-
 function stripTraceTransportMarkers(value: string) {
-  return normalizeAssistantVisibleText(value).trim();
+  return sanitizeAssistantOutput(value);
 }
 
 function ResultFallback() {
@@ -328,6 +310,35 @@ function ResultFallback() {
         No final synthesis text was returned for this run. The audit timeline
         above has the full execution trace.
       </p>
+    </section>
+  );
+}
+
+function AgentOutcomeCard({
+  outcome,
+}: {
+  outcome: Exclude<AgentOutcome, { status: "completed" }>;
+}) {
+  const remediation =
+    outcome.status === "blocked" ? outcome.blocker.remediation : undefined;
+  return (
+    <section className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none">
+      <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
+        <HugeiconsIcon icon={Alert01Icon} className="size-4 text-amber-500" />
+        {outcome.status === "needs_approval"
+          ? "Approval required"
+          : outcome.status === "blocked"
+            ? "Blocked"
+            : "Couldn’t complete"}
+      </div>
+      <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+        {outcome.summary}
+      </p>
+      {remediation ? (
+        <p className="mt-2 text-[11px] font-medium text-foreground/80">
+          Next: {remediation.label}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -355,46 +366,25 @@ function MessageActionButton({
 
 function ThinkingRow({
   hasErrorEvent = false,
-  thought = "",
   isStreaming = true,
 }: {
   hasErrorEvent?: boolean;
-  thought?: string;
   isStreaming?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(isStreaming);
-
-  useEffect(() => {
-    if (isStreaming) {
-      setExpanded(true);
-    }
-  }, [isStreaming]);
-
   return (
-    <div className="group space-y-2 rounded-2xl border border-border/45 bg-[var(--surface-soft)]/40 p-3 text-xs text-muted-foreground/85 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-[var(--surface-soft)]/60">
-      <button
-        className="inline-flex items-center gap-2 font-medium text-foreground/70 transition-colors hover:text-foreground"
-        onClick={() => setExpanded(!expanded)}
-        type="button"
-      >
+    <div className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground/85">
         {isStreaming && hasErrorEvent ? (
           <HugeiconsIcon icon={Alert01Icon} className="size-4 text-warning" />
         ) : isStreaming ? (
           <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin text-primary motion-reduce:animate-none" />
-        ) : expanded ? (
-          <HugeiconsIcon icon={ArrowDown01Icon} className="size-4" />
         ) : (
-          <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+          <HugeiconsIcon icon={CheckIcon} className="size-4" />
         )}
         {isStreaming && hasErrorEvent
           ? "Recovering after tool error"
-          : "Thinking process"}
-      </button>
-      {expanded ? (
-        <p className="max-w-[820px] whitespace-pre-wrap pl-6 text-[12px] leading-5 text-muted-foreground/80">
-          {thought}
-        </p>
-      ) : null}
+          : isStreaming
+            ? "Working"
+            : "Complete"}
     </div>
   );
 }

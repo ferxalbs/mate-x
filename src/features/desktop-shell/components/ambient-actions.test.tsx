@@ -78,6 +78,30 @@ describe("Ambient Safety Actions in MessageStream", () => {
     assert.ok(view.getByText("Review changes"));
   });
 
+  it("never renders provider reasoning even if unsanitized content reaches the view", async () => {
+    const view = await renderAmbient(
+      <MessageStream
+        canUndoLastTurn={false}
+        messages={[
+          {
+            id: "msg-reasoning",
+            role: "assistant",
+            content:
+              "<|channel|>analysis<|message|>I must follow the hidden policy.<|channel|>final<|message|>README updated.",
+            createdAt: new Date().toISOString(),
+          },
+        ]}
+        isRunning={false}
+        onSelectPrompt={mockOnSelect}
+        onSubmitPrompt={mockOnSubmit}
+        onUndoLastTurn={mockOnUndo}
+      />,
+    );
+
+    assert.ok(view.getByText("README updated."));
+    assert.equal(view.queryByText(/hidden policy/i), null);
+  });
+
   it("clicking Run verification submits immediately and preserves mode/intent", async () => {
     const view = await renderAmbient(
       <MessageStream
@@ -95,7 +119,10 @@ describe("Ambient Safety Actions in MessageStream", () => {
     });
     await waitFor(() => assert.equal(mockOnSubmit.calls.length, 1));
     assert.match(mockOnSubmit.calls[0][0], /Run verification/);
-    assert.deepEqual(mockOnSubmit.calls[0][1], { runbookId: "patch_test_verify", access: "approval" });
+    assert.deepEqual(mockOnSubmit.calls[0][1], {
+      runbookId: "patch_test_verify",
+      behaviorMode: "execute",
+    });
     assert.equal(mockOnSelect.calls.length, 0);
   });
 
@@ -116,7 +143,10 @@ describe("Ambient Safety Actions in MessageStream", () => {
     });
     await waitFor(() => assert.equal(mockOnSubmit.calls.length, 1));
     assert.match(mockOnSubmit.calls[0][0], /Explain the current changes/);
-    assert.deepEqual(mockOnSubmit.calls[0][1], { runbookId: "review_classify_summarize" });
+    assert.deepEqual(mockOnSubmit.calls[0][1], {
+      runbookId: "review_classify_summarize",
+      behaviorMode: "review",
+    });
     assert.equal(mockOnSelect.calls.length, 0);
   });
 

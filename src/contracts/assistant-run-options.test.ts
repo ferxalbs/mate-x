@@ -27,7 +27,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
       reasoningEnabled: true,
       reasoning: "high",
       pathKind: "verify_only",
-      access: "approval",
+      behaviorMode: "review",
       serviceTier: "standard",
     });
   });
@@ -38,7 +38,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
         reasoningEnabled: true,
         reasoning: "high",
         pathKind,
-        access: "approval",
+        behaviorMode: "execute",
       });
       assert.equal(parsed?.pathKind, pathKind);
     }
@@ -49,7 +49,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
       () =>
         validateAssistantRunOptions({
           pathKind: "factory",
-          access: "approval",
+          behaviorMode: "execute",
         }),
       /pathKind must be one of/,
     );
@@ -57,7 +57,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
       () =>
         validateAssistantRunOptions({
           pathKind: "ship",
-          access: "approval",
+          behaviorMode: "execute",
         }),
       /pathKind must be one of/,
     );
@@ -67,7 +67,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
     assert.throws(
       () =>
         validateAssistantRunOptions({
-          access: "approval",
+          behaviorMode: "execute",
           mysteryField: true,
         }),
       /unsupported field\(s\): mysteryField/,
@@ -81,7 +81,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
     assert.throws(
       () =>
         validateAssistantRunOptions({
-          access: "approval",
+          behaviorMode: "execute",
           [residualModeKey]: residualModeValue,
         }),
       /unsupported field\(s\): mode/,
@@ -91,13 +91,13 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
 
   it("accepts and validates engineeringTaskId", () => {
     const ok = validateAssistantRunOptions({
-      access: "approval",
+      behaviorMode: "execute",
       engineeringTaskId: "etask_01HXYZABCDEF",
     });
     assert.equal(ok?.engineeringTaskId, "etask_01HXYZABCDEF");
 
     const cleared = validateAssistantRunOptions({
-      access: "approval",
+      behaviorMode: "execute",
       engineeringTaskId: null,
     });
     assert.equal(cleared?.engineeringTaskId, null);
@@ -129,7 +129,7 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
 
   it("validates sdkAction with the dedicated runtime contract", () => {
     const parsed = validateAssistantRunOptions({
-      access: "approval",
+      behaviorMode: "execute",
       sdkAction: {
         actionType: "refactor",
         payload: { path: "src/a.ts" },

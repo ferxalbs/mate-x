@@ -22,24 +22,36 @@ export class GraphRuntimeLinearAdapter implements LinearRuntimeAuthority {
       input.prompt,
       [],
       input.workspaceId,
-      { reasoningEnabled: true, reasoning: "high", access: "scoped", pathKind: "full", engineeringTaskId: input.engineeringTaskId },
+      { reasoningEnabled: true, reasoning: "high", behaviorMode: "execute", pathKind: "full", engineeringTaskId: input.engineeringTaskId },
       { runId: input.graphRunId, signal: controller.signal, emit: (progress) => void this.onProgress(input.graphRunId, progress) },
     )).then(async (result) => {
       await this.service().emitRuntimeActivityByRun(input.graphRunId, `${input.graphRunId}:response`, { type: "response", body: result.message.content || "MaTE X completed the run." });
     }).catch(async (error) => {
       if (controller.signal.aborted) return;
-      await this.service().emitRuntimeActivityByRun(input.graphRunId, `${input.graphRunId}:error`, { type: "error", body: error instanceof Error ? error.message : String(error) });
+      console.error("Linear-backed MaTE X run failed:", error);
+      await this.service().emitRuntimeActivityByRun(input.graphRunId, `${input.graphRunId}:error`, {
+        type: "error",
+        body: "MaTE X could not complete this run. Open the app for recovery options.",
+      });
     }).finally(() => this.controllers.delete(input.graphRunId));
   }
 
   private async onProgress(graphRunId: string, progress: AssistantRunProgress): Promise<void> {
-    const last = progress.events?.at(-1);
+    const visibleEvents = progress.events?.filter(
+      (event) =>
+        event.visibility !== "technical" &&
+        event.visibility !== "restricted" &&
+        event.type !== "reasoning" &&
+        event.segmentKind !== "reasoning" &&
+        event.segmentKind !== "intermediate_response",
+    );
+    const last = visibleEvents?.at(-1);
     const content = last
       ? { type: "action", action: last.label ?? "MaTE X step", parameter: last.detail ?? "", result: last.status }
-      : { type: "thought", body: progress.thought ?? progress.content ?? "Working…" };
+      : { type: "response", body: progress.content || "Working…" };
     await this.service().emitRuntimeActivityByRun(graphRunId, `${graphRunId}:${last?.id ?? progress.status}`, content, true);
-    if (progress.events?.length) {
-      await this.service().projectPlanByRun(graphRunId, progress.events.map((event) => ({ id: event.id ?? event.segmentId ?? randomId(), title: event.label ?? "Runtime step", status: event.status ?? "pending" })));
+    if (visibleEvents?.length) {
+      await this.service().projectPlanByRun(graphRunId, visibleEvents.map((event) => ({ id: event.id ?? event.segmentId ?? randomId(), title: event.label ?? "Runtime step", status: event.status ?? "pending" })));
     }
   }
 }

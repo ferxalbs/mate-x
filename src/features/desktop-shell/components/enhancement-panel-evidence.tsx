@@ -39,8 +39,9 @@ export function EvidencePackSection({
   const fallbackFileCount = changedFiles.length;
   const fallbackCommandCount = commands.length;
   const verdict = evidencePack?.verdict.label ?? "Pending verified run";
-  const scoreTone = getEvidenceTone(score, verdict);
-  const runFailed = /fail|error|blocked/i.test(verdict);
+  const runFailed =
+    evidencePack?.status === "failed" || evidencePack?.status === "blocked";
+  const scoreTone = getEvidenceTone(score, runFailed);
   const lowConfidence = score !== null && score < 50;
   const fileLabel = `${filesCount} ${filesCount === 1 ? "file" : "files"}`;
   const commandLabel = `${commandCount} ${commandCount === 1 ? "signal" : "signals"}`;
@@ -67,6 +68,7 @@ export function EvidencePackSection({
         score={score}
         scoreBreakdown={scoreBreakdown}
         scoreTone={scoreTone}
+        runFailed={runFailed}
         verdict={verdict}
       />
       {runFailed ? (
@@ -109,7 +111,7 @@ export function EvidencePackSection({
       <EvidenceRow
         label="Evidence confidence"
         tone={scoreTone}
-        value={getConfidenceLabel(score, verdict)}
+        value={getConfidenceLabel(score, runFailed)}
       />
       <EvidenceRow
         label="Compliance"
@@ -201,6 +203,7 @@ function EvidenceConfidenceCard({
   score,
   scoreBreakdown,
   scoreTone,
+  runFailed,
   verdict,
 }: {
   commandCount: number;
@@ -209,6 +212,7 @@ function EvidenceConfidenceCard({
   score: number | null;
   scoreBreakdown: ScoreBreakdown;
   scoreTone: SignalTone;
+  runFailed: boolean;
   verdict: string;
 }) {
   const label = hasVerifiedScore
@@ -246,6 +250,7 @@ function EvidenceConfidenceCard({
           {getEvidenceScoreReason(
             hasVerifiedScore ? score : null,
             verdict,
+            runFailed,
             commandCount,
             filesCount,
             scoreBreakdown,
@@ -342,8 +347,8 @@ function formatScoreBasis(breakdown: ScoreBreakdown) {
   return `${breakdown.satisfied}/${breakdown.total} weight, ${breakdown.passed}/${breakdown.count} signals (${weightedPercent}%)`;
 }
 
-function getEvidenceTone(score: number | null, verdict: string): SignalTone {
-  if (/fail|error|blocked/i.test(verdict)) {
+function getEvidenceTone(score: number | null, runFailed: boolean): SignalTone {
+  if (runFailed) {
     return "bad";
   }
   if (score === null) {
@@ -365,11 +370,12 @@ function getEvidenceTone(score: number | null, verdict: string): SignalTone {
 function getEvidenceScoreReason(
   score: number | null,
   verdict: string,
+  runFailed: boolean,
   commandCount: number,
   filesCount: number,
   scoreBreakdown: ScoreBreakdown,
 ) {
-  if (/fail|error|blocked/i.test(verdict)) {
+  if (runFailed) {
     return `Low score because run verdict is ${verdict}. Evidence captured ${commandCount} command signals across ${filesCount} file signal${filesCount === 1 ? "" : "s"}, but result did not complete cleanly.`;
   }
   if (score === null) {
@@ -390,8 +396,8 @@ function getEvidenceScoreReason(
   return "Evidence is strong enough for a proof-backed summary.";
 }
 
-function getConfidenceLabel(score: number | null, verdict: string) {
-  if (/fail|error|blocked/i.test(verdict)) {
+function getConfidenceLabel(score: number | null, runFailed: boolean) {
+  if (runFailed) {
     return "Failed";
   }
   if (score === null) {

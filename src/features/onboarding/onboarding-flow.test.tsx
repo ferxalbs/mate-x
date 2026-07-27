@@ -256,7 +256,7 @@ function createWorkspaceSnapshot(): WorkspaceSnapshot {
     workspaceId: "workspace-1",
     name: "Example governed review",
     version: 2,
-    autonomy: "approval-required",
+    writeAccess: "approval-required",
     allowedPaths: ["src"],
     forbiddenPaths: [".env"],
     allowedCommands: ["bun test"],

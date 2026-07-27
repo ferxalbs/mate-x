@@ -40,7 +40,7 @@ test("composer keeps policy approval actions visible and wired", async () => {
   const source = await readComposerSurface();
 
   assert.match(source, /Approval required/);
-  assert.match(source, /Review command/);
+  assert.match(source, /Cancel/);
   assert.match(source, /Approve once/);
   assert.match(source, /onResolvePolicyStop/);
   assert.match(source, /approve_once/);
@@ -50,9 +50,9 @@ test("composer keeps policy approval actions visible and wired", async () => {
 test("composer keeps scoped trust choices and direct cancellation", async () => {
   const source = await readComposerSurface();
 
-  assert.match(source, /Plan only/);
+  assert.match(source, /Read only/);
   assert.match(source, /Ask before changes/);
-  assert.match(source, /Scoped changes/);
+  assert.match(source, /Workspace changes/);
   assert.match(source, /cancelActiveRun/);
   assert.match(source, /handleCancelRun/);
   assert.match(source, /Attach files/);

@@ -410,7 +410,7 @@ export function SettingsPage() {
         useChatStore.setState({ trustContract: nextContract });
         setSaveState('saved');
       } catch (error) {
-        setErrorMsg(error instanceof Error ? error.message : 'Could not save trust contract.');
+        setErrorMsg(error instanceof Error ? error.message : 'Could not save workspace policy.');
         setSaveState('error');
       }
       return;
@@ -624,7 +624,7 @@ export function SettingsPage() {
       ...(appSettings.preferredAgentIntegration !== savedAppSettings.preferredAgentIntegration
         ? ['Preferred agent integration']
         : []),
-      ...(hasTrustDraft ? ['Workspace trust contract'] : []),
+      ...(hasTrustDraft ? ['Workspace policy'] : []),
     ],
     [
       appSettings.appearance,
@@ -1786,10 +1786,10 @@ export function SettingsPage() {
                 ) : section === 'trust' ? (
                   <span>
                     {hasTrustDraft
-                      ? 'Pending: workspace trust contract'
+                      ? 'Pending: workspace policy'
                       : trustContract
-                        ? `Contract ${trustContract.name} v${trustContract.version} active`
-                        : 'No active trust contract'}
+                        ? `Policy ${trustContract.name} v${trustContract.version} active`
+                        : 'No active workspace policy'}
                   </span>
                 ) : section === 'privacy' ? (
                   <span>

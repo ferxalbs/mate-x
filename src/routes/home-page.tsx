@@ -19,7 +19,7 @@ import { toastManager } from '../components/ui/toast';
 import { DEFAULT_BEHAVIOR_PREFERENCE, type BehaviorPreference } from '../contracts/behavior-mode';
 import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
 import { updateWorkspaceTrustContract } from '../services/repo-client';
-import type { WorkspaceTrustAutonomy } from '../contracts/workspace';
+import type { WorkspaceWriteAccess } from '../contracts/workspace';
 import { useVisibilityInterval } from '../hooks/use-visibility-interval';
 
 export function HomePage() {
@@ -99,14 +99,14 @@ export function HomePage() {
         setBehavior(next);
         if (activeWorkspaceId) saveBehaviorPreference(activeWorkspaceId, next);
       }}
-      onTrustChange={async (autonomy: WorkspaceTrustAutonomy) => {
+      onTrustChange={async (writeAccess: WorkspaceWriteAccess) => {
         if (!trustContract) {
-          throw new Error('No active workspace trust contract.');
+          throw new Error('No active workspace policy.');
         }
 
         const nextContract = await updateWorkspaceTrustContract({
           ...trustContract,
-          autonomy,
+          writeAccess,
         });
         useChatStore.setState({ trustContract: nextContract });
       }}

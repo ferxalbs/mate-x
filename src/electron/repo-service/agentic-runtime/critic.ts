@@ -25,7 +25,7 @@ export async function finalizeCriticLoop({
   toolExecutions: ToolExecutionRecord[];
   prompt: string;
   finalContent: string;
-  emitProgress: (content?: string, thought?: string) => void;
+  emitProgress: (content?: string) => void;
   serviceTier?: AssistantRunOptions["serviceTier"];
 }): Promise<string> {
   // Critic loop is no longer a user-facing mode; quality pass is opt-in via runbook only.
@@ -38,6 +38,7 @@ export async function finalizeCriticLoop({
     label: "Critic review",
     detail: "Reviewing final draft against existing evidence without tools.",
     status: "active",
+    visibility: "technical",
   });
   emitProgress(finalContent);
 
@@ -77,6 +78,7 @@ export async function finalizeCriticLoop({
       label: "Critic revision",
       detail: "Revising final answer to remove unsupported or risky claims.",
       status: "active",
+      visibility: "technical",
     });
     emitProgress(finalContent);
 
@@ -104,6 +106,7 @@ export async function finalizeCriticLoop({
     label: "Verifier check",
     detail: "Checking validation state, modified files, claimed files, and executed commands.",
     status: "active",
+    visibility: "technical",
   });
   emitProgress(reviewedContent);
 

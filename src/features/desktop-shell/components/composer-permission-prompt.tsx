@@ -10,11 +10,6 @@ export function ComposerPermissionPrompt({
   onAction: (action: PolicyStopAction) => void;
   stop: PolicyStop;
 }) {
-  const toolName = stop.attemptedAction.toolName ?? "tool action";
-  const target =
-    stop.attemptedAction.command ??
-    stop.attemptedAction.target ??
-    stop.policyId;
   const canApprove = stop.availableActions.includes("approve_once");
   const canDecline =
     stop.availableActions.includes("safer_alternative") ||
@@ -30,10 +25,6 @@ export function ComposerPermissionPrompt({
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
             <span className="font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
               Approval required
-            </span>
-            <span className="text-muted-foreground">{toolName}</span>
-            <span className="max-w-full truncate font-mono text-[10px] text-muted-foreground">
-              {target}
             </span>
           </div>
           <p className="mt-2 break-words text-[13px] font-medium text-foreground">
@@ -55,7 +46,7 @@ export function ComposerPermissionPrompt({
               size="xs"
               variant="outline"
             >
-              Review command
+              Cancel
             </Button>
           ) : null}
           {canApprove ? (

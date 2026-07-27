@@ -29,7 +29,7 @@ import type {
 } from "../../contracts/settings";
 import type {
   WorkspaceSnapshot,
-  WorkspaceTrustAutonomy,
+  WorkspaceWriteAccess,
   WorkspaceTrustContract,
 } from "../../contracts/workspace";
 import { useTheme } from "../../hooks/use-theme";
@@ -249,9 +249,9 @@ export function OnboardingFlowContent({
     onAppearancePreview(appearance);
   }
 
-  function handleTrustChange(autonomy: WorkspaceTrustAutonomy) {
+  function handleTrustChange(writeAccess: WorkspaceWriteAccess) {
     setTrustDraft((current) =>
-      current ? { ...current, autonomy } : current,
+      current ? { ...current, writeAccess } : current,
     );
   }
 
@@ -386,7 +386,7 @@ interface StepContentProps {
   apiKeyConfigured: boolean;
   onApiKeyChange: (value: string) => void;
   onAppearanceChange: (appearance: AppearancePreference) => void;
-  onTrustChange: (autonomy: WorkspaceTrustAutonomy) => void;
+  onTrustChange: (writeAccess: WorkspaceWriteAccess) => void;
   selectedWorkspace: string | null;
   services: OnboardingServices;
   settings: AppSettings;

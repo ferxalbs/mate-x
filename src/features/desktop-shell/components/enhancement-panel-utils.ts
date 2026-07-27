@@ -403,12 +403,10 @@ export function deriveTrustGate({
     const status = String((stop as { status?: unknown }).status ?? "");
     return !/complete|resolved|approved|resumed/i.test(status);
   });
-  const evidenceVerdict = evidencePack?.verdict.label ?? "";
   const runBlocked =
     evidencePack?.status === "blocked" ||
-    evidencePack?.status === "failed" ||
-    /blocked|fail|error/i.test(evidenceVerdict);
-  const isPartial = /partial/i.test(evidenceVerdict) || evidencePack?.status === "partial";
+    evidencePack?.status === "failed";
+  const isPartial = evidencePack?.status === "partial";
   const hasVerifiedSignals = hasVerifiedEvidenceSignals(evidencePack);
   const score = getVerifiedEvidenceScore(evidencePack);
   const hasPassedValidationSignal =
@@ -442,8 +440,8 @@ export function deriveTrustGate({
   const dirtyState = health?.gitDirtyState ?? "unknown";
   const hasDirtyRepo = changedFiles.length > 0 || dirtyState !== "clean";
   const riskyFiles = changedFiles.filter(isRiskySurfacePath);
-  const eventPolicyStop = events.some((event) =>
-    /policy stop|approval|blocked/i.test(`${event.label} ${event.detail ?? ""}`),
+  const eventPolicyStop = events.some(
+    (event) => event.type === "approval" || event.status === "blocked",
   );
   const sourceSignalsUsed = [
     "git status",

@@ -22,7 +22,7 @@ import type {
   RainyModelCatalogEntry,
   RainyServiceTier,
 } from "../../../contracts/rainy";
-import type { WorkspaceTrustAutonomy } from "../../../contracts/workspace";
+import type { WorkspaceWriteAccess } from "../../../contracts/workspace";
 import {
   BEHAVIOR_MODE_DESCRIPTIONS,
   ComposerPolicySummary,
@@ -32,12 +32,12 @@ import {
 const TRUST_OPTIONS: Array<{
   description: string;
   label: string;
-  value: WorkspaceTrustAutonomy;
+  value: WorkspaceWriteAccess;
 }> = [
   {
-    value: "plan-only",
-    label: "Plan only",
-    description: "Inspect & propose changes without editing files.",
+    value: "read-only",
+    label: "Read only",
+    description: "Allow repository inspection only.",
   },
   {
     value: "approval-required",
@@ -45,9 +45,9 @@ const TRUST_OPTIONS: Array<{
     description: "Inspect freely, ask before edits or commands.",
   },
   {
-    value: "trusted-patch",
-    label: "Scoped changes",
-    description: "Allow workspace edits; keep Git & risky actions gated.",
+    value: "workspace",
+    label: "Workspace changes",
+    description: "Allow scoped workspace edits; keep risky actions gated.",
   },
 ];
 
@@ -63,13 +63,13 @@ interface ComposerRunSettingsProps {
   onModelChange: (value: string) => void;
   onReasoningChange: (value: AssistantRunOptions["reasoning"]) => void;
   onServiceTierChange: (value: RainyServiceTier) => void;
-  onTrustChange: (value: WorkspaceTrustAutonomy) => Promise<void>;
+  onTrustChange: (value: WorkspaceWriteAccess) => Promise<void>;
   reasoningValue: AssistantRunOptions["reasoning"];
   serviceTier: RainyServiceTier;
   serviceTierOptions: RainyServiceTier[];
   showServiceTierSelector: boolean;
   supportsReasoningEffort: boolean;
-  trust: WorkspaceTrustAutonomy;
+  trust: WorkspaceWriteAccess;
 }
 
 export function ComposerRunSettings({
@@ -126,7 +126,7 @@ export function ComposerRunSettings({
         <MenuSubLabel>Workspace policy</MenuSubLabel>
         <DropdownMenuRadioGroup
           onValueChange={(value) =>
-            void onTrustChange(value as WorkspaceTrustAutonomy)
+            void onTrustChange(value as WorkspaceWriteAccess)
           }
           value={trust}
         >
@@ -170,41 +170,6 @@ export function ComposerRunSettings({
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-
-        {behavior.mode === "custom" ? (
-          <div className="mt-1 border-t border-border/50 px-2 py-1.5">
-            {([
-              ["askBeforeEdits", "Ask before edits"],
-              ["askBeforeCommands", "Ask before commands"],
-              ["askBeforeNetwork", "Ask before network"],
-              ["autoValidate", "Automatically validate"],
-            ] as const).map(([key, label]) => (
-              <label
-                className="flex min-h-7 items-center justify-between gap-3 text-[11.5px]"
-                key={key}
-              >
-                <span>{label}</span>
-                <input
-                  checked={behavior.custom[key]}
-                  onChange={(event) =>
-                    onBehaviorChange({
-                      ...behavior,
-                      custom: {
-                        ...behavior.custom,
-                        [key]: event.target.checked,
-                      },
-                    })
-                  }
-                  className="rounded border-border/60 bg-transparent text-primary accent-primary"
-                  type="checkbox"
-                />
-              </label>
-            ))}
-            <p className="mt-1 text-[10px] leading-tight text-muted-foreground/70">
-              Git writes always require explicit approval.
-            </p>
-          </div>
-        ) : null}
 
         <div className="my-1 border-t border-border/50" />
         <MenuSubLabel>Model &amp; Execution</MenuSubLabel>

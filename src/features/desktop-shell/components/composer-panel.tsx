@@ -25,7 +25,7 @@ import {
 } from "../../../contracts/rainy";
 import type {
   WorkspaceSummary,
-  WorkspaceTrustAutonomy,
+  WorkspaceWriteAccess,
   WorkspaceTrustContract,
 } from "../../../contracts/workspace";
 import { useTheme } from "../../../hooks/use-theme";
@@ -79,7 +79,7 @@ interface ComposerPanelProps {
   onPromptChange?: (prompt: string) => void;
   behavior: BehaviorPreference;
   onBehaviorChange: (value: BehaviorPreference) => void;
-  onTrustChange: (value: WorkspaceTrustAutonomy) => Promise<void>;
+  onTrustChange: (value: WorkspaceWriteAccess) => Promise<void>;
 }
 
 export function ComposerPanel({
@@ -237,7 +237,7 @@ export function ComposerPanel({
   const modelLabel =
     selectedModel?.label ??
     (isCatalogLoading ? "Loading…" : modelValue || "Unavailable");
-  const trust = trustContract?.autonomy ?? "approval-required";
+  const trust = trustContract?.writeAccess ?? "approval-required";
 
   useEffect(() => {
     if (!selectedModel) return;
@@ -354,19 +354,19 @@ export function ComposerPanel({
     }
   }
 
-  async function handleTrustChange(autonomy: WorkspaceTrustAutonomy) {
-    if (!trustContract || autonomy === trustContract.autonomy || isTrustSaving) {
+  async function handleTrustChange(writeAccess: WorkspaceWriteAccess) {
+    if (!trustContract || writeAccess === trustContract.writeAccess || isTrustSaving) {
       return;
     }
     setIsTrustSaving(true);
     setCapabilityNotice("");
     try {
-      await onTrustChange(autonomy);
+      await onTrustChange(writeAccess);
     } catch (error) {
       setCapabilityNotice(
         error instanceof Error
           ? error.message
-          : "Could not update workspace trust.",
+          : "Could not update workspace policy.",
       );
     } finally {
       setIsTrustSaving(false);

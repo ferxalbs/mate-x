@@ -5,14 +5,12 @@ import { renderWorkingSetForPrompt } from "../working-set-compiler";
 import { renderWorkPlanForPrompt } from "../work-engine/work-engine";
 import { renderFailureMemoryInstruction } from "../work-engine/failure-memory-gate";
 import type { WorkPlan, WorkRunbook } from "../work-engine/types";
-import type { AssistantRunbookDefinition, AssistantRunOptions, ToolEvent } from "../../contracts/chat";
+import type { AgentOutcome, AssistantRunbookDefinition, AssistantRunOptions, ToolEvent } from "../../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../../contracts/execution";
 import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } from "../../contracts/rainy";
 import { supportsTools } from "../../lib/rainy-model-capabilities";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../config/mate-agent";
-import { autonomyPolicyInstruction } from "../../contracts/behavior-mode";
-import { renderRunbookForPrompt } from "../assistant-runbooks";
-import { renderTrustContractForPrompt } from "../workspace-trust";
+import { behaviorInstruction } from "../../contracts/behavior-mode";
 import type { AppSettings } from "../../contracts/settings";
 import type { RepoSnapshot } from "./workspace";
 
@@ -21,7 +19,6 @@ import { buildAgentRuntimeConfig } from "./agentic-runtime/config";
 import { appendAttachmentContext } from "./agentic-runtime/helpers";
 import { requestRainyResponsesAgenticResponse } from "./agentic-runtime/responses-runner";
 import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
-import { renderToolPreferenceGuidance } from "../work-engine/tool-expectations";
 
 // Re-exports for absolute backward-compatibility
 export * from "./agentic-runtime/types";
@@ -91,6 +88,55 @@ Sandbox timeout facts:
   return sections.join("\n");
 }
 
+export function buildAgentSystemPrompt(input: {
+  options: AssistantRunOptions;
+  snapshot: RepoSnapshot;
+  runtimeExecutionIntent: boolean;
+  workingSet: string;
+  workPlan: string;
+  playbook: string;
+  gitStatus: string;
+  matches: string;
+  memory: string;
+  failureMemoryContext: string;
+  repoGraphSummary: string;
+}): string {
+  return `${MATE_AGENT_SYSTEM_PROMPT}
+
+Behavior: ${behaviorInstruction(input.options.behaviorMode)}
+Workspace: ${input.snapshot.workspace.name} (${input.snapshot.workspace.path})
+Branch: ${input.snapshot.workspace.branch}
+Stack: ${input.snapshot.workspace.stack.join(", ") || "unknown"}
+Execution requested: ${input.runtimeExecutionIntent ? "yes" : "no"}
+
+Use only advertised tools. Authorization failures are application states; never explain their implementation.
+Continue from tool results without repeating prior drafts. Stop when evidence is sufficient.
+Repository writes and commands affect real workspace state. Validate changes before claiming completion.
+Privacy placeholders such as [PRIVATE_FILE_PATH] and [SECRET_*] are redactions, not repository text.
+
+Working set:
+${input.workingSet}
+
+Work plan:
+${input.workPlan}
+
+Git status:
+${input.gitStatus || "(clean)"}
+
+Prompt matches:
+${input.matches || "(none)"}
+
+Workspace memory:
+${input.memory || "(none)"}
+
+${input.failureMemoryContext}
+
+Repository graph:
+${input.repoGraphSummary}
+
+${input.playbook}`;
+}
+
 export async function requestRainyAgenticResponse({
   apiKey,
   history,
@@ -125,19 +171,20 @@ export async function requestRainyAgenticResponse({
   events: ToolEvent[];
   options: AssistantRunOptions;
   runbookDefinition: AssistantRunbookDefinition;
-  emitProgress: (content?: string, thought?: string) => void;
+  emitProgress: (content?: string) => void;
   appSettings: AppSettings;
   runId: string;
   signal?: AbortSignal;
   engineeringTaskStatus?: import("../../contracts/engineering-task").EngineeringTaskStatus | null;
   planningPhase?: boolean;
 }): Promise<{
-  thought?: string;
   toolExecutions: ToolExecutionRecord[];
   content: string;
   synthesisStatus: ExecutionSynthesisStatus;
   synthesisSummary?: string;
+  outcome?: AgentOutcome;
 }> {
+  void runbookDefinition;
   const runtime = buildAgentRuntimeConfig(options, prompt);
   if (runtime.executionIntent && !supportsTools(capabilities)) {
     events.push({
@@ -177,123 +224,23 @@ export async function requestRainyAgenticResponse({
     renderFailureMemoryInstruction(similarFailures),
   ].filter(Boolean).join("\n\n");
 
-  const systemPrompt = `${MATE_AGENT_SYSTEM_PROMPT}
-
-Workspace: ${snapshot.workspace.name}
-Path: ${snapshot.workspace.path}
-Branch: ${snapshot.workspace.branch}
-Stack: ${snapshot.workspace.stack.join(", ") || "unknown"}
-Path kind: ${options.pathKind ?? "full"}
-Reasoning level: ${options.reasoning}
-Reasoning enabled: ${options.reasoningEnabled ? "yes" : "no"}
-Filesystem access policy: ${options.access}
-Execution intent detected: ${runtime.executionIntent ? "yes - at least one tool-backed pass is required before the final answer" : "no"}
-Behavior mode policy: ${autonomyPolicyInstruction(options.autonomyPolicy) || "default"}
-
-Tool-loop continuity:
-- After a tool result, continue from that result and prior assistant tool call.
-- Do not restart from, quote, paraphrase, or re-analyze the initial user request.
-- Do not repeat analysis already emitted in an earlier pass. Produce only new progress toward the final answer.
-
-${renderTrustContractForPrompt(snapshot.trustContract)}
-
-Runtime truth and permissions:
-- Current workspace path is the real project root: ${snapshot.workspace.path}
-- Treat package-manager mutations, generated files, lockfiles, git operations, and source edits as real workspace effects when a tool is allowed to run them.
-- The sandbox_run tool time-limits a child process and defaults to test-like env vars; it does not create a disposable copy of the repository and must not be described as changing only a fake project.
-- For sandbox_run, choose timeoutSeconds from 30, 45, 60, 120, or 240 based on expected duration. Use longer timeouts for slow tests/builds instead of letting checks freeze or reporting runtime blocked. You may also set port, nodeEnv, maxOutputChars, keepAwake, and powerSaveBlockerType when needed. For long or interactive Electron/browser checks, use keepAwake with prevent-app-suspension or prevent-display-sleep.
-- If a tool returns a Workspace Trust Contract block, the product can surface approval. State what was blocked and continue with permitted alternatives if approval is declined.
-- When contract autonomy is ${snapshot.trustContract.autonomy}, allowed actions are: ${snapshot.trustContract.allowedActions.join(", ") || "none"}.
-- Blocked actions are: ${snapshot.trustContract.blockedActions.join(", ") || "none"}.
-- Do not ask the user to run a command manually unless MaTE X lacks a permitted or approvable path to perform it.
-
-Working Set:
-${renderWorkingSetForPrompt(workingSet)}
-
-WorkPlan:
-${renderWorkPlanForPrompt(workPlan)}
-
-Work Engine mandatory gates:
-- Intent: ${workPlan.intent}; runbook: ${workPlan.runbook}; risk: ${workPlan.risk}.
-- Follow WorkPlan working set before any broad search.
-- Validation required: ${workPlan.validationPlan.required ? "yes" : "no"}. Primary: ${workPlan.validationPlan.primaryCommand ?? "none"}. Fallback: ${workPlan.validationPlan.fallbackCommand ?? "none"}.
-- Preventive Guard: ${workPlan.preventivePlan.enabled ? "enabled" : "advisory only"}. Risk areas: ${workPlan.preventivePlan.riskAreas.join(", ") || "none"}. Prefer secure defaults, safer APIs, and required checks before edits.
-- Evidence required: ${workPlan.evidencePlan.required ? "yes" : "no"}. Missing evidence must be named in final response.
-- Privacy preflight is mandatory before repo context, tool output, memory, or evidence crosses cloud boundary.
-- Final fixed/ready/works/merge-ready claims require runtime validation evidence and validation persistence.
-- Evidence-only runbook can package existing runtime records only; never invent evidence.
-- Separate Preventive Guard warnings from confirmed findings. Never call preventive warnings vulnerabilities without source-to-sink proof, runtime proof, or strong static proof.
-- Privacy Sentinel placeholders in context or tool output are not literal repository facts. Tokens like [WORKSPACE_IDENTITY], [PRIVATE_FILE_PATH], [INTERNAL_URL], [PRIVATE_EMAIL], [CUSTOMER_DATA], and [SECRET_*] mean private data was redacted before cloud transit. Do not call them SQL values, routes, tenants, files, users, secrets, or code placeholders unless a local tool proves that exact token exists in raw source.
-
-Trust Gate operational contract:
-- You are not done when you make edits. You are done when every material claim is backed by tool evidence, or explicitly downgraded as unproven.
-- Runtime, tool events, validation output, policy stops, Evidence Pack, VTS, Privacy Firewall, and Agent Firewall evidence override narrative intent. Do not ask the UI to trust final prose.
-- Strong claims such as fixed, safe, verified, ready, trusted, merge-ready, or can ship require a passing validation/tool signal and proof persistence. Without that, say Needs validation and name the missing proof.
-- If auth, session, env, payment, network, dependency, IPC, policy, privacy, or Electron runtime surfaces were touched, treat the run as elevated risk until focused validation and proof exist.
-- If a policy stop is declined, unresolved, or blocks a required operation, mark the result Blocked/Risky and continue only with safer permitted alternatives.
-- Keep internal specialization practical: use RepoGraph as the Repo Cartographer for changed surfaces, security/revalidator tools as the Risk Prosecutor, and validation/VTS/Evidence Pack as the Verification Judge. Do not present this as separate agents or theater.
-- Evidence Pack and Trust Gate must reflect what happened, not what you hoped happened.
-
-Factory Mode Lite contract:
-- If Operating mode is factory or ship, convert the user request into this visible run shape: Spec -> Repo Map -> Risk Map -> Validation Plan -> Agent Run -> Verification -> Ratchet Suggestion -> Ship Proof.
-- This is not a new autonomous agent system. Reuse RepoGraph semantic memory, workspace health, validation planner, Trust Gate, Active Gate, Agent Trace, Privacy Firewall, Failure Memory, and Evidence Pack.
-- Before broad file reads, use RepoGraph and the provided working set to identify repo context and risk surfaces.
-- Before any fix, ready, verified, or ship claim, create a validation plan. Planning alone is not proof.
-- Use approval-required access by default. If approval blocks an operation, say blocked and continue only with permitted alternatives.
-- Attach Ship Proof only when Evidence Pack/runtime evidence exists. Never create placeholder evidence.
-- If repeated command, tool, package-manager, or workspace behavior caused failure, suggest a durable repo rule for AGENTS.md, RULES.md, or .mate-x/rules.json, but do not write it without user approval.
-
-Working set discipline:
-- Treat the working set as the authoritative starting context for this run.
-- Do not read primary target files just to restate that they are relevant; first use the ranked paths, git diff snippets, recent failures, and relevant scripts already supplied.
-- If the objective is a failing validation command, run the narrow validation command before reading files unless the working set already contains the exact error.
-- If the narrow validation command exits 0, treat the reported failure as resolved or unreproduced. Do not claim pending type errors, mismatches, or failures without a nonzero command result or exact diagnostic text.
-- Inspect files only when the working set, graph context, diffs, or command output identifies a concrete unresolved question.
-- Prefer Repo Intelligence Graph tools over grep or broad file listing when selecting any additional files.
-- Use Repo Intelligence Graph as semantic memory, not only file lookup. Before reading broad code, prefer semantic_search for concepts, get_semantic_profile for one candidate file, get_architecture_summary for unfamiliar repositories, and detect_changes for cache/change questions.
-- Treat semantic_search results as a ranked shortlist, not proof. Read only the top files needed to answer or patch; prefer get_impacted_files/get_tests_for_file before editing or validating.
-
-Git status:
-${gitStatus || "(clean)"}
-
-Prompt-linked matches:
-${matches || "(none)"}
-
-Workspace memory:
-${snapshot.memoryContext?.context || "(none)"}
-
-${failureMemoryContext}
-
-Repo Intelligence Graph:
-${repoGraphSummary}
-
-You are running in an agent loop, not a single reply.
-First, use the working set, workspace metadata, git status, prompt-linked matches, and conversation history already provided here.
-Before broad file search, use Repo Intelligence Graph APIs for semantic_search, semantic profiles, architecture summary, change detection, entrypoints, impacted files, tests, import chains, IPC surface, env usage, and dependency surface when they fit the task.
-Repo Intelligence efficiency contract:
-- Unknown codebase or architecture question: call get_architecture_summary before reading files.
-- Concept, feature, security surface, API, route, IPC, env, dependency, or symbol hunt: call semantic_search first; then read the smallest top-ranked file ranges.
-- Known candidate file: call get_semantic_profile before reading unless exact line evidence is already supplied.
-- Change or re-index concern: call detect_changes before refresh; avoid refresh when unchanged.
-- Patch planning: combine semantic_search with get_impacted_files and get_tests_for_file so validation targets affected behavior, not the whole repo by default.
-- Evidence standard: graph results guide exploration; confirmed claims still require source, diff, command, or security-tool evidence.
-${buildRunbookPlaybookSection(workPlan.runbook)}
-${renderToolPreferenceGuidance(workPlan.runbook, options.pathKind)}
-If that context is enough for the user's request, answer directly without calling tools.
-If more evidence is needed, first emit a brief assistant progress update explaining what you will inspect, then call the smallest useful set of tools, then continue from the tool results.
-Prefer one focused tool batch over broad exploration. Do not call tools just to satisfy the loop.
-Stop investigating once you can give a grounded answer. Do not continue until the tool budget unless the user explicitly asks for exhaustive analysis.
-If a tool fails or access is blocked, adapt to the available context and explain the limitation once.
-In your final answer, include these explicit headings when applicable: "Verdict:", "Verdict summary:", "Confidence:", "Warnings:", "Unresolved risks:", and "Final recommendation:".
-When a bug, suspicious behavior, or code patch is involved, include "Reproduction:" with lines: "Type:", "Status:", "Existed before patch:", "Pre-patch outcome:", "Post-patch outcome:", "Location:", "Command:", and "Summary:".
-When you need to search for something, use the rg tool first with the narrowest path/include you know, then read_many only the matched files or line ranges.
-
-Structured runbook contract (must follow):
-${renderRunbookForPrompt(runbookDefinition)}`;
+  const systemPrompt = buildAgentSystemPrompt({
+    options,
+    snapshot,
+    runtimeExecutionIntent: runtime.executionIntent,
+    workingSet: renderWorkingSetForPrompt(workingSet),
+    workPlan: renderWorkPlanForPrompt(workPlan),
+    playbook: buildRunbookPlaybookSection(workPlan.runbook),
+    gitStatus,
+    matches,
+    memory: snapshot.memoryContext?.context ?? "",
+    failureMemoryContext,
+    repoGraphSummary,
+  });
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
   const serviceTier = options.serviceTier;
 
-  // Full tool catalog is advertised; preferred tools are system-prompt guidance only.
+  // The capability resolver advertises only tools available to this mode.
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({
       apiKey,

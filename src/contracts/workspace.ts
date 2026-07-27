@@ -124,17 +124,17 @@ export interface FailureMemory {
   resolvedAt?: string;
 }
 
-export type WorkspaceTrustAutonomy =
-  | "plan-only"
+export type WorkspaceWriteAccess =
+  | "read-only"
   | "approval-required"
-  | "trusted-patch";
+  | "workspace";
 
 export interface WorkspaceTrustContract {
   id: string;
   workspaceId: string;
   name: string;
   version: number;
-  autonomy: WorkspaceTrustAutonomy;
+  writeAccess: WorkspaceWriteAccess;
   allowedPaths: string[];
   forbiddenPaths: string[];
   allowedCommands: string[];

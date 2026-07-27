@@ -368,7 +368,7 @@ class MobileBridgeService {
       reasoningEnabled: true,
       reasoning: "medium",
       pathKind: "full",
-      access: "approval",
+      behaviorMode: "execute",
     };
     if (value === undefined || value === null) return defaults;
     // Canonical IPC contract: fail closed on unknown/legacy fields (including mode).
@@ -377,8 +377,7 @@ class MobileBridgeService {
     return {
       ...defaults,
       ...parsed,
-      // Mobile companion always runs under approval-required access.
-      access: "approval",
+      behaviorMode: parsed.behaviorMode ?? "execute",
     };
   }
 

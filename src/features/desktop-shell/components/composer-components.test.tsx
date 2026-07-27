@@ -14,10 +14,10 @@ if (!window.matchMedia) {
     }) as unknown as MediaQueryList;
 }
 
-const { cleanup, fireEvent, render, waitFor } = await import(
+const { cleanup, render, waitFor } = await import(
   "@testing-library/react"
 );
-const { ComposerCoreInput } = await import("./composer-core-input");
+const { ComposerCoreInput, handleComposerSubmitShortcut } = await import("./composer-core-input");
 const { restoreRunSettingsFocus } = await import("./composer-run-settings");
 
 afterEach(cleanup);
@@ -55,8 +55,22 @@ describe("composer essentials", () => {
       objective.getAttribute("placeholder") ?? "",
       /What do you want to verify in a-very-long-repository/,
     );
-    fireEvent.keyDown(objective, { key: "Enter", metaKey: true });
+    let prevented = false;
+    handleComposerSubmitShortcut(
+      {
+        ctrlKey: false,
+        key: "Enter",
+        metaKey: true,
+        preventDefault: () => {
+          prevented = true;
+        },
+      },
+      () => {
+        submitted += 1;
+      },
+    );
     assert.equal(submitted, 1);
+    assert.equal(prevented, true);
   });
 
   it("restores focus to the Run settings trigger when dismissed", async () => {

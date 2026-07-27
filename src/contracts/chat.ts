@@ -1,7 +1,6 @@
-import type { ToolPolicyClassification } from "./tool-policy";
 import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
-import type { AutonomyPolicy } from "./behavior-mode";
+import type { BehaviorMode } from "./behavior-mode";
 import type { ExecutionOutcome, ExecutionTerminalState } from "./execution";
 
 export type MessageRole = "user" | "assistant";
@@ -52,7 +51,6 @@ export type AssistantReasoningLevel =
  * Replaces deleted AssistantMode product identity (NES-8 / CLOSURE 2).
  */
 export type EngineeringPathKind = "full" | "verify_only" | "chat_help";
-export type AssistantAccess = "scoped" | "full" | "approval";
 export type AssistantRunbookId =
   | "patch_test_verify"
   | "audit_reproduce_remediate"
@@ -82,9 +80,8 @@ export interface AssistantRunOptions {
   reasoning: AssistantReasoningLevel;
   /** Internal routing only — never a user mode selector */
   pathKind?: EngineeringPathKind;
-  access: AssistantAccess;
-  /** Canonical tool-autonomy policy. Never maps Auto to unrestricted access. */
-  autonomyPolicy?: AutonomyPolicy;
+  /** Strategy only. Effective permissions are resolved in main process. */
+  behaviorMode: BehaviorMode;
   serviceTier?: RainyServiceTier;
   runbookId?: AssistantRunbookId;
   attachments?: AssistantAttachment[];
@@ -109,10 +106,54 @@ export interface AssistantRunProgress {
   runId: string;
   status: Extract<RunStatus, "running" | "failed">;
   content: string;
-  thought?: string;
   events: ToolEvent[];
   artifacts: MessageArtifact[];
+  outcome?: AgentOutcome;
 }
+
+export type AgentBlockReason =
+  | "MODE_READ_ONLY"
+  | "WORKSPACE_READ_ONLY"
+  | "WORKSPACE_SCOPE"
+  | "COMMAND_NOT_ALLOWED"
+  | "ACTION_NOT_ALLOWED"
+  | "DESTRUCTIVE_ACTION"
+  | "APPROVAL_DENIED"
+  | "GIT_APPROVAL_REQUIRED"
+  | "TASK_APPROVAL_REQUIRED"
+  | "PROVIDER_UNAVAILABLE";
+
+export type AgentRemediation =
+  | { type: "change_mode"; target: BehaviorMode; label: string }
+  | { type: "update_workspace_policy"; label: string }
+  | { type: "retry"; label: string };
+
+export type AgentOutcome =
+  | {
+      status: "completed";
+      summary: string;
+      changes?: EvidencePackFileChange[];
+      validation?: EvidencePackTestRun[];
+    }
+  | {
+      status: "blocked";
+      summary: string;
+      blocker: {
+        code: AgentBlockReason;
+        requestedCapability: string;
+        remediation?: AgentRemediation;
+      };
+    }
+  | {
+      status: "needs_approval";
+      summary: string;
+      approvalId: string;
+    }
+  | {
+      status: "failed";
+      summary: string;
+      diagnostic?: { code: string; message: string };
+    };
 
 export interface ToolEvent {
   id: string;
@@ -148,7 +189,6 @@ export interface ToolEvent {
     exitCode?: number;
     evidenceRef?: string;
   };
-  policy?: ToolPolicyClassification;
 }
 
 export interface AgentRunTraceParticipant {
@@ -410,10 +450,10 @@ export interface ReproducibleRunInitialState {
     reasoningEnabled: boolean;
     reasoning: AssistantReasoningLevel;
     pathKind?: EngineeringPathKind;
-    access: AssistantAccess;
+    behaviorMode: BehaviorMode;
     runbookId?: AssistantRunbookId;
   };
-  trustAutonomy?: string;
+  workspaceWriteAccess?: string;
 }
 
 export interface ReproducibleRunDecision {
@@ -461,12 +501,12 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
-  thought?: string;
   createdAt: string;
   events?: ToolEvent[];
   artifacts?: MessageArtifact[];
   evidencePack?: EvidencePack;
   executionOutcome?: ExecutionOutcome;
+  outcome?: AgentOutcome;
   /** @deprecated Never written by product path — migration decoder only may attach historical payload */
   engineeringTaskId?: string | null;
   workingSet?: WorkingSet;

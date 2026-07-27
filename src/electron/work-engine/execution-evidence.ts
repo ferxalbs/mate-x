@@ -218,7 +218,7 @@ export function buildUserFacingExecutionSummary(
   } else if (outcome === "awaiting_approval") {
     lines.push("Waiting for approval before continuing.");
   } else if (outcome === "blocked") {
-    lines.push("Stopped because required access or workspace trust was unavailable.");
+    lines.push("Stopped because required access is unavailable.");
   } else {
     lines.push("The run could not complete.");
   }

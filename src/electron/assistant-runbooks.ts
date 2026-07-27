@@ -3,10 +3,6 @@ import type {
   AssistantRunbookDefinition,
   AssistantRunbookId,
 } from "../contracts/chat";
-import {
-  DEFAULT_CUSTOM_BEHAVIOR,
-  type AutonomyPolicy,
-} from "../contracts/behavior-mode";
 import { normalizeRainyServiceTier } from "../contracts/rainy";
 import type { WorkPlan } from "./work-engine/types";
 
@@ -14,7 +10,7 @@ const DEFAULT_ASSISTANT_OPTIONS: AssistantRunOptions = {
   reasoningEnabled: true,
   reasoning: "high",
   pathKind: "full",
-  access: "approval",
+  behaviorMode: "execute",
   runbookId: "patch_test_verify",
 };
 
@@ -262,11 +258,12 @@ export function resolveAssistantRunOptions(
         ? options.reasoning
         : DEFAULT_ASSISTANT_OPTIONS.reasoning,
     pathKind,
-    access:
-      options?.access === "approval" || options?.access === "scoped" || options?.access === "full"
-        ? options.access
-        : DEFAULT_ASSISTANT_OPTIONS.access,
-    autonomyPolicy: normalizeAutonomyPolicy(options?.autonomyPolicy),
+    behaviorMode:
+      options?.behaviorMode === "review" ||
+      options?.behaviorMode === "plan" ||
+      options?.behaviorMode === "execute"
+        ? options.behaviorMode
+        : DEFAULT_ASSISTANT_OPTIONS.behaviorMode,
     serviceTier: normalizeRainyServiceTier(options?.serviceTier),
     runbookId:
       pathKind === "chat_help"
@@ -277,26 +274,6 @@ export function resolveAssistantRunOptions(
     // sdkAction is validated at the IPC boundary; preserve for orchestrator execution only.
     ...(options?.sdkAction ? { sdkAction: options.sdkAction } : {}),
   };
-}
-
-function normalizeAutonomyPolicy(
-  policy: AssistantRunOptions["autonomyPolicy"],
-): AutonomyPolicy {
-  if (!policy) {
-    return { id: "auto_scoped" };
-  }
-
-  if (policy.id === "custom") {
-    return {
-      id: "custom",
-      custom: {
-        ...DEFAULT_CUSTOM_BEHAVIOR,
-        ...policy.custom,
-      },
-    };
-  }
-
-  return { id: policy.id };
 }
 
 export function resolveRunbookId(

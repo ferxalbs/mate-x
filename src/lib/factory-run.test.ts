@@ -17,7 +17,7 @@ import {
 } from "./factory-run";
 
 const fullOptions: AssistantRunOptions = {
-  access: "full",
+  behaviorMode: "execute",
   pathKind: "full",
   reasoning: "high",
   reasoningEnabled: true,
@@ -43,7 +43,7 @@ describe("Factory write authority deleted [NES-8.1][R4]", () => {
       createFactoryRun({
         id: "factory-1",
         prompt: "hello",
-        options: { ...fullOptions, pathKind: "chat_help", access: "approval" },
+        options: { ...fullOptions, pathKind: "chat_help", behaviorMode: "review" },
         createdAt: "2026-07-07T00:00:00.000Z",
       }),
       undefined,
@@ -55,17 +55,17 @@ describe("Factory write authority deleted [NES-8.1][R4]", () => {
       ...fullOptions,
       mode: "factory",
     } as AssistantRunOptions & { mode: string });
-    assert.equal(factory.access, "approval");
+    assert.equal(factory.behaviorMode, "execute");
     assert.equal(factory.pathKind, "full");
     assert.equal("mode" in factory, false);
 
     const ship = normalizeFactoryRunOptions({
       ...fullOptions,
-      access: "full",
+      behaviorMode: "execute",
       mode: "ship",
       runbookId: "review_classify_summarize",
     } as AssistantRunOptions & { mode: string });
-    assert.equal(ship.access, "approval");
+    assert.equal(ship.behaviorMode, "execute");
     assert.equal(ship.pathKind, "verify_only");
     assert.equal(ship.runbookId, "patch_test_verify");
   });

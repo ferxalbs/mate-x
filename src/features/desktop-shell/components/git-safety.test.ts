@@ -39,7 +39,7 @@ describe("git safety gate", () => {
 
   it("starts verification from the blocked git CTA action", () => {
     assert.equal(ambientSafetyActions.runSafetyCheck.label, "Run verification");
-    assert.equal(ambientSafetyActions.runSafetyCheck.overrides.access, "approval");
+    assert.equal(ambientSafetyActions.runSafetyCheck.overrides.behaviorMode, "execute");
     assert.equal(ambientSafetyActions.runSafetyCheck.overrides.runbookId, "patch_test_verify");
   });
 });

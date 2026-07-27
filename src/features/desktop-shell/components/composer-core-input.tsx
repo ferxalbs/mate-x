@@ -16,10 +16,7 @@ export function ComposerCoreInput({
   workspace: WorkspaceSummary | null;
 }) {
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      onSubmit();
-    }
+    handleComposerSubmitShortcut(event, onSubmit);
   }
 
   return (
@@ -44,4 +41,17 @@ export function ComposerCoreInput({
       {attachments}
     </div>
   );
+}
+
+export function handleComposerSubmitShortcut(
+  event: Pick<
+    KeyboardEvent<HTMLTextAreaElement>,
+    "ctrlKey" | "key" | "metaKey" | "preventDefault"
+  >,
+  onSubmit: () => void,
+) {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    onSubmit();
+  }
 }

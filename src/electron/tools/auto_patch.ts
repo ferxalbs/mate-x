@@ -1,12 +1,10 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import type { Tool } from "../tool-service";
-import { policyService } from "../policy-service";
 import {
   analyzePatchAfter,
   analyzePatchBefore,
   assessPatchBeforeWrite,
-  formatPatchImpactBlocked,
   formatPatchImpactSkipped,
   formatPatchImpactSummary,
 } from "../patch-impact-engine";
@@ -36,16 +34,11 @@ export const autoPatchTool: Tool = {
         description:
           "Replace every occurrence when true. Defaults to false (single replacement).",
       },
-      allowHighImpact: {
-        type: "boolean",
-        description:
-          "Set true only after explicit user confirmation when PATCH_IMPACT_DECISION requires confirmation.",
-      },
     },
     required: ["path", "searchString", "replacementString"],
   },
-  async execute(args, { workspacePath, signal }) {
-    const { path, searchString, replacementString, replaceAll = false, allowHighImpact = false } = args;
+  async execute(args, { workspacePath }) {
+    const { path, searchString, replacementString, replaceAll = false } = args;
     const targetFile = resolveWorkspacePath(workspacePath, path);
 
     try {
@@ -64,26 +57,6 @@ export const autoPatchTool: Tool = {
       if (newContent === content) {
         return formatPatchImpactSkipped(impactBefore.targetFile, decision, impactBefore.summary);
       }
-      if (decision.requiresConfirmation) {
-        if (allowHighImpact !== true) {
-          return formatPatchImpactBlocked(impactBefore.targetFile, decision, impactBefore.summary);
-        }
-        const approval = await requestHighImpactPatchApproval({
-          workspacePath,
-          target: String(path),
-          summary: `Replace ${replaceAll ? replacementCount : 1} occurrence(s).`,
-          riskScore: decision.level,
-          signal,
-        });
-        if (!approval) {
-          return JSON.stringify({
-            status: "refused",
-            reason: "USER_DECLINED_HIGH_IMPACT_PATCH",
-            target: String(path),
-          });
-        }
-      }
-
       await writeFile(targetFile, newContent, "utf8");
       const impactSummary = await analyzePatchAfter(impactBefore);
 
@@ -96,34 +69,3 @@ export const autoPatchTool: Tool = {
     }
   },
 };
-
-async function requestHighImpactPatchApproval(input: {
-  workspacePath: string;
-  target: string;
-  summary: string;
-  riskScore: string;
-  signal?: AbortSignal;
-}) {
-  const stop = policyService.createStop({
-    runId: `tool-${Date.now()}`,
-    workspacePath: input.workspacePath,
-    toolName: "auto_patch",
-    severity: "warning",
-    policyId: "change.high_impact.allow_flag",
-    title: "Run paused: high-impact patch requires approval.",
-    explanation:
-      "The agent set allowHighImpact: true. A human must approve this high-impact patch before execution continues.",
-    kind: "HIGH_IMPACT_PATCH_APPROVAL",
-    target: input.target,
-    metadata: {
-      patchSummary: input.summary,
-      riskScore: input.riskScore,
-      allowHighImpact: true,
-    },
-    recommendation: "approve_once",
-    availableActions: ["approve_once", "abort", "safer_alternative"],
-  });
-  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
-  policyService.markStopCompleted(stop.id);
-  return resolvedStop.resolution?.action === "approve_once";
-}

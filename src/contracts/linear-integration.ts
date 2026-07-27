@@ -31,7 +31,7 @@ export interface LinearRepositoryCandidate {
   repositoryFullName: string;
 }
 
-export type LinearActivityKind = "thought" | "action" | "elicitation" | "response" | "error";
+export type LinearActivityKind = "action" | "elicitation" | "response" | "error";
 
 export interface LinearWebhookEnvelope {
   deliveryId: string;

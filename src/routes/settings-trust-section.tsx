@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import type {
-  WorkspaceTrustAutonomy,
+  WorkspaceWriteAccess,
   WorkspaceTrustContract,
 } from '../contracts/workspace';
 import { TrustTextareaRow, formatDateTime } from './settings-page-utils';
@@ -28,23 +28,23 @@ export function SettingsTrustSection({
   setTrustDraft,
 }: SettingsTrustSectionProps) {
   return (
-    <SettingsSection title="Workspace Trust Contract" icon={<HugeiconsIcon icon={ShieldKeyIcon} className="size-4" />}>
+    <SettingsSection title="Workspace Policy" icon={<HugeiconsIcon icon={ShieldKeyIcon} className="size-4" />}>
       {trustDraft ? (
         <>
           <SettingsRow
             title="Operational profile"
-            description={`Versioned contract for ${activeWorkspaceName ?? 'the active workspace'}. This profile is sent into each run and enforced before tool execution.`}
+            description={`Capability limits for ${activeWorkspaceName ?? 'the active workspace'}. These rules are enforced before actions run.`}
             status={`Updated ${formatDateTime(trustDraft.updatedAt)}`}
             control={
               <Select
-                value={trustDraft.autonomy}
+                value={trustDraft.writeAccess}
                 onValueChange={(value) => {
-                  const nextAutonomy = value as WorkspaceTrustAutonomy;
+                  const nextWriteAccess = value as WorkspaceWriteAccess;
                   setTrustDraft((draft) =>
                     draft
                       ? {
                           ...draft,
-                          autonomy: nextAutonomy,
+                          writeAccess: nextWriteAccess,
                         }
                       : draft,
                   );
@@ -54,9 +54,9 @@ export function SettingsTrustSection({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="plan-only">Plan only</SelectItem>
+                  <SelectItem value="read-only">Read only</SelectItem>
                   <SelectItem value="approval-required">Ask before changes</SelectItem>
-                  <SelectItem value="trusted-patch">Scoped changes</SelectItem>
+                  <SelectItem value="workspace">Workspace changes</SelectItem>
                 </SelectContent>
               </Select>
             }
@@ -122,7 +122,7 @@ export function SettingsTrustSection({
       ) : (
         <SettingsRow
           title="No active workspace"
-          description="Import or activate a workspace before editing its trust contract."
+          description="Import or activate a workspace before editing its policy."
           control={null}
         />
       )}

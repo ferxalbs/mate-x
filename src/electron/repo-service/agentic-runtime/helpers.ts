@@ -3,6 +3,7 @@ import type { RepoSnapshot } from "../workspace";
 import type { AgentToolCall } from "./types";
 import type { AssistantRunOptions, MessageArtifact, ToolEvent } from "../../../contracts/chat";
 import type { WorkspaceMemoryProposedUpdate } from "../../../contracts/workspace";
+import { sanitizeAssistantOutput } from "../../../lib/assistant-output";
 import {
   getToolModelOutputBudgetChars,
   isToolBatchExclusive,
@@ -11,6 +12,7 @@ import {
 export const MAX_TOOL_OUTPUT_CHARS = 80_000;
 
 export { getToolModelOutputBudgetChars, isToolBatchExclusive };
+export { sanitizeAssistantOutput } from "../../../lib/assistant-output";
 
 export function isExecutionIntentPrompt(prompt: string): boolean {
   const normalized = prompt.toLowerCase();
@@ -98,10 +100,8 @@ export function isCleanGitDiffToolResult(result: {
 
 export function buildCleanCurrentChangeReviewAnswer(): string {
   return [
-    "Verdict: no current changes to review.",
-    "Verdict summary: git status/diff show 0 changed files, 0 insertions, and 0 deletions.",
-    "Confidence: high.",
-    "Final recommendation: risk N/A; no validation or extra inspection needed for a clean current-change review.",
+    "No current changes found.",
+    "Git status and diff show 0 changed files, 0 insertions, and 0 deletions.",
   ].join("\n");
 }
 
@@ -121,11 +121,11 @@ export function tryParseJsonObject(value: string): Record<string, unknown> | nul
 }
 
 export function normalizeAssistantText(content: unknown): string {
+  let text = "";
   if (typeof content === "string") {
-    return content;
-  }
-  if (Array.isArray(content)) {
-    return content
+    text = content;
+  } else if (Array.isArray(content)) {
+    text = content
       .map((part) => {
         if (typeof part === "string") {
           return part;
@@ -143,7 +143,7 @@ export function normalizeAssistantText(content: unknown): string {
       .join("\n")
       .trim();
   }
-  return "";
+  return sanitizeAssistantOutput(text);
 }
 
 export function isPreparatoryAssistantText(content: string): boolean {
@@ -612,7 +612,7 @@ export function buildArtifacts(
     {
       id: "artifact-autonomy",
       label: "Autonomy",
-      value: snapshot.trustContract.autonomy,
+      value: snapshot.trustContract.writeAccess,
     },
     {
       id: "artifact-branch",
@@ -699,7 +699,7 @@ function formatRainyApiError(error: Error) {
 
   const statusCode = error.message.match(/\b(?:status(?: code)?\s*)?([45]\d{2})\b/i)?.[1];
   if (!statusCode) {
-    return `API error: ${error.message}`;
+    return "Provider request failed. Check the connection or model settings, then retry.";
   }
 
   const summary =

@@ -2,8 +2,8 @@ import { isAbsolute, normalize, relative } from "node:path";
 
 import { RAINY_API_BASE_URL } from "../config/rainy";
 import type {
-  WorkspaceTrustAutonomy,
   WorkspaceTrustContract,
+  WorkspaceWriteAccess,
 } from "../contracts/workspace";
 import { createId } from "../lib/id";
 
@@ -64,7 +64,7 @@ export function createDefaultWorkspaceTrustContract(
     workspaceId,
     name: `${workspaceName} governed review`,
     version: TRUST_CONTRACT_SCHEMA_VERSION,
-    autonomy: "approval-required",
+    writeAccess: "approval-required",
     allowedPaths,
     forbiddenPaths: [
       ".env",
@@ -98,8 +98,18 @@ export function createDefaultWorkspaceTrustContract(
 export function normalizeWorkspaceTrustContract(
   contract: PersistedWorkspaceTrustContract,
 ): WorkspaceTrustContract {
+  const legacyAutonomy = "autonomy" in contract ? contract.autonomy : undefined;
+  const { autonomy: _legacyAutonomy, ...currentContract } = contract;
+  void _legacyAutonomy;
+  const writeAccess =
+    contract.writeAccess ??
+    (legacyAutonomy === "plan-only"
+      ? "read-only"
+      : legacyAutonomy === "trusted-patch" || legacyAutonomy === "unrestricted"
+        ? "workspace"
+        : "approval-required");
   return {
-    ...contract,
+    ...currentContract,
     name: contract.name.trim() || "Workspace trust contract",
     version: Math.max(
       Number.isInteger(contract.version) && contract.version > 0
@@ -107,10 +117,7 @@ export function normalizeWorkspaceTrustContract(
         : TRUST_CONTRACT_SCHEMA_VERSION,
       TRUST_CONTRACT_SCHEMA_VERSION,
     ),
-    autonomy:
-      contract.autonomy === "unrestricted"
-        ? "trusted-patch"
-        : contract.autonomy,
+    writeAccess,
     allowedPaths: appendInternalReadPaths(normalizeList(contract.allowedPaths)),
     forbiddenPaths: normalizeList(contract.forbiddenPaths),
     allowedCommands: normalizeList(contract.allowedCommands),
@@ -124,9 +131,10 @@ export function normalizeWorkspaceTrustContract(
 
 export type PersistedWorkspaceTrustContract = Omit<
   WorkspaceTrustContract,
-  "autonomy"
+  "writeAccess"
 > & {
-  autonomy: WorkspaceTrustAutonomy | "unrestricted";
+  writeAccess?: WorkspaceWriteAccess;
+  autonomy?: "plan-only" | "approval-required" | "trusted-patch" | "unrestricted";
 };
 
 function appendInternalReadPaths(paths: string[]) {
@@ -148,23 +156,23 @@ export function evaluateTrustForToolCall({
   const requiredAction = getRequiredAction(toolName, args);
 
   if (
-    normalizedContract.autonomy === "plan-only" &&
+    normalizedContract.writeAccess === "read-only" &&
     requiredAction &&
     !["read", "search"].includes(requiredAction)
   ) {
-    return `Workspace Trust Contract blocks ${toolName}: autonomy is plan-only.`;
+    return `Workspace policy blocks ${toolName}: repository writes are disabled.`;
   }
 
   if (
     requiredAction &&
     !normalizedContract.allowedActions.includes(requiredAction)
   ) {
-    return `Workspace Trust Contract blocks ${toolName}: action "${requiredAction}" is not allowed.`;
+    return `Workspace policy blocks ${toolName}: action "${requiredAction}" is not allowed.`;
   }
 
   const blockedAction = getBlockedAction(toolName, args, normalizedContract);
   if (blockedAction) {
-    return `Workspace Trust Contract blocks ${toolName}: action "${blockedAction}" is prohibited.`;
+    return `Workspace policy blocks ${toolName}: action "${blockedAction}" is prohibited.`;
   }
 
   const command = extractCommand(toolName, args);
@@ -174,7 +182,7 @@ export function evaluateTrustForToolCall({
         command === allowedCommand || command.startsWith(`${allowedCommand} `),
     );
     if (!allowed) {
-      return `Workspace Trust Contract blocks command "${command}".`;
+      return `Workspace policy blocks command "${command}".`;
     }
   }
 
@@ -182,7 +190,7 @@ export function evaluateTrustForToolCall({
   for (const pathValue of pathValues) {
     const pathError = evaluatePath(pathValue, normalizedContract, toolName);
     if (pathError) {
-      return `Workspace Trust Contract blocks ${toolName}: ${pathError}`;
+      return `Workspace policy blocks ${toolName}: ${pathError}`;
     }
   }
 
@@ -199,22 +207,6 @@ export function canQueryDomain(
       normalizedHostname === domain ||
       normalizedHostname.endsWith(`.${domain}`),
   );
-}
-
-export function renderTrustContractForPrompt(contract: WorkspaceTrustContract) {
-  const normalized = normalizeWorkspaceTrustContract(contract);
-
-  return [
-    `Trust contract: ${normalized.name} v${normalized.version}`,
-    `Autonomy: ${normalized.autonomy}`,
-    `Allowed paths: ${formatList(normalized.allowedPaths)}`,
-    `Forbidden paths: ${formatList(normalized.forbiddenPaths)}`,
-    `Allowed commands: ${formatList(normalized.allowedCommands)}`,
-    `Allowed domains: ${formatList(normalized.allowedDomains)}`,
-    `Allowed secrets: ${formatList(normalized.allowedSecrets)}`,
-    `Allowed actions: ${formatList(normalized.allowedActions)}`,
-    `Blocked actions: ${formatList(normalized.blockedActions)}`,
-  ].join("\n");
 }
 
 function normalizeList(values: string[]) {
@@ -419,8 +411,4 @@ function matchesPathPattern(candidate: string, pattern: string) {
     candidate === normalizedPattern ||
     candidate.startsWith(`${normalizedPattern}/`)
   );
-}
-
-function formatList(values: string[]) {
-  return values.length > 0 ? values.join(", ") : "none";
 }

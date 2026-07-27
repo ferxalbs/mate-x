@@ -1,6 +1,6 @@
 import type { ToolExecutionRecord } from "../../evidence-pack";
 import type { RepoSnapshot } from "../workspace";
-import type { AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
+import type { AgentOutcome, AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../../../contracts/execution";
 import type { RainyModelCapabilities, RainyModelCatalogEntry } from "../../../contracts/rainy";
 import type { AppSettings } from "../../../contracts/settings";
@@ -10,14 +10,6 @@ import {
 } from "../../rainy-service";
 import { toolService } from "../../tool-service";
 import { createTokenEstimator } from "../../token-estimator";
-import { repoGraphService } from "../../repo-graph-service";
-import { failureMemoryEngine } from "../../failure-memory-engine";
-import { renderTrustContractForPrompt } from "../../workspace-trust";
-import { renderWorkingSetForPrompt } from "../../working-set-compiler";
-import { renderWorkPlanForPrompt } from "../../work-engine/work-engine";
-import { renderFailureMemoryInstruction } from "../../work-engine/failure-memory-gate";
-import { MATE_AGENT_SYSTEM_PROMPT } from "../../../config/mate-agent";
-import { renderRunbookForPrompt } from "../../assistant-runbooks";
 import { applyContextCompressionChat } from "../../context-compression";
 import type { AgentToolCall } from "./types";
 import {
@@ -39,6 +31,7 @@ import {
   isPreparatoryAssistantText,
   executeToolBatchWithSafety,
   normalizeAssistantText,
+  sanitizeAssistantOutput,
   summarizeCheckpoint,
   buildTimeoutFinalResponse,
   buildNoContentFinalResponse,
@@ -48,6 +41,7 @@ import {
 import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
 import { attemptFinalChatSynthesis } from "./synthesis";
+import { resolveAdvertisedToolNames } from "../../capability-resolver";
 
 export async function requestRainyChatAgenticResponse({
   apiKey,
@@ -80,7 +74,7 @@ export async function requestRainyChatAgenticResponse({
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
-  emitProgress: (content?: string, thought?: string) => void;
+  emitProgress: (content?: string) => void;
   appSettings: AppSettings;
   runId: string;
   serviceTier?: AssistantRunOptions["serviceTier"];
@@ -92,6 +86,7 @@ export async function requestRainyChatAgenticResponse({
   content: string;
   synthesisStatus: ExecutionSynthesisStatus;
   synthesisSummary?: string;
+  outcome?: AgentOutcome;
 }> {
   const historyMessages = buildHistoryMessages(history);
   const rainyReasoning = resolveRainyReasoningPayload(options, capabilities);
@@ -100,8 +95,9 @@ export async function requestRainyChatAgenticResponse({
     ...historyMessages,
     { role: "user", content: buildChatUserContent(prompt, options.attachments) },
   ];
-  // Full catalog: capable models choose tools; system prompt steers preference.
-  const chatTools = await toolService.getChatToolDefinitions();
+  const chatTools = await toolService.getChatToolDefinitions({
+    names: resolveAdvertisedToolNames(options.behaviorMode),
+  });
   const tokenEstimator = createTokenEstimator(model);
   let iterations = 0;
   let toolRounds = 0;
@@ -123,36 +119,9 @@ export async function requestRainyChatAgenticResponse({
       serviceTier,
     });
 
-  // Reference these unused imports dynamically or declare them so linter is happy
-  if (process.env.DEBUG_MATE_RUNTIME === "true") {
-    console.debug(
-      repoGraphService,
-      failureMemoryEngine,
-      renderTrustContractForPrompt,
-      renderWorkingSetForPrompt,
-      renderWorkPlanForPrompt,
-      renderFailureMemoryInstruction,
-      MATE_AGENT_SYSTEM_PROMPT,
-      renderRunbookForPrompt,
-    );
-  }
-
   while (iterations < runtime.maxIterations) {
     iterations++;
     const passId = `${runId}:pass:${iterations}`;
-    const reasoningSegment: ToolEvent = {
-      id: `${passId}:reasoning`,
-      segmentId: `${passId}:reasoning`,
-      passId,
-      runId,
-      segmentKind: "reasoning",
-      type: "reasoning",
-      label: `Reasoning pass ${iterations}`,
-      detail: "",
-      status: "active",
-    };
-    events.push(reasoningSegment);
-
     events.push({
       id: `step-agent-loop-${iterations}`,
       label: `Agent pass ${iterations}`,
@@ -183,7 +152,6 @@ export async function requestRainyChatAgenticResponse({
       tokenEstimator,
     );
     let streamedPassText = "";
-    let streamedThought = "";
     let responseMessage: Awaited<ReturnType<typeof requestRainyChatCompletionStream>>;
     try {
       responseMessage = await requestRainyChatCompletionStream({
@@ -200,7 +168,7 @@ export async function requestRainyChatAgenticResponse({
               ? "required"
               : undefined,
         reasoning: rainyReasoning.reasoning,
-        includeReasoning: rainyReasoning.includeReasoning,
+        includeReasoning: false,
         reasoningEffort: rainyReasoning.reasoningEffort,
         capabilities,
         maxTokens,
@@ -210,28 +178,18 @@ export async function requestRainyChatAgenticResponse({
           reasoningEnabled: options.reasoningEnabled,
           reasoning: options.reasoning,
         }),
-        onReasoningDelta: (delta: string) => {
-          streamedThought += delta;
-          reasoningSegment.detail += delta;
-          emitProgress(
-            lastNonEmptyAssistantText
-              ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
-              : streamedPassText || undefined,
-            streamedThought,
-          );
-        },
         onContentDelta: (delta: string) => {
           streamedPassText += delta;
+          const visibleStream = sanitizeAssistantOutput(streamedPassText);
           emitProgress(
             lastNonEmptyAssistantText
-              ? `${lastNonEmptyAssistantText}\n\n${streamedPassText}`
-              : streamedPassText,
-            streamedThought || undefined,
+              ? [lastNonEmptyAssistantText, visibleStream].filter(Boolean).join("\n\n")
+              : visibleStream,
           );
         },
       });
     } catch (error) {
-      const partialText = [lastNonEmptyAssistantText, streamedPassText]
+      const partialText = [lastNonEmptyAssistantText, sanitizeAssistantOutput(streamedPassText)]
         .map((part) => part.trim())
         .filter(Boolean)
         .join("\n\n");
@@ -246,7 +204,7 @@ export async function requestRainyChatAgenticResponse({
           status: "error",
           visibility: "technical",
         });
-        emitProgress(partialText || undefined, streamedThought || undefined);
+        emitProgress(partialText || undefined);
         return {
           toolExecutions,
           synthesisStatus: "failed",
@@ -272,7 +230,7 @@ export async function requestRainyChatAgenticResponse({
             : "Rainy request timed out. Returned partial local synthesis.",
         status: "error",
       });
-      emitProgress(partialText || undefined, streamedThought || undefined);
+      emitProgress(partialText || undefined);
 
       return {
         toolExecutions,
@@ -288,12 +246,6 @@ export async function requestRainyChatAgenticResponse({
           }),
         ),
       };
-    }
-
-    reasoningSegment.status = "completed";
-    if (!reasoningSegment.detail.trim()) {
-      const index = events.indexOf(reasoningSegment);
-      if (index >= 0) events.splice(index, 1);
     }
 
     messages.push(responseMessage);
@@ -317,6 +269,7 @@ export async function requestRainyChatAgenticResponse({
         label: toolCalls?.length ? `Agent pass ${iterations} response` : "Final response",
         detail: responseText,
         status: "completed",
+        visibility: toolCalls?.length ? "restricted" : "public",
       });
       // Intermediate pass text is already preserved in events. Keep only the
       // latest draft visible so final output cannot accumulate repeated drafts.
@@ -526,13 +479,28 @@ export async function requestRainyChatAgenticResponse({
           appSettings,
           runId,
           engineeringTaskStatus,
-          autonomyPolicy: options.autonomyPolicy,
+          behaviorMode: options.behaviorMode,
           signal,
         }),
     );
 
     totalToolCalls += toolResults.length;
     toolExecutions.push(...toolResults.map((result: any) => result.toolExecution));
+    const terminalOutcome = toolResults.find(
+      (result: { outcome?: AgentOutcome }) =>
+        result.outcome?.status === "blocked" ||
+        result.outcome?.status === "failed",
+    )?.outcome;
+    if (terminalOutcome) {
+      return {
+        toolExecutions,
+        synthesisStatus:
+          terminalOutcome.status === "failed" ? "failed" : "valid",
+        synthesisSummary: terminalOutcome.summary,
+        content: terminalOutcome.summary,
+        outcome: terminalOutcome,
+      };
+    }
 
     if (
       cleanCurrentChangeReview &&

@@ -23,8 +23,8 @@ test("workspace trust selectors expose only scoped profiles", () => {
       source,
       new RegExp(`>\\s*(?:${removedProfile}|${removedAccessLabel})\\s*<`, "i"),
     );
-    assert.match(source, /Plan only/);
+    assert.match(source, /Read only/);
     assert.match(source, /Ask before changes/);
-    assert.match(source, /Scoped changes/);
+    assert.match(source, /Workspace changes/);
   }
 });

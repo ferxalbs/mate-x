@@ -292,9 +292,12 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 
 - **System Scope**: MaTE X is not an IDE and must expose no separate user-facing workflow engines.
 - **Workflow Authority**: `EngineeringTask` is the canonical workflow authority.
-- **Behavior Modes**: Auto, Guided, Review, and Custom control autonomy only; they are not workflow engines. Auto is default.
-- **Scoped Auto Policy**: Auto means scoped autonomy, never unrestricted or Full access. Safe workspace-local reads, edits, patches, and validation may run automatically.
-- **Distinct Tool Policies**: Behavior modes map to distinct canonical tool policies: `auto_scoped`, `guided_approval`, `review_read_only`, and `custom`.
+- **Behavior Modes**: Review, Plan, and Execute control agent strategy only; they are not authorization systems or workflow engines. Execute is default.
+- **Mode Differentiation**: Review produces evidence-backed findings, Plan produces an executable implementation strategy, and Execute performs and validates authorized work.
+- **Capability Authority**: `src/electron/capability-resolver.ts` is the single authorization path for agent tool calls. It combines mode capabilities, workspace policy, task state, and approval requirements before execution.
+- **Workspace Policy Separation**: Workspace policy defines paths, commands, domains, actions, and write access only. It must never define personality, response style, planning behavior, or model reasoning.
+- **Structured Outcomes**: Completed, blocked, approval, and failure states cross the runtime/UI boundary as typed outcomes. UI code must not infer application state from assistant prose.
+- **Provider Separation**: Provider reasoning, thinking, hidden blocks, and tool-control events must never be persisted or rendered as assistant content.
 - **Repository Boundary**: Every tool authorization must enforce the active workspace boundary and repository trust state. Writes outside the active workspace require explicit approval.
 - **Git Authorization**: Git writes, including commit and push, always require explicit user authorization in every behavior mode.
 - **Validation Autonomy**: Safe repository-local lint, typecheck, test, and build commands may run automatically when policy and trust permit them.

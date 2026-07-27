@@ -266,7 +266,7 @@ function getAssistantProgressSignature(progress: AssistantProgressPayload) {
     progress.runId,
     progress.status,
     progress.content,
-    progress.thought ?? "",
+    progress.outcome?.status ?? "",
     progress.events?.length ?? 0,
     progress.events?.at(-1)?.id ?? "",
     progress.events?.at(-1)?.status ?? "",
@@ -336,9 +336,9 @@ function applyAssistantProgress(
                   : {
                       ...message,
                       content: progress.content,
-                      thought: progress.thought,
                       events: mergeTimelineSegments(message.events, progress.events, progress, message.createdAt),
                       artifacts: progress.artifacts,
+                      outcome: progress.outcome,
                     },
               ),
               runs: (thread.runs ?? []).map((run) =>
@@ -363,40 +363,20 @@ function applyAssistantProgress(
 }
 
 export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
-  const events = message.events ?? [];
-  const hasBlocked = events.some((event) => event.status === "blocked" || /blocked|trust|approval/i.test(event.label ?? ""));
-  const hasError = events.some((event) => event.status === "error" || event.status === "failed");
   const hasMutation = (message.evidencePack?.filesModified?.length ?? 0) > 0;
 
   const existingOutcome = message.executionOutcome ?? message.evidencePack?.executionOutcome;
-  if (existingOutcome) {
-    if (existingOutcome.terminalState !== "succeeded" || (!hasBlocked && !hasError)) {
-      return existingOutcome;
-    }
+  if (existingOutcome) return existingOutcome;
 
-    const terminalState: ExecutionTerminalState = hasMutation
+  const agentStatus = message.outcome?.status;
+  const terminalState: ExecutionTerminalState =
+    hasMutation && (agentStatus === "blocked" || agentStatus === "failed")
       ? "partial"
-      : hasBlocked
+      : agentStatus === "blocked" || agentStatus === "needs_approval"
         ? "blocked"
-        : "failed";
-    return {
-      ...existingOutcome,
-      terminalState,
-      summary: hasMutation
-        ? "The run changed files but did not complete all required steps."
-        : hasBlocked
-          ? "The run was blocked before completion."
-          : "The run failed before completion.",
-    };
-  }
-
-  const terminalState: ExecutionTerminalState = hasMutation && (hasBlocked || hasError)
-    ? "partial"
-    : hasBlocked
-      ? "blocked"
-      : hasError
-        ? "failed"
-        : message.evidencePack?.status === "partial"
+        : agentStatus === "failed"
+          ? "failed"
+          : message.evidencePack?.status === "partial"
           ? "partial"
           : message.evidencePack?.status === "blocked"
             ? "blocked"
@@ -429,7 +409,10 @@ export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
   return {
     terminalState,
     evidence,
-    summary: message.evidencePack?.verdict.summary ?? (message.content.trim() || "The run did not produce a final result."),
+    summary:
+      message.outcome?.summary ??
+      message.evidencePack?.verdict.summary ??
+      (message.content.trim() || "The run did not produce a final result."),
   };
 }
 
@@ -981,10 +964,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           reasoningEnabled: options.reasoningEnabled,
           reasoning: runOptions.reasoning,
           pathKind: runOptions.pathKind,
-          access: runOptions.access,
+          behaviorMode: runOptions.behaviorMode,
           runbookId: runOptions.runbookId,
         },
-        trustAutonomy: get().trustContract?.autonomy,
+        workspaceWriteAccess: get().trustContract?.writeAccess,
       },
       decisions: [
         {
@@ -1059,7 +1042,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           );
           const hasProgress =
             Boolean(activeMessage?.content.trim()) ||
-            Boolean(activeMessage?.thought?.trim()) ||
             Boolean(activeMessage?.events?.length) ||
             Boolean(activeMessage?.artifacts?.length);
 

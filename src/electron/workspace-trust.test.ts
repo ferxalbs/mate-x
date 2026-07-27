@@ -43,8 +43,9 @@ test("legacy unrestricted JSON migrates once to scoped changes", () => {
     packageManager: "bun",
     hasPackageJson: true,
   });
+  const { writeAccess: _removed, ...legacyBase } = current;
   const legacy = JSON.parse(JSON.stringify({
-    ...current,
+    ...legacyBase,
     version: 1,
     autonomy: "unrestricted",
   })) as PersistedWorkspaceTrustContract;
@@ -52,7 +53,7 @@ test("legacy unrestricted JSON migrates once to scoped changes", () => {
   const migrated = normalizeWorkspaceTrustContract(legacy);
   const normalizedAgain = normalizeWorkspaceTrustContract(migrated);
 
-  assert.equal(migrated.autonomy, "trusted-patch");
+  assert.equal(migrated.writeAccess, "workspace");
   assert.equal(migrated.version, TRUST_CONTRACT_SCHEMA_VERSION);
   assert.deepEqual(normalizedAgain, migrated);
 });
@@ -62,10 +63,8 @@ test("migrated legacy contracts still enforce paths, commands, domains, and bloc
     packageManager: "bun",
     hasPackageJson: true,
   });
-  const contract = normalizeWorkspaceTrustContract({
-    ...current,
-    autonomy: "unrestricted",
-  });
+  const { writeAccess: _removed, ...legacy } = current;
+  const contract = normalizeWorkspaceTrustContract({ ...legacy, autonomy: "unrestricted" });
 
   assert.match(
     evaluateTrustForToolCall({
@@ -113,12 +112,12 @@ test("scoped trust allows an in-workspace edit and lint but rejects outside writ
   assert.match(evaluateTrustForToolCall({ toolName: "file_editor", args: { path: "../outside.ts" }, contract }) ?? "", /blocks/);
 });
 
-test("plan-only workspace trust remains the hard ceiling for Auto behavior", () => {
+test("read-only workspace remains the hard ceiling for Execute behavior", () => {
   const contract = createDefaultWorkspaceTrustContract("workspace-plan-only", "Repo", {
     packageManager: "bun",
     hasPackageJson: true,
   });
-  contract.autonomy = "plan-only";
+  contract.writeAccess = "read-only";
 
   assert.equal(
     evaluateTrustForToolCall({
@@ -134,6 +133,6 @@ test("plan-only workspace trust remains the hard ceiling for Auto behavior", () 
       args: { path: "src/index.ts" },
       contract,
     }) ?? "",
-    /autonomy is plan-only/,
+    /repository writes are disabled/,
   );
 });

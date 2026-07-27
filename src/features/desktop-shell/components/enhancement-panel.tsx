@@ -79,8 +79,9 @@ export function EnhancementPanel({
   const evidenceCommands = getEvidenceCommands(runtime.evidencePack);
   const evidenceFiles = getEvidenceFiles(runtime.evidencePack);
   const verifiedScore = getVerifiedEvidenceScore(runtime.evidencePack);
-  const verdictLabel = runtime.evidencePack?.verdict.label ?? "";
-  const runFailed = /fail|error|blocked/i.test(verdictLabel);
+  const runFailed =
+    runtime.evidencePack?.status === "failed" ||
+    runtime.evidencePack?.status === "blocked";
   const commands =
     evidenceCommands.length > 0
       ? evidenceCommands

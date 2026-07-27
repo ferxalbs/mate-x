@@ -1,6 +1,5 @@
 import { lookup } from "node:dns/promises";
 import { isIPv6 } from "node:net";
-import { policyService } from "../policy-service";
 import type { Tool } from "../tool-service";
 
 const POISON_REQUEST_TIMEOUT_MS = 30_000;
@@ -30,25 +29,12 @@ export const trafficPoisonerTool: Tool = {
     },
     required: ["url", "attackType"],
   },
-  async execute(args, { workspacePath, signal }) {
+  async execute(args) {
     const { url, attackType, basePayload } = args;
 
     const localhostError = await validateLoopbackUrl(url);
     if (localhostError) {
       return JSON.stringify(localhostError);
-    }
-
-    const approval = await requestTrafficPoisonApproval({
-      workspacePath,
-      target: url,
-      attackType,
-      signal,
-    });
-    if (!approval) {
-      return JSON.stringify({
-        error: "POLICY_STOP_DECLINED",
-        message: "traffic_poison execution requires policy approval.",
-      });
     }
 
     let parsedPayload: Record<string, any> = {};
@@ -150,31 +136,4 @@ async function validateLoopbackUrl(target: string) {
     error: "NON_LOCALHOST_TARGET",
     message: "traffic_poison is restricted to localhost targets.",
   };
-}
-
-async function requestTrafficPoisonApproval(input: {
-  workspacePath: string;
-  target: string;
-  attackType: string;
-  signal?: AbortSignal;
-}) {
-  const stop = policyService.createStop({
-    runId: `tool-${Date.now()}`,
-    workspacePath: input.workspacePath,
-    toolName: "traffic_poison",
-    severity: "critical",
-    policyId: "traffic_poison.execution",
-    title: "Run paused: traffic poisoning requires approval.",
-    explanation:
-      "traffic_poison sends intentionally malicious HTTP payloads and requires explicit approval before execution.",
-    kind: "TRAFFIC_POISON_EXECUTION",
-    target: input.target,
-    command: `traffic_poison ${input.attackType}`,
-    metadata: { riskClass: "high", attackType: input.attackType },
-    recommendation: "approve_once",
-    availableActions: ["approve_once", "abort", "safer_alternative"],
-  });
-  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
-  policyService.markStopCompleted(stop.id);
-  return resolvedStop.resolution?.action === "approve_once";
 }

@@ -36,9 +36,7 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: 'mode: "ship"', re: /mode:\s*["']ship["']/ },
   { name: 'mode: "critic_loop"', re: /mode:\s*["']critic_loop["']/ },
   { name: 'mode: "build" (assistant)', re: /mode:\s*["']build["']/ },
-  { name: 'mode: "plan" (assistant)', re: /mode:\s*["']plan["']/ },
   { name: 'mode: "chat" (assistant)', re: /mode:\s*["']chat["']/ },
-  { name: 'mode: "review" (assistant)', re: /mode:\s*["']review["']/ },
   { name: 'FactoryRun as current model', re: /export interface FactoryRun\b/ },
   { name: 'createFactoryRun product authority', re: /function createFactoryRun[\s\S]{0,200}return \{/ },
 ];

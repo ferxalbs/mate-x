@@ -48,7 +48,6 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
 }: {
   events: ToolEvent[];
   isRunning: boolean;
-  thought?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const normalizedEvents = useMemo(() => {
@@ -57,7 +56,13 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
       .sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0));
   }, [events]);
   const timeline = normalizedEvents.filter(
-    (segment) => segment.segmentKind !== "final_response" && segment.visibility !== "technical" && segment.visibility !== "restricted",
+    (segment) =>
+      segment.segmentKind !== "reasoning" &&
+      segment.type !== "reasoning" &&
+      segment.segmentKind !== "intermediate_response" &&
+      segment.segmentKind !== "final_response" &&
+      segment.visibility !== "technical" &&
+      segment.visibility !== "restricted",
   );
   const settledTimeline = isRunning
     ? timeline

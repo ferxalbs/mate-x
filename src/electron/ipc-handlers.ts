@@ -63,7 +63,7 @@ const MAX_IPC_TEXT_LENGTH = 200_000;
 const MAX_IPC_ARRAY_LENGTH = 500;
 const WORKSPACE_MEMORY_FILE_KINDS = new Set<WorkspaceMemoryFileKind>(["memory", "guardrails", "workstate"]);
 const POLICY_STOP_ACTIONS = new Set(["approve_once", "expand_scope", "abort", "safer_alternative"]);
-const TRUST_AUTONOMY_VALUES = new Set(["plan-only", "approval-required", "trusted-patch"]);
+const WORKSPACE_WRITE_ACCESS_VALUES = new Set(["read-only", "approval-required", "workspace"]);
 const APP_SETTING_KEYS = new Set([
   "appearance",
   "theme",
@@ -451,7 +451,7 @@ function validateWorkspaceTrustContract(contract: unknown): WorkspaceTrustContra
     "workspaceId",
     "name",
     "version",
-    "autonomy",
+    "writeAccess",
     "allowedPaths",
     "forbiddenPaths",
     "allowedCommands",
@@ -476,9 +476,9 @@ function validateWorkspaceTrustContract(contract: unknown): WorkspaceTrustContra
   const forbiddenPaths = requireStringArray(record.forbiddenPaths, "forbiddenPaths").map((path) =>
     assertSafeRelativePath(path, "forbiddenPaths"),
   );
-  const autonomy = requireBoundedString(record.autonomy, "autonomy", 40);
-  if (!TRUST_AUTONOMY_VALUES.has(autonomy)) {
-    throw new Error("Unsupported trust-contract autonomy.");
+  const writeAccess = requireBoundedString(record.writeAccess, "writeAccess", 40);
+  if (!WORKSPACE_WRITE_ACCESS_VALUES.has(writeAccess)) {
+    throw new Error("Unsupported workspace write access.");
   }
 
   return {
@@ -486,7 +486,7 @@ function validateWorkspaceTrustContract(contract: unknown): WorkspaceTrustContra
     workspaceId: requireBoundedString(record.workspaceId, "workspaceId", 200),
     name: requireBoundedString(record.name, "name", 200),
     version: Number.isInteger(record.version) && Number(record.version) > 0 ? Number(record.version) : 1,
-    autonomy: autonomy as WorkspaceTrustContract["autonomy"],
+    writeAccess: writeAccess as WorkspaceTrustContract["writeAccess"],
     allowedPaths,
     forbiddenPaths,
     allowedCommands: requireStringArray(record.allowedCommands, "allowedCommands"),
@@ -1032,7 +1032,7 @@ export function registerIpcHandlers() {
         runId: string;
         status: string;
         content: string;
-        thought?: string;
+        outcome?: { status?: string };
         events?: Array<{ id?: string; segmentId?: string; status?: string; detail?: string }>;
         artifacts?: unknown[];
       } | null = null;
@@ -1066,7 +1066,7 @@ export function registerIpcHandlers() {
           progress.runId,
           progress.status,
           progress.content,
-          progress.thought ?? "",
+          progress.outcome?.status ?? "",
           progress.events?.length ?? 0,
           lastEvent?.id ?? "",
           lastEvent?.segmentId ?? "",

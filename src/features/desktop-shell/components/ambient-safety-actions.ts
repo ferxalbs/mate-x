@@ -15,14 +15,14 @@ export const ambientSafetyActions = {
     label: "Run verification",
     prompt:
       "Run verification for the current changes. Build a validation plan, run the smallest useful proof-producing checks, and do not claim Ready unless validation passes and Ship Proof is available.",
-    overrides: { runbookId: "patch_test_verify", access: "approval" },
+    overrides: { runbookId: "patch_test_verify", behaviorMode: "execute" },
   },
   reviewChanges: {
     id: "reviewChanges",
     label: "Review changes",
     prompt:
       "Explain the current changes in plain language. Highlight what changed, why it matters, likely blast radius, and what I should inspect first.",
-    overrides: { runbookId: "review_classify_summarize" },
+    overrides: { runbookId: "review_classify_summarize", behaviorMode: "review" },
   },
 } satisfies Record<AmbientSafetyActionId, AmbientSafetyAction>;
 
@@ -31,5 +31,5 @@ export const defaultAmbientSafetyRunOptions = {
   reasoningEnabled: true,
   reasoning: "high",
   serviceTier: "standard",
-  access: "approval",
+  behaviorMode: "review",
 } satisfies Partial<AssistantRunOptions>;

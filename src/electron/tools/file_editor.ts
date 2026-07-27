@@ -1,12 +1,10 @@
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import type { Tool } from "../tool-service";
-import { policyService } from "../policy-service";
 import {
   analyzePatchAfter,
   analyzePatchBefore,
   assessPatchBeforeWrite,
-  formatPatchImpactBlocked,
   formatPatchImpactSkipped,
   formatPatchImpactSummary,
 } from "../patch-impact-engine";
@@ -64,11 +62,6 @@ export const fileEditorTool: Tool = {
         description:
           "For create, reject if the target file already exists. Defaults to true.",
       },
-      allowHighImpact: {
-        type: "boolean",
-        description:
-          "Set true only after explicit user confirmation when PATCH_IMPACT_DECISION requires confirmation.",
-      },
       impactAnalysis: {
         type: "string",
         enum: ["none", "before", "full"],
@@ -78,7 +71,7 @@ export const fileEditorTool: Tool = {
     },
     required: ["path"],
   },
-  async execute(args, { workspacePath, signal }) {
+  async execute(args, { workspacePath }) {
     const {
       path,
       startLine,
@@ -88,7 +81,6 @@ export const fileEditorTool: Tool = {
       searchString,
       replaceAll = false,
       failIfExists = true,
-      allowHighImpact = false,
     } = args;
     const operation = normalizeOperation(args.operation);
     const impactAnalysis = args.impactAnalysis === "before" || args.impactAnalysis === "full"
@@ -127,27 +119,6 @@ export const fileEditorTool: Tool = {
         ? null
         : await analyzePatchBefore(workspacePath, String(path));
       const decision = impactBefore ? assessPatchBeforeWrite(impactBefore) : null;
-      if (impactBefore && decision?.requiresConfirmation) {
-        if (allowHighImpact !== true) {
-          return formatPatchImpactBlocked(impactBefore.targetFile, decision, impactBefore.summary);
-        }
-        const approval = await requestHighImpactPatchApproval({
-          workspacePath,
-          toolName: "file_editor",
-          target: String(path),
-          summary: editPlan.summary,
-          riskScore: decision.level,
-          signal,
-        });
-        if (!approval) {
-          return JSON.stringify({
-            status: "refused",
-            reason: "USER_DECLINED_HIGH_IMPACT_PATCH",
-            target: String(path),
-          });
-        }
-      }
-
       const finalContent = editPlan.finalContent;
       if (finalContent === content) {
         return impactBefore && decision
@@ -172,38 +143,6 @@ export const fileEditorTool: Tool = {
     }
   },
 };
-
-async function requestHighImpactPatchApproval(input: {
-  workspacePath: string;
-  toolName: string;
-  target: string;
-  summary: string;
-  riskScore: string;
-  signal?: AbortSignal;
-}) {
-  const stop = policyService.createStop({
-    runId: `tool-${Date.now()}`,
-    workspacePath: input.workspacePath,
-    toolName: input.toolName,
-    severity: "warning",
-    policyId: "change.high_impact.allow_flag",
-    title: "Run paused: high-impact patch requires approval.",
-    explanation:
-      "The agent set allowHighImpact: true. A human must approve this high-impact patch before execution continues.",
-    kind: "HIGH_IMPACT_PATCH_APPROVAL",
-    target: input.target,
-    metadata: {
-      patchSummary: input.summary,
-      riskScore: input.riskScore,
-      allowHighImpact: true,
-    },
-    recommendation: "approve_once",
-    availableActions: ["approve_once", "abort", "safer_alternative"],
-  });
-  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
-  policyService.markStopCompleted(stop.id);
-  return resolvedStop.resolution?.action === "approve_once";
-}
 
 type FileEditOperation =
   | "replace_range"

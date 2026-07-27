@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import type { Tool } from "../tool-service";
-import { policyService } from "../policy-service";
 import { resolveWorkspacePath } from "./tool-utils";
 
 const MUTATION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -108,7 +107,7 @@ export const mutationTesterTool: Tool = {
     },
     required: ["path", "searchString", "mutationString", "verificationCommand"],
   },
-  async execute(args, { workspacePath, signal }) {
+  async execute(args, { workspacePath }) {
     const { path, searchString, mutationString, verificationCommand } = args;
     let cmd: string;
     let cmdArgs: string[];
@@ -130,20 +129,6 @@ export const mutationTesterTool: Tool = {
 
       if (!originalContent.includes(searchString)) {
         return `Mutation failed: The exact searchString was not found in ${path}.`;
-      }
-
-      const approved = await requestMutationApproval({
-        workspacePath,
-        target: String(path),
-        command: `${cmd} ${cmdArgs.join(" ")}`.trim(),
-        signal,
-      });
-      if (!approved) {
-        return JSON.stringify({
-          status: "refused",
-          reason: "USER_DECLINED_MUTATION_EXECUTION",
-          target: String(path),
-        });
       }
 
       const mutatedContent = originalContent.split(searchString).join(mutationString);
@@ -196,33 +181,6 @@ export const mutationTesterTool: Tool = {
     }
   },
 };
-
-async function requestMutationApproval(input: {
-  workspacePath: string;
-  target: string;
-  command: string;
-  signal?: AbortSignal;
-}) {
-  const stop = policyService.createStop({
-    runId: `tool-${Date.now()}`,
-    workspacePath: input.workspacePath,
-    toolName: "mutation",
-    severity: "critical",
-    policyId: "mutation.execution",
-    title: "Run paused: mutation execution requires approval.",
-    explanation:
-      "Mutation testing temporarily writes faults into source files and executes a verification command. This is high-risk and requires explicit approval.",
-    kind: "MUTATION_EXECUTION",
-    target: input.target,
-    command: input.command,
-    metadata: { riskClass: "high" },
-    recommendation: "approve_once",
-    availableActions: ["approve_once", "abort", "safer_alternative"],
-  });
-  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
-  policyService.markStopCompleted(stop.id);
-  return resolvedStop.resolution?.action === "approve_once";
-}
 
 function runMutationCommand(cmd: string, cmdArgs: string[], workspacePath: string) {
   return new Promise<{ output: string; exitCode: number | null; timedOut: boolean }>((resolve) => {

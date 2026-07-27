@@ -201,15 +201,15 @@ function reconcileExecutionState(
   events: ToolEvent[],
   outcome?: ChatMessage["executionOutcome"],
 ): ExecutionTerminalState | undefined {
+  if (outcome) return state;
   if (state !== "succeeded") return state;
   const hasBlocked = events.some(
-    (event) => event.status === "blocked" || /blocked|trust|approval/i.test(event.label ?? ""),
+    (event) => event.status === "blocked",
   );
   const hasError = events.some(
     (event) => event.status === "error" || event.status === "failed",
   );
   if (!hasBlocked && !hasError) return state;
-  if ((outcome?.evidence.changedFiles.length ?? 0) > 0) return "partial";
   return hasBlocked ? "blocked" : "failed";
 }
 
@@ -218,8 +218,11 @@ function deriveLegacyRunState(run: ReproducibleRun): ExecutionTerminalState | un
   if (rawResultStatus === "succeeded" || rawResultStatus === "partial" || rawResultStatus === "blocked" || rawResultStatus === "failed" || rawResultStatus === "awaiting_approval") {
     return rawResultStatus;
   }
-  const hasBlocked = run.events.some((event) => event.status === "blocked" || /blocked|trust|approval/i.test(event.label ?? ""));
+  const hasBlocked = run.events.some((event) => event.status === "blocked");
   if (hasBlocked) return "blocked";
+  if (run.events.some((event) => event.type === "approval" && event.status === "active")) {
+    return "awaiting_approval";
+  }
   if (run.events.some((event) => event.status === "error" || event.status === "failed")) return "failed";
   return run.status === "completed" ? "succeeded" : undefined;
 }
@@ -287,17 +290,10 @@ function getDecisionTrail(run: MissionRun) {
     });
   }
 
-  if (events.some((event) => `${event.label} ${event.detail}`.toLowerCase().includes("approval"))) {
+  if (events.some((event) => event.type === "approval")) {
     trail.push({
       label: "Approvals requested",
-      detail: "Approval-related event detected in run telemetry.",
-    });
-  }
-
-  if (events.some((event) => `${event.label} ${event.detail}`.toLowerCase().includes("retry"))) {
-    trail.push({
-      label: "Scoped retry",
-      detail: "Agent retried a bounded operation instead of broadening execution scope.",
+      detail: "A structured approval event was recorded for this run.",
     });
   }
 

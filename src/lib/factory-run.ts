@@ -157,10 +157,10 @@ export function normalizeFactoryRunOptions(
   return {
     ...rest,
     pathKind: resolvedPath,
-    access:
+    behaviorMode:
       residualMode === "factory" || residualMode === "ship"
-        ? "approval"
-        : options.access,
+        ? "execute"
+        : options.behaviorMode,
     runbookId:
       residualMode === "ship"
         ? "patch_test_verify"

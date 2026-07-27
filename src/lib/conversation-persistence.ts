@@ -4,12 +4,13 @@ import type {
   ReproducibleRun,
   ToolEvent,
 } from "../contracts/chat";
+import { sanitizeAssistantOutput } from "./assistant-output";
 
 /** Keep a margin below the main-process IPC guard for JSON/encoding overhead. */
 export const MAX_PERSISTED_CONVERSATION_SIZE = 1_800_000;
 
 const MAX_PERSISTED_STRING_LENGTH = 4_000;
-const MAX_PERSISTED_THOUGHT_LENGTH = 12_000;
+const MAX_PERSISTED_LONG_TEXT_LENGTH = 12_000;
 const MAX_PERSISTED_EVENT_COUNT = 120;
 const MAX_PERSISTED_ARTIFACT_COUNT = 40;
 const MAX_PERSISTED_DECISION_COUNT = 40;
@@ -40,6 +41,12 @@ function compactValue(value: unknown, depth = 0): unknown {
 
 function compactEvents(events: ToolEvent[] | undefined) {
   return events
+    ?.filter(
+      (event) =>
+        event.type !== "reasoning" &&
+        event.segmentKind !== "reasoning" &&
+        event.segmentKind !== "intermediate_response",
+    )
     ?.slice(-MAX_PERSISTED_EVENT_COUNT)
     .map((event) => compactValue(event) as ToolEvent);
 }
@@ -48,12 +55,13 @@ function compactMessage(message: ChatMessage): ChatMessage {
   return {
     id: message.id,
     role: message.role,
-    content: message.content,
+    content:
+      message.role === "assistant"
+        ? sanitizeAssistantOutput(message.content)
+        : message.content,
     createdAt: message.createdAt,
-    ...(message.thought
-      ? { thought: truncate(message.thought, MAX_PERSISTED_THOUGHT_LENGTH) }
-      : {}),
     ...(message.events ? { events: compactEvents(message.events) } : {}),
+    ...(message.outcome ? { outcome: compactValue(message.outcome) as ChatMessage["outcome"] } : {}),
     ...(message.artifacts
       ? {
           artifacts: message.artifacts
@@ -86,7 +94,7 @@ function compactMessage(message: ChatMessage): ChatMessage {
 function compactRun(run: ReproducibleRun): ReproducibleRun {
   return {
     ...run,
-    userIntent: truncate(run.userIntent, MAX_PERSISTED_THOUGHT_LENGTH),
+    userIntent: truncate(run.userIntent, MAX_PERSISTED_LONG_TEXT_LENGTH),
     decisions: run.decisions
       .slice(-MAX_PERSISTED_DECISION_COUNT)
       .map((decision) => compactValue(decision) as ReproducibleRun["decisions"][number]),
@@ -97,7 +105,7 @@ function compactRun(run: ReproducibleRun): ReproducibleRun {
     result: run.result
       ? {
           ...run.result,
-          summary: truncate(run.result.summary, MAX_PERSISTED_THOUGHT_LENGTH),
+          summary: truncate(run.result.summary, MAX_PERSISTED_LONG_TEXT_LENGTH),
           // The full evidence pack is already stored on the assistant message.
           evidencePack: undefined,
         }
@@ -128,7 +136,12 @@ function compactConversationCore(
     messages: thread.messages.map((message) => ({
       id: message.id,
       role: message.role,
-      content: truncate(message.content, maxMessageLength),
+      content: truncate(
+        message.role === "assistant"
+          ? sanitizeAssistantOutput(message.content)
+          : message.content,
+        maxMessageLength,
+      ),
       createdAt: message.createdAt,
       ...(message.executionOutcome ? { executionOutcome: message.executionOutcome } : {}),
     })),
@@ -142,11 +155,12 @@ function serializedSize(value: Conversation[]) {
 function fitCoreSnapshot(
   threads: Conversation[],
   activeThreadId: string,
+  maxMessageLength: number,
 ): Conversation[] {
   const byRecency = threads.toSorted(
     (left, right) => right.lastUpdatedAt.localeCompare(left.lastUpdatedAt),
   );
-  const active = byRecency.find((thread) => thread.id === activeThreadId);
+  const activeSource = byRecency.find((thread) => thread.id === activeThreadId);
   const fitThread = (thread: Conversation): Conversation => {
     const base: Conversation = { ...thread, messages: [] };
     const fittedMessages: Conversation["messages"] = [];
@@ -164,13 +178,20 @@ function fitCoreSnapshot(
 
     return { ...base, messages: fittedMessages.toReversed() };
   };
+  const active = activeSource
+    ? fitThread(compactConversationCore(activeSource, maxMessageLength))
+    : null;
   const ordered = active
-    ? [fitThread(active), ...byRecency.filter((thread) => thread.id !== activeThreadId)]
+    ? [active, ...byRecency.filter((thread) => thread.id !== activeThreadId)]
     : byRecency;
   const selected: Conversation[] = [];
   let selectedSize = 2;
 
-  for (const thread of ordered) {
+  for (const threadSource of ordered) {
+    const thread =
+      threadSource === active
+        ? threadSource
+        : compactConversationCore(threadSource, maxMessageLength);
     const threadSize = JSON.stringify(thread).length;
     const separatorSize = selected.length > 0 ? 1 : 0;
     if (selectedSize + separatorSize + threadSize <= MAX_PERSISTED_CONVERSATION_SIZE) {
@@ -179,7 +200,25 @@ function fitCoreSnapshot(
     }
   }
 
-  return selected.length > 0 ? selected : ordered[0] ? [fitThread(ordered[0])] : [];
+  return selected.length > 0
+    ? selected
+    : ordered[0]
+      ? [fitThread(compactConversationCore(ordered[0], maxMessageLength))]
+      : [];
+}
+
+function estimatedCoreSize(threads: Conversation[], maxMessageLength: number) {
+  return threads.reduce(
+    (total, thread) =>
+      total +
+      thread.title.length +
+      thread.messages.reduce(
+        (messageTotal, message) =>
+          messageTotal + Math.min(message.content.length, maxMessageLength) + 160,
+        0,
+      ),
+    2,
+  );
 }
 
 /**
@@ -191,25 +230,30 @@ export function compactConversationSnapshotForPersistence(
   threads: Conversation[],
   activeThreadId: string,
 ): Conversation[] {
-  const richSnapshot = threads.map(compactConversation);
-  if (serializedSize(richSnapshot) <= MAX_PERSISTED_CONVERSATION_SIZE) {
-    return richSnapshot;
+  if (estimatedCoreSize(threads, MAX_PERSISTED_STRING_LENGTH) <= MAX_PERSISTED_CONVERSATION_SIZE) {
+    const richSnapshot = threads.map(compactConversation);
+    if (serializedSize(richSnapshot) <= MAX_PERSISTED_CONVERSATION_SIZE) {
+      return richSnapshot;
+    }
   }
 
-  const mediumSnapshot = threads.map((thread) =>
-    compactConversationCore(thread, 16_000),
-  );
-  if (serializedSize(mediumSnapshot) <= MAX_PERSISTED_CONVERSATION_SIZE) {
-    return mediumSnapshot;
+  if (estimatedCoreSize(threads, 16_000) <= MAX_PERSISTED_CONVERSATION_SIZE) {
+    const mediumSnapshot = threads.map((thread) =>
+      compactConversationCore(thread, 16_000),
+    );
+    if (serializedSize(mediumSnapshot) <= MAX_PERSISTED_CONVERSATION_SIZE) {
+      return mediumSnapshot;
+    }
   }
 
-  const smallSnapshot = threads.map((thread) => compactConversationCore(thread, 4_000));
-  if (serializedSize(smallSnapshot) <= MAX_PERSISTED_CONVERSATION_SIZE) {
-    return smallSnapshot;
+  if (estimatedCoreSize(threads, 4_000) <= MAX_PERSISTED_CONVERSATION_SIZE) {
+    const smallSnapshot = threads.map((thread) =>
+      compactConversationCore(thread, 4_000),
+    );
+    if (serializedSize(smallSnapshot) <= MAX_PERSISTED_CONVERSATION_SIZE) {
+      return smallSnapshot;
+    }
   }
 
-  return fitCoreSnapshot(
-    threads.map((thread) => compactConversationCore(thread, 1_200)),
-    activeThreadId,
-  );
+  return fitCoreSnapshot(threads, activeThreadId, 1_200);
 }

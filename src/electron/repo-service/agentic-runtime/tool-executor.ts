@@ -1,7 +1,7 @@
 import type { ToolExecutionRecord } from "../../evidence-pack";
 import type { RepoSnapshot } from "../workspace";
 import type { AgentToolCall } from "./types";
-import type { ToolEvent } from "../../../contracts/chat";
+import type { AgentOutcome, ToolEvent } from "../../../contracts/chat";
 import type { AppSettings } from "../../../contracts/settings";
 import { policyService } from "../../policy-service";
 import { toolService } from "../../tool-service";
@@ -9,8 +9,9 @@ import { failureMemoryEngine } from "../../failure-memory-engine";
 import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateToolOutputForModel, withTimeout } from "./helpers";
 import { resolveToolExecutionTimeoutMs } from "./config";
 import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
-import { authorizeToolForEngineeringStatus } from "../../engineering/tool-phase-auth";
 import { normalizeToolEvidence } from "../../work-engine/execution-evidence";
+import { resolveToolAuthorization } from "../../capability-resolver";
+import type { BehaviorMode } from "../../../contracts/behavior-mode";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -22,7 +23,7 @@ export async function executeAgentToolCall({
   appSettings,
   runId,
   engineeringTaskStatus,
-  autonomyPolicy,
+  behaviorMode,
   signal,
 }: {
   toolCall: AgentToolCall;
@@ -35,12 +36,13 @@ export async function executeAgentToolCall({
   runId: string;
   /** Control-plane status authority for pre-approval tool restrictions. */
   engineeringTaskStatus?: EngineeringTaskStatus | null;
-  autonomyPolicy?: import("../../../contracts/behavior-mode").AutonomyPolicy;
+  behaviorMode: BehaviorMode;
   signal?: AbortSignal;
 }): Promise<{
   toolCallId: string;
   content: string;
   toolExecution: ToolExecutionRecord;
+  outcome?: AgentOutcome;
 }> {
   const toolName = toolCall.name;
   const eventId = `tool-${iteration}-${toolIndex}-${toolName}`;
@@ -54,9 +56,10 @@ export async function executeAgentToolCall({
       error instanceof Error ? error.message : "Invalid tool arguments.";
     events.push({
       id: eventId,
-      label: `Failed ${toolName}`,
+      label: "Action could not start",
       detail: reason,
       status: "error",
+      visibility: "technical",
     });
     emitProgress();
 
@@ -77,60 +80,72 @@ export async function executeAgentToolCall({
     };
   }
 
-  const phaseAuth = authorizeToolForEngineeringStatus(
+  const authorization = resolveToolAuthorization({
     toolName,
+    args: toolArgs,
+    behaviorMode,
+    workspacePolicy: snapshot.trustContract,
     engineeringTaskStatus,
-    toolArgs,
-    autonomyPolicy,
-  );
-  if (phaseAuth.allowed === false) {
+  });
+  if (authorization.decision === "blocked") {
     events.push({
       id: eventId,
-      label: `Blocked ${toolName}`,
-      detail: phaseAuth.message,
-      status: "error",
+      label: "Action blocked",
+      detail: authorization.outcome.summary,
+      status: "blocked",
+      visibility: "public",
     });
     emitProgress();
+    const serialized = JSON.stringify(authorization.outcome);
     return {
       toolCallId: toolCall.id,
-      content: phaseAuth.message,
+      content: serialized,
+      outcome: authorization.outcome,
       toolExecution: {
         toolName,
         args: toolArgs,
-        output: phaseAuth.message,
+        output: serialized,
         parsedOutput: {
           status: "blocked",
-          code: phaseAuth.code,
+          outcome: authorization.outcome,
         },
-        evidence: normalizeToolEvidence(toolName, toolArgs, phaseAuth.message, {
+        evidence: normalizeToolEvidence(toolName, toolArgs, serialized, {
           status: "blocked",
-          code: phaseAuth.code,
+          outcome: authorization.outcome,
         }),
       } satisfies ToolExecutionRecord,
     };
   }
 
-  const policyStop = policyService.evaluateToolCall({
-    runId,
-    workspacePath: snapshot.workspace.path,
-    toolName,
-    args: toolArgs,
-    contract: snapshot.trustContract,
-  });
-  const toolPolicy = policyService.classifyToolCall({
-    workspacePath: snapshot.workspace.path,
-    toolName,
-    args: toolArgs,
-    contract: snapshot.trustContract,
-  });
+  const policyStop =
+    authorization.decision === "needs_approval"
+      ? policyService.createStop({
+          runId,
+          workspacePath: snapshot.workspace.path,
+          toolName,
+          severity: "warning",
+          policyId: authorization.code,
+          title: authorization.summary,
+          explanation: authorization.summary,
+          kind:
+            authorization.capability === "workspace.write"
+              ? "file_write"
+              : authorization.capability === "network.access"
+                ? "network"
+                : "command",
+          target: authorization.capability,
+          recommendation: "approve_once",
+          availableActions: ["approve_once", "abort"],
+        })
+      : null;
 
   if (policyStop) {
     events.push({
       id: eventId,
-      label: policyStop.title,
-      detail: `${policyStop.explanation} Policy: ${policyStop.policyId}.`,
-      status: "error",
-      policy: toolPolicy,
+      label: "Approval required",
+      detail: policyStop.title,
+      status: "active",
+      visibility: "public",
     });
     emitProgress();
 
@@ -140,8 +155,8 @@ export async function executeAgentToolCall({
     } catch (error) {
       const cancelled = error instanceof Error && error.name === "AbortError";
       const cancelledMessage = cancelled
-        ? `Policy approval for ${toolName} was cancelled before execution.`
-        : `Policy approval for ${toolName} failed before execution.`;
+        ? "Approval was cancelled."
+        : "Approval could not be completed.";
       const toolEvent = events.find((event) => event.id === eventId);
       if (toolEvent) {
         toolEvent.status = "error";
@@ -150,9 +165,24 @@ export async function executeAgentToolCall({
       policyService.markStopFailed(policyStop.id);
       emitProgress();
 
+      const outcome: AgentOutcome = cancelled
+        ? {
+            status: "blocked",
+            summary: cancelledMessage,
+            blocker: {
+              code: "APPROVAL_DENIED",
+              requestedCapability: authorization.capability,
+            },
+          }
+        : {
+            status: "failed",
+            summary: cancelledMessage,
+            diagnostic: { code: "APPROVAL_FAILED", message: cancelledMessage },
+          };
       return {
         toolCallId: toolCall.id,
-        content: cancelledMessage,
+        content: JSON.stringify(outcome),
+        outcome,
         toolExecution: {
           toolName,
           args: toolArgs,
@@ -170,7 +200,15 @@ export async function executeAgentToolCall({
     }
     const toolEvent = events.find((event) => event.id === eventId);
     if (resolvedStop.resolution?.action !== "approve_once") {
-      const declinedMessage = `Policy stop ${policyStop.id} was ${resolvedStop.resolution?.action ?? "declined"}. Continue with allowed safer alternatives; do not execute ${toolName}.`;
+      const declinedMessage = "Action cancelled.";
+      const outcome: AgentOutcome = {
+        status: "blocked",
+        summary: declinedMessage,
+        blocker: {
+          code: "APPROVAL_DENIED",
+          requestedCapability: authorization.capability,
+        },
+      };
       if (toolEvent) {
         toolEvent.status = "done";
         toolEvent.detail = declinedMessage;
@@ -180,7 +218,8 @@ export async function executeAgentToolCall({
 
       return {
         toolCallId: toolCall.id,
-        content: declinedMessage,
+        content: JSON.stringify(outcome),
+        outcome,
         toolExecution: {
           toolName,
           args: toolArgs,
@@ -199,9 +238,10 @@ export async function executeAgentToolCall({
 
     policyService.markStopResumed(policyStop.id);
     if (toolEvent) {
-      toolEvent.label = `Executing approved ${toolName}`;
-      toolEvent.detail = `Approval received for policy stop ${policyStop.id}.`;
+      toolEvent.label = "Applying approved action";
+      toolEvent.detail = "Approval received.";
       toolEvent.status = "active";
+      toolEvent.visibility = "technical";
     }
     emitProgress();
   }
@@ -212,7 +252,7 @@ export async function executeAgentToolCall({
       label: `Executing ${toolName}`,
       detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
       status: "active",
-      policy: toolPolicy,
+      visibility: "technical",
     });
     emitProgress();
   }
@@ -298,7 +338,7 @@ export async function executeAgentToolCall({
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
       toolEvent.status = "error";
-      toolEvent.detail = message;
+      toolEvent.detail = "Action failed.";
     }
     if (policyStop) {
       policyService.markStopFailed(policyStop.id);
@@ -307,7 +347,11 @@ export async function executeAgentToolCall({
 
     return {
       toolCallId: toolCall.id,
-      content: `Tool ${toolName} failed: ${message}`,
+      content: JSON.stringify({
+        status: "failed",
+        code: "TOOL_EXECUTION_FAILED",
+        message: safeToolDiagnostic(message),
+      }),
       toolExecution: {
         toolName,
         args: toolArgs,
@@ -322,6 +366,10 @@ export async function executeAgentToolCall({
       } satisfies ToolExecutionRecord,
     };
   }
+}
+
+function safeToolDiagnostic(message: string) {
+  return message.replace(/\s+/g, " ").trim().slice(0, 500) || "Action failed.";
 }
 
 function tryParseJsonObject(value: string) {

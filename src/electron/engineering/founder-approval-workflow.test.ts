@@ -19,9 +19,8 @@ import {
   applyEngineeringPhaseResult,
   buildPlanArtifactsForTask,
 } from "./phase-result-apply";
-import {
-  authorizeToolForEngineeringStatus,
-} from "./tool-phase-auth";
+import { resolveToolAuthorization } from "../capability-resolver";
+import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 import {
   projectUserFacingStatus,
   parseEngineeringPhaseResult,
@@ -102,56 +101,45 @@ function basePlan(overrides: Partial<WorkPlan> = {}): WorkPlan {
 }
 
 describe("Founder approval-gated workflow [A–M + amendments]", () => {
-  it("Auto still respects the EngineeringTask approval gate", () => {
-    const auto = { id: "auto_scoped" } as const;
-    assert.equal(authorizeToolForEngineeringStatus("file_editor", "captured", { path: "src/lib/id.ts" }, auto).allowed, false);
-    assert.equal(authorizeToolForEngineeringStatus("sandbox_run", "captured", { command: "bun run lint" }, auto).allowed, false);
-    assert.equal(authorizeToolForEngineeringStatus("sandbox_run", "captured", { command: "git commit -am x" }, auto).allowed, false);
-    assert.equal(authorizeToolForEngineeringStatus("sandbox_run", "executing", { command: "git push" }, auto).allowed, false);
+  const workspacePolicy = createDefaultWorkspaceTrustContract("ws", "Repo", {
+    packageManager: "bun",
+    hasPackageJson: true,
   });
 
-  it("Guided pauses before edit and Review rejects edit", () => {
-    assert.equal(authorizeToolForEngineeringStatus("file_editor", "captured", {}, { id: "guided_approval" }).allowed, false);
-    assert.equal(authorizeToolForEngineeringStatus("file_editor", "executing", {}, { id: "review_read_only" }).allowed, false);
+  it("Execute still respects EngineeringTask approval gate", () => {
+    const decision = resolveToolAuthorization({
+      toolName: "file_editor",
+      args: { path: "src/lib/id.ts" },
+      behaviorMode: "execute",
+      workspacePolicy,
+      engineeringTaskStatus: "captured",
+    });
+    assert.equal(decision.decision, "needs_approval");
   });
 
-  it("Review rejects network and process tools while Custom applies network gates", () => {
-    assert.equal(
-      authorizeToolForEngineeringStatus(
-        "network",
-        "executing",
-        {},
-        { id: "review_read_only" },
-      ).allowed,
-      false,
-    );
-    assert.equal(
-      authorizeToolForEngineeringStatus(
-        "sandbox_run",
-        "executing",
-        { command: "bun test" },
-        { id: "review_read_only" },
-      ).allowed,
-      false,
-    );
-    assert.equal(
-      authorizeToolForEngineeringStatus(
-        "network",
-        "captured",
-        {},
-        {
-          id: "custom",
-          custom: {
-            askBeforeEdits: false,
-            askBeforeCommands: false,
-            askBeforeNetwork: true,
-            askBeforeGit: true,
-            autoValidate: true,
-          },
-        },
-      ).allowed,
-      false,
-    );
+  it("Review and Plan reject edits deterministically", () => {
+    for (const behaviorMode of ["review", "plan"] as const) {
+      const decision = resolveToolAuthorization({
+        toolName: "file_editor",
+        behaviorMode,
+        workspacePolicy,
+        engineeringTaskStatus: "executing",
+      });
+      assert.equal(decision.decision, "blocked");
+    }
+  });
+
+  it("Review rejects network and process tools", () => {
+    for (const toolName of ["network", "sandbox_run"]) {
+      const decision = resolveToolAuthorization({
+        toolName,
+        args: toolName === "sandbox_run" ? { command: "bun test" } : {},
+        behaviorMode: "review",
+        workspacePolicy,
+        engineeringTaskStatus: "executing",
+      });
+      assert.equal(decision.decision, "blocked");
+    }
   });
 
   it("A–E: capture + planning phase does not fail Work Engine; no mutation", () => {
@@ -214,12 +202,21 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
     );
 
     // E. mutation tool before approval rejected
-    const denied = authorizeToolForEngineeringStatus("file_editor", "captured", {
-      path: "src/x.ts",
+    const denied = resolveToolAuthorization({
+      toolName: "file_editor",
+      args: { path: "src/x.ts" },
+      behaviorMode: "execute",
+      workspacePolicy,
+      engineeringTaskStatus: "captured",
     });
-    assert.equal(denied.allowed, false);
-    const allowedRead = authorizeToolForEngineeringStatus("read", "captured");
-    assert.equal(allowedRead.allowed, true);
+    assert.equal(denied.decision, "needs_approval");
+    const allowedRead = resolveToolAuthorization({
+      toolName: "read",
+      behaviorMode: "execute",
+      workspacePolicy,
+      engineeringTaskStatus: "captured",
+    });
+    assert.equal(allowedRead.decision, "allowed");
   });
 
   it("no material clarification path: captured → specified → awaiting_approval", () => {
@@ -328,8 +325,14 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
     assert.equal(repo.getTask(id)?.engineeringTaskId, id);
 
     // Mutation allowed after approval
-    const mut = authorizeToolForEngineeringStatus("file_editor", "executing");
-    assert.equal(mut.allowed, true);
+    const mut = resolveToolAuthorization({
+      toolName: "file_editor",
+      args: { path: "src/x.ts" },
+      behaviorMode: "execute",
+      workspacePolicy: { ...workspacePolicy, writeAccess: "workspace" },
+      engineeringTaskStatus: "executing",
+    });
+    assert.equal(mut.decision, "allowed");
   });
 
   it("typed phase result with invalid artifact ID is rejected", () => {

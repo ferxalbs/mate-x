@@ -131,7 +131,7 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
     // Direct unit test of normalize path without full IPC
     const { normalizeFactoryRunOptions } = await import("../lib/factory-run");
     const normalized = normalizeFactoryRunOptions({
-      access: "approval",
+      behaviorMode: "execute",
       pathKind: "full",
       reasoning: "high",
       reasoningEnabled: true,
@@ -149,7 +149,7 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
         id: "x",
         prompt: "What changed?",
         options: {
-          access: "approval",
+          behaviorMode: "review",
           pathKind: "chat_help",
           reasoning: "high",
           reasoningEnabled: true,
@@ -167,14 +167,14 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
       "../lib/factory-run"
     );
     const opts = normalizeFactoryRunOptions({
-      access: "full",
+      behaviorMode: "execute",
       mode: "factory",
       reasoning: "high",
       reasoningEnabled: true,
       runbookId: "scan_contain_report",
       serviceTier: "standard",
     } as AssistantRunOptions & { mode: string });
-    assert.equal(opts.access, "approval");
+    assert.equal(opts.behaviorMode, "execute");
     assert.equal(opts.pathKind, "full");
     assert.equal(
       createFactoryRun({
@@ -187,7 +187,7 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
     );
   });
 
-  it("never derives success when the same message contains an execution error", async () => {
+  it("derives terminal state from structured outcome instead of assistant wording", async () => {
     const { deriveExecutionOutcome } = await import("./chat-store");
     const message: ChatMessage = {
       id: "assistant-error",
@@ -200,68 +200,52 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
         detail: "Command failed.",
         status: "error",
       }],
+      outcome: {
+        status: "failed",
+        summary: "Validation failed.",
+      },
     };
-    const optimisticOutcome = deriveExecutionOutcome({
-      ...message,
-      events: [],
-    });
-    const outcome = deriveExecutionOutcome({
-      ...message,
-      executionOutcome: optimisticOutcome,
-    });
+    const outcome = deriveExecutionOutcome(message);
 
     assert.equal(outcome.terminalState, "failed");
     assert.notEqual(outcome.terminalState, "succeeded");
   });
 
   it("reuses an unused thread and only creates another after the current one has a prompt", () => {
-    const previousWindow = globalThis.window;
-    globalThis.window = {
-      mate: {
-        repo: {
-          saveWorkspaceSession: async () => undefined,
-        },
+    const initialThreadId = useChatStore.getState().activeThreadIds["workspace-1"];
+    useChatStore.getState().createThread();
+
+    let state = useChatStore.getState();
+    assert.equal(state.threadsByWorkspace["workspace-1"]?.length, 1);
+    assert.equal(
+      state.activeThreadIds["workspace-1"],
+      initialThreadId,
+    );
+
+    state = useChatStore.getState();
+    useChatStore.setState({
+      threadsByWorkspace: {
+        ...state.threadsByWorkspace,
+        "workspace-1": [
+          {
+            ...state.threadsByWorkspace["workspace-1"]![0]!,
+            messages: [
+              {
+                id: "user-1",
+                role: "user",
+                content: "A real prompt",
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          },
+        ],
       },
-    } as never;
+    });
+    useChatStore.getState().createThread();
 
-    try {
-      const initialThreadId = useChatStore.getState().activeThreadIds["workspace-1"];
-      useChatStore.getState().createThread();
-
-      let state = useChatStore.getState();
-      assert.equal(state.threadsByWorkspace["workspace-1"]?.length, 1);
-      assert.equal(
-        state.activeThreadIds["workspace-1"],
-        initialThreadId,
-      );
-
-      state = useChatStore.getState();
-      useChatStore.setState({
-        threadsByWorkspace: {
-          ...state.threadsByWorkspace,
-          "workspace-1": [
-            {
-              ...state.threadsByWorkspace["workspace-1"]![0]!,
-              messages: [
-                {
-                  id: "user-1",
-                  role: "user",
-                  content: "A real prompt",
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            },
-          ],
-        },
-      });
-      useChatStore.getState().createThread();
-
-      assert.equal(
-        useChatStore.getState().threadsByWorkspace["workspace-1"]?.length,
-        2,
-      );
-    } finally {
-      globalThis.window = previousWindow;
-    }
+    assert.equal(
+      useChatStore.getState().threadsByWorkspace["workspace-1"]?.length,
+      2,
+    );
   });
 });

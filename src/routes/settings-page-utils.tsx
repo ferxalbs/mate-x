@@ -75,7 +75,7 @@ export function serializeTrustContract(contract: WorkspaceTrustContract) {
   return JSON.stringify({
     name: contract.name,
     version: contract.version,
-    autonomy: contract.autonomy,
+    writeAccess: contract.writeAccess,
     allowedPaths: contract.allowedPaths,
     forbiddenPaths: contract.forbiddenPaths,
     allowedCommands: contract.allowedCommands,

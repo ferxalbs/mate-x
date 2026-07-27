@@ -74,4 +74,45 @@ describe("conversation persistence", () => {
     assert.ok(JSON.stringify(snapshot).length <= MAX_PERSISTED_CONVERSATION_SIZE);
     assert.equal(snapshot.some((thread) => thread.id === "thread-12"), true);
   });
+
+  it("never persists provider reasoning as conversation content or trace events", () => {
+    const thread: Conversation = {
+      id: "thread-reasoning",
+      title: "Provider filtering",
+      lastUpdatedAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "assistant-reasoning",
+          role: "assistant",
+          content:
+            "<|channel|>analysis<|message|>I must inspect the policy.<|channel|>final<|message|>README.md was reviewed.<|end|>",
+          createdAt: new Date().toISOString(),
+          events: [
+            {
+              id: "hidden",
+              type: "reasoning",
+              segmentKind: "reasoning",
+              label: "Thinking",
+              detail: "Internal provider reasoning",
+              status: "completed",
+            },
+            {
+              id: "visible",
+              type: "result",
+              segmentKind: "final_response",
+              label: "Complete",
+              detail: "README.md was reviewed.",
+              status: "completed",
+            },
+          ],
+        },
+      ],
+    };
+
+    const snapshot = compactConversationSnapshotForPersistence([thread], thread.id);
+    const message = snapshot[0]?.messages[0];
+    assert.equal(message?.content, "README.md was reviewed.");
+    assert.deepEqual(message?.events?.map((event) => event.id), ["visible"]);
+    assert.doesNotMatch(JSON.stringify(snapshot), /Internal provider reasoning/);
+  });
 });

@@ -1,8 +1,6 @@
 import type OpenAI from "openai";
 import type { FunctionTool as ResponsesFunctionTool } from "openai/resources/responses/responses";
 
-import { evaluateTrustForToolCall } from "./workspace-trust";
-import { policyService } from "./policy-service";
 import { buildGovernedToolDescription } from "./tool-policy-description";
 import { lazyToolLoaders } from "./tool-registry";
 import { toStrictObjectSchema, validateToolArguments } from "./tool-schema";
@@ -295,48 +293,6 @@ export class ToolService {
         }),
         tool.name,
       );
-    }
-
-    if (context.trustContract) {
-      const trustError = evaluateTrustForToolCall({
-        toolName: tool.name,
-        args,
-        contract: context.trustContract,
-      });
-      const approvedOnce = policyService.isApprovedToolCall({
-        runId: context.runId ?? "unknown-run",
-        workspacePath: context.workspacePath,
-        toolName: tool.name,
-        args,
-      });
-      // Also accept approvals keyed by the caller's alias name.
-      const approvedByAlias =
-        name !== tool.name &&
-        policyService.isApprovedToolCall({
-          runId: context.runId ?? "unknown-run",
-          workspacePath: context.workspacePath,
-          toolName: name,
-          args,
-        });
-
-      if (trustError && !approvedOnce && !approvedByAlias) {
-        return formatToolFailure(
-          createToolError("FORBIDDEN", trustError, {
-            retryable: false,
-            recommendedNextAction:
-              "Request approval or use a safer tool permitted by the Workspace Trust Contract.",
-          }),
-          tool.name,
-        );
-      }
-      if (trustError) {
-        policyService.consumeApprovedToolCall({
-          runId: context.runId ?? "unknown-run",
-          workspacePath: context.workspacePath,
-          toolName: approvedOnce ? tool.name : name,
-          args,
-        });
-      }
     }
 
     try {

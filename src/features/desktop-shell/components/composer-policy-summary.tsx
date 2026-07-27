@@ -6,26 +6,24 @@ import type {
   BehaviorMode,
   BehaviorPreference,
 } from "../../../contracts/behavior-mode";
-import type { WorkspaceTrustAutonomy } from "../../../contracts/workspace";
+import type { WorkspaceWriteAccess } from "../../../contracts/workspace";
 
 export const BEHAVIOR_MODE_LABELS: Record<BehaviorMode, string> = {
-  auto: "Auto",
-  guided: "Guided",
   review: "Review",
-  custom: "Custom",
+  plan: "Plan",
+  execute: "Execute",
 };
 
 export const BEHAVIOR_MODE_DESCRIPTIONS: Record<BehaviorMode, string> = {
-  auto: "Fix and validate scoped work automatically.",
-  guided: "Inspect first, then wait before changes.",
   review: "Read-only findings with no mutations.",
-  custom: "Choose the gates for edits, commands, and network.",
+  plan: "Inspect and produce an executable implementation plan.",
+  execute: "Apply scoped changes and validate results.",
 };
 
-export const TRUST_LABELS: Record<WorkspaceTrustAutonomy, string> = {
-  "plan-only": "Plan only",
+export const TRUST_LABELS: Record<WorkspaceWriteAccess, string> = {
+  "read-only": "Read only",
   "approval-required": "Ask before changes",
-  "trusted-patch": "Scoped changes",
+  workspace: "Workspace changes",
 };
 
 export function ComposerPolicySummary({
@@ -33,7 +31,7 @@ export function ComposerPolicySummary({
   trust,
 }: {
   behavior: BehaviorPreference;
-  trust: WorkspaceTrustAutonomy;
+  trust: WorkspaceWriteAccess;
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">

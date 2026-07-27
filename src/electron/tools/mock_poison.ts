@@ -1,5 +1,4 @@
 import { createServer, type Server } from "node:http";
-import { policyService } from "../policy-service";
 import type { Tool } from "../tool-service";
 
 const MOCK_POISON_HOST = "127.0.0.1";
@@ -37,7 +36,7 @@ export const mockPoisonerTool: Tool = {
     },
     required: ["action"],
   },
-  async execute(args, { workspacePath, signal }) {
+  async execute(args) {
     const { action, port = 9999, payloadType = "MALFORMED_JSON" } = args;
     const serverKey = `port_${port}`;
 
@@ -70,19 +69,6 @@ export const mockPoisonerTool: Tool = {
           message: "Maximum concurrent mock_poison servers reached (2).",
         });
       }
-      const approval = await requestMockPoisonApproval({
-        workspacePath,
-        port,
-        payloadType,
-        signal,
-      });
-      if (!approval) {
-        return JSON.stringify({
-          error: "POLICY_STOP_DECLINED",
-          message: "mock_poison execution requires policy approval.",
-        });
-      }
-
       return new Promise((resolve, reject) => {
         const state: MockServerState = { server: null, hitCount: 0, lifetimeTimer: null };
         
@@ -160,30 +146,3 @@ export const mockPoisonerTool: Tool = {
     return `Invalid action '${action}'. Use 'start', 'stop', or 'status'.`;
   },
 };
-
-async function requestMockPoisonApproval(input: {
-  workspacePath: string;
-  port: number;
-  payloadType: string;
-  signal?: AbortSignal;
-}) {
-  const stop = policyService.createStop({
-    runId: `tool-${Date.now()}`,
-    workspacePath: input.workspacePath,
-    toolName: "mock_poison",
-    severity: "critical",
-    policyId: "mock_poison.execution",
-    title: "Run paused: poisoned mock server requires approval.",
-    explanation:
-      "mock_poison starts a server that serves intentionally malicious payloads and requires explicit approval before execution.",
-    kind: "MOCK_POISON_EXECUTION",
-    target: `http://${MOCK_POISON_HOST}:${input.port}`,
-    command: `mock_poison start ${input.payloadType}`,
-    metadata: { riskClass: "high", payloadType: input.payloadType },
-    recommendation: "approve_once",
-    availableActions: ["approve_once", "abort", "safer_alternative"],
-  });
-  const resolvedStop = await policyService.waitForResolution(stop.id, input.signal);
-  policyService.markStopCompleted(stop.id);
-  return resolvedStop.resolution?.action === "approve_once";
-}

@@ -904,7 +904,6 @@ export async function requestRainyChatCompletionStream(params: {
   messages: any[];
   model: string;
   onContentDelta: (delta: string) => void;
-  onReasoningDelta?: (delta: string) => void;
   tools?: any[];
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
   reasoning?: { exclude?: true; effort?: string; enabled?: boolean };
@@ -1001,10 +1000,6 @@ export async function requestRainyChatCompletionStream(params: {
       const delta = chunk.choices?.[0]?.delta;
       if (!delta) {
         continue;
-      }
-
-      if (delta.reasoning && params.onReasoningDelta) {
-        params.onReasoningDelta(delta.reasoning);
       }
 
       if (delta.content) {
@@ -1133,32 +1128,6 @@ export function extractResponseFunctionCalls(
   return response.output.filter(
     (item): item is ResponseFunctionToolCall => item.type === "function_call",
   );
-}
-
-export function extractResponseThought(response: OpenAIResponse): string {
-  const thoughtChunks: string[] = [];
-
-  for (const item of response.output) {
-    if (item.type !== "reasoning") {
-      continue;
-    }
-
-    if (!Array.isArray(item.summary)) {
-      continue;
-    }
-
-    for (const summaryItem of item.summary) {
-      if (!isRecord(summaryItem)) {
-        continue;
-      }
-      const summaryText = firstString(summaryItem.text, summaryItem.summary);
-      if (summaryText) {
-        thoughtChunks.push(summaryText);
-      }
-    }
-  }
-
-  return thoughtChunks.join("\n").trim();
 }
 
 export function isOpenAIGpt5OrNewerModel(modelId: string) {

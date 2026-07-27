@@ -15,7 +15,7 @@ import { finalizeWorkRun } from "./work-engine/finalizer";
 import { normalizeToolEvidence } from "./work-engine/execution-evidence";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
 import { RAINY_API_BASE_URL } from "../config/rainy";
-import type { AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
+import type { AgentOutcome, AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../contracts/execution";
 import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
 import { resolveAssistantRunOptions, resolveRunbookDefinition, toAssistantRunbookId } from "./assistant-runbooks";
@@ -102,9 +102,9 @@ export async function runAssistant(
     }
   }
   const { isPreApprovalStatus } = await import("../contracts/engineering-phase-result");
-  const planningPhase = Boolean(
-    engineeringTaskStatus && isPreApprovalStatus(engineeringTaskStatus),
-  );
+  const planningPhase =
+    resolvedOptions.behaviorMode !== "execute" ||
+    Boolean(engineeringTaskStatus && isPreApprovalStatus(engineeringTaskStatus));
   const runbookDefinition = resolveRunbookDefinition(
     resolvedOptions.runbookId ?? toAssistantRunbookId(workPlan.runbook),
   );
@@ -164,8 +164,8 @@ export async function runAssistant(
   ];
   let artifacts: MessageArtifact[] = [];
   let privacyPreflight: Awaited<ReturnType<typeof runPrivacyPreflight>> | null = null;
-  let thought = "";
   let content = "";
+  let agentOutcome: AgentOutcome | undefined;
   let toolExecutions: ToolExecutionRecord[] = [];
   let synthesisStatus: ExecutionSynthesisStatus = "failed";
   let synthesisSummary = "No valid final synthesis was returned.";
@@ -249,13 +249,9 @@ export async function runAssistant(
     });
   };
 
-  const emitProgress = (nextContent?: string, nextThought?: string) => {
+  const emitProgress = (nextContent?: string) => {
     if (!progressReporter) {
       return;
-    }
-
-    if (typeof nextThought === "string") {
-      thought = nextThought;
     }
 
     if (typeof nextContent === "string") {
@@ -276,9 +272,9 @@ export async function runAssistant(
       runId: progressReporter.runId,
       status: "running",
       content,
-      thought: thought || undefined,
       events: cloneEvents(events),
       artifacts: cloneArtifacts(artifacts),
+      outcome: agentOutcome,
     });
   };
 
@@ -300,6 +296,7 @@ export async function runAssistant(
       appSettings,
       runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
       engineeringTaskStatus,
+      behaviorMode: resolvedOptions.behaviorMode,
     });
 
     content = result.content;
@@ -332,6 +329,7 @@ export async function runAssistant(
       appSettings,
       runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
       engineeringTaskStatus,
+      behaviorMode: resolvedOptions.behaviorMode,
     });
 
     content = result.content;
@@ -423,11 +421,8 @@ export async function runAssistant(
         engineeringTaskStatus,
         planningPhase,
       });
-      thought =
-        "thought" in result && typeof result.thought === "string"
-          ? result.thought
-          : thought;
       content = result.content;
+      agentOutcome = result.outcome;
       toolExecutions = result.toolExecutions;
       synthesisStatus = result.synthesisStatus;
       synthesisSummary = result.synthesisSummary ?? synthesisSummary;
@@ -461,7 +456,7 @@ export async function runAssistant(
       label: rainyHostAllowed ? "Model unavailable" : "Provider domain blocked",
       detail: rainyHostAllowed
         ? "No compatible Rainy models were found for the current API key."
-        : "The active Workspace Trust Contract does not allow the Rainy API domain.",
+        : "Workspace policy does not allow this provider connection.",
       status: "error",
     });
     emitProgress();
@@ -552,6 +547,9 @@ export async function runAssistant(
     synthesisSummary,
   });
   content = evidenceFinalization.content;
+  if (agentOutcome?.status === "blocked" || agentOutcome?.status === "failed") {
+    content = agentOutcome.summary;
+  }
   const executionOutcome = {
     terminalState: evidenceFinalization.terminalState,
     evidence: evidenceFinalization.evidence,
@@ -603,11 +601,35 @@ export async function runAssistant(
       summary: evidenceFinalization.summary,
     },
   };
+  agentOutcome ??= {
+    status:
+      evidenceFinalization.terminalState === "blocked" ||
+      evidenceFinalization.terminalState === "awaiting_approval"
+        ? "blocked"
+        : evidenceFinalization.terminalState === "failed"
+          ? "failed"
+          : "completed",
+    summary: evidenceFinalization.summary,
+    ...(evidenceFinalization.terminalState === "blocked" ||
+    evidenceFinalization.terminalState === "awaiting_approval"
+      ? {
+          blocker: {
+            code: "ACTION_NOT_ALLOWED" as const,
+            requestedCapability: "workspace",
+          },
+        }
+      : evidenceFinalization.terminalState === "failed"
+        ? {}
+        : {
+            changes: evidencePack.filesModified,
+            validation: evidencePack.testsRun,
+          }),
+  } as AgentOutcome;
   const attestationResult = await generateEvidenceAttestation({
     evidencePack,
     workspacePath: snapshot.workspace.path,
     taskId,
-    policyApplied: resolvedOptions.runbookId ?? "workspace-trust-contract",
+    policyApplied: resolvedOptions.runbookId ?? "workspace-policy-v2",
     agentIdentity,
     privacyScan: async (payload) => {
       const scan = await privacyFirewall.scanTextSafe(payload);
@@ -720,12 +742,12 @@ export async function runAssistant(
       id: `assistant-${Date.now()}`,
       role: "assistant",
       content,
-      thought: thought || undefined,
       createdAt,
       events,
       artifacts: finalArtifacts,
       evidencePack,
       executionOutcome,
+      outcome: agentOutcome,
       workingSet,
     },
   };
@@ -805,11 +827,18 @@ export async function runAssistant(
         id: `assistant-recovered-${Date.now()}`,
         role: "assistant",
         content: recoveryFinalization.content,
-        thought: thought || undefined,
         createdAt: new Date().toISOString(),
         events,
         artifacts,
         executionOutcome: recoveryOutcome,
+        outcome: {
+          status: "failed",
+          summary: recoveryFinalization.summary,
+          diagnostic: {
+            code: "AGENT_RUNTIME_FAILED",
+            message: recoveryReason,
+          },
+        },
         workingSet,
       },
     };

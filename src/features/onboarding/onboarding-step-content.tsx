@@ -22,7 +22,7 @@ import type {
   PrivacyModelStatus,
 } from "../../contracts/privacy";
 import type {
-  WorkspaceTrustAutonomy,
+  WorkspaceWriteAccess,
   WorkspaceTrustContract,
 } from "../../contracts/workspace";
 
@@ -265,13 +265,13 @@ export function WorkspaceStep({
 
 interface TrustBoundaryStepProps {
   trustDraft: WorkspaceTrustContract | null;
-  onTrustChange: (autonomy: WorkspaceTrustAutonomy) => void;
+  onTrustChange: (writeAccess: WorkspaceWriteAccess) => void;
 }
 
-const TRUST_DESCRIPTIONS: Record<WorkspaceTrustAutonomy, string> = {
-  "plan-only": "Inspect and propose work without changing files.",
+const TRUST_DESCRIPTIONS: Record<WorkspaceWriteAccess, string> = {
+  "read-only": "Allow repository inspection only.",
   "approval-required": "Inspect freely and ask before edits or controlled execution.",
-  "trusted-patch": "Allow listed workspace edits while risky and Git actions stay gated.",
+  workspace: "Allow listed workspace edits while risky and Git actions stay gated.",
 };
 
 export function TrustBoundaryStep({
@@ -279,20 +279,20 @@ export function TrustBoundaryStep({
   onTrustChange,
 }: TrustBoundaryStepProps) {
   return (
-    <StepPanel icon={<HugeiconsIcon icon={LockKeyIcon} />} title="Scoped autonomy">
+    <StepPanel icon={<HugeiconsIcon icon={LockKeyIcon} />} title="Workspace policy">
       {trustDraft ? (
         <>
           <p className="text-[15px] leading-6 text-muted-foreground">
-            The repository contract already contains path, command, domain, and
+            The workspace policy contains path, command, domain, and
             blocked-action rules. Advanced lists remain available in Settings.
           </p>
           <div className="mt-6 max-w-lg space-y-2">
             <Label htmlFor="onboarding-trust">Workspace behavior</Label>
             <Select
               onValueChange={(value) =>
-                onTrustChange(value as WorkspaceTrustAutonomy)
+                onTrustChange(value as WorkspaceWriteAccess)
               }
-              value={trustDraft.autonomy}
+              value={trustDraft.writeAccess}
             >
               <SelectTrigger
                 aria-label="Workspace behavior"
@@ -302,13 +302,13 @@ export function TrustBoundaryStep({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="plan-only">Plan only</SelectItem>
+                <SelectItem value="read-only">Read only</SelectItem>
                 <SelectItem value="approval-required">Ask before changes</SelectItem>
-                <SelectItem value="trusted-patch">Scoped changes</SelectItem>
+                <SelectItem value="workspace">Workspace changes</SelectItem>
               </SelectContent>
             </Select>
             <p className="pt-1 text-sm leading-5 text-muted-foreground">
-              {TRUST_DESCRIPTIONS[trustDraft.autonomy]}
+              {TRUST_DESCRIPTIONS[trustDraft.writeAccess]}
             </p>
           </div>
         </>
@@ -333,7 +333,7 @@ export function VerificationStep() {
         </li>
         <li className="flex items-start gap-2.5">
           <HugeiconsIcon icon={CheckmarkCircle01Icon} className="mt-0.5 size-4 shrink-0 text-primary" />
-          Scoped trust contract ready
+          Workspace policy ready
         </li>
         <li className="flex items-start gap-2.5">
           <HugeiconsIcon icon={CheckmarkCircle01Icon} className="mt-0.5 size-4 shrink-0 text-primary" />

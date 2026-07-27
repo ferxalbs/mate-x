@@ -1,11 +1,10 @@
 import type { ToolExecutionRecord } from "../../evidence-pack";
 import type { RepoSnapshot } from "../workspace";
-import type { AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
+import type { AgentOutcome, AssistantRunOptions, ToolEvent } from "../../../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../../../contracts/execution";
 import type { AppSettings } from "../../../contracts/settings";
 import {
   buildResponsesMessageInput,
-  extractResponseThought,
   extractResponseFunctionCalls,
   requestRainyResponsesCompletion,
   resolveRainyAgentTimeoutMs,
@@ -27,12 +26,14 @@ import {
   isCleanGitDiffToolResult,
   isCurrentChangeReviewPrompt,
   executeToolBatchWithSafety,
+  normalizeAssistantText,
   summarizeCheckpoint,
   selectFinalAssistantText,
 } from "./helpers";
 import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
 import { attemptFinalResponsesSynthesis } from "./synthesis";
+import { resolveAdvertisedToolNames } from "../../capability-resolver";
 
 export async function requestRainyResponsesAgenticResponse({
   apiKey,
@@ -61,7 +62,7 @@ export async function requestRainyResponsesAgenticResponse({
   systemPrompt: string;
   snapshot: RepoSnapshot;
   events: ToolEvent[];
-  emitProgress: (content?: string, thought?: string) => void;
+  emitProgress: (content?: string) => void;
   appSettings: AppSettings;
   runId: string;
   serviceTier?: AssistantRunOptions["serviceTier"];
@@ -69,26 +70,26 @@ export async function requestRainyResponsesAgenticResponse({
   engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
   planningPhase?: boolean;
 }): Promise<{
-  thought?: string;
   toolExecutions: ToolExecutionRecord[];
   content: string;
   synthesisStatus: ExecutionSynthesisStatus;
   synthesisSummary?: string;
+  outcome?: AgentOutcome;
 }> {
   void planningPhase;
   const initialInput = buildResponsesMessageInput([
     ...buildHistoryMessages(history),
     { role: "user", content: prompt },
   ]);
-  // Full catalog: capable models choose tools; system prompt steers preference.
-  const responseTools = await toolService.getResponsesToolDefinitions();
+  const responseTools = await toolService.getResponsesToolDefinitions({
+    names: resolveAdvertisedToolNames(options.behaviorMode),
+  });
   let iterations = 0;
   let toolRounds = 0;
   let totalToolCalls = 0;
   let previousResponseId: string | undefined;
   let nextInput = initialInput;
   let lastContent = "";
-  let lastThought = "";
   const toolExecutions: ToolExecutionRecord[] = [];
   const finalizeContent = (finalContent: string) =>
     finalizeCriticLoop({
@@ -160,9 +161,8 @@ export async function requestRainyResponsesAgenticResponse({
         status: "error",
         visibility: "technical",
       });
-      emitProgress(lastContent || undefined, lastThought || undefined);
+      emitProgress(lastContent || undefined);
       return {
-        thought: lastThought,
         toolExecutions,
         synthesisStatus: "failed",
         synthesisSummary: "The model request failed before a final synthesis was available.",
@@ -174,26 +174,17 @@ export async function requestRainyResponsesAgenticResponse({
     }
 
     previousResponseId = response.id;
-    const responseText = response.output_text || "";
-    const responseThought = extractResponseThought(response);
-    if (responseThought) {
-      events.push({
-        id: `${passId}:reasoning`, segmentId: `${passId}:reasoning`, passId, runId,
-        segmentKind: "reasoning", type: "reasoning", label: `Reasoning pass ${iterations}`,
-        detail: responseThought, status: "completed",
-      });
-    }
+    const responseText = normalizeAssistantText(response.output_text);
     if (responseText.trim()) {
       // Keep intermediate drafts in the event trace, not in the final answer.
       lastContent = responseText.trim();
     }
-    lastThought = responseThought || lastThought;
-    emitProgress(lastContent, lastThought);
+    emitProgress(lastContent);
 
     const loopEvent = events.find(
       (event) => event.id === `step-agent-loop-${iterations}`,
     );
-    const checkpoint = summarizeCheckpoint(response.output_text);
+    const checkpoint = summarizeCheckpoint(responseText);
     if (loopEvent) {
       loopEvent.status = "done";
       loopEvent.detail = checkpoint
@@ -215,6 +206,7 @@ export async function requestRainyResponsesAgenticResponse({
         segmentKind: toolCalls.length ? "intermediate_response" : "final_response",
         type: "result", label: toolCalls.length ? `Agent pass ${iterations} response` : "Final response",
         detail: responseText, status: "completed",
+        visibility: toolCalls.length ? "restricted" : "public",
       });
       emitProgress();
     }
@@ -260,8 +252,8 @@ export async function requestRainyResponsesAgenticResponse({
       });
       emitProgress();
 
-      const synthesis = response.output_text?.trim()
-        ? { text: response.output_text.trim(), status: "valid" as const }
+      const synthesis = responseText
+        ? { text: responseText, status: "valid" as const }
         : await attemptFinalResponsesSynthesis({
             apiKey,
             model,
@@ -277,7 +269,6 @@ export async function requestRainyResponsesAgenticResponse({
       const finalContentText = selectFinalAssistantText(lastContent, synthesis.text);
 
       return {
-        thought: lastThought,
         toolExecutions,
         synthesisStatus: synthesis.status,
         synthesisSummary: synthesis.summary,
@@ -329,7 +320,6 @@ export async function requestRainyResponsesAgenticResponse({
         emitProgress();
 
         return {
-          thought: lastThought,
           toolExecutions,
           synthesisStatus: "valid",
           content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
@@ -391,13 +381,28 @@ export async function requestRainyResponsesAgenticResponse({
           appSettings,
           runId,
           engineeringTaskStatus,
-          autonomyPolicy: options.autonomyPolicy,
+          behaviorMode: options.behaviorMode,
           signal,
         }),
     );
 
     totalToolCalls += toolResults.length;
     toolExecutions.push(...toolResults.map((result: any) => result.toolExecution));
+    const terminalOutcome = toolResults.find(
+      (result: { outcome?: AgentOutcome }) =>
+        result.outcome?.status === "blocked" ||
+        result.outcome?.status === "failed",
+    )?.outcome;
+    if (terminalOutcome) {
+      return {
+        toolExecutions,
+        synthesisStatus:
+          terminalOutcome.status === "failed" ? "failed" : "valid",
+        synthesisSummary: terminalOutcome.summary,
+        content: terminalOutcome.summary,
+        outcome: terminalOutcome,
+      };
+    }
     if (
       cleanCurrentChangeReview &&
       toolResults.some((result: any) => isCleanGitDiffToolResult(result))
@@ -411,7 +416,6 @@ export async function requestRainyResponsesAgenticResponse({
       emitProgress();
 
       return {
-        thought: lastThought,
         toolExecutions,
         synthesisStatus: "valid",
         content: await finalizeContent(buildCleanCurrentChangeReviewAnswer()),
@@ -466,7 +470,6 @@ export async function requestRainyResponsesAgenticResponse({
   const finalContentText = selectFinalAssistantText(lastContent, synthesis.text);
 
   return {
-    thought: lastThought,
     toolExecutions,
     synthesisStatus: synthesis.status,
     synthesisSummary: synthesis.summary,

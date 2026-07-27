@@ -9,7 +9,7 @@ export function buildHomePageSubmitOptions(
     reasoningEnabled: defaultAmbientSafetyRunOptions.reasoningEnabled ?? true,
     reasoning: defaultAmbientSafetyRunOptions.reasoning ?? 'high',
     pathKind: defaultAmbientSafetyRunOptions.pathKind ?? 'verify_only',
-    access: defaultAmbientSafetyRunOptions.access ?? 'approval',
+    behaviorMode: defaultAmbientSafetyRunOptions.behaviorMode ?? 'execute',
     serviceTier: defaultAmbientSafetyRunOptions.serviceTier ?? 'standard',
     ...overrides,
   };

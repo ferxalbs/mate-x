@@ -102,7 +102,7 @@ export class LinearAgentService {
     const installation = await this.store.getInstallation(payload.organizationId);
     if (!installation || installation.state === "revoked") throw new Error("Linear installation is unavailable");
     const api = this.apiFor(installation);
-    await this.queueAndFlush(`${deliveryId}:ack`, sessionId, { type: "thought", body: "I’m connecting this issue to MaTE X and checking the repository context." }, true, api);
+    await this.queueAndFlush(`${deliveryId}:ack`, sessionId, { type: "action", action: "Connecting to MaTE X", result: "running" }, true, api);
 
     let binding = await this.store.getBinding(sessionId);
     const stop = payload.agentActivity?.signal === "stop" || /^(stop|cancel)$/i.test(this.promptBody(payload).trim());
