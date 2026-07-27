@@ -18,7 +18,7 @@ export function validateValidationCommand(
     return {
       ok: false,
       code: ERR_CODES.ERR_VALIDATION_SHELL_FORBIDDEN,
-      message: 'shell:true is forbidden in v0.1.2',
+      message: 'shell:true is forbidden in v0.1.3',
     };
   }
 

@@ -213,11 +213,39 @@ export function DesktopShell() {
     };
 
     verifyBackgroundImage();
-    const recheck = window.setInterval(verifyBackgroundImage, 60_000);
+
+    let recheckTimer: number | null = null;
+    const clearRecheckTimer = () => {
+      if (recheckTimer !== null) {
+        window.clearTimeout(recheckTimer);
+        recheckTimer = null;
+      }
+    };
+    const scheduleRecheck = () => {
+      clearRecheckTimer();
+      if (cancelled || document.hidden) return;
+      recheckTimer = window.setTimeout(() => {
+        recheckTimer = null;
+        verifyBackgroundImage();
+        scheduleRecheck();
+      }, 60_000);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearRecheckTimer();
+        return;
+      }
+      verifyBackgroundImage();
+      scheduleRecheck();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    scheduleRecheck();
 
     return () => {
       cancelled = true;
-      window.clearInterval(recheck);
+      clearRecheckTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [backgroundImage, settings.customBackgroundImage]);
 

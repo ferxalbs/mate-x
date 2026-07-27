@@ -62,7 +62,7 @@ export function acquireLease(input: {
     return {
       ok: false,
       code: ERR_CODES.ERR_LEASE_CONFLICT,
-      message: 'v0.1.2 serial execution: another mutating lease is active',
+      message: 'v0.1.3 serial execution: another mutating lease is active',
     };
   }
 

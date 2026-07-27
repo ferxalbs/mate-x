@@ -1,6 +1,6 @@
 /**
  * Main-process GitGate — commit/push require fresh ProofHandle.
- * No emergency bypass in v0.1.2.
+ * No emergency bypass in v0.1.3.
  * NES-6.2
  */
 

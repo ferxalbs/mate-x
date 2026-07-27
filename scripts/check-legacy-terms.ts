@@ -54,6 +54,12 @@ function walk(dir: string, files: string[] = []): string[] {
     if (st.isDirectory()) {
       walk(full, files);
     } else if (/\.(ts|tsx|js|jsx|mjs)$/.test(name)) {
+      // Tests may exercise valid behavior-mode payloads with a `mode` field.
+      // They are not shipped runtime paths and should not be mistaken for the
+      // removed AssistantMode contract.
+      if (/\.(test|spec)\.(ts|tsx|js|jsx|mjs)$/.test(name)) {
+        continue;
+      }
       if (EXCLUDE_FILE_SUFFIXES.some((s) => rel.endsWith(s) || name.endsWith(s))) {
         continue;
       }

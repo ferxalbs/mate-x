@@ -20,7 +20,11 @@ export function usePowerState(): PowerStatePayload {
       void getPowerState().then(applyPowerState).catch(() => undefined);
     }
 
-    return cleanup;
+    return () => {
+      cleanup?.();
+      document.documentElement.classList.remove('on-battery', 'power-suspended');
+      delete document.documentElement.dataset.thermalState;
+    };
   }, []);
 
   return powerState;

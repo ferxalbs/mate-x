@@ -26,7 +26,7 @@ export async function initStack(): Promise<void> {
   const dbPath = tursoService.getLocalDatabaseFilePath();
   if (!dbPath) {
     throw new Error(
-      'EngineeringRepository requires a local libSQL file path; remote-only TURSO_DATABASE_URL is not supported for v0.1.2 control-plane authority',
+      'EngineeringRepository requires a local libSQL file path; remote-only TURSO_DATABASE_URL is not supported for v0.1.3 control-plane authority',
     );
   }
   initDurableEngineeringRepository(dbPath);

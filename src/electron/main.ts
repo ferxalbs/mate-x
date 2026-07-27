@@ -126,8 +126,8 @@ function startPowerStateMonitoring() {
   const update = (next: Parameters<typeof powerStateService.update>[0] = {}) => {
     powerStateService.update(next);
   };
-  const handleBattery = () => update({ onBattery: true, suspended: false });
-  const handleAc = () => update({ onBattery: false, suspended: false });
+  const handleBattery = () => update({ onBattery: true });
+  const handleAc = () => update({ onBattery: false });
   const handleSuspend = () => update({ suspended: true });
   const handleResume = () => update({
     onBattery: powerMonitor.isOnBatteryPower(),

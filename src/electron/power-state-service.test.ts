@@ -26,4 +26,19 @@ describe("PowerStateService", () => {
     service.update({ speedLimit: Number.NaN });
     assert.deepEqual(service.getState(), DEFAULT_POWER_STATE);
   });
+
+  it("does not expose mutable internal state through reads or listeners", () => {
+    const service = new PowerStateService();
+    const readState = service.getState();
+    readState.onBattery = true;
+
+    let emittedState = DEFAULT_POWER_STATE;
+    service.subscribe((state) => {
+      emittedState = state;
+    }, true);
+    emittedState.suspended = true;
+
+    assert.deepEqual(service.getState(), DEFAULT_POWER_STATE);
+    assert.equal(service.canRunBackgroundWork(), true);
+  });
 });

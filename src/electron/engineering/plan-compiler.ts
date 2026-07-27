@@ -54,7 +54,7 @@ export function compileTechnicalApproach(
     approachId: newNamespacedId('approach'),
     version,
     specificationVersion: spec.version,
-    researchNotes: [{ id: 'n1', text: 'Deterministic skeleton plan (v0.1.2)' }],
+    researchNotes: [{ id: 'n1', text: 'Deterministic skeleton plan (v0.1.3)' }],
     decisions,
     affectedSurfaces: ['src'],
     interfaces: [],

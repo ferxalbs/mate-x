@@ -32,7 +32,7 @@ export function defaultPolicyRules(): PolicyRule[] {
     {
       ruleId: 'MUST-serial-mutation',
       severity: 'MUST',
-      statement: 'Only one mutating execution per workspace in v0.1.2',
+      statement: 'Only one mutating execution per workspace in v0.1.3',
       category: 'execution',
     },
     {

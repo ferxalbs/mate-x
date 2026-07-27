@@ -1082,7 +1082,7 @@ async function collectIndexableFiles(rootPath: string) {
 }
 
 async function readIndexedFiles(rootPath: string, files: string[]) {
-  const contents = new Map<string, IndexedFileContent | null>();
+  const contents = new Map<string, IndexedFileContent>();
   let nextIndex = 0;
   const concurrency = powerStateService.canRunBackgroundWork() ? 8 : 1;
   const workerCount = Math.min(concurrency, files.length);
@@ -1094,7 +1094,10 @@ async function readIndexedFiles(rootPath: string, files: string[]) {
         nextIndex += 1;
         const file = files[index];
         if (!file) continue;
-        contents.set(file, await readSmallFile(path.join(rootPath, file)));
+        const indexedContent = await readSmallFile(path.join(rootPath, file));
+        if (indexedContent) {
+          contents.set(file, indexedContent);
+        }
       }
     }),
   );

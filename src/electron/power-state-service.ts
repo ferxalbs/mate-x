@@ -22,20 +22,20 @@ export class PowerStateService {
     };
 
     if (isEqual(this.state, candidate)) {
-      return this.state;
+      return this.getState();
     }
 
     this.state = candidate;
     for (const listener of this.listeners) {
       listener({ ...this.state });
     }
-    return this.state;
+    return this.getState();
   }
 
   subscribe(listener: PowerStateListener, emitCurrent = false): () => void {
     this.listeners.add(listener);
     if (emitCurrent) {
-      listener(this.state);
+      listener({ ...this.state });
     }
     return () => this.listeners.delete(listener);
   }
