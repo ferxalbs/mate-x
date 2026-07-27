@@ -372,19 +372,21 @@ export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
   const terminalState: ExecutionTerminalState =
     hasMutation && (agentStatus === "blocked" || agentStatus === "failed")
       ? "partial"
-      : agentStatus === "blocked" || agentStatus === "needs_approval"
-        ? "blocked"
-        : agentStatus === "failed"
-          ? "failed"
-          : message.evidencePack?.status === "partial"
-          ? "partial"
-          : message.evidencePack?.status === "blocked"
-            ? "blocked"
-            : message.evidencePack?.status === "failed"
-              ? "failed"
-              : message.content.trim()
-                ? "succeeded"
-                : "failed";
+      : agentStatus === "needs_approval"
+        ? "awaiting_approval"
+        : agentStatus === "blocked"
+          ? "blocked"
+          : agentStatus === "failed"
+            ? "failed"
+            : message.evidencePack?.status === "partial"
+              ? "partial"
+              : message.evidencePack?.status === "blocked"
+                ? "blocked"
+                : message.evidencePack?.status === "failed"
+                  ? "failed"
+                  : message.content.trim()
+                    ? "succeeded"
+                    : "failed";
 
   const evidence: ExecutionEvidence = {
     completedSteps: [],

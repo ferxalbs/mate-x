@@ -1,4 +1,5 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
+import type { AgentOutcome } from "../../contracts/chat";
 import type { WorkPlan } from "./types";
 import type { WorkStage, WorkStageId } from "./stages";
 import type { ExecutionSynthesisStatus, ExecutionTerminalState } from "../../contracts/execution";
@@ -86,6 +87,10 @@ export function finalizeWorkRun(input: {
   evidenceAttached: boolean;
   /** Planning / pre-approval: do not apply final-result preparatory rejection or hard validation. */
   planningPhase?: boolean;
+  /** True only when the canonical task state is actually awaiting approval. */
+  awaitingApproval?: boolean;
+  /** Structured runtime outcome takes precedence over execution bookkeeping. */
+  terminalOutcome?: AgentOutcome;
   synthesisStatus?: ExecutionSynthesisStatus;
   synthesisSummary?: string;
 }): WorkEngineFinalization {
@@ -173,7 +178,7 @@ export function finalizeWorkRun(input: {
     evidence,
     stages: input.stages,
     evidenceAttached: input.evidenceAttached,
-    awaitingApproval: Boolean(input.planningPhase),
+    awaitingApproval: Boolean(input.awaitingApproval),
     incompleteEvidence:
       fallbackMissing ||
       missingRuntimeEvidence ||
@@ -181,18 +186,33 @@ export function finalizeWorkRun(input: {
       unmatchedSecurityClaims.length > 0,
     preparatoryOnly,
   });
-  const content = rewriteTerminalClaims(
+  const rewrittenContent = rewriteTerminalClaims(
     rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0),
     terminalState,
   );
-  const summary = buildUserFacingExecutionSummary(terminalState, evidence);
+  const blockedOutcome =
+    input.terminalOutcome?.status === "blocked"
+      ? input.terminalOutcome
+      : undefined;
+  const rejectionSummary =
+    blockedOutcome &&
+    blockedOutcome.blocker.code !== "APPROVAL_DENIED" &&
+    evidence.changedFiles.length === 0
+      ? blockedOutcome.summary
+      : undefined;
+  const summary = rejectionSummary
+    ? rejectionSummary
+    : buildUserFacingExecutionSummary(terminalState, evidence);
+  const content = rejectionSummary
+    ? rejectionSummary
+    : appendExecutionSummary(rewrittenContent, summary);
 
   return {
     verdict: terminalState,
     terminalState,
     evidence,
     summary,
-    content: appendExecutionSummary(content, summary),
+    content,
     warnings,
   };
 }

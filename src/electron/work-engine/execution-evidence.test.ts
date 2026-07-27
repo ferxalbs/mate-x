@@ -2,6 +2,8 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 
 import type { ToolExecutionRecord } from "../evidence-pack";
+import { resolveToolAuthorization } from "../capability-resolver";
+import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 import { finalizeWorkRun } from "./finalizer";
 import { normalizeToolExecution } from "./execution-evidence";
 import type { WorkStage } from "./stages";
@@ -86,6 +88,38 @@ const passedValidation = execution(
   "sandbox_run",
   JSON.stringify({ ok: true, status: "completed", exitCode: 0, summary: "Tests passed." }),
 );
+
+const authorizationCases = [
+  ["workspace", "review", "blocked"],
+  ["approval-required", "execute", "needs_approval"],
+  ["read-only", "execute", "blocked"],
+  ["workspace", "execute", "allowed"],
+  ["workspace", "plan", "blocked"],
+  ["approval-required", "review", "blocked"],
+] as const;
+
+for (const [writeAccess, behaviorMode, expected] of authorizationCases) {
+  test(
+    `${writeAccess} workspace access with ${behaviorMode} behavior resolves a write as ${expected}`,
+    () => {
+      const workspacePolicy = createDefaultWorkspaceTrustContract(
+        "workspace",
+        "Repo",
+        { packageManager: "bun", hasPackageJson: true },
+      );
+      workspacePolicy.writeAccess = writeAccess;
+
+      const decision = resolveToolAuthorization({
+        toolName: "file_editor",
+        args: { path: "README.md" },
+        behaviorMode,
+        workspacePolicy,
+      });
+
+      assert.equal(decision.decision, expected);
+    },
+  );
+}
 
 test("trust-blocked sandbox execution is blocked, never successful", () => {
   const blocked = execution(
@@ -190,6 +224,49 @@ test("approval-required execution waits for approval", () => {
   assert.equal(result.evidence.blockedSteps[0]?.name, "file_editor");
   assert.ok(result.evidence.requiredUserAction);
   assert.match(result.summary, /Waiting for approval/);
+});
+
+test("Review write rejection stays blocked without incomplete execution bookkeeping", () => {
+  const workspacePolicy = createDefaultWorkspaceTrustContract(
+    "workspace",
+    "Repo",
+    { packageManager: "bun", hasPackageJson: true },
+  );
+  workspacePolicy.writeAccess = "workspace";
+  const authorization = resolveToolAuthorization({
+    toolName: "file_editor",
+    args: { path: "README.md" },
+    behaviorMode: "review",
+    workspacePolicy,
+  });
+  assert.equal(authorization.decision, "blocked");
+  if (authorization.decision !== "blocked") return;
+
+  const serializedOutcome = JSON.stringify(authorization.outcome);
+  const blockedWrite = execution(
+    "file_editor",
+    serializedOutcome,
+    { status: "blocked", outcome: authorization.outcome },
+  );
+  const result = finalizeWorkRun({
+    workPlan: plan,
+    stages: stages.map((item) =>
+      item.id === "patch_attempted" ? stage(item.id, "blocked") : item,
+    ),
+    toolExecutions: [blockedWrite],
+    content: authorization.outcome.summary,
+    evidenceAttached: true,
+    planningPhase: true,
+    synthesisStatus: "valid",
+    terminalOutcome: authorization.outcome,
+  });
+
+  assert.equal(result.terminalState, "blocked");
+  assert.equal(result.summary, authorization.outcome.summary);
+  assert.doesNotMatch(
+    result.content,
+    /approval|changed files|validation|final synthesis|execution incomplete/i,
+  );
 });
 
 test("fully successful execution is succeeded", () => {

@@ -211,6 +211,26 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
     assert.notEqual(outcome.terminalState, "succeeded");
   });
 
+  it("keeps approval-required distinct from blocked in the outcome fallback", async () => {
+    const { deriveExecutionOutcome } = await import("./chat-store");
+    const message: ChatMessage = {
+      id: "assistant-approval",
+      role: "assistant",
+      content: "Approval is required.",
+      createdAt: new Date().toISOString(),
+      outcome: {
+        status: "needs_approval",
+        summary: "Approve this repository change once.",
+        approvalId: "approval-1",
+      },
+    };
+
+    assert.equal(
+      deriveExecutionOutcome(message).terminalState,
+      "awaiting_approval",
+    );
+  });
+
   it("reuses an unused thread and only creates another after the current one has a prompt", () => {
     const initialThreadId = useChatStore.getState().activeThreadIds["workspace-1"];
     useChatStore.getState().createThread();

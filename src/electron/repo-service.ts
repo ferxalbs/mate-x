@@ -102,9 +102,12 @@ export async function runAssistant(
     }
   }
   const { isPreApprovalStatus } = await import("../contracts/engineering-phase-result");
+  const awaitingTaskApproval = Boolean(
+    engineeringTaskStatus && isPreApprovalStatus(engineeringTaskStatus),
+  );
   const planningPhase =
     resolvedOptions.behaviorMode !== "execute" ||
-    Boolean(engineeringTaskStatus && isPreApprovalStatus(engineeringTaskStatus));
+    awaitingTaskApproval;
   const runbookDefinition = resolveRunbookDefinition(
     resolvedOptions.runbookId ?? toAssistantRunbookId(workPlan.runbook),
   );
@@ -543,6 +546,8 @@ export async function runAssistant(
     content,
     evidenceAttached: true,
     planningPhase,
+    awaitingApproval: awaitingTaskApproval,
+    terminalOutcome: agentOutcome,
     synthesisStatus,
     synthesisSummary,
   });
@@ -793,6 +798,8 @@ export async function runAssistant(
       content: content || "The run stopped before a final synthesis was available.",
       evidenceAttached: false,
       planningPhase,
+      awaitingApproval: awaitingTaskApproval,
+      terminalOutcome: agentOutcome,
       synthesisStatus: "failed",
       synthesisSummary: recoveryReason,
     });
