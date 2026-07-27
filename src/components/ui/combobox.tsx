@@ -168,7 +168,7 @@ function ComboboxPopup({
       >
         <span
           className={cn(
-            "relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) rounded-xl border border-border/40 text-foreground shadow-none outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:translate-y-[-2px] data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
+            "relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) rounded-xl border border-border/40 text-foreground shadow-none outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] data-[side=top]:data-starting-style:translate-y-1 data-[side=bottom]:data-starting-style:translate-y-[-2px] data-[side=top]:data-ending-style:translate-y-1 data-[side=bottom]:data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
             className,
           )}
           data-slot="combobox-content"

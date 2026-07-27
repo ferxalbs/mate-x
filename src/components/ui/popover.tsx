@@ -47,7 +47,7 @@ function PopoverPopup({
       >
         <PopoverPrimitive.Popup
           className={cn(
-            "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-2xl border border-border/40 text-popover-foreground shadow-none outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] has-data-[slot=calendar]:rounded-2xl data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:translate-y-[-2px] data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
+            "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-2xl border border-border/40 text-popover-foreground shadow-none outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] has-data-[slot=calendar]:rounded-2xl data-[side=top]:data-starting-style:translate-y-1 data-[side=bottom]:data-starting-style:translate-y-[-2px] data-[side=top]:data-ending-style:translate-y-1 data-[side=bottom]:data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
             tooltipStyle &&
               "w-fit text-balance rounded-md text-xs shadow-none",
             className,

@@ -137,14 +137,14 @@ function SelectPopup({
       >
         <SelectPrimitive.Popup
           className={cn(
-            "relative flex not-[class*='w-']:min-w-36 origin-(--transform-origin) flex-col rounded-xl border border-border/40 text-foreground shadow-none outline-none focus:outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:translate-y-[-2px] data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
+            "relative flex not-[class*='w-']:min-w-36 origin-(--transform-origin) flex-col rounded-xl border border-border/40 text-foreground shadow-none outline-none focus:outline-none transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] data-[side=top]:data-starting-style:translate-y-1 data-[side=bottom]:data-starting-style:translate-y-[-2px] data-[side=top]:data-ending-style:translate-y-1 data-[side=bottom]:data-ending-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0",
             className,
           )}
           data-slot="select-popup"
           {...props}
         >
           <SelectPrimitive.ScrollUpArrow
-            className="top-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-t-xl bg-popover/80 text-muted-foreground"
+            className="top-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-t-xl text-muted-foreground"
             data-slot="select-scroll-up-arrow"
           >
             <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} className="size-3.5" />
@@ -161,7 +161,7 @@ function SelectPopup({
             </SelectPrimitive.List>
           </div>
           <SelectPrimitive.ScrollDownArrow
-            className="bottom-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-b-xl bg-popover/80 text-muted-foreground"
+            className="bottom-0 z-50 flex h-5 w-full cursor-default items-center justify-center rounded-b-xl text-muted-foreground"
             data-slot="select-scroll-down-arrow"
           >
             <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3.5" />

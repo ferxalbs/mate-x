@@ -48,7 +48,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-2xl border border-border/30 bg-popover/50 px-3 py-1.5 text-[12px] font-medium text-foreground shadow-[0_8px_32px_rgba(0,0,0,0.12)] transition-[scale,opacity] duration-[var(--motion-tooltip)] ease-[var(--ease-out)] has-data-[slot=kbd]:pr-1.5 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0 motion-reduce:data-ending-style:scale-100 motion-reduce:data-starting-style:scale-100 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm",
+            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-2xl border border-border/40 px-3 py-1.5 text-[12px] font-medium text-foreground shadow-none transition-[opacity,transform] duration-[var(--motion-tooltip)] ease-[var(--ease-out)] has-data-[slot=kbd]:pr-1.5 data-[side=top]:data-starting-style:translate-y-1 data-[side=bottom]:data-starting-style:translate-y-[-2px] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:translate-y-0 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm",
             className
           )}
           {...props}

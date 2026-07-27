@@ -104,23 +104,26 @@
 
 @layer utilities {
 
-  /* Semantic typography: use metadata only for non-operational labels. */
+  /* Semantic typography: optical tracking and leading tuned for Apple-grade density */
   .mate-text-body {
     color: var(--text-operational);
     font-size: 0.875rem;
     line-height: 1.5;
+    letter-spacing: -0.006em;
   }
 
   .mate-text-compact {
     color: var(--text-operational);
     font-size: 0.8125rem;
     line-height: 1.4;
+    letter-spacing: -0.008em;
   }
 
   .mate-text-secondary {
     color: var(--text-secondary);
     font-size: 0.75rem;
-    line-height: 1.5;
+    line-height: 1.45;
+    letter-spacing: -0.005em;
   }
 
   .mate-text-metadata {
@@ -777,6 +780,8 @@ label:has(> select#reasoning-effort) select {
   backdrop-filter: blur(var(--overlay-glass-blur, 28px)) saturate(var(--glass-saturate, 1.55)) !important;
   -webkit-backdrop-filter: blur(var(--overlay-glass-blur, 28px)) saturate(var(--glass-saturate, 1.55)) !important;
   isolation: isolate;
+  transform: translateZ(0);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
 :root:not(.dark).blur-enabled [data-slot="menu-popup"],
@@ -790,6 +795,7 @@ label:has(> select#reasoning-effort) select {
 :root:not(.dark).blur-enabled [data-slot="command-dialog-popup"],
 :root:not(.dark).blur-enabled [data-slot="combobox-content"] {
   border-color: color-mix(in srgb, black 10%, transparent) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
 }
 
 /* Prefer less GPU work when the user asks for reduced motion */
