@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import * as electron from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import { resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -50,9 +50,12 @@ export function parseStoragePrefix(value: string): string {
 export function parseFailureMemoryImportPath(value: string): string {
   const resolved = resolve(value);
   const tmpRoot = resolve(tmpdir());
-  const userRoot = resolve(app.getPath('userData'));
+  const userDataPath = electron.app?.getPath?.('userData');
+  const userRoot = userDataPath ? resolve(userDataPath) : null;
   const inTmp = resolved === tmpRoot || resolved.startsWith(`${tmpRoot}${sep}`);
-  const inUser = resolved === userRoot || resolved.startsWith(`${userRoot}${sep}`);
+  const inUser =
+    userRoot !== null &&
+    (resolved === userRoot || resolved.startsWith(`${userRoot}${sep}`));
 
   if (!inTmp && !inUser) {
     throw new Error('Failure memory import path must stay within temp or app data.');

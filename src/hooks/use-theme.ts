@@ -19,16 +19,30 @@ const MEDIA_QUERY = '(prefers-color-scheme: dark)';
 let listeners: Array<() => void> = [];
 let lastSnapshot: ThemeSnapshot | null = null;
 
+function getStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function emitChange() {
   for (const listener of listeners) listener();
 }
 
 function getSystemDark() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+
   return window.matchMedia(MEDIA_QUERY).matches;
 }
 
 function getStoredAppearance(): Appearance {
-  const raw = localStorage.getItem(APPEARANCE_KEY);
+  const raw = getStorage()?.getItem(APPEARANCE_KEY);
   if (raw === 'light' || raw === 'dark' || raw === 'system') {
     return raw;
   }
@@ -36,7 +50,7 @@ function getStoredAppearance(): Appearance {
 }
 
 function getStoredTheme(): Theme {
-  const raw = localStorage.getItem(THEME_KEY);
+  const raw = getStorage()?.getItem(THEME_KEY);
   if (
     raw === 'default' ||
     raw === 'oled' ||
@@ -53,12 +67,14 @@ function getStoredTheme(): Theme {
 }
 
 function getStoredBlur(): boolean {
-  const raw = localStorage.getItem(BLUR_KEY);
+  const raw = getStorage()?.getItem(BLUR_KEY);
   // Default off — matches DEFAULT_APP_SETTINGS.blurEnabled (was true when unset).
   return raw === 'true';
 }
 
 function applyTheme(appearance: Appearance, theme: Theme, blurEnabled: boolean, suppressTransitions = false) {
+  if (typeof document === 'undefined') return;
+
   if (suppressTransitions) {
     document.documentElement.classList.add('no-transitions');
   }
@@ -108,6 +124,12 @@ function getSnapshot(): ThemeSnapshot {
 function subscribe(listener: () => void) {
   listeners.push(listener);
 
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return () => {
+      listeners = listeners.filter((entry) => entry !== listener);
+    };
+  }
+
   const query = window.matchMedia(MEDIA_QUERY);
   const handleMediaChange = () => {
     if (getStoredAppearance() === 'system') {
@@ -141,19 +163,19 @@ export function useTheme() {
     appearance === 'system' ? (snapshot.systemDark ? 'dark' : 'light') : appearance;
 
   const setAppearance = useCallback((next: Appearance) => {
-    localStorage.setItem(APPEARANCE_KEY, next);
+    getStorage()?.setItem(APPEARANCE_KEY, next);
     applyTheme(next, getStoredTheme(), getStoredBlur(), true);
     emitChange();
   }, []);
 
   const setTheme = useCallback((next: Theme) => {
-    localStorage.setItem(THEME_KEY, next);
+    getStorage()?.setItem(THEME_KEY, next);
     applyTheme(getStoredAppearance(), next, getStoredBlur(), true);
     emitChange();
   }, []);
 
   const setBlurEnabled = useCallback((next: boolean) => {
-    localStorage.setItem(BLUR_KEY, String(next));
+    getStorage()?.setItem(BLUR_KEY, String(next));
     applyTheme(getStoredAppearance(), getStoredTheme(), next, true);
     emitChange();
   }, []);

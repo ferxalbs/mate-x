@@ -25,7 +25,7 @@ export function ComposerCoreInput({
   return (
     <div className="relative z-10 px-5 pt-3.5 sm:px-6">
       {workspace?.branch ? (
-        <span className="sr-only" data-testid="composer-branch">
+        <span className="sr-only truncate" data-testid="composer-branch">
           {workspace.branch.trim()}
         </span>
       ) : null}

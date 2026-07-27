@@ -582,9 +582,9 @@ export function RunsPage() {
       )}
 
       {selectedRun ? (
-        <div className="flex flex-col md:flex-row flex-1 min-h-0 min-w-0 overflow-y-auto md:overflow-hidden">
+        <div className="grid grid-cols-1 overflow-y-auto flex-1 min-h-0 min-w-0 min-[1100px]:grid-cols-[260px_minmax(0,1fr)_280px] min-[1100px]:overflow-hidden 2xl:grid-cols-[280px_minmax(0,1fr)_300px]">
           {/* Left Sidebar: Runs List */}
-          <aside className="shrink-0 w-full md:w-[260px] xl:w-[280px] border-b md:border-b-0 md:border-r border-border/60 flex flex-col min-h-[260px] md:min-h-0 bg-transparent">
+          <aside className="min-w-0 border-b border-border/60 min-[1100px]:border-b-0 min-[1100px]:border-r flex flex-col min-h-[260px] min-[1100px]:min-h-0 bg-transparent">
             <div className="sticky top-0 z-10 border-b border-border/60 p-2.5 space-y-2 bg-transparent">
               <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Captured Runs
@@ -721,7 +721,7 @@ export function RunsPage() {
           </main>
 
           {/* Right Sidebar: Run Evidence */}
-          <aside className="shrink-0 w-full md:w-[280px] xl:w-[300px] border-t md:border-t-0 md:border-l border-border/60 flex flex-col min-h-[380px] md:min-h-0 bg-transparent">
+          <aside className="min-w-0 border-t border-border/60 min-[1100px]:border-t-0 min-[1100px]:border-l flex flex-col min-h-[380px] min-[1100px]:min-h-0 bg-transparent">
             <div className="sticky top-0 z-10 border-b border-border/60 px-4 py-3 bg-transparent">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Run Evidence

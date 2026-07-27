@@ -3,7 +3,7 @@ import { access, copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/pro
 import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
-import { powerSaveBlocker } from "electron";
+import * as electron from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
 import { tursoService } from "../turso-service";
@@ -41,6 +41,7 @@ const IGNORED_COPY_NAMES = new Set([
 ]);
 const IGNORED_COPY_SUFFIXES = [".log", ".map"];
 const sandboxRunQueues = new Map<string, Promise<void>>();
+const powerSaveBlocker = electron.powerSaveBlocker;
 type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
 type SandboxExecutionMode = "direct" | "isolated-copy";
 type PackageManagerName = "bun" | "npm" | "pnpm" | "yarn";

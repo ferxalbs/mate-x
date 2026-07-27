@@ -10,6 +10,7 @@ import { cn } from "../../../lib/utils";
 interface QuickActionCardProps {
   icon: ReactNode;
   title: string;
+  evidence: string;
   onClick: () => void;
   disabled?: boolean;
   variants?: Variants;
@@ -41,6 +42,7 @@ const cardVariants: Variants = {
 function QuickActionCard({
   icon,
   title,
+  evidence,
   onClick,
   disabled,
   variants,
@@ -53,6 +55,7 @@ function QuickActionCard({
       type="button"
       disabled={disabled}
       onClick={onClick}
+      title={`${title}: ${evidence}`}
       variants={variants}
       whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
       whileTap={shouldReduceMotion ? undefined : { scale: 0.96 }}
@@ -69,6 +72,7 @@ function QuickActionCard({
       <span className="text-[12.5px] font-medium leading-none tracking-tight text-foreground/85 transition-colors duration-150 group-hover:text-foreground">
         {title}
       </span>
+      <span className="sr-only">{evidence}</span>
     </motion.button>
   );
 }
@@ -150,6 +154,7 @@ export function QuickActionCards({
           key={action.id}
           variants={cardVariants}
           title={action.title}
+          evidence={action.evidence}
           icon={action.icon}
           disabled={disabled}
           onClick={() => onSelectAction(action.prompt)}
