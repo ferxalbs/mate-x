@@ -44,7 +44,7 @@
         "pptxgenjs": "^4.0.1",
         "prismjs": "^1.30.0",
         "qrcode.react": "^4.2.0",
-        "rainy-sdk-ts": "^0.4.1",
+        "rainy-sdk-ts": "0.4.2",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
         "react-icons": "^5.7.0",
@@ -2351,7 +2351,7 @@
 
     "quick-lru": ["quick-lru@5.1.1", "", {}, "sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA=="],
 
-    "rainy-sdk-ts": ["rainy-sdk-ts@0.4.1", "", { "dependencies": { "mitt": "^3.0.1", "zod": "^4.4.3" } }, "sha512-IrH/oPPMncezILH314atPn0pd0T9X0MHDbDzfqSczWv5E56Rj6E3KjTLyR9IjZvYSdzg/Zb64nFL2xPAZEAf7Q=="],
+    "rainy-sdk-ts": ["rainy-sdk-ts@0.4.2", "", { "dependencies": { "mitt": "^3.0.1", "zod": "^4.4.3" } }, "sha512-6oKol7YIy/Ew59L23iHSYMNkywUyAeIL3QNNWLdzdi5BVpHmeryWg8cIuBgT9eDw8GdZor1z+0veyJfWKuqLiA=="],
 
     "random-path": ["random-path@0.1.2", "", { "dependencies": { "base32-encode": "^0.1.0 || ^1.0.0", "murmur-32": "^0.1.0 || ^0.2.0" } }, "sha512-4jY0yoEaQ5v9StCl5kZbNIQlg1QheIDBrdkDn53EynpPb9FgO6//p3X/tgMnrC45XN6QZCzU1Xz/+pSSsJBpRw=="],
 
