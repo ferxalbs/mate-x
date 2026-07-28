@@ -1,5 +1,64 @@
 # CHANGELOG
 
+## MaTE X v0.1.3 — Execution Integrity and Product Hardening
+
+MaTE X v0.1.3 makes repository execution safer, more truthful, and more dependable while refining the primary workspace, onboarding, integrations, tool loop, and performance for daily macOS use.
+
+This release establishes one capability-based authorization path for every operation, binds approvals to one exact side effect, and derives visible completion states from runtime evidence instead of assistant prose.
+
+### Highlights
+
+#### Authorization and approval integrity
+
+* Enforced Behavior mode, Workspace Policy, repository boundaries, trust, task state, and approval requirements through the canonical capability resolver at the final side-effect boundary.
+* Bound approvals to the exact run, workspace, path, tool, capability, and operation fingerprint, with policy revalidation immediately before execution and one-shot consumption that prevents replay.
+* Preserved explicit approval requirements for sensitive, destructive, external, and Git-writing operations without broadening ordinary workspace-write access.
+* Corrected captured EngineeringTasks so Execute with Workspace changes authorizes an ordinary repository file edit without creating or requiring a `PolicyStop`.
+* Added runtime integration coverage proving that Execute with Workspace changes writes exactly once without approval, Ask before changes requests one approval, Read only blocks writes, and Review blocks writes without requesting approval.
+
+#### Truthful outcomes and evidence
+
+* Introduced structured terminal outcomes for succeeded, partial, blocked, failed, and awaiting-approval runs across the runtime, IPC boundary, chat store, and conversation UI.
+* Made deterministic runtime evidence—not provider wording—the authority for execution status, changed files, validation results, and failure or approval reasons.
+* Recovered mutation evidence from completed tool calls and replaced contradictory completion copy with concise, plain-language results.
+* Stabilized real-time activity, final-response de-duplication, and task continuity so completed, interrupted, and resumed runs project one canonical state.
+
+#### Behavior and workspace policy
+
+* Clarified Review, Plan, and Execute as agent strategies while keeping Workspace Policy as the independent authority for read-only, approval-gated, and workspace-write access.
+* Kept ordinary repository work autonomous only when Execute and Workspace changes both permit it; sensitive actions and Git writes remain explicitly gated.
+* Improved casual-chat routing and policy propagation so conversational requests do not accidentally enter an engineering execution workflow.
+
+#### Agent runtime scale and reliability
+
+* Added plan-aware effective context limits with adaptive compression, protected completion headroom, and support for substantially larger authenticated model contexts.
+* Exposed the full canonical tool catalog to the provider, improved tool-selection guidance and safe parallel batching, and raised the bounded tool-output ceiling for large repository work.
+* Added cached provider clients, bounded requests, cancellation propagation, canonical tool aliases, structured schema failures, and more precise timeout handling.
+* Separated raw user intent from injected policy, preserved agent-loop continuity, reported accurate execution timing, and included bounded Git patch diagnostics in repository inspection.
+
+#### Native Linear workflows
+
+* Hardened the standard Linear connection flow and added a native Linear agent integration with PKCE S256 authentication, encrypted rotating credentials, webhook relay, and durable session-to-task mapping.
+* Added recovery paths that preserve EngineeringTask context when Linear-triggered work is interrupted or resumed.
+
+#### Workspace, onboarding, and visual foundation
+
+* Redesigned the primary workspace, composer, onboarding, model selector, and background-task presentation around a denser, more focused engineering workflow.
+* Added scoped workspace trust, richer theme-color customization, responsive behavior, accessibility refinements, and reduced-motion support.
+* Consolidated the flat CSS-glass visual foundation, improved motion quality, and modularized large workspace UI surfaces for clearer ownership and maintenance.
+
+#### Performance and power awareness
+
+* Added shared power-state policy for battery, suspend, thermal, and CPU pressure, with visibility-aware single-flight refresh loops in the renderer.
+* Reduced local startup work through parallel initialization, dynamic and lazy loading, route-level code splitting, and a smaller eager dependency graph.
+* Tuned graph refresh, ONNX execution, SQLite durability, and dependency synchronization, and removed an unused WebGL background path.
+
+#### Tooling, diagnostics, and release quality
+
+* Strengthened repository path containment, application shutdown cleanup, double-submit protection, privacy-vault handling, and React correctness.
+* Expanded tool metadata, mission fixtures, authorization integration coverage, release checks, package configuration checks, legacy-term checks, and production-bundle purity validation.
+* Verified the final authorization regression through a fresh Electron main-process run: an ordinary README edit under Execute and Workspace changes completed once, without approval or a blocked outcome.
+
 ## Unreleased - 2026.07.27 (1) [v0.1.3 Execution and Approval Integrity]
 
 MaTE X now enforces authorization at the execution boundary and treats every approval as permission for one exact pending operation. Provider guidance, direct internal calls, SDK actions, IPC continuations, and future `ToolService` callers can no longer bypass the current Behavior and Workspace Policy.
