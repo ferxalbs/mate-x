@@ -63,7 +63,7 @@ This release establishes one capability-based authorization path for every opera
 
 * Added default-enabled, persistent opt-out telemetry through `rainy-sdk-ts` `0.4.2`, owned by Electron main.
 * Added automatic session lifecycle reporting, stable product-flow observations, sanitized errors, and best-effort shutdown flushing.
-* Added anonymous installation identity, allowlisted renderer IPC, privacy tests, and private HTTPS runtime configuration without origin fallbacks.
+* Added anonymous installation identity, allowlisted renderer IPC, privacy tests, and the app-owned public Rainy HTTPS origin while keeping credentials private.
 
 ## Unreleased - 2026.07.27 (1) [v0.1.3 Execution and Approval Integrity]
 

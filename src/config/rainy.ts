@@ -5,24 +5,11 @@ export interface RainyPrivateRuntimeConfig {
   apiKey: string;
 }
 
-export function resolveRainyApiBaseUrl(
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const configured = env.RAINY_API_BASE_URL?.trim();
-  if (!configured) {
-    throw new Error('RAINY_API_BASE_URL is required for Rainy connectivity.');
-  }
+export const RAINY_API_BASE_URL =
+  'https://rainy-api-v3-us-160298401329.us-east4.run.app';
 
-  let endpoint: URL;
-  try {
-    endpoint = new URL(configured);
-  } catch {
-    throw new Error('RAINY_API_BASE_URL must be a valid HTTPS URL.');
-  }
-  if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) {
-    throw new Error('RAINY_API_BASE_URL must be a credential-free HTTPS URL.');
-  }
-  return endpoint.toString().replace(/\/+$/, '');
+export function resolveRainyApiBaseUrl(): string {
+  return RAINY_API_BASE_URL;
 }
 
 export function resolveRainyPrivateRuntimeConfig(input: {
@@ -39,7 +26,7 @@ export function resolveRainyPrivateRuntimeConfig(input: {
     throw new Error('Rainy API credential is required for Rainy connectivity.');
   }
   return {
-    endpoint: resolveRainyApiBaseUrl(env),
+    endpoint: resolveRainyApiBaseUrl(),
     apiKey,
   };
 }
