@@ -521,6 +521,20 @@ export class TursoService {
     return deviceId;
   }
 
+  async getTelemetryClientId(): Promise<string> {
+    const existing = await this.getAppStateValue('telemetry_client_id');
+    if (existing && /^matex-install-[a-f0-9-]{36}$/.test(existing)) {
+      return existing;
+    }
+    const clientId = `matex-install-${randomUUID()}`;
+    await this.initialize();
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: ['telemetry_client_id', clientId],
+    });
+    return clientId;
+  }
+
   async getApiKeyStatus(): Promise<ApiKeyStatus> {
     const apiKey = await this.getApiKey();
     if (!apiKey) {
@@ -1832,6 +1846,10 @@ function normalizeAppSettings(input: Partial<AppSettings>): AppSettings {
       typeof input.privacyShowPreviewBeforeCloudSend === 'boolean'
         ? input.privacyShowPreviewBeforeCloudSend
         : DEFAULT_APP_SETTINGS.privacyShowPreviewBeforeCloudSend,
+    telemetryEnabled:
+      typeof input.telemetryEnabled === 'boolean'
+        ? input.telemetryEnabled
+        : DEFAULT_APP_SETTINGS.telemetryEnabled,
     codexIntegrationEnabled:
       typeof input.codexIntegrationEnabled === 'boolean'
         ? input.codexIntegrationEnabled

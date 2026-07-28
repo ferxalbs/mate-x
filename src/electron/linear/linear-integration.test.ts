@@ -7,6 +7,8 @@ import { LinearAgentService, type LinearAgentApi, type LinearRuntimeAuthority } 
 import { LinearStore } from "./linear-store";
 import { RAINY_LINEAR_ENDPOINTS, RainyLinearClient } from "./rainy-linear-client";
 
+process.env.RAINY_API_BASE_URL ??= "https://rainy.test";
+
 // The repository's narrow global expect declaration intentionally exposes only
 // two matchers; Bun provides the full runtime matcher set used in this focused suite.
 const bunExpect = rawExpect as unknown as any;

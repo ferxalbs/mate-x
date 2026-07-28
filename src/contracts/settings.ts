@@ -31,6 +31,7 @@ export interface AppSettings {
   privacyPlaceholderStyle: PrivacyPlaceholderStyle;
   privacyMinModelConfidence: number;
   privacyShowPreviewBeforeCloudSend: boolean;
+  telemetryEnabled: boolean;
   codexIntegrationEnabled: boolean;
   antigravityIntegrationEnabled: boolean;
   cursorIntegrationEnabled: boolean;
@@ -72,6 +73,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   privacyPlaceholderStyle: 'typed',
   privacyMinModelConfidence: 0.5,
   privacyShowPreviewBeforeCloudSend: true,
+  telemetryEnabled: true,
   codexIntegrationEnabled: false,
   antigravityIntegrationEnabled: false,
   cursorIntegrationEnabled: false,

@@ -100,8 +100,11 @@ dist
 # Invalid Docs
 docs
 
-# scripts 
-scripts
+# scripts
+**/scripts
+!/scripts/
+/scripts/*
+!/scripts/check-deprecated-apis.ts
 
 # Landing MaTE X
 mate-x-web

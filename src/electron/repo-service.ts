@@ -14,7 +14,7 @@ import { deriveWorkStages, preventiveWarningDetail, shouldEmitPreventiveWarning 
 import { finalizeWorkRun } from "./work-engine/finalizer";
 import { normalizeToolEvidence } from "./work-engine/execution-evidence";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
-import { RAINY_API_BASE_URL } from "../config/rainy";
+import { resolveRainyApiBaseUrl } from "../config/rainy";
 import type { AgentOutcome, AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../contracts/execution";
 import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
@@ -32,6 +32,10 @@ import {
 } from "./sdk-orchestrator-state";
 import { resolveRunIntentOutcome } from "./capability-resolver";
 import { policyService } from "./policy-service";
+import {
+  sanitizeApplicationError,
+  telemetryService,
+} from "./telemetry-service";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -49,7 +53,6 @@ interface AssistantProgressReporter {
 }
 
 const profilerWriteTimers = new Map<string, NodeJS.Timeout>();
-const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
 
 function cloneArtifacts(artifacts: MessageArtifact[]) {
   return artifacts.map((artifact) => ({ ...artifact }));
@@ -200,7 +203,7 @@ export async function runAssistant(
   ]);
   const rainyHostAllowed = canQueryDomain(
     snapshot.trustContract,
-    RAINY_API_HOSTNAME,
+    new URL(resolveRainyApiBaseUrl()).hostname,
   );
   const runtimeConfig =
     apiKey && rainyHostAllowed
@@ -453,34 +456,52 @@ export async function runAssistant(
     emitProgress(content);
   } else if (apiKey && configuredModel && rainyHostAllowed) {
     try {
-      const result = await requestRainyAgenticResponse({
-        apiKey,
-        history,
-        model: configuredModel,
-        apiMode: runtimeConfig?.apiMode ?? "chat_completions",
-        capabilities: runtimeConfig?.capabilities,
-        modelCatalogEntry: runtimeConfig?.modelCatalogEntry,
-        prompt,
-        snapshot,
-        workingSet,
-        workPlan,
-        events,
-        options: resolvedOptions,
-        runbookDefinition,
-        emitProgress,
-        appSettings,
-        runId: effectiveRunId,
-        signal: progressReporter?.signal,
-        engineeringTaskStatus,
-        planningPhase,
-      });
+      const result = await telemetryService.observe(
+        "mate.provider.request",
+        () => requestRainyAgenticResponse({
+          apiKey,
+          history,
+          model: configuredModel,
+          apiMode: runtimeConfig?.apiMode ?? "chat_completions",
+          capabilities: runtimeConfig?.capabilities,
+          modelCatalogEntry: runtimeConfig?.modelCatalogEntry,
+          prompt,
+          snapshot,
+          workingSet,
+          workPlan,
+          events,
+          options: resolvedOptions,
+          runbookDefinition,
+          emitProgress,
+          appSettings,
+          runId: effectiveRunId,
+          signal: progressReporter?.signal,
+          engineeringTaskStatus,
+          planningPhase,
+        }),
+        {
+          kind: "llm",
+          attributes: {
+            feature: "assistant",
+            category: "generation",
+            providerFamily: "rainy",
+            model: configuredModel,
+          },
+        },
+      );
       content = result.content;
       agentOutcome = result.outcome;
       toolExecutions = result.toolExecutions;
       synthesisStatus = result.synthesisStatus;
       synthesisSummary = result.synthesisSummary ?? synthesisSummary;
     } catch (error) {
-      console.error("Agentic loop failed:", error);
+      telemetryService.captureError(error, {
+        operation: "mate.provider.request",
+      });
+      console.error(
+        "Agentic loop failed:",
+        sanitizeApplicationError(error),
+      );
       content = buildFallbackResponse(prompt, snapshot, error);
       events.push({
         id: "step-rainy-fallback",

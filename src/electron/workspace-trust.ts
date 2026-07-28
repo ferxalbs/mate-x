@@ -1,6 +1,6 @@
 import { isAbsolute, normalize, relative } from "node:path";
 
-import { RAINY_API_BASE_URL } from "../config/rainy";
+import { resolveRainyApiBaseUrl } from "../config/rainy";
 import type {
   WorkspaceTrustContract,
   WorkspaceWriteAccess,
@@ -9,10 +9,14 @@ import { createId } from "../lib/id";
 
 export const TRUST_CONTRACT_SCHEMA_VERSION = 2;
 const INTERNAL_READ_PATHS = [".mate-x/evidence"];
-const RAINY_API_HOSTNAME = new URL(RAINY_API_BASE_URL).hostname;
-const LEGACY_RAINY_API_HOSTNAMES = [
-  "rainy-api-v3-us-179843975974.us-east4.run.app",
-];
+
+function resolveConfiguredRainyHostname(): string | null {
+  try {
+    return new URL(resolveRainyApiBaseUrl()).hostname;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Detect-or-deny defaults (NES-2.4).
@@ -28,6 +32,7 @@ export function createDefaultWorkspaceTrustContract(
     detectedScripts?: string[];
   },
 ): WorkspaceTrustContract {
+  const rainyHostname = resolveConfiguredRainyHostname();
   const hasPackageJson = hints?.hasPackageJson ?? true;
   const packageManager = hints?.packageManager ?? (hasPackageJson ? "unknown" : null);
 
@@ -81,7 +86,7 @@ export function createDefaultWorkspaceTrustContract(
       "api.github.com",
       "docs.github.com",
       "docs.npmjs.com",
-      RAINY_API_HOSTNAME,
+      ...(rainyHostname ? [rainyHostname] : []),
     ],
     allowedSecrets: [],
     allowedActions: ["read", "search", "patch", "test"],
@@ -216,17 +221,7 @@ function normalizeList(values: string[]) {
 }
 
 function normalizeAllowedDomains(values: string[]) {
-  const domains = normalizeList(values).map((domain) => domain.toLowerCase());
-  const hasLegacyRainyHost = domains.some((domain) =>
-    LEGACY_RAINY_API_HOSTNAMES.includes(domain),
-  );
-
-  return Array.from(
-    new Set([
-      ...domains.filter((domain) => !LEGACY_RAINY_API_HOSTNAMES.includes(domain)),
-      ...(hasLegacyRainyHost ? [RAINY_API_HOSTNAME] : []),
-    ]),
-  );
+  return normalizeList(values).map((domain) => domain.toLowerCase());
 }
 
 function getRequiredAction(toolName: string, args: Record<string, unknown>) {

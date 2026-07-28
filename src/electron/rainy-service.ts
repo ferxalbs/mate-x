@@ -8,11 +8,11 @@ import type {
 
 import { MATE_AGENT_SYSTEM_PROMPT } from "../config/mate-agent";
 import {
-  RAINY_API_BASE_URL,
   RAINY_REQUEST_TIMEOUT_MS,
   RAINY_AGENT_REQUEST_TIMEOUT_MS,
   RAINY_AGENT_XHIGH_REQUEST_TIMEOUT_MS,
   normalizeRainyApiMode,
+  resolveRainyApiBaseUrl,
 } from "../config/rainy";
 import {
   normalizeRainyServiceTier,
@@ -65,22 +65,18 @@ async function getPrivacyFirewall() {
   return privacyFirewall;
 }
 
-const RAINY_BASE_URL = RAINY_API_BASE_URL.replace(/\/+$/, "");
-const RAINY_API_ROOT_URL = RAINY_BASE_URL.endsWith("/api/v1")
-  ? RAINY_BASE_URL
-  : `${RAINY_BASE_URL}/api/v1`;
-const RAINY_CATALOG_ENDPOINTS = [
-  `${RAINY_API_ROOT_URL}/models/catalog`,
-  `${RAINY_BASE_URL}/models/catalog`,
-];
-const RAINY_MODELS_ENDPOINTS = [
-  `${RAINY_API_ROOT_URL}/models`,
-  `${RAINY_BASE_URL}/models`,
-];
-const RAINY_LAUNCHES_ENDPOINTS = [
-  `${RAINY_API_ROOT_URL}/models/launches`,
-  `${RAINY_BASE_URL}/models/launches`,
-];
+function resolveRainyEndpoints() {
+  const baseUrl = resolveRainyApiBaseUrl();
+  const apiRootUrl = baseUrl.endsWith("/api/v1")
+    ? baseUrl
+    : `${baseUrl}/api/v1`;
+  return {
+    apiRootUrl,
+    catalog: [`${apiRootUrl}/models/catalog`, `${baseUrl}/models/catalog`],
+    models: [`${apiRootUrl}/models`, `${baseUrl}/models`],
+    launches: [`${apiRootUrl}/models/launches`, `${baseUrl}/models/launches`],
+  };
+}
 const MODEL_CACHE_TTL_MS = 60_000;
 const LAUNCH_CACHE_TTL_MS = 60_000;
 
@@ -134,9 +130,10 @@ async function createRainyClient(apiKey: string): Promise<OpenAI> {
   }
 
   const { default: OpenAICtor } = await loadOpenAIModule();
+  const { apiRootUrl } = resolveRainyEndpoints();
   const client = new OpenAICtor({
     apiKey,
-    baseURL: RAINY_API_ROOT_URL,
+    baseURL: apiRootUrl,
   });
   rainyClientCache.set(apiKey, client);
   return client;
@@ -421,9 +418,10 @@ export async function listRainyModels(params: {
     return cachedCatalog.models;
   }
 
+  const endpoints = resolveRainyEndpoints();
   const [catalogModels, publicModels] = await Promise.all([
-    requestRainyModelList(RAINY_CATALOG_ENDPOINTS, trimmedApiKey),
-    requestRainyModelList(RAINY_MODELS_ENDPOINTS, trimmedApiKey),
+    requestRainyModelList(endpoints.catalog, trimmedApiKey),
+    requestRainyModelList(endpoints.models, trimmedApiKey),
   ]);
 
   // `/models` has historically been the most complete source. Catalog may enrich it,
@@ -472,7 +470,7 @@ export async function listRainyModelLaunches(params: {
 
   let lastError: Error | null = null;
 
-  for (const endpoint of RAINY_LAUNCHES_ENDPOINTS) {
+  for (const endpoint of resolveRainyEndpoints().launches) {
     try {
       const response = await fetch(endpoint, {
         method: "GET",

@@ -43,6 +43,11 @@ import { applyWindowAppearance } from "./window-appearance";
 import { getStack } from "./main-stack";
 import { setAuthorizedBackgroundImagePath } from "./background-image-auth";
 import { powerStateService } from "./power-state-service";
+import { applyTelemetryPreference } from "./telemetry-runtime";
+import {
+  parseRendererTelemetryMessage,
+  telemetryService,
+} from "./telemetry-service";
 import { resolveOperationAuthorization, type AgentCapability } from "./capability-resolver";
 import { createDefaultWorkspaceTrustContract } from "./workspace-trust";
 
@@ -89,6 +94,7 @@ const APP_SETTING_KEYS = new Set([
   "privacyPlaceholderStyle",
   "privacyMinModelConfidence",
   "privacyShowPreviewBeforeCloudSend",
+  "telemetryEnabled",
   "codexIntegrationEnabled",
   "antigravityIntegrationEnabled",
   "cursorIntegrationEnabled",
@@ -957,10 +963,16 @@ export function registerIpcHandlers() {
   handle(
     "repo:set-active-workspace",
     async (_event, workspaceId: string) => {
-      const snapshot = await setActiveWorkspace(requireWorkspaceId(workspaceId));
-      const workspace = await resolveActiveWorkspace();
-      void (await loadRepoGraphService()).repoGraphService.ensureWorkspaceGraph(workspace);
-      return snapshot;
+      return telemetryService.observe(
+        "mate.workspace.open",
+        async () => {
+          const snapshot = await setActiveWorkspace(requireWorkspaceId(workspaceId));
+          const workspace = await resolveActiveWorkspace();
+          void (await loadRepoGraphService()).repoGraphService.ensureWorkspaceGraph(workspace);
+          return snapshot;
+        },
+        { kind: "workflow", attributes: { feature: "workspace", category: "select" } },
+      );
     },
   );
   handle("repo:remove-workspace", async (_event, workspaceId: string) =>
@@ -989,7 +1001,11 @@ export function registerIpcHandlers() {
       return null;
     }
 
-    return addWorkspace(result.filePaths[0]);
+    return telemetryService.observe(
+      "mate.workspace.open",
+      () => addWorkspace(result.filePaths[0]),
+      { kind: "workflow", attributes: { feature: "workspace", category: "picker" } },
+    );
   });
   handle(
     "repo:open-workspace-path",
@@ -1215,23 +1231,35 @@ export function registerIpcHandlers() {
       };
 
       try {
-        return await (await loadRepoService()).runAssistant(
-        requireBoundedString(prompt, "prompt"),
-        requireStringArray(history, "history", MAX_IPC_TEXT_LENGTH),
-        // Forward explicit workspaceId when provided by caller (future renderer updates can pass
-        // the active workspace for the chat thread). Falls back to undefined so that
-        // collectRepoSnapshot / resolveWorkspace uses the (now strict) active workspace.
-        // This + removal of cwd seeding + strict no-[0] fallback in resolveWorkspace ensures
-        // evidence artifacts are always scoped to the user-selected target repo.
-        optionalWorkspaceId(workspaceId),
-        validatedOptions,
-        normalizedRunId
-          ? {
-              runId: normalizedRunId,
-              emit: emitProgress,
-              signal: assistantAbortController.signal,
-            }
-          : undefined,
+        const operationName =
+          validatedOptions?.behaviorMode === "review"
+            ? "mate.code-review.run"
+            : "mate.analysis.run";
+        return await telemetryService.observe(
+          operationName,
+          async () => (await loadRepoService()).runAssistant(
+            requireBoundedString(prompt, "prompt"),
+            requireStringArray(history, "history", MAX_IPC_TEXT_LENGTH),
+            // Forward explicit workspaceId when provided by caller (future renderer updates can pass
+            // the active workspace for the chat thread). Falls back to undefined so that
+            // collectRepoSnapshot / resolveWorkspace uses the (now strict) active workspace.
+            optionalWorkspaceId(workspaceId),
+            validatedOptions,
+            normalizedRunId
+              ? {
+                  runId: normalizedRunId,
+                  emit: emitProgress,
+                  signal: assistantAbortController.signal,
+                }
+              : undefined,
+          ),
+          {
+            kind: "workflow",
+            attributes: {
+              feature: operationName === "mate.code-review.run" ? "code-review" : "analysis",
+              category: validatedOptions?.pathKind ?? "full",
+            },
+          },
         );
       } finally {
         if (normalizedRunId) {
@@ -1488,7 +1516,11 @@ export function registerIpcHandlers() {
     const repo = getEngineeringRepository();
     const bus = getEngineeringCommandBus();
     bus.setPhaseHandler(createPhaseHandler(repo));
-    return bus.dispatch(command as never);
+    return telemetryService.observe(
+      "mate.agent.task",
+      () => bus.dispatch(command as never),
+      { kind: "workflow", attributes: { feature: "engineering-task", category: "dispatch" } },
+    );
   });
   handle("engineering:list-tasks", async (_event, workspaceId: string) => {
     const { getEngineeringCommandBus } = await import(
@@ -1585,7 +1617,8 @@ export function registerIpcHandlers() {
     if (requiresSensitiveIpcApproval("settings:set-api-key")) {
       await requireSensitiveIpcApproval({ action: "settings:set-api-key", event });
     }
-    return tursoService.setApiKey(normalizedApiKey);
+    await tursoService.setApiKey(normalizedApiKey);
+    await applyTelemetryPreference(await tursoService.getAppSettings());
   });
   handle(
     "settings:list-models",
@@ -1638,7 +1671,16 @@ export function registerIpcHandlers() {
   handle(
     "settings:update-app-settings",
     async (_event, settings: AppSettings) => {
-      const updatedSettings = await tursoService.updateAppSettings(validateAppSettings(settings));
+      const previousSettings = await tursoService.getAppSettings();
+      const validatedSettings = validateAppSettings(settings);
+      const updatedSettings = await telemetryService.observe(
+        "mate.settings.update",
+        () => tursoService.updateAppSettings(validatedSettings),
+        { kind: "workflow", attributes: { feature: "settings", category: "app" } },
+      );
+      if (updatedSettings.telemetryEnabled !== previousSettings.telemetryEnabled) {
+        await applyTelemetryPreference(updatedSettings);
+      }
       // Keep the protocol authorization cache in sync so the renderer can
       // immediately load the new background image without restarting the app.
       setAuthorizedBackgroundImagePath(updatedSettings.customBackgroundImage);
@@ -1654,6 +1696,10 @@ export function registerIpcHandlers() {
       return updatedSettings;
     }
   );
+  handle("telemetry:track", async (_event, message: unknown) => {
+    const parsed = parseRendererTelemetryMessage(message);
+    telemetryService.track(parsed.name, parsed.attributes);
+  });
 
   // ── Mobile Companion ───────────────────────────────────────────────────
   handle("mobile:start-pairing", async (event) => {

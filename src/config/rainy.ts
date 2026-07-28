@@ -1,7 +1,48 @@
 import type { RainyApiMode } from '../contracts/rainy';
 
-export const RAINY_API_BASE_URL =
-  'https://rainy-api-v3-us-160298401329.us-east4.run.app';
+export interface RainyPrivateRuntimeConfig {
+  endpoint: string;
+  apiKey: string;
+}
+
+export function resolveRainyApiBaseUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured = env.RAINY_API_BASE_URL?.trim();
+  if (!configured) {
+    throw new Error('RAINY_API_BASE_URL is required for Rainy connectivity.');
+  }
+
+  let endpoint: URL;
+  try {
+    endpoint = new URL(configured);
+  } catch {
+    throw new Error('RAINY_API_BASE_URL must be a valid HTTPS URL.');
+  }
+  if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) {
+    throw new Error('RAINY_API_BASE_URL must be a credential-free HTTPS URL.');
+  }
+  return endpoint.toString().replace(/\/+$/, '');
+}
+
+export function resolveRainyPrivateRuntimeConfig(input: {
+  env?: NodeJS.ProcessEnv;
+  storedApiKey?: string | null;
+}): RainyPrivateRuntimeConfig {
+  const env = input.env ?? process.env;
+  const apiKey =
+    input.storedApiKey?.trim() ||
+    env.RAINY_API_KEY?.trim() ||
+    env.MATE_X_RAINY_API_KEY?.trim() ||
+    '';
+  if (!apiKey) {
+    throw new Error('Rainy API credential is required for Rainy connectivity.');
+  }
+  return {
+    endpoint: resolveRainyApiBaseUrl(env),
+    apiKey,
+  };
+}
 /** Default for catalog/list/embeddings and short text calls. */
 export const RAINY_REQUEST_TIMEOUT_MS = 20_000;
 /** Agent tool-loop model generations (reasoning + multi-tool planning). */

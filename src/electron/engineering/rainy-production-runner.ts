@@ -6,7 +6,7 @@
  */
 
 import {
-  RAINY_API_BASE_URL,
+  resolveRainyApiBaseUrl,
   RAINY_REQUEST_TIMEOUT_MS,
 } from '../../config/rainy';
 import type { CanonicalAgentScope, StructuredExecutionEvent } from './rainy-adapter';
@@ -181,7 +181,7 @@ export async function defaultRainyTransport(
   request: RainyScopedRequest,
   apiKey: string,
 ): Promise<RainyScopedResponse> {
-  const base = RAINY_API_BASE_URL.replace(/\/+$/, '');
+  const base = resolveRainyApiBaseUrl();
   const root = base.endsWith('/api/v1') ? base : `${base}/api/v1`;
   const url = `${root}/engineering/execute`;
   const timeoutMs = request.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS;

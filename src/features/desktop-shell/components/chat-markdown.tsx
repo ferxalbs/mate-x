@@ -136,11 +136,11 @@ export function CustomSyntaxHighlighter({
             const isRemoved = lineStr.startsWith('-') && !lineStr.startsWith('---');
             
             if (isAdded) {
-              lineClass += " bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-l-4 border-emerald-500 pl-[20px]";
+              lineClass += " bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-l-[2px] border-emerald-500/50 pl-[22px]";
             } else if (isRemoved) {
-              lineClass += " bg-red-500/10 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-l-4 border-red-500 pl-[20px]";
+              lineClass += " bg-red-500/5 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-l-[2px] border-red-500/50 pl-[22px]";
             } else {
-              lineClass += " pl-6";
+              lineClass += " pl-6 opacity-60 hover:opacity-100 transition-opacity duration-200";
             }
 
             return (
@@ -153,9 +153,9 @@ export function CustomSyntaxHighlighter({
                     
                     if (language.toLowerCase() === "diff") {
                       if (token.type === "inserted") {
-                        tokenClass = "token inserted text-emerald-700 dark:text-emerald-400";
+                        tokenClass = "token inserted !text-emerald-700 dark:!text-emerald-400";
                       } else if (token.type === "deleted") {
-                        tokenClass = "token deleted text-red-700 dark:text-red-400";
+                        tokenClass = "token deleted !text-red-700 dark:!text-red-400";
                       }
                     }
 
@@ -214,7 +214,6 @@ const markdownComponents: Components = {
 
 function CodeBlock({ className, children }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const content = String(children ?? "");
   const language = className?.replace(/^language-/, "") ?? "";
 
@@ -230,64 +229,41 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   }
 
   return (
-    <div 
-      className="group relative my-4 overflow-hidden rounded-2xl border border-border/70 bg-[var(--control)] shadow-none transition-shadow hover:shadow-sm"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+    <div className="group relative my-3 overflow-hidden rounded-2xl border border-border/40 bg-[var(--control)]/30 transition-colors duration-200 hover:border-border/60 hover:bg-[var(--control)]/50">
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
         {language && (
-          <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/50 uppercase transition-opacity duration-300">
+          <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/50 uppercase">
             {language}
           </span>
         )}
         
-        <AnimatePresence>
-          {(isHovered || copied) && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/70 transition-all hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground active:scale-95 focus:outline-none"
+          onClick={() => void handleCopy()}
+          aria-label={copied ? "Copied code" : "Copy code"}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={copied ? "check" : "copy"}
+              initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
-              type="button"
-              className="flex items-center justify-center rounded-lg border border-border/60 bg-[var(--panel)]/80 p-1.5 text-muted-foreground backdrop-blur-md hover:bg-[var(--panel)] hover:text-foreground focus:outline-none"
-              onClick={() => void handleCopy()}
-              aria-label={copied ? "Copied code" : "Copy code"}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.1 }}
             >
-              <AnimatePresence mode="wait">
-                {copied ? (
-                  <motion.div
-                    key="copied"
-                    initial={{ scale: 0, rotate: -45 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, rotate: 45 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  >
-                    <HugeiconsIcon icon={Tick01Icon} className="size-3.5 text-emerald-500" />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="copy"
-                    initial={{ scale: 0, rotate: 45 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, rotate: -45 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  >
-                    <HugeiconsIcon icon={Copy01Icon} className="size-3.5" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          )}
-        </AnimatePresence>
+              <HugeiconsIcon 
+                icon={copied ? Tick01Icon : Copy01Icon} 
+                className={cn("size-3.5", copied && "text-emerald-500")} 
+              />
+            </motion.div>
+          </AnimatePresence>
+        </button>
       </div>
       
       <CustomSyntaxHighlighter
         content={content}
         language={language}
-        paddingY="py-5"
+        paddingY="py-4"
       />
     </div>
   );

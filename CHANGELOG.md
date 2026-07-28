@@ -59,6 +59,12 @@ This release establishes one capability-based authorization path for every opera
 * Expanded tool metadata, mission fixtures, authorization integration coverage, release checks, package configuration checks, legacy-term checks, and production-bundle purity validation.
 * Verified the final authorization regression through a fresh Electron main-process run: an ordinary README edit under Execute and Workspace changes completed once, without approval or a blocked outcome.
 
+## Unreleased - 2026.07.28 (1) [Privacy-safe Rainy Telemetry]
+
+* Added default-enabled, persistent opt-out telemetry through `rainy-sdk-ts` `0.4.2`, owned by Electron main.
+* Added automatic session lifecycle reporting, stable product-flow observations, sanitized errors, and best-effort shutdown flushing.
+* Added anonymous installation identity, allowlisted renderer IPC, privacy tests, and private HTTPS runtime configuration without origin fallbacks.
+
 ## Unreleased - 2026.07.27 (1) [v0.1.3 Execution and Approval Integrity]
 
 MaTE X now enforces authorization at the execution boundary and treats every approval as permission for one exact pending operation. Provider guidance, direct internal calls, SDK actions, IPC continuations, and future `ToolService` callers can no longer bypass the current Behavior and Workspace Policy.

@@ -563,6 +563,7 @@ export function SettingsPage() {
         privacyPlaceholderStyle: DEFAULT_APP_SETTINGS.privacyPlaceholderStyle,
         privacyMinModelConfidence: DEFAULT_APP_SETTINGS.privacyMinModelConfidence,
         privacyShowPreviewBeforeCloudSend: DEFAULT_APP_SETTINGS.privacyShowPreviewBeforeCloudSend,
+        telemetryEnabled: DEFAULT_APP_SETTINGS.telemetryEnabled,
       }));
     }
     setSaveState('idle');
@@ -615,6 +616,7 @@ export function SettingsPage() {
       ...(appSettings.privacyShowPreviewBeforeCloudSend !== savedAppSettings.privacyShowPreviewBeforeCloudSend
         ? ['Privacy preview']
         : []),
+      ...(appSettings.telemetryEnabled !== savedAppSettings.telemetryEnabled ? ['Product telemetry'] : []),
       ...(appSettings.codexIntegrationEnabled !== savedAppSettings.codexIntegrationEnabled ? ['Codex integration'] : []),
       ...(appSettings.antigravityIntegrationEnabled !== savedAppSettings.antigravityIntegrationEnabled
         ? ['Antigravity integration']
@@ -652,6 +654,7 @@ export function SettingsPage() {
       appSettings.privacyShowPreviewBeforeCloudSend,
       appSettings.privacyUseOnnxModel,
       appSettings.privacyUseRegex,
+      appSettings.telemetryEnabled,
       hasTrustDraft,
       savedAppSettings.appearance,
       savedAppSettings.theme,
@@ -679,6 +682,7 @@ export function SettingsPage() {
       savedAppSettings.privacyShowPreviewBeforeCloudSend,
       savedAppSettings.privacyUseOnnxModel,
       savedAppSettings.privacyUseRegex,
+      savedAppSettings.telemetryEnabled,
     ],
   );
 
@@ -1274,6 +1278,24 @@ export function SettingsPage() {
             ) : null}
 
             {section === 'privacy' ? (
+              <>
+              <SettingsSection title="Product telemetry" icon={<HugeiconsIcon icon={Shield01Icon} className="size-3.5" />}>
+                <SettingsRow
+                  title="Share privacy-safe telemetry"
+                  description="Enabled by default. Sends anonymous session lifecycle, stable operation names, coarse product metadata, and sanitized errors. Never sends prompts, responses, source code, paths, repository identity, credentials, or billing data."
+                  control={
+                    <Switch
+                      checked={appSettings.telemetryEnabled}
+                      onCheckedChange={(value) => {
+                        setAppSettings((current) => ({ ...current, telemetryEnabled: value }));
+                        if (saveState === 'saved') {
+                          setSaveState('idle');
+                        }
+                      }}
+                    />
+                  }
+                />
+              </SettingsSection>
               <SettingsSection title="Privacy Firewall" icon={<HugeiconsIcon icon={Shield01Icon} className="size-3.5" />}>
                 <>
                   <SettingsRow
@@ -1538,6 +1560,7 @@ export function SettingsPage() {
                   />
                 </>
               </SettingsSection>
+              </>
             ) : null}
 
             {section === 'workspace-memory' ? <WorkspaceMemorySettings /> : null}

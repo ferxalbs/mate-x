@@ -30,6 +30,7 @@ import type { RainyModelCatalogEntry, RainyModelLaunch } from "./rainy";
 import type { PrivacyApi } from "./privacy";
 import type { RepoGraphApi } from "./repo-graph";
 import type { AppSettings } from "./settings";
+import type { TelemetryApi } from "./telemetry";
 import type { PowerStatePayload } from "./power";
 import type { LinearIntegrationStatus } from "./linear-integration";
 import type {
@@ -240,3 +241,4 @@ export interface UiApi {
 }
 
 export type { PrivacyApi };
+export type { TelemetryApi };

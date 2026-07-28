@@ -1,4 +1,4 @@
-import { RAINY_API_BASE_URL, RAINY_REQUEST_TIMEOUT_MS } from '../../config/rainy';
+import { RAINY_REQUEST_TIMEOUT_MS, resolveRainyApiBaseUrl } from '../../config/rainy';
 import type { LinearConnectionState } from '../../contracts/linear-integration';
 import { randomUUID } from 'node:crypto';
 
@@ -21,8 +21,6 @@ export interface RainyLinearStatus {
 type FetchLike = typeof fetch;
 
 export class RainyLinearClient {
-  private readonly baseUrl = RAINY_API_BASE_URL.replace(/\/+$/, '');
-
   constructor(
     private readonly getApiKey: () => Promise<string | null>,
     private readonly fetchImpl: FetchLike = fetch,
@@ -49,12 +47,13 @@ export class RainyLinearClient {
   }
 
   private async request(path: string, init: RequestInit): Promise<unknown> {
+    const baseUrl = resolveRainyApiBaseUrl();
     const apiKey = (await this.getApiKey())?.trim();
     if (!apiKey) throw new Error('Connect Rainy API in Settings → Connections first.');
 
     let response: Response;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+      response = await this.fetchImpl(`${baseUrl}${path}`, {
         ...init,
         headers: {
           Accept: 'application/json',

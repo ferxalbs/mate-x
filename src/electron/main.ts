@@ -20,6 +20,11 @@ import { startupPerfBegin, startupPerfMark } from './startup-perf';
 import { tursoService } from './turso-service';
 import { resolveWindowAppearance } from './window-appearance';
 import { powerStateService } from './power-state-service';
+import { applyTelemetryPreference } from './telemetry-runtime';
+import {
+  sanitizeApplicationError,
+  telemetryService,
+} from './telemetry-service';
 
 // Electron Forge can start the app more than once when a dev process is
 // restarted quickly. Keep one runtime and bring the existing window forward.
@@ -74,11 +79,25 @@ process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
 }) as typeof process.emitWarning;
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception in main process:', error);
+  telemetryService.captureError(error, {
+    operation: 'mate.app.startup',
+    severity: 'fatal',
+  });
+  console.error(
+    'Uncaught exception in main process:',
+    sanitizeApplicationError(error),
+  );
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection in main process:', reason);
+  telemetryService.captureError(reason, {
+    operation: 'mate.app.startup',
+    severity: 'error',
+  });
+  console.error(
+    'Unhandled rejection in main process:',
+    sanitizeApplicationError(reason),
+  );
 });
 
 // Chromium/EGL device probing is noisy on some Linux desktops.
@@ -320,15 +339,30 @@ app.on('ready', async () => {
     console.warn('Failed to load window appearance settings on startup, using defaults:', error);
   }
 
+  await applyTelemetryPreference(appSettings);
+
   // Full stack (engineering repo, storage adapter, orchestrator). Window creation
   // waits for this so SDK readiness is consistent, but turso/settings above are
   // no longer serialized behind optional migration / config work inside initStack.
   try {
-    await initStack();
+    await telemetryService.observe(
+      'mate.app.startup',
+      () => initStack(),
+      {
+        kind: 'workflow',
+        attributes: { feature: 'application', category: 'startup' },
+      },
+    );
     startupPerfMark('stack-ready');
   } catch (error) {
+    telemetryService.captureError(error, {
+      operation: 'mate.app.startup',
+    });
     setSDKOrchestratorInitializationError(error);
-    console.error('MaTE X stack initialization failed; starting app with core settings IPC only:', error);
+    console.error(
+      'MaTE X stack initialization failed; starting app with core settings IPC only:',
+      sanitizeApplicationError(error),
+    );
   }
 
   registerIpcHandlers();
@@ -356,13 +390,19 @@ app.on('before-quit', (event) => {
   isQuitting = true;
   stopPowerStateMonitoring?.();
   stopPowerStateBroadcast?.();
-  void teardownStack()
-    .catch((error) => {
-      console.error('MaTE X stack teardown failed during quit:', error);
-    })
-    .finally(() => {
+  void Promise.allSettled([
+    teardownStack(),
+    telemetryService.shutdown(),
+  ]).then(([stackResult]) => {
+    if (stackResult.status === 'rejected') {
+      console.error(
+        'MaTE X stack teardown failed during quit:',
+        sanitizeApplicationError(stackResult.reason),
+      );
+    }
+  }).finally(() => {
       app.quit();
-    });
+  });
 });
 
 app.on('window-all-closed', () => {

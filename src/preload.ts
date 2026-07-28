@@ -12,6 +12,7 @@ import type {
   SettingsApi,
   UiApi,
   MobileBridgeApi,
+  TelemetryApi,
 } from "./contracts/ipc";
 import type { PowerStatePayload } from "./contracts/power";
 
@@ -258,6 +259,10 @@ const mobileApi: MobileBridgeApi = {
   revokeDevice: (deviceId) => ipcRenderer.invoke("mobile:revoke-device", deviceId),
 };
 
+const telemetryApi: TelemetryApi = {
+  track: (message) => ipcRenderer.invoke("telemetry:track", message),
+};
+
 contextBridge.exposeInMainWorld("mate", {
   repo: repoApi,
   git: gitApi,
@@ -270,5 +275,6 @@ contextBridge.exposeInMainWorld("mate", {
   policy: policyApi,
   privacy: privacyApi,
   mobile: mobileApi,
+  telemetry: telemetryApi,
   ui: uiApi,
 });

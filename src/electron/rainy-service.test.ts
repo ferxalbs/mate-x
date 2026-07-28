@@ -18,6 +18,8 @@ import {
   type RainyModelCatalogEntry,
 } from "../contracts/rainy";
 
+process.env.RAINY_API_BASE_URL ??= "https://rainy.test";
+
 (mock as any).module("electron", () => ({
   app: {
     getPath: () => tmpdir(),
