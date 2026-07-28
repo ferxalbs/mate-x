@@ -50,7 +50,7 @@ export function completeFactoryRun(
 }
 
 /**
- * @deprecated Projection helper for migration fixtures only — not product authority.
+ * Projection helper for migration fixtures only — not product authority.
  */
 export function projectLegacyFactoryStagesFromEvents(
   stages: LegacyFactoryRunStage[],

@@ -312,6 +312,16 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 
 ***
 
+## Deprecation Policy (MANDATORY)
+
+1. **Zero Deprecated API Toleration**: Never introduce, preserve, re-export, wrap, suppress, or cast around deprecated APIs in application code, tests, scripts, or configuration.
+2. **Use Modern Stable APIs**: Always use the newest stable, non-experimental API supported by the installed dependency versions.
+3. **Build Failure Rules**: Treat editor deprecation warnings and deprecation scan reports as strict build failures.
+4. **Mandatory Verification**: Every pull request and change completion requires executing the deprecation check (`bun run check:deprecated`), full typecheck (`bun run typecheck`), linting (`bun run lint`), and focused unit tests.
+5. **Temporary Exceptions**: Temporary exceptions require explicit maintainer approval, a designated owner, technical justification, a concrete removal plan, and a fixed expiry date.
+
+***
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

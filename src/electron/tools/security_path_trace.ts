@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import type { Tool } from '../tool-service';
 import { formatSecurityTraces } from '../security-trace/format';
 import { traceSecurityPaths } from '../security-trace/scanner';
-import { isInsideWorkspace } from './tool-utils';
+import { isPathInsideRoot } from './tool-utils';
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number, min = 1) => {
   const numberValue = typeof value === 'number' ? value : Number(value);
@@ -49,7 +49,7 @@ export const securityPathTraceTool: Tool = {
     const minConfidence = Math.max(0, Math.min(1, Number(args.minConfidence) || 0));
     const mode = args.mode === 'summary' ? 'summary' : 'full';
 
-    if (!isInsideWorkspace(workspacePath, resolvedScope)) {
+    if (!isPathInsideRoot(workspacePath, resolvedScope)) {
       return 'Refusing to trace outside the workspace.';
     }
 

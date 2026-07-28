@@ -24,6 +24,9 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
+      - name: Check Deprecated APIs
+        run: bun run check:deprecated
+
       - name: Lint
         run: bun run lint
 

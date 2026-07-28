@@ -503,14 +503,6 @@ export function buildLaunchPresentationCssVars(
   };
 }
 
-/** @deprecated API now returns exact CTA labels via launch.ui.primary_action.label.
- *  This function will be removed in a future cleanup pass. */
-export function getLaunchPrimaryCtaLabel(canTry: boolean, isActivating: boolean) {
-  if (isActivating) {
-    return "Activating…";
-  }
-  return canTry ? "Try model" : "Not available yet";
-}
 
 
 /** Parse `/api/v1/models/launches` envelope or raw array into normalized launches. */
@@ -837,18 +829,6 @@ export function resolveBaseVariantModelId(
   return launchVariantIds(launch).has(baseId) ? baseId : null;
 }
 
-/** @deprecated Prefer isDeclaredProVariant(modelId, launch). Suffix-only checks are unsafe. */
-export function isProVariantModelId(
-  modelId: string,
-  launch?: RainyModelLaunch | null,
-  suffix?: string | null,
-) {
-  if (launch) {
-    return isDeclaredProVariant(modelId, launch, suffix);
-  }
-  // Without a launch feed, never claim Pro via suffix alone.
-  return false;
-}
 
 /**
  * Serialize reasoning for Rainy provider requests.

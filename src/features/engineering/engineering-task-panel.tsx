@@ -104,10 +104,6 @@ export function primaryActionForStatus(
   }
 }
 
-/** @deprecated use primaryActionForStatus — kept for test migration */
-export function primaryCtaForStatus(status: EngineeringTaskStatus): string {
-  return primaryActionForStatus(status)?.label ?? "—";
-}
 
 export function userFacingStatusLabel(
   status: EngineeringTaskStatus,

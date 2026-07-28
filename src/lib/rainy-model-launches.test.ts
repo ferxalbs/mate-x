@@ -8,7 +8,6 @@ import {
   extractEffectiveServiceTier,
   getHighContextPricingNotice,
   getLaunchFamilyNames,
-  getLaunchPrimaryCtaLabel,
   isModelCallableInCatalog,
   loadDismissedLaunchIds,
   parseRainyModelLaunchesPayload,
@@ -246,12 +245,6 @@ describe("launch presentation helpers", () => {
       shouldAnimateLaunchPresentation(launch.presentation, false),
       true,
     );
-  });
-
-  it("labels primary CTA for staged vs callable", () => {
-    assert.equal(getLaunchPrimaryCtaLabel(false, false), "Not available yet");
-    assert.equal(getLaunchPrimaryCtaLabel(true, false), "Try model");
-    assert.equal(getLaunchPrimaryCtaLabel(true, true), "Activating…");
   });
 });
 

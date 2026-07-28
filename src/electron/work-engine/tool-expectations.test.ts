@@ -4,7 +4,6 @@ import { lazyToolLoaders } from "../tool-registry";
 import {
   CORE_AGENT_TOOLS,
   canonicalizeToolName,
-  getAgentToolAllowlist,
   getPreferredToolsForRunbook,
   getToolExpectations,
   renderToolPreferenceGuidance,
@@ -60,13 +59,6 @@ describe("tool expectations and preferences", () => {
     }
   });
 
-  test("hard allowlists are disabled — full catalog always", () => {
-    for (const runbook of RUNBOOKS) {
-      assert.equal(getAgentToolAllowlist(runbook, "full"), null);
-      assert.equal(getAgentToolAllowlist(runbook, "chat_help"), null);
-      assert.equal(getAgentToolAllowlist(runbook, "verify_only"), null);
-    }
-  });
 
   test("preferred tools are guidance for patch and prefer edit/validate first", () => {
     const preferred = getPreferredToolsForRunbook("patch_test_verify", "full");

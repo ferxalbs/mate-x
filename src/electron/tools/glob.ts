@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
-import { isInsideWorkspace, isPathInsideRoot } from './tool-utils';
+import { isPathInsideRoot } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LIMIT = 500;
@@ -48,7 +48,7 @@ const normalizeScopedPaths = (workspacePath: string, requestedPaths: string[], a
 
   return scopedPaths.filter((scopedPath) => {
     const resolvedPath = resolve(workspacePath, scopedPath);
-    return isInsideWorkspace(workspacePath, resolvedPath) && isPathAllowed(workspacePath, scopedPath, allowedPaths);
+    return isPathInsideRoot(workspacePath, resolvedPath) && isPathAllowed(workspacePath, scopedPath, allowedPaths);
   });
 };
 
@@ -151,7 +151,7 @@ export const globTool: Tool = {
       const lines = stdout
         .split('\n')
         .filter(Boolean)
-        .filter((file) => isInsideWorkspace(workspacePath, resolve(workspacePath, file)))
+        .filter((file) => isPathInsideRoot(workspacePath, resolve(workspacePath, file)))
         .filter((file) => isPathAllowed(workspacePath, file, allowedPaths))
         .filter((file) => extensions.length === 0 || extensions.some((extension) => file.endsWith(`.${extension}`)));
       const visibleLines = lines.slice(0, limit);

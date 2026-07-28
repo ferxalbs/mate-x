@@ -277,17 +277,6 @@ function getRunbookPreferredTools(runbook: WorkRunbook): string[] {
 
 export type AgentPathKind = "full" | "verify_only" | "chat_help" | string | undefined;
 
-/**
- * @deprecated Hard tool allowlists are no longer applied at runtime.
- * Prefer {@link getPreferredToolsForRunbook} + system-prompt guidance.
- * Always returns null so runners advertise the full catalog.
- */
-export function getAgentToolAllowlist(
-  _runbook: WorkRunbook,
-  _pathKind?: AgentPathKind,
-): string[] | null {
-  return null;
-}
 
 /**
  * Preferred tools for the current runbook (and pathKind), for prompt guidance only.

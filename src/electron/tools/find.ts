@@ -2,7 +2,7 @@ import { readdir } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Tool } from '../tool-service';
-import { isInsideWorkspace, resolveWorkspacePath } from './tool-utils';
+import { isPathInsideRoot, resolveWorkspacePath } from './tool-utils';
 
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 2000;
@@ -103,7 +103,7 @@ export const findTool: Tool = {
     const limit = toPositiveInteger(args.limit, DEFAULT_LIMIT, MAX_LIMIT);
 
     if (!searchName) return 'Find name is required.';
-    if (!isInsideWorkspace(workspacePath, targetDir)) return 'Refusing to search outside the workspace.';
+    if (!isPathInsideRoot(workspacePath, targetDir)) return 'Refusing to search outside the workspace.';
 
     const options: SearchOptions = {
       root: workspacePath,

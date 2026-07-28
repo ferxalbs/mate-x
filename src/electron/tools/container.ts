@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
-import { isInsideWorkspace } from './tool-utils';
+import { isPathInsideRoot } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_FINDINGS = 50;
@@ -195,7 +195,7 @@ export const containerAuditTool: Tool = {
     const maxFindings = toPositiveInteger(args.maxFindings, DEFAULT_MAX_FINDINGS, MAX_FINDINGS_LIMIT);
     const targetPath = resolve(workspacePath, relativePath);
 
-    if (!isInsideWorkspace(workspacePath, targetPath)) {
+    if (!isPathInsideRoot(workspacePath, targetPath)) {
       return 'Refusing to scan outside the workspace.';
     }
 
@@ -237,7 +237,7 @@ export const containerAuditTool: Tool = {
         if (findings.length >= maxFindings) break;
 
         const filePath = resolve(workspacePath, file);
-        if (!isInsideWorkspace(workspacePath, filePath)) continue;
+        if (!isPathInsideRoot(workspacePath, filePath)) continue;
 
         const content = await readFile(filePath, 'utf8');
         for (const rule of CONTAINER_RULES) {

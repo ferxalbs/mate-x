@@ -20,10 +20,6 @@ export function isPathInsideRoot(rootPath: string, absoluteTarget: string): bool
   return rel !== ".." && !rel.startsWith(`..${sep}`);
 }
 
-/** @deprecated Prefer isPathInsideRoot; kept as a readable alias for tools. */
-export function isInsideWorkspace(workspacePath: string, targetPath: string): boolean {
-  return isPathInsideRoot(workspacePath, targetPath);
-}
 
 export function resolveWorkspacePath(
   workspacePath: string,

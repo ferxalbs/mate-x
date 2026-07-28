@@ -6,7 +6,7 @@
  * TODO(delete after v0.2.0): remove once all persisted users are migrated.
  */
 
-/** @deprecated migration-only */
+/** Historical migration-only mode alias */
 export type LegacyAssistantModeAlias =
   | "chat"
   | "review"
@@ -16,7 +16,7 @@ export type LegacyAssistantModeAlias =
   | "plan"
   | "critic_loop";
 
-/** @deprecated migration-only */
+/** Historical migration-only stage ID */
 export type LegacyFactoryRunStageId =
   | "spec"
   | "repo_context"
@@ -27,7 +27,7 @@ export type LegacyFactoryRunStageId =
   | "ratchet_suggestions"
   | "ship_proof";
 
-/** @deprecated migration-only */
+/** Historical migration-only stage status */
 export type LegacyFactoryRunStageStatus =
   | "pending"
   | "active"
@@ -35,7 +35,7 @@ export type LegacyFactoryRunStageStatus =
   | "blocked"
   | "missing";
 
-/** @deprecated migration-only */
+/** Historical migration-only stage definition */
 export interface LegacyFactoryRunStage {
   id: LegacyFactoryRunStageId;
   label: string;
@@ -43,7 +43,7 @@ export interface LegacyFactoryRunStage {
   summary: string;
 }
 
-/** @deprecated migration-only */
+/** Historical migration-only run record */
 export interface LegacyFactoryRun {
   id: string;
   mode: Extract<LegacyAssistantModeAlias, "factory" | "ship">;

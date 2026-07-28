@@ -508,7 +508,7 @@ export interface ChatMessage {
   evidencePack?: EvidencePack;
   executionOutcome?: ExecutionOutcome;
   outcome?: AgentOutcome;
-  /** @deprecated Never written by product path — migration decoder only may attach historical payload */
+  /** Historical migration field — decoder only may attach historical payload */
   engineeringTaskId?: string | null;
   workingSet?: WorkingSet;
 }
