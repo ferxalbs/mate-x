@@ -16,6 +16,10 @@ import type {
 import type { EvidencePack } from "../../contracts/chat";
 import type { ToolExecutionRecord } from "../evidence-pack";
 import { normalizeToolEvidence } from "../work-engine/execution-evidence";
+import {
+  resolveOperationAuthorization,
+  type ExecutionAuthorityContext,
+} from "../capability-resolver";
 
 const AGENTS: AgentId[] = ["codex", "cursor", "antigravity"];
 const DEFAULT_MIN_VTS = 0.85;
@@ -34,7 +38,18 @@ export interface SDKOrchestratorExecutionContext {
   evidenceRecorder?: SDKOrchestratorDependencies["evidenceRecorder"];
   failureMemory?: SDKOrchestratorDependencies["failureMemory"];
   confirmHighImpact?: SDKOrchestratorDependencies["confirmHighImpact"];
+  authority?: ExecutionAuthorityContext;
   signal?: AbortSignal;
+}
+
+export class SDKAuthorizationError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "SDKAuthorizationError";
+    this.code = code;
+  }
 }
 
 export class PrivacySentinelBlockError extends Error {
@@ -113,6 +128,33 @@ export class SDKOrchestrator {
 
   async execute(request: AgentActionRequest, context: SDKOrchestratorExecutionContext = {}): Promise<SDKOrchestratorResult> {
     const action = this.resolveAction(request);
+    if (!context.authority) {
+      throw new SDKAuthorizationError(
+        "EXECUTION_AUTHORITY_REQUIRED",
+        "SDK execution requires an effective capability context.",
+      );
+    }
+    const authorization = resolveOperationAuthorization({
+      operationName: `sdk:${action.agentId}`,
+      args: sdkAuthorityArgs(action),
+      capability: "sensitive.execute",
+      ...context.authority,
+    });
+    if (authorization.decision === "blocked") {
+      throw new SDKAuthorizationError(
+        authorization.outcome.blocker.code,
+        authorization.outcome.summary,
+      );
+    }
+    if (authorization.decision === "needs_approval") {
+      const approved = await (
+        context.confirmHighImpact ?? this.deps.confirmHighImpact
+      )(action, context.signal);
+      if (!approved) {
+        throw new HighImpactApprovalError();
+      }
+    }
+
     const payloadHash = sha256(canonicalJson(action.payload));
     const privacyScan = await this.deps.privacySentinel.scan(canonicalJson(action.payload));
     if (privacyScan.hasSecrets) {
@@ -134,13 +176,6 @@ export class SDKOrchestrator {
         context,
       );
       throw error;
-    }
-
-    if (action.allowHighImpact === true) {
-      const approved = await (context.confirmHighImpact ?? this.deps.confirmHighImpact)(action, context.signal);
-      if (!approved) {
-        throw new HighImpactApprovalError();
-      }
     }
 
     return this.executeWithCriticLoop(action, payloadHash, context);
@@ -252,7 +287,6 @@ export class SDKOrchestrator {
       agentId: request.agentId ?? routedAgent ?? defaultAgent,
       actionType: request.actionType,
       payload: request.payload,
-      allowHighImpact: request.allowHighImpact,
     };
   }
 
@@ -406,6 +440,16 @@ function toToolExecutionRecord(event: ToolExecutionEvent): ToolExecutionRecord {
 
 function configNumber(value: number | undefined, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function sdkAuthorityArgs(action: AgentAction): Record<string, unknown> {
+  const payload =
+    action.payload && typeof action.payload === "object" && !Array.isArray(action.payload)
+      ? (action.payload as Record<string, unknown>)
+      : {};
+  return {
+    ...payload,
+  };
 }
 
 function average(values: number[]) {

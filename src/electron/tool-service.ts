@@ -1,7 +1,13 @@
 import type OpenAI from "openai";
 import type { FunctionTool as ResponsesFunctionTool } from "openai/resources/responses/responses";
 
+import {
+  resolveToolAuthorization,
+  type ExecutionAuthorityContext,
+} from "./capability-resolver";
 import { buildGovernedToolDescription } from "./tool-policy-description";
+import { findToolOperationalMeta } from "./tool-metadata";
+import { policyService } from "./policy-service";
 import { lazyToolLoaders } from "./tool-registry";
 import { toStrictObjectSchema, validateToolArguments } from "./tool-schema";
 import {
@@ -17,6 +23,11 @@ import type {
 } from "./tool-types";
 
 export type { Tool, ToolExecutionContext } from "./tool-types";
+
+export interface ToolServiceExecutionContext extends ToolExecutionContext {
+  authority: ExecutionAuthorityContext;
+  approvedPolicyStopId?: string;
+}
 
 const PERF_ENABLED = process.env.MATE_X_TOOL_PERF === "1";
 const MAX_PERF_SAMPLES = 500;
@@ -231,7 +242,7 @@ export class ToolService {
   async callTool(
     name: string,
     args: any,
-    context: ToolExecutionContext,
+    context: ToolServiceExecutionContext,
   ): Promise<string> {
     const totalStart = PERF_ENABLED ? performance.now() : 0;
 
@@ -240,6 +251,16 @@ export class ToolService {
         createToolError("CANCELLED", "Tool call aborted before execution.", {
           retryable: false,
         }),
+        name,
+      );
+    }
+    if (!context.authority) {
+      return formatToolFailure(
+        createToolError(
+          "UNAUTHORIZED",
+          "Tool execution requires an effective capability context.",
+          { retryable: false },
+        ),
         name,
       );
     }
@@ -300,6 +321,59 @@ export class ToolService {
         return formatToolFailure(
           createToolError("CANCELLED", "Tool call aborted before execution.", {
             retryable: false,
+          }),
+          tool.name,
+        );
+      }
+
+      const staticMeta =
+        findToolOperationalMeta(name) ??
+        findToolOperationalMeta(tool.name);
+      const runtimeMeta =
+        tool.meta?.categories && typeof tool.meta.hasSideEffects === "boolean"
+          ? {
+              categories: tool.meta.categories,
+              hasSideEffects: tool.meta.hasSideEffects,
+            }
+          : null;
+      const authorization = resolveToolAuthorization({
+        toolName: tool.name,
+        args,
+        operationalMeta: staticMeta ?? runtimeMeta,
+        ...context.authority,
+      });
+      if (authorization.decision === "blocked") {
+        return formatToolFailure(
+          createToolError("FORBIDDEN", authorization.outcome.summary, {
+            retryable: false,
+            details: {
+              decision: authorization.decision,
+              capability: authorization.capability,
+              blockerCode: authorization.outcome.blocker.code,
+            },
+          }),
+          tool.name,
+        );
+      }
+      if (
+        authorization.decision === "needs_approval" &&
+        (!context.approvedPolicyStopId ||
+          !policyService.isApprovedForExecution({
+            stopId: context.approvedPolicyStopId,
+            runId: context.runId,
+            toolName: name,
+          }))
+      ) {
+        return formatToolFailure(
+          createToolError("UNAUTHORIZED", authorization.summary, {
+            retryable: false,
+            recommendedNextAction:
+              "Request approval through the canonical execution path.",
+            details: {
+              decision: authorization.decision,
+              capability: authorization.capability,
+              approvalCode: authorization.code,
+            },
           }),
           tool.name,
         );

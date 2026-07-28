@@ -14,13 +14,14 @@ import type {
   AgentSdkClient,
   AgentSdkResult,
 } from "../contracts/sdk-orchestrator.types";
+import { createDefaultWorkspaceTrustContract } from "./workspace-trust";
 
 describe("Electron SDK integration pipeline", () => {
   it("privacy_sentinel_blocks_before_sdk_call", async () => {
     const context = createIntegrationContext({ secretCategories: ["api_key"] });
 
     await assert.rejects(
-      context.orchestrator.execute({
+      context.execute({
         actionType: "review",
         payload: { token: "sk-test-fake-secret" },
         agentId: "codex",
@@ -40,7 +41,7 @@ describe("Electron SDK integration pipeline", () => {
     context.clients.codex.errors.push(networkError);
 
     await assert.rejects(
-      context.orchestrator.execute({ actionType: "audit", payload: {}, agentId: "codex" }),
+      context.execute({ actionType: "audit", payload: {}, agentId: "codex" }),
       SDKExecutionError,
     );
 
@@ -60,11 +61,10 @@ describe("Electron SDK integration pipeline", () => {
     });
     context.clients.antigravity.results.push(successResult());
 
-    const execution = context.orchestrator.execute({
+    const execution = context.execute({
       actionType: "rewrite",
       payload: { path: "src/main.ts" },
       agentId: "antigravity",
-      allowHighImpact: true,
     });
     await Promise.resolve();
 
@@ -84,7 +84,7 @@ describe("Electron SDK integration pipeline", () => {
     context.clients.cursor.results.push(lowVtsResult(), lowVtsResult());
 
     await assert.rejects(
-      context.orchestrator.execute({ actionType: "patch", payload: {}, agentId: "cursor" }),
+      context.execute({ actionType: "patch", payload: {}, agentId: "cursor" }),
       CriticLoopExhaustedError,
     );
 
@@ -97,7 +97,7 @@ describe("Electron SDK integration pipeline", () => {
     const context = createIntegrationContext();
     context.clients.codex.results.push(successResult());
 
-    const result = await context.orchestrator.execute({
+    const result = await context.execute({
       actionType: "review",
       payload: { prompt: "inspect local diff" },
       agentId: "codex",
@@ -152,8 +152,18 @@ function createIntegrationContext(options: {
     config: options.config,
     now: () => new Date("2026-06-01T12:00:00.000Z"),
   });
+  const workspacePolicy = createDefaultWorkspaceTrustContract(
+    "integration-workspace",
+    "Repo",
+    { packageManager: "bun", hasPackageJson: true },
+  );
+  workspacePolicy.writeAccess = "workspace";
+  const execute = (request: Parameters<SDKOrchestrator["execute"]>[0]) =>
+    orchestrator.execute(request, {
+      authority: { behaviorMode: "execute", workspacePolicy },
+    });
 
-  return { clients, events, failures, policyStops, orchestrator };
+  return { clients, events, failures, policyStops, orchestrator, execute };
 }
 
 function successResult(): AgentSdkResult {

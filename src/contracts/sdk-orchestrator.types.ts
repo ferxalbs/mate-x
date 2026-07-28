@@ -4,14 +4,12 @@ export interface AgentAction {
   agentId: AgentId;
   actionType: string;
   payload: unknown;
-  allowHighImpact?: boolean;
 }
 
 export interface AgentActionRequest {
   actionType: string;
   payload: unknown;
   agentId?: AgentId;
-  allowHighImpact?: boolean;
 }
 
 export interface AgentSdkResult {

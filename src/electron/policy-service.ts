@@ -79,6 +79,20 @@ class PolicyService {
     };
   }
 
+  isApprovedForExecution(input: {
+    stopId: string;
+    runId?: string;
+    toolName: string;
+  }): boolean {
+    const stop = this.stops.get(input.stopId);
+    if (!stop) return false;
+    if (input.runId && stop.runId !== input.runId) return false;
+    return (
+      stop.attemptedAction.toolName === input.toolName &&
+      (stop.status === "approved" || stop.status === "resumed")
+    );
+  }
+
   resolveStop(request: ResolvePolicyStopRequest): PolicyStop {
     if (!request || typeof request !== "object") {
       throw new Error("Policy stop resolution request is required.");

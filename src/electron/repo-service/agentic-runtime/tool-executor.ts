@@ -5,7 +5,6 @@ import type { AgentOutcome, ToolEvent } from "../../../contracts/chat";
 import type { AppSettings } from "../../../contracts/settings";
 import { policyService } from "../../policy-service";
 import { toolService } from "../../tool-service";
-import { failureMemoryEngine } from "../../failure-memory-engine";
 import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateToolOutputForModel, withTimeout } from "./helpers";
 import { resolveToolExecutionTimeoutMs } from "./config";
 import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
@@ -138,6 +137,7 @@ export async function executeAgentToolCall({
           availableActions: ["approve_once", "abort"],
         })
       : null;
+  let approvedPolicyStopId: string | undefined;
 
   if (policyStop) {
     events.push({
@@ -237,6 +237,7 @@ export async function executeAgentToolCall({
     }
 
     policyService.markStopResumed(policyStop.id);
+    approvedPolicyStopId = policyStop.id;
     if (toolEvent) {
       toolEvent.label = "Applying approved action";
       toolEvent.detail = "Approval received.";
@@ -267,6 +268,12 @@ export async function executeAgentToolCall({
         settings: appSettings,
         signal: abortController.signal,
         runId,
+        authority: {
+          behaviorMode,
+          workspacePolicy: snapshot.trustContract,
+          engineeringTaskStatus,
+        },
+        approvedPolicyStopId,
       }),
       toolTimeoutMs,
       `Tool ${toolName} timed out after ${Math.round(toolTimeoutMs / 1000)}s.`,
@@ -289,6 +296,7 @@ export async function executeAgentToolCall({
       }
     }
     if (outputIndicatesFailure && (toolName === "run_tests" || toolName === "sandbox_run")) {
+      const { failureMemoryEngine } = await import("../../failure-memory-engine");
       await failureMemoryEngine.recordFailure({
         workspaceId: snapshot.workspace.id,
         command: String(toolArgs.command ?? toolArgs.script ?? toolName),
@@ -298,6 +306,7 @@ export async function executeAgentToolCall({
       });
     }
     if (!outputIndicatesFailure && (toolName === "run_tests" || toolName === "sandbox_run")) {
+      const { failureMemoryEngine } = await import("../../failure-memory-engine");
       await failureMemoryEngine.recordResolution({
         workspaceId: snapshot.workspace.id,
         command: String(toolArgs.command ?? toolArgs.script ?? toolName),

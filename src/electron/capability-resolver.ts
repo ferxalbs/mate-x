@@ -10,7 +10,10 @@ import {
 } from "../contracts/behavior-mode";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
 import type { WorkIntent } from "./work-engine/types";
-import { getToolOperationalMeta } from "./tool-metadata";
+import {
+  findToolOperationalMeta,
+  type ToolOperationalMeta,
+} from "./tool-metadata";
 import { lazyToolLoaders } from "./tool-registry";
 import { evaluateTrustForToolCall } from "./workspace-trust";
 
@@ -21,7 +24,19 @@ export type AgentCapability =
   | "network.access"
   | "sensitive.execute"
   | "git.write"
-  | "destructive";
+  | "destructive"
+  | "unclassified";
+
+export interface ExecutionAuthorityContext {
+  behaviorMode: BehaviorMode;
+  workspacePolicy: WorkspaceTrustContract;
+  engineeringTaskStatus?: EngineeringTaskStatus | null;
+}
+
+type CapabilityMetadata = Pick<
+  ToolOperationalMeta,
+  "categories" | "hasSideEffects"
+>;
 
 export type ToolAuthorizationDecision =
   | {
@@ -54,6 +69,7 @@ const HIGH_IMPACT_PATH =
 export function classifyToolCapability(
   toolName: string,
   args: Record<string, unknown> = {},
+  operationalMeta?: CapabilityMetadata | null,
 ): AgentCapability {
   const command = String(args.command ?? args.script ?? "");
   if (/^(?:mutation|mock_poison|traffic_poison)$/.test(toolName)) {
@@ -66,7 +82,14 @@ export function classifyToolCapability(
     return "destructive";
   }
 
-  const meta = getToolOperationalMeta(toolName);
+  const meta =
+    operationalMeta === undefined
+      ? findToolOperationalMeta(toolName)
+      : operationalMeta;
+  if (!meta) return "unclassified";
+  if (meta.hasSideEffects && meta.categories.includes("network")) {
+    return "sensitive.execute";
+  }
   if (meta.categories.includes("network")) return "network.access";
   if (
     meta.categories.includes("process") ||
@@ -83,17 +106,53 @@ export function classifyToolCapability(
 export function resolveToolAuthorization(input: {
   toolName: string;
   args?: Record<string, unknown>;
-  behaviorMode: BehaviorMode;
-  workspacePolicy: WorkspaceTrustContract;
-  engineeringTaskStatus?: EngineeringTaskStatus | null;
-}): ToolAuthorizationDecision {
+  operationalMeta?: CapabilityMetadata | null;
+} & ExecutionAuthorityContext): ToolAuthorizationDecision {
+  return resolveOperationAuthorization({
+    operationName: input.toolName,
+    args: input.args,
+    capability: classifyToolCapability(
+      input.toolName,
+      input.args,
+      input.operationalMeta,
+    ),
+    behaviorMode: input.behaviorMode,
+    workspacePolicy: input.workspacePolicy,
+    engineeringTaskStatus: input.engineeringTaskStatus,
+  });
+}
+
+export function resolveOperationAuthorization(input: {
+  operationName: string;
+  args?: Record<string, unknown>;
+  capability: AgentCapability;
+} & ExecutionAuthorityContext): ToolAuthorizationDecision {
   const args = input.args ?? {};
-  const capability = classifyToolCapability(input.toolName, args);
+  const capability = input.capability;
+  if (capability === "unclassified") {
+    return blocked(
+      capability,
+      "UNCLASSIFIED_OPERATION",
+      "Operation metadata is missing or incomplete.",
+    );
+  }
   const modeBlock = resolveBehaviorModeBlock(input.behaviorMode, capability);
   if (modeBlock) return modeBlock;
+  if (
+    input.workspacePolicy.writeAccess === "read-only" &&
+    capability !== "workspace.read" &&
+    capability !== "network.access"
+  ) {
+    return blocked(
+      capability,
+      "WORKSPACE_READ_ONLY",
+      "Workspace is read-only.",
+      { type: "update_workspace_policy", label: "Review workspace policy" },
+    );
+  }
 
   const workspaceError = evaluateTrustForToolCall({
-    toolName: input.toolName,
+    toolName: input.operationName,
     args,
     contract: input.workspacePolicy,
   });
@@ -241,6 +300,7 @@ export function resolveAdvertisedToolNames(mode: BehaviorMode): string[] {
   const names = new Set<string>();
   for (const [name] of lazyToolLoaders) {
     const capability = classifyToolCapability(name);
+    if (capability === "unclassified") continue;
     if (
       capability === "workspace.read" ||
       (definition.allowsMutation &&

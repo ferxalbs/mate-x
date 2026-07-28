@@ -59,9 +59,34 @@ const DEFAULT_NETWORK_TIMEOUT_MS = 45_000;
 const DEFAULT_PROCESS_TIMEOUT_MS = 30_000;
 const DEFAULT_MUTATION_TIMEOUT_MS = 30_000;
 
+function explicitMeta(
+  name: string,
+  categories: ToolCategory[],
+  options: Partial<ToolOperationalMeta> = {},
+): ToolOperationalMeta {
+  const hasSideEffects =
+    options.hasSideEffects ??
+    categories.some((category) =>
+      ["mutating", "destructive", "generation"].includes(category),
+    );
+  return {
+    name,
+    categories,
+    idempotent: options.idempotent ?? !hasSideEffects,
+    retryable: options.retryable ?? false,
+    cancellable: options.cancellable ?? false,
+    parallelSafe: options.parallelSafe ?? !hasSideEffects,
+    hasSideEffects,
+    requiresVerification: options.requiresVerification ?? hasSideEffects,
+    timeoutMs: options.timeoutMs ?? DEFAULT_ANALYSIS_TIMEOUT_MS,
+    ...options,
+  };
+}
+
 /**
  * Metadata keyed by registry registration name AND canonical tool name.
- * Missing tools fall back to safe defaults via getToolOperationalMeta.
+ * Authorization must use findToolOperationalMeta so missing tools fail closed.
+ * getToolOperationalMeta remains for non-authoritative timeout/output tuning.
  */
 const TOOL_META: Record<string, ToolOperationalMeta> = {
   rg: {
@@ -702,6 +727,32 @@ const TOOL_META: Record<string, ToolOperationalMeta> = {
     timeoutMs: DEFAULT_MUTATION_TIMEOUT_MS,
     exclusive: true,
   },
+  ast_grep: explicitMeta('ast_grep', ['analysis', 'search', 'process']),
+  git_forensics: explicitMeta('git_forensics', ['analysis', 'search', 'process']),
+  threat_model: explicitMeta('threat_model', ['analysis']),
+  cve_audit: explicitMeta('cve_audit', ['analysis', 'network', 'process']),
+  json_probe: explicitMeta('json_probe', ['read-only', 'analysis']),
+  validation_profile: explicitMeta('detect_workspace_capabilities', ['read-only', 'filesystem']),
+  detect_workspace_capabilities: explicitMeta('detect_workspace_capabilities', ['read-only', 'filesystem']),
+  validation_plan: explicitMeta('plan_validation', ['mutating', 'orchestration']),
+  plan_validation: explicitMeta('plan_validation', ['mutating', 'orchestration']),
+  validation_persistence: explicitMeta('verify_validation_persistence', ['read-only', 'analysis']),
+  verify_validation_persistence: explicitMeta('verify_validation_persistence', ['read-only', 'analysis']),
+  find_similar_failures: explicitMeta('find_similar_failures', ['read-only', 'analysis']),
+  record_failure: explicitMeta('record_failure', ['mutating', 'orchestration']),
+  record_resolution: explicitMeta('record_resolution', ['mutating', 'orchestration']),
+  supermemory: explicitMeta('supermemory', ['network', 'mutating']),
+  package_audit: explicitMeta('package_audit', ['analysis', 'network', 'process']),
+  redos_analyzer: explicitMeta('redos_analyzer', ['analysis']),
+  jwt_decoder: explicitMeta('jwt_decoder', ['read-only', 'analysis']),
+  source_map_analyzer: explicitMeta('source_map_analyzer', ['analysis', 'search', 'process']),
+  creds_validator: explicitMeta('creds_validator', ['network', 'analysis']),
+  prototype_pollution_fuzzer: explicitMeta('prototype_pollution_fuzzer', ['analysis', 'process']),
+  candidate_revalidator: explicitMeta('candidate_revalidator', ['read-only', 'analysis', 'filesystem']),
+  evidence_pack: explicitMeta('evidence_pack', ['generation'], {
+    hasSideEffects: false,
+    requiresVerification: false,
+  }),
 };
 
 const SAFE_DEFAULT_META: ToolOperationalMeta = {
@@ -717,7 +768,7 @@ const SAFE_DEFAULT_META: ToolOperationalMeta = {
 };
 
 export function getToolOperationalMeta(toolName: string): ToolOperationalMeta {
-  const exact = TOOL_META[toolName];
+  const exact = findToolOperationalMeta(toolName);
   if (exact) {
     return exact;
   }
@@ -777,6 +828,13 @@ export function getToolOperationalMeta(toolName: string): ToolOperationalMeta {
   }
 
   return { ...SAFE_DEFAULT_META, name: toolName };
+}
+
+/** Exact metadata lookup for capability decisions. Missing metadata is unsafe. */
+export function findToolOperationalMeta(
+  toolName: string,
+): ToolOperationalMeta | undefined {
+  return TOOL_META[toolName];
 }
 
 /** Resolve timeout for a tool call, with special handling for sandbox_run. */

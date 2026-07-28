@@ -382,6 +382,11 @@ export async function runAssistant(
       evidenceRecorder: {
         appendAgentActionEvent: async (event) => appendSdkEvidenceEvent(event),
       },
+      authority: {
+        behaviorMode: resolvedOptions.behaviorMode,
+        workspacePolicy: snapshot.trustContract,
+        engineeringTaskStatus,
+      },
     });
     content = typeof sdkResult.output === "string" ? sdkResult.output : JSON.stringify(sdkResult.output, null, 2);
     toolExecutions = [

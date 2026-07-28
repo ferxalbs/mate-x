@@ -67,7 +67,6 @@ const SDK_ACTION_KEYS = new Set([
   "actionType",
   "payload",
   "agentId",
-  "allowHighImpact",
 ]);
 const ATTACHMENT_KEYS = new Set([
   "id",
@@ -196,19 +195,10 @@ export function validateAgentActionRequest(
     agentId = record.agentId as AgentId;
   }
 
-  let allowHighImpact: boolean | undefined;
-  if (record.allowHighImpact !== undefined) {
-    if (typeof record.allowHighImpact !== "boolean") {
-      throw new Error(`${label}.allowHighImpact must be a boolean.`);
-    }
-    allowHighImpact = record.allowHighImpact;
-  }
-
   return {
     actionType,
     payload: record.payload,
     ...(agentId !== undefined ? { agentId } : {}),
-    ...(allowHighImpact !== undefined ? { allowHighImpact } : {}),
   };
 }
 

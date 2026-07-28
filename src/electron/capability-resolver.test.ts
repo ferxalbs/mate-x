@@ -18,6 +18,20 @@ function workspace(writeAccess: "read-only" | "approval-required" | "workspace")
 }
 
 describe("capability resolution", () => {
+  test("unclassified operations fail closed", () => {
+    assert.equal(classifyToolCapability("future_operation"), "unclassified");
+    const decision = resolveToolAuthorization({
+      toolName: "future_operation",
+      args: {},
+      behaviorMode: "execute",
+      workspacePolicy: workspace("workspace"),
+    });
+
+    assert.equal(decision.decision, "blocked");
+    if (decision.decision !== "blocked") return;
+    assert.equal(decision.outcome.blocker.code, "UNCLASSIFIED_OPERATION");
+  });
+
   test("Review rejects edits structurally without advertising write tools", () => {
     const decision = resolveToolAuthorization({
       toolName: "file_editor",

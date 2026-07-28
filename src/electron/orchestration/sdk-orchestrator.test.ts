@@ -5,6 +5,7 @@ import {
   CriticLoopExhaustedError,
   HighImpactApprovalError,
   PrivacySentinelBlockError,
+  SDKAuthorizationError,
   SDKOrchestrator,
 } from "./sdk-orchestrator";
 import type {
@@ -14,14 +15,56 @@ import type {
   AgentSdkClient,
   AgentSdkResult,
 } from "../../contracts/sdk-orchestrator.types";
+import type { BehaviorMode } from "../../contracts/behavior-mode";
+import type { WorkspaceWriteAccess } from "../../contracts/workspace";
+import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 
 describe("SDKOrchestrator", () => {
+  it("fails closed without execution authority", async () => {
+    const context = testContext();
+
+    await assert.rejects(
+      context.orchestrator().execute({
+        actionType: "review",
+        payload: {},
+        agentId: "codex",
+      }),
+      SDKAuthorizationError,
+    );
+
+    assert.equal(context.clients.codex.calls.length, 0);
+  });
+
+  it("blocks SDK execution in Review and read-only Execute", async () => {
+    const context = testContext();
+
+    await assert.rejects(
+      execute(
+        context.orchestrator(),
+        { actionType: "patch", payload: {}, agentId: "codex" },
+        "review",
+      ),
+      SDKAuthorizationError,
+    );
+    await assert.rejects(
+      execute(
+        context.orchestrator(),
+        { actionType: "patch", payload: {}, agentId: "codex" },
+        "execute",
+        "read-only",
+      ),
+      SDKAuthorizationError,
+    );
+
+    assert.equal(context.clients.codex.calls.length, 0);
+  });
+
   it("scans privacy first and blocks without calling an SDK", async () => {
     const context = testContext({ secretCategories: ["api_key"] });
     const orchestrator = context.orchestrator();
 
     await assert.rejects(
-      orchestrator.execute({ actionType: "review", payload: { token: "secret" }, agentId: "codex" }),
+      execute(orchestrator, { actionType: "review", payload: { token: "secret" }, agentId: "codex" }),
       PrivacySentinelBlockError,
     );
 
@@ -33,7 +76,7 @@ describe("SDKOrchestrator", () => {
   it("records pending and completed events with output hash and VTS", async () => {
     const context = testContext();
     context.clients.codex.results.push(successResult());
-    const result = await context.orchestrator().execute({
+    const result = await execute(context.orchestrator(), {
       actionType: "review",
       payload: { ok: true },
       agentId: "codex",
@@ -52,7 +95,7 @@ describe("SDKOrchestrator", () => {
     context.clients.cursor.errors.push(sdkError);
 
     await assert.rejects(
-      context.orchestrator().execute({ actionType: "patch", payload: {}, agentId: "cursor" }),
+      execute(context.orchestrator(), { actionType: "patch", payload: {}, agentId: "cursor" }),
       /provider failed/,
     );
 
@@ -65,11 +108,10 @@ describe("SDKOrchestrator", () => {
     context.clients.antigravity.results.push(successResult());
 
     await assert.rejects(
-      context.orchestrator().execute({
+      execute(context.orchestrator(), {
         actionType: "delete",
-        payload: { path: "important" },
+        payload: { path: "README.md" },
         agentId: "antigravity",
-        allowHighImpact: true,
       }),
       HighImpactApprovalError,
     );
@@ -83,7 +125,7 @@ describe("SDKOrchestrator", () => {
     context.clients.codex.results.push(lowVtsResult(), lowVtsResult());
 
     await assert.rejects(
-      context.orchestrator().execute({ actionType: "review", payload: {}, agentId: "codex" }),
+      execute(context.orchestrator(), { actionType: "review", payload: {}, agentId: "codex" }),
       CriticLoopExhaustedError,
     );
 
@@ -96,12 +138,12 @@ describe("SDKOrchestrator", () => {
     const orchestrator = context.orchestrator();
     for (let i = 0; i < 10; i += 1) {
       context.clients.cursor.results.push(successResult());
-      await orchestrator.execute({ actionType: "audit", payload: { i }, agentId: "cursor" });
+      await execute(orchestrator, { actionType: "audit", payload: { i }, agentId: "cursor" });
     }
 
     assert.deepEqual(orchestrator.getRoutingRecommendations(), { audit: "cursor" });
     context.clients.cursor.results.push(successResult());
-    await orchestrator.execute({ actionType: "audit", payload: { routed: true } });
+    await execute(orchestrator, { actionType: "audit", payload: { routed: true } });
     assert.equal(context.clients.cursor.calls.length, 11);
   });
 
@@ -110,13 +152,30 @@ describe("SDKOrchestrator", () => {
     context.clients.codex.results.push(new Promise((resolve) => setTimeout(() => resolve(successResult()), 50)));
 
     await assert.rejects(
-      context.orchestrator().execute({ actionType: "slow", payload: {}, agentId: "codex" }),
+      execute(context.orchestrator(), { actionType: "slow", payload: {}, agentId: "codex" }),
       /timed out/,
     );
 
     assert.equal(context.failures[0]?.errorSignature, "codex:slow:TIMEOUT");
   });
 });
+
+function execute(
+  orchestrator: SDKOrchestrator,
+  request: Parameters<SDKOrchestrator["execute"]>[0],
+  behaviorMode: BehaviorMode = "execute",
+  writeAccess: WorkspaceWriteAccess = "workspace",
+) {
+  const workspacePolicy = createDefaultWorkspaceTrustContract(
+    "workspace",
+    "Repo",
+    { packageManager: "bun", hasPackageJson: true },
+  );
+  workspacePolicy.writeAccess = writeAccess;
+  return orchestrator.execute(request, {
+    authority: { behaviorMode, workspacePolicy },
+  });
+}
 
 function testContext(options: {
   secretCategories?: string[];

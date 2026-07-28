@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { z } from 'zod';
 
 import { getConfigSnapshot, getStack } from '../main-stack';
+import { bootstrapWorkspaceState } from '../repo-service/workspace';
 import { IPC } from '../preload/contracts';
 import type { AgentActionRequest, EvidencePackStoragePublishInput, MaTeXConfig } from '../../contracts';
 import {
@@ -22,7 +23,6 @@ const agentActionSchema = z.object({
   agentId: agentIdSchema,
   actionType: z.string().trim().min(1).max(120),
   payload: z.unknown(),
-  allowHighImpact: z.boolean().optional(),
 });
 
 const evidencePackPublishSchema = z.object({
@@ -111,9 +111,19 @@ export function registerMaTeXStackIpcHandlers() {
       event.sender.once("destroyed", onDestroyed);
     }
     try {
+      const workspace = await bootstrapWorkspaceState();
+      if (!workspace.trustContract) {
+        throw new Error('An active workspace policy is required for SDK execution.');
+      }
       return await getStack().orchestrator.execute(
         agentActionSchema.parse(payload) as AgentActionRequest,
-        { signal: controller.signal },
+        {
+          signal: controller.signal,
+          authority: {
+            behaviorMode: 'execute',
+            workspacePolicy: workspace.trustContract,
+          },
+        },
       );
     } finally {
       event.sender.removeListener("destroyed", onDestroyed);

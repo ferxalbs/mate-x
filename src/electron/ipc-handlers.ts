@@ -1215,8 +1215,14 @@ export function registerIpcHandlers() {
       }
       let result;
       try {
+        const workspace = await resolveActiveWorkspace();
+        const workspacePolicy = await getWorkspaceTrustContract(workspace.id);
         result = await getStack().orchestrator.execute(action as never, {
           signal: controller.signal,
+          authority: {
+            behaviorMode: "execute",
+            workspacePolicy,
+          },
         });
       } finally {
         _event.sender.removeListener("destroyed", onDestroyed);

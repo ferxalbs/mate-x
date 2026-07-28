@@ -134,15 +134,26 @@ describe("validateAssistantRunOptions (IPC contract)", () => {
         actionType: "refactor",
         payload: { path: "src/a.ts" },
         agentId: "codex",
-        allowHighImpact: false,
       },
     });
     assert.deepEqual(parsed?.sdkAction, {
       actionType: "refactor",
       payload: { path: "src/a.ts" },
       agentId: "codex",
-      allowHighImpact: false,
     });
+
+    assert.throws(
+      () =>
+        validateAssistantRunOptions({
+          sdkAction: {
+            actionType: "refactor",
+            payload: {},
+            agentId: "codex",
+            allowHighImpact: true,
+          },
+        }),
+      /unsupported field/i,
+    );
 
     assert.throws(
       () =>

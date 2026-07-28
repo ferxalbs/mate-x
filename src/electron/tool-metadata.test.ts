@@ -1,14 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
 import {
+  findToolOperationalMeta,
   getToolModelOutputBudgetChars,
   getToolOperationalMeta,
   isToolBatchExclusive,
   resolveToolTimeoutMs,
 } from "./tool-metadata";
 import { resolveToolExecutionTimeoutMs } from "./repo-service/agentic-runtime/config";
+import { lazyToolLoaders } from "./tool-registry";
 
 describe("tool metadata catalog", () => {
+  test("classifies every registered tool for execution authorization", () => {
+    for (const [toolName] of lazyToolLoaders) {
+      assert.ok(
+        findToolOperationalMeta(toolName),
+        `missing authorization metadata for registered tool: ${toolName}`,
+      );
+    }
+  });
+
   test("resolves alias and canonical names for git", () => {
     const byAlias = getToolOperationalMeta("git");
     const byCanonical = getToolOperationalMeta("git_diag");
@@ -59,4 +70,3 @@ describe("tool metadata catalog", () => {
     assert.equal(getToolModelOutputBudgetChars("attack_surface_scan"), 80_000);
   });
 });
-
