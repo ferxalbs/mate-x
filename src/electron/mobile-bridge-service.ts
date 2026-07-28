@@ -322,7 +322,25 @@ class MobileBridgeService {
         return this.runAssistantFromMobile(envelope.payload, client, envelope.id);
       case "policy:list-stops":
         if (!session.permissions.canResolvePolicyStops) throw new Error("Policy access not allowed.");
-        return policyService.listStops(typeof envelope.payload === "string" ? envelope.payload : undefined);
+        if (
+          !envelope.payload ||
+          typeof envelope.payload !== "object" ||
+          Array.isArray(envelope.payload)
+        ) {
+          throw new Error("Policy stop scope is required.");
+        }
+        {
+          const scope = envelope.payload as Record<string, unknown>;
+          if (
+            typeof scope.runId !== "string" ||
+            !scope.runId.trim() ||
+            typeof scope.workspaceId !== "string" ||
+            !scope.workspaceId.trim()
+          ) {
+            throw new Error("Policy run and workspace ids are required.");
+          }
+          return policyService.listStops(scope.runId, scope.workspaceId);
+        }
       case "policy:resolve-stop":
         if (!session.permissions.canResolvePolicyStops) throw new Error("Policy resolution not allowed.");
         this.audit("policy_stop_resolved", { sessionId: session.id });

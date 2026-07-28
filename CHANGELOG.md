@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.27 (1) [v0.1.3 Execution and Approval Integrity]
+
+MaTE X now enforces authorization at the execution boundary and treats every approval as permission for one exact pending operation. Provider guidance, direct internal calls, SDK actions, IPC continuations, and future `ToolService` callers can no longer bypass the current Behavior and Workspace Policy.
+
+### Canonical execution authority
+
+* Added one effective-capability contract for normal agent tools, direct `ToolService` calls, SDK actions, commands, workspace mutations, Git writes, network-affecting operations, sensitive actions, and destructive effects.
+* Rechecked authority at the last meaningful boundary before side effects instead of relying on the provider's filtered tool catalog.
+* Preserved the Behavior × Workspace matrix: Review and Plan remain read-only, Execute respects the workspace ceiling, approval-required writes remain approval-eligible, and read-only workspaces cannot be made writable through approval.
+* Made unknown or incomplete operation metadata fail closed instead of inheriting `workspace.read`.
+* Removed caller-supplied high-impact permission booleans and routed SDK authorization through the same canonical capability semantics as normal tools.
+
+### One-operation approvals
+
+* Bound every approval to its run, workspace identity and path, operation or tool name, required capability, and a SHA-256 fingerprint of canonical operation arguments without persisting unnecessary raw argument data.
+* Required renderer, IPC, and mobile approval resolutions to present the matching run, workspace, stop, and operation fingerprint.
+* Re-resolved the current Behavior, Workspace Policy, workspace scope, operation metadata, and EngineeringTask state after approval and immediately before execution.
+* Prevented an earlier approval from overriding a workspace changed to read-only, a run changed to Review, a cancelled or closed run, or materially changed operation arguments.
+* Made approval consumption atomic and one-shot: repeated resolution is idempotent, replay cannot execute twice, denial cannot reopen automatically, and cancellation invalidates pending or approved continuations.
+* Scoped approval lookup and rendering to the active workspace and run so one run cannot select or consume another run's pending operation.
+* Applied the same binding, revalidation, and exactly-once guarantees to normal provider tools, direct tool execution, SDK operations, sensitive IPC actions, Git mutations, and high-impact application-storage operations.
+* Rejected non-JSON, non-finite, sparse, cyclic, or non-plain operation metadata before an approval fingerprint can be created.
+
+### Tests and release verification
+
+* Added regression coverage for provider and direct tool invocation, manually constructed requests, SDK continuations, unknown metadata, approval, denial, policy and Behavior changes while pending, operation mismatch, duplicate resolution, cancellation, and cross-run or cross-workspace isolation.
+* Added continuation-path coverage from approval creation through resolution, current-state reauthorization, one-shot consumption, and the real side-effect boundary.
+* Verified v0.1.3 with lint, typecheck, the 149-test fast suite, the 614-test full verification suite, package configuration checks, legacy-term checks, bundle-purity checks, and `git diff --check`.
+
 ## Unreleased - 2026.07.26 (2) [Power-Aware Performance and Release Hardening]
 
 * Added a shared power-state policy that initializes correctly at cold start, reacts to battery, suspend, thermal, and CPU speed-limit events, and pauses non-essential main-process work under constrained power.

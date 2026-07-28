@@ -4,6 +4,7 @@ import type {
   AssistantRunProgress,
   Conversation,
 } from "./chat";
+import type { BehaviorMode } from "./behavior-mode";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
 import type {
   AgentFirewallDecision,
@@ -22,6 +23,7 @@ import type {
 import type {
   PolicyRunState,
   PolicyStop,
+  PolicyStopListScope,
   ResolvePolicyStopRequest,
 } from "./policy";
 import type { RainyModelCatalogEntry, RainyModelLaunch } from "./rainy";
@@ -96,6 +98,10 @@ export interface RepoInspectorApi {
     runId?: string,
   ) => Promise<AssistantExecution>;
   cancelAssistant: (runId: string) => Promise<boolean>;
+  updateAssistantBehavior: (
+    runId: string,
+    behaviorMode: BehaviorMode,
+  ) => Promise<boolean>;
   generateComplianceReport: (
     request: { taskId: string },
   ) => Promise<ComplianceExportResult>;
@@ -208,7 +214,7 @@ export interface SettingsApi {
 }
 
 export interface PolicyApi {
-  listStops: (runId?: string) => Promise<PolicyStop[]>;
+  listStops: (scope: PolicyStopListScope) => Promise<PolicyStop[]>;
   getRunState: (runId: string) => Promise<PolicyRunState>;
   resolveStop: (request: ResolvePolicyStopRequest) => Promise<PolicyStop>;
 }

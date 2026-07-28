@@ -1,5 +1,8 @@
 import type { PolicyApi } from '../contracts/ipc';
-import type { ResolvePolicyStopRequest } from '../contracts/policy';
+import type {
+  PolicyStopListScope,
+  ResolvePolicyStopRequest,
+} from '../contracts/policy';
 
 function getPolicyApi(): PolicyApi {
   if (!window.mate?.policy) {
@@ -8,8 +11,8 @@ function getPolicyApi(): PolicyApi {
   return window.mate.policy;
 }
 
-export function listPolicyStops(runId?: string) {
-  return getPolicyApi().listStops(runId);
+export function listPolicyStops(scope: PolicyStopListScope) {
+  return getPolicyApi().listStops(scope);
 }
 
 export function resolvePolicyStop(request: ResolvePolicyStopRequest) {

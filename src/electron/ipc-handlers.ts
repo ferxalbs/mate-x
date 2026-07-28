@@ -7,6 +7,7 @@ import type { IpcMainInvokeEvent } from "electron";
 
 import type { AssistantRunOptions, Conversation, EvidencePack } from "../contracts/chat";
 import { validateAssistantRunOptions } from "../contracts/assistant-run-options";
+import { BEHAVIOR_MODES, type BehaviorMode } from "../contracts/behavior-mode";
 import type {
   AgentFirewallDecision,
   AgentFirewallMode,
@@ -42,6 +43,8 @@ import { applyWindowAppearance } from "./window-appearance";
 import { getStack } from "./main-stack";
 import { setAuthorizedBackgroundImagePath } from "./background-image-auth";
 import { powerStateService } from "./power-state-service";
+import { resolveOperationAuthorization, type AgentCapability } from "./capability-resolver";
+import { createDefaultWorkspaceTrustContract } from "./workspace-trust";
 
 // ── Lazy service loaders (keep main-process cold start free of assistant/SDK bulk) ──
 const loadRepoService = () => import("./repo-service");
@@ -122,12 +125,54 @@ async function requireSensitiveIpcApproval(input: {
   event?: IpcMainInvokeEvent;
 }) {
   const workspace = await resolveActiveWorkspace().catch(() => ({
+    id: "app-ipc",
     path: app.getPath("userData"),
   }));
-  const stop = policyService.createStop({
-    runId: `ipc-${Date.now()}`,
+  const operationName = `ipc:${input.action}`;
+  const capability: AgentCapability = input.action.startsWith("git:")
+    ? "git.write"
+    : "sensitive.execute";
+  const operationArgs = {
+    target: input.target,
+    ...input.metadata,
+  };
+  const initialPolicy =
+    workspace.id === "app-ipc"
+      ? createDefaultWorkspaceTrustContract(workspace.id, "MaTE X application")
+      : await getWorkspaceTrustContract(workspace.id);
+  if (workspace.id === "app-ipc") {
+    initialPolicy.writeAccess = "approval-required";
+  }
+  const initialAuthorization = resolveOperationAuthorization({
+    operationName,
+    args: operationArgs,
+    capability,
+    behaviorMode: "execute",
+    workspacePolicy: initialPolicy,
+  });
+  if (initialAuthorization.decision === "blocked") {
+    throw new Error(initialAuthorization.outcome.summary);
+  }
+  const runId = `ipc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  policyService.registerRunContext({
+    runId,
+    workspaceId: workspace.id,
     workspacePath: workspace.path,
-    toolName: "ipc",
+    behaviorMode: "execute",
+    resolvePolicy: async () => ({
+      workspacePolicy:
+        workspace.id === "app-ipc"
+          ? initialPolicy
+          : await getWorkspaceTrustContract(workspace.id),
+    }),
+  });
+  const stop = policyService.createStop({
+    runId,
+    workspaceId: workspace.id,
+    workspacePath: workspace.path,
+    toolName: operationName,
+    requiredCapability: capability,
+    operationArgs,
     severity: "warning",
     policyId: "ipc.high_impact.approval",
     title: "High-impact app action requires approval.",
@@ -155,14 +200,53 @@ async function requireSensitiveIpcApproval(input: {
     resolvedStop = await policyService.waitForResolution(stop.id, controller.signal);
   } catch (error) {
     policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
     throw error;
   } finally {
     input.event?.sender.removeListener("destroyed", onDestroyed);
   }
-  policyService.markStopCompleted(stop.id);
   if (resolvedStop.resolution?.action !== "approve_once") {
+    policyService.markStopCompleted(stop.id);
+    policyService.closeRun(runId);
     throw new Error(`IPC action "${input.action}" was not approved.`);
   }
+  const currentAuthority = await policyService.resolveCurrentAuthority({
+    runId,
+    workspaceId: workspace.id,
+    workspacePath: workspace.path,
+  });
+  if (!currentAuthority) {
+    policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
+    throw new Error(`IPC action "${input.action}" no longer has an active context.`);
+  }
+  const currentAuthorization = resolveOperationAuthorization({
+    operationName,
+    args: operationArgs,
+    capability,
+    ...currentAuthority,
+  });
+  if (currentAuthorization.decision === "blocked") {
+    policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
+    throw new Error(currentAuthorization.outcome.summary);
+  }
+  const consumption = policyService.consumeApprovedOperation({
+    stopId: stop.id,
+    runId,
+    workspaceId: workspace.id,
+    workspacePath: workspace.path,
+    operationName,
+    requiredCapability: currentAuthorization.capability,
+    args: operationArgs,
+  });
+  if (!consumption.consumed) {
+    policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
+    throw new Error(`IPC action "${input.action}" approval was stale or mismatched.`);
+  }
+  policyService.markStopCompleted(stop.id);
+  policyService.closeRun(runId);
   return workspace;
 }
 
@@ -619,7 +703,18 @@ async function listLocalEvidencePacks(workspaceId?: string) {
 
 function validateResolvePolicyStopRequest(request: unknown): ResolvePolicyStopRequest {
   const record = assertPlainRecord(request, "Policy stop resolution request");
-  assertKnownKeys(record, new Set(["stopId", "action", "scopeExpansion"]), "Policy stop resolution request");
+  assertKnownKeys(
+    record,
+    new Set([
+      "stopId",
+      "runId",
+      "workspaceId",
+      "operationFingerprint",
+      "action",
+      "scopeExpansion",
+    ]),
+    "Policy stop resolution request",
+  );
   const action = requireBoundedString(record.action, "action", 80);
   if (!POLICY_STOP_ACTIONS.has(action)) {
     throw new Error("Invalid policy stop resolution action.");
@@ -641,6 +736,13 @@ function validateResolvePolicyStopRequest(request: unknown): ResolvePolicyStopRe
   }
   return {
     stopId: requireBoundedString(record.stopId, "stopId", 200),
+    runId: requireBoundedString(record.runId, "runId", 200),
+    workspaceId: requireBoundedString(record.workspaceId, "workspaceId", 200),
+    operationFingerprint: requireBoundedString(
+      record.operationFingerprint,
+      "operationFingerprint",
+      128,
+    ),
     action: action as ResolvePolicyStopRequest["action"],
     scopeExpansion,
   };
@@ -1022,11 +1124,30 @@ export function registerIpcHandlers() {
       const normalizedRunId = runId
         ? requireBoundedString(runId, "runId", 200)
         : undefined;
+      const validatedOptions = validateAssistantRunOptions(options);
       const assistantAbortController = new AbortController();
       const abortWhenSenderDestroyed = () => assistantAbortController.abort();
       event.sender.once("destroyed", abortWhenSenderDestroyed);
       if (normalizedRunId) {
         activeAssistantRunControllers.set(normalizedRunId, assistantAbortController);
+        try {
+          const workspace = await getWorkspaceSummary(
+            optionalWorkspaceId(workspaceId),
+          );
+          policyService.registerRunContext({
+            runId: normalizedRunId,
+            workspaceId: workspace.id,
+            workspacePath: workspace.path,
+            behaviorMode: validatedOptions?.behaviorMode ?? "execute",
+            resolvePolicy: async () => ({
+              workspacePolicy: await getWorkspaceTrustContract(workspace.id),
+            }),
+          });
+        } catch (error) {
+          activeAssistantRunControllers.delete(normalizedRunId);
+          event.sender.removeListener("destroyed", abortWhenSenderDestroyed);
+          throw error;
+        }
       }
       let pendingProgress: {
         runId: string;
@@ -1103,7 +1224,7 @@ export function registerIpcHandlers() {
         // This + removal of cwd seeding + strict no-[0] fallback in resolveWorkspace ensures
         // evidence artifacts are always scoped to the user-selected target repo.
         optionalWorkspaceId(workspaceId),
-        validateAssistantRunOptions(options),
+        validatedOptions,
         normalizedRunId
           ? {
               runId: normalizedRunId,
@@ -1115,6 +1236,7 @@ export function registerIpcHandlers() {
       } finally {
         if (normalizedRunId) {
           activeAssistantRunControllers.delete(normalizedRunId);
+          policyService.closeRun(normalizedRunId);
         }
         event.sender.removeListener("destroyed", abortWhenSenderDestroyed);
         flushProgress();
@@ -1123,11 +1245,22 @@ export function registerIpcHandlers() {
   );
   handle("repo:cancel-assistant", async (_event, runId: string) => {
     const normalizedRunId = requireBoundedString(runId, "runId", 200);
+    policyService.cancelRun(normalizedRunId);
     const controller = activeAssistantRunControllers.get(normalizedRunId);
     controller?.abort();
     activeAssistantRunControllers.delete(normalizedRunId);
     return Boolean(controller);
   });
+  handle(
+    "repo:update-assistant-behavior",
+    async (_event, runId: string, behaviorMode: BehaviorMode) => {
+      const normalizedRunId = requireBoundedString(runId, "runId", 200);
+      if (!BEHAVIOR_MODES.includes(behaviorMode)) {
+        throw new Error("Invalid behavior mode.");
+      }
+      return policyService.updateRunBehavior(normalizedRunId, behaviorMode);
+    },
+  );
 
   handle("repo-graph:refresh", async () => {
     const workspace = await (await loadRepoGraphService()).resolveActiveWorkspaceForRepoGraph();
@@ -1214,17 +1347,32 @@ export function registerIpcHandlers() {
         _event.sender.once("destroyed", onDestroyed);
       }
       let result;
+      let sdkRunId: string | null = null;
       try {
         const workspace = await resolveActiveWorkspace();
         const workspacePolicy = await getWorkspaceTrustContract(workspace.id);
+        sdkRunId = `sdk-ipc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        policyService.registerRunContext({
+          runId: sdkRunId,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          behaviorMode: "execute",
+          resolvePolicy: async () => ({
+            workspacePolicy: await getWorkspaceTrustContract(workspace.id),
+          }),
+        });
         result = await getStack().orchestrator.execute(action as never, {
           signal: controller.signal,
           authority: {
             behaviorMode: "execute",
             workspacePolicy,
           },
+          runId: sdkRunId,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
         });
       } finally {
+        if (sdkRunId) policyService.closeRun(sdkRunId);
         _event.sender.removeListener("destroyed", onDestroyed);
       }
       return { success: true, result };
@@ -1405,9 +1553,18 @@ export function registerIpcHandlers() {
   });
 
   // ── Policy Stops ────────────────────────────────────────────────────────
-  handle("policy:list-stops", async (_event, runId?: string) =>
-    policyService.listStops(optionalBoundedString(runId, "runId", 200)),
-  );
+  handle("policy:list-stops", async (_event, scope: unknown) => {
+    const record = assertPlainRecord(scope, "Policy stop list scope");
+    assertKnownKeys(
+      record,
+      new Set(["runId", "workspaceId"]),
+      "Policy stop list scope",
+    );
+    return policyService.listStops(
+      optionalBoundedString(record.runId, "runId", 200),
+      requireBoundedString(record.workspaceId, "workspaceId", 200),
+    );
+  });
   handle("policy:get-run-state", async (_event, runId: string) => {
     if (typeof runId !== "string" || !runId.trim()) {
       throw new Error("Policy run id is required.");

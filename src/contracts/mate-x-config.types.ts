@@ -1,7 +1,6 @@
 import type { MaTeXStorageAdapterOptions, FilesSdkFactory } from "./storage-adapter.types";
 import type { FailureMemoryRepository, FailureMemorySyncStateStore } from "./failure-memory-sync.types";
 import type {
-  AgentAction,
   AgentId,
   AgentSdkClient,
   SDKOrchestratorEvidenceRecorder,
@@ -62,6 +61,5 @@ export interface CreateMaTeXStackDependencies {
     privacySentinel?: SDKOrchestratorPrivacySentinel;
     evidenceRecorder?: SDKOrchestratorEvidenceRecorder;
     failureMemory?: SDKOrchestratorFailureMemory;
-    confirmHighImpact?: (action: AgentAction, signal?: AbortSignal) => Promise<boolean>;
   };
 }

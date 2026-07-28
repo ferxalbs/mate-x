@@ -336,11 +336,28 @@ export class ToolService {
               hasSideEffects: tool.meta.hasSideEffects,
             }
           : null;
+      const authority = context.approvedPolicyStopId
+        ? await policyService.resolveCurrentAuthority({
+            runId: context.runId ?? "",
+            workspaceId: context.authority.workspacePolicy.workspaceId,
+            workspacePath: context.workspacePath,
+          })
+        : context.authority;
+      if (!authority) {
+        return formatToolFailure(
+          createToolError(
+            "UNAUTHORIZED",
+            "The approved operation no longer has an active execution context.",
+            { retryable: false },
+          ),
+          tool.name,
+        );
+      }
       const authorization = resolveToolAuthorization({
         toolName: tool.name,
         args,
         operationalMeta: staticMeta ?? runtimeMeta,
-        ...context.authority,
+        ...authority,
       });
       if (authorization.decision === "blocked") {
         return formatToolFailure(
@@ -355,15 +372,7 @@ export class ToolService {
           tool.name,
         );
       }
-      if (
-        authorization.decision === "needs_approval" &&
-        (!context.approvedPolicyStopId ||
-          !policyService.isApprovedForExecution({
-            stopId: context.approvedPolicyStopId,
-            runId: context.runId,
-            toolName: name,
-          }))
-      ) {
+      if (authorization.decision === "needs_approval" && !context.approvedPolicyStopId) {
         return formatToolFailure(
           createToolError("UNAUTHORIZED", authorization.summary, {
             retryable: false,
@@ -377,6 +386,30 @@ export class ToolService {
           }),
           tool.name,
         );
+      }
+      if (context.approvedPolicyStopId) {
+        const consumption = policyService.consumeApprovedOperation({
+          stopId: context.approvedPolicyStopId,
+          runId: context.runId ?? "",
+          workspaceId: authority.workspacePolicy.workspaceId,
+          workspacePath: context.workspacePath,
+          operationName: tool.name,
+          requiredCapability: authorization.capability,
+          args,
+        });
+        if (!consumption.consumed) {
+          return formatToolFailure(
+            createToolError(
+              "UNAUTHORIZED",
+              "Approval does not match this pending operation or was already consumed.",
+              {
+                retryable: false,
+                details: { approvalMismatch: consumption.reason },
+              },
+            ),
+            tool.name,
+          );
+        }
       }
 
       const executeStart = PERF_ENABLED ? performance.now() : 0;

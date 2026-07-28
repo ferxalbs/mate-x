@@ -87,41 +87,26 @@ export async function executeAgentToolCall({
     engineeringTaskStatus,
   });
   if (authorization.decision === "blocked") {
-    events.push({
-      id: eventId,
-      label: "Action blocked",
-      detail: authorization.outcome.summary,
-      status: "blocked",
-      visibility: "public",
-    });
-    emitProgress();
-    const serialized = JSON.stringify(authorization.outcome);
-    return {
+    return blockedToolResult({
       toolCallId: toolCall.id,
-      content: serialized,
+      toolName,
+      toolArgs,
+      eventId,
+      events,
+      emitProgress,
       outcome: authorization.outcome,
-      toolExecution: {
-        toolName,
-        args: toolArgs,
-        output: serialized,
-        parsedOutput: {
-          status: "blocked",
-          outcome: authorization.outcome,
-        },
-        evidence: normalizeToolEvidence(toolName, toolArgs, serialized, {
-          status: "blocked",
-          outcome: authorization.outcome,
-        }),
-      } satisfies ToolExecutionRecord,
-    };
+    });
   }
 
   const policyStop =
     authorization.decision === "needs_approval"
       ? policyService.createStop({
           runId,
+          workspaceId: snapshot.workspace.id,
           workspacePath: snapshot.workspace.path,
           toolName,
+          requiredCapability: authorization.capability,
+          operationArgs: toolArgs,
           severity: "warning",
           policyId: authorization.code,
           title: authorization.summary,
@@ -236,8 +221,42 @@ export async function executeAgentToolCall({
       };
     }
 
-    policyService.markStopResumed(policyStop.id);
     approvedPolicyStopId = policyStop.id;
+    const currentAuthority = await policyService.resolveCurrentAuthority({
+      runId,
+      workspaceId: snapshot.workspace.id,
+      workspacePath: snapshot.workspace.path,
+    });
+    const currentAuthorization = currentAuthority
+      ? resolveToolAuthorization({
+          toolName,
+          args: toolArgs,
+          ...currentAuthority,
+        })
+      : null;
+    if (!currentAuthorization || currentAuthorization.decision === "blocked") {
+      policyService.markStopFailed(policyStop.id);
+      const outcome: Extract<AgentOutcome, { status: "blocked" }> =
+        currentAuthorization?.decision === "blocked"
+          ? currentAuthorization.outcome
+          : {
+              status: "blocked",
+              summary: "The approved operation no longer has an active execution context.",
+              blocker: {
+                code: "ACTION_NOT_ALLOWED",
+                requestedCapability: authorization.capability,
+              },
+            };
+      return blockedToolResult({
+        toolCallId: toolCall.id,
+        toolName,
+        toolArgs,
+        eventId,
+        events,
+        emitProgress,
+        outcome,
+      });
+    }
     if (toolEvent) {
       toolEvent.label = "Applying approved action";
       toolEvent.detail = "Approval received.";
@@ -375,6 +394,57 @@ export async function executeAgentToolCall({
       } satisfies ToolExecutionRecord,
     };
   }
+}
+
+function blockedToolResult(input: {
+  toolCallId: string;
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+  eventId: string;
+  events: ToolEvent[];
+  emitProgress: () => void;
+  outcome: Extract<AgentOutcome, { status: "blocked" }>;
+}) {
+  const event = input.events.find((candidate) => candidate.id === input.eventId);
+  if (event) {
+    event.label = "Action blocked";
+    event.detail = input.outcome.summary;
+    event.status = "blocked";
+    event.visibility = "public";
+  } else {
+    input.events.push({
+      id: input.eventId,
+      label: "Action blocked",
+      detail: input.outcome.summary,
+      status: "blocked",
+      visibility: "public",
+    });
+  }
+  input.emitProgress();
+  const serialized = JSON.stringify(input.outcome);
+  return {
+    toolCallId: input.toolCallId,
+    content: serialized,
+    outcome: input.outcome,
+    toolExecution: {
+      toolName: input.toolName,
+      args: input.toolArgs,
+      output: serialized,
+      parsedOutput: {
+        status: "blocked",
+        outcome: input.outcome,
+      },
+      evidence: normalizeToolEvidence(
+        input.toolName,
+        input.toolArgs,
+        serialized,
+        {
+          status: "blocked",
+          outcome: input.outcome,
+        },
+      ),
+    } satisfies ToolExecutionRecord,
+  };
 }
 
 function safeToolDiagnostic(message: string) {

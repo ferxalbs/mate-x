@@ -18,6 +18,10 @@ import type {
 import type { BehaviorMode } from "../../contracts/behavior-mode";
 import type { WorkspaceWriteAccess } from "../../contracts/workspace";
 import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
+import { policyService } from "../policy-service";
+import { createPolicyStopResolutionRequest } from "../../contracts/policy";
+
+let sdkTestRunSequence = 0;
 
 describe("SDKOrchestrator", () => {
   it("fails closed without execution authority", async () => {
@@ -104,19 +108,19 @@ describe("SDKOrchestrator", () => {
   });
 
   it("requires explicit confirmation for high-impact actions before SDK calls", async () => {
-    const context = testContext({ approveHighImpact: false });
+    const context = testContext();
     context.clients.antigravity.results.push(successResult());
 
-    await assert.rejects(
-      execute(context.orchestrator(), {
-        actionType: "delete",
+    const execution = execute(context.orchestrator(), {
+        actionType: "patch",
         payload: { path: "README.md" },
         agentId: "antigravity",
-      }),
+      }, "execute", "workspace", "abort");
+    await assert.rejects(
+      execution,
       HighImpactApprovalError,
     );
 
-    assert.equal(context.confirmed.length, 1);
     assert.equal(context.clients.antigravity.calls.length, 0);
   });
 
@@ -165,6 +169,7 @@ function execute(
   request: Parameters<SDKOrchestrator["execute"]>[0],
   behaviorMode: BehaviorMode = "execute",
   writeAccess: WorkspaceWriteAccess = "workspace",
+  approvalAction: "approve_once" | "abort" = "approve_once",
 ) {
   const workspacePolicy = createDefaultWorkspaceTrustContract(
     "workspace",
@@ -172,14 +177,32 @@ function execute(
     { packageManager: "bun", hasPackageJson: true },
   );
   workspacePolicy.writeAccess = writeAccess;
-  return orchestrator.execute(request, {
-    authority: { behaviorMode, workspacePolicy },
+  const runId = `sdk-test-${sdkTestRunSequence += 1}`;
+  const workspacePath = "/tmp/sdk-test-workspace";
+  policyService.registerRunContext({
+    runId,
+    workspaceId: workspacePolicy.workspaceId,
+    workspacePath,
+    behaviorMode,
+    resolvePolicy: async () => ({ workspacePolicy }),
   });
+  const execution = orchestrator.execute(request, {
+    authority: { behaviorMode, workspacePolicy },
+    runId,
+    workspaceId: workspacePolicy.workspaceId,
+    workspacePath,
+  });
+  const stop = policyService.listStops(runId).find((candidate) => candidate.status === "open");
+  if (stop) {
+    policyService.resolveStop(
+      createPolicyStopResolutionRequest(stop, approvalAction),
+    );
+  }
+  return execution.finally(() => policyService.closeRun(runId));
 }
 
 function testContext(options: {
   secretCategories?: string[];
-  approveHighImpact?: boolean;
   config?: ConstructorParameters<typeof SDKOrchestrator>[0]["config"];
 } = {}) {
   const clients = {
@@ -189,12 +212,10 @@ function testContext(options: {
   };
   const events: AgentActionEvidenceEvent[] = [];
   const failures: Array<{ errorSignature: string }> = [];
-  const confirmed: AgentAction[] = [];
   return {
     clients,
     events,
     failures,
-    confirmed,
     orchestrator: () => new SDKOrchestrator({
       workspaceId: "workspace-1",
       codexClient: clients.codex,
@@ -215,10 +236,6 @@ function testContext(options: {
         recordFailure: async (failure) => {
           failures.push({ errorSignature: failure.errorSignature });
         },
-      },
-      confirmHighImpact: async (action) => {
-        confirmed.push(action);
-        return options.approveHighImpact ?? true;
       },
       config: options.config,
       now: () => new Date("2026-05-31T10:00:00.000Z"),

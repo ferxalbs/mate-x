@@ -190,7 +190,7 @@ export function formatPatchImpactBlocked(
     `Reasons: ${decision.reasons.join(' ')}`,
     `Validation: ${decision.validationCommands.join(', ')}`,
     decision.requiresConfirmation
-      ? 'To apply anyway, call the patch tool again with allowHighImpact: true after user confirmation.'
+      ? 'Request explicit approval for this exact operation before applying it.'
       : 'No file was changed.',
     'PATCH_IMPACT_BEFORE_JSON',
     '```json',

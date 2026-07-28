@@ -94,7 +94,6 @@ export interface SDKOrchestratorDependencies {
   privacySentinel: SDKOrchestratorPrivacySentinel;
   evidenceRecorder: SDKOrchestratorEvidenceRecorder;
   failureMemory: SDKOrchestratorFailureMemory;
-  confirmHighImpact(action: AgentAction, signal?: AbortSignal): Promise<boolean>;
   config?: SDKOrchestratorConfig;
   now?: () => Date;
 }

@@ -28,6 +28,13 @@ export interface PolicyStopAttemptedAction {
   metadata?: Record<string, unknown>;
 }
 
+export interface PolicyStopOperationBinding {
+  workspaceId: string;
+  operationName: string;
+  requiredCapability: string;
+  fingerprint: string;
+}
+
 export interface PolicyStop {
   id: string;
   runId: string;
@@ -38,6 +45,7 @@ export interface PolicyStop {
   title: string;
   explanation: string;
   attemptedAction: PolicyStopAttemptedAction;
+  operation: PolicyStopOperationBinding;
   recommendation: PolicyStopAction;
   availableActions: PolicyStopAction[];
   status:
@@ -62,12 +70,33 @@ export interface PolicyStopResolution {
 
 export interface ResolvePolicyStopRequest {
   stopId: string;
+  runId: string;
+  workspaceId: string;
+  operationFingerprint: string;
   action: PolicyStopAction;
   scopeExpansion?: PolicyStopResolution["scopeExpansion"];
+}
+
+export function createPolicyStopResolutionRequest(
+  stop: PolicyStop,
+  action: PolicyStopAction,
+): ResolvePolicyStopRequest {
+  return {
+    stopId: stop.id,
+    runId: stop.runId,
+    workspaceId: stop.operation.workspaceId,
+    operationFingerprint: stop.operation.fingerprint,
+    action,
+  };
 }
 
 export interface PolicyRunState {
   runId: string;
   status: "clear" | "paused";
   openStops: PolicyStop[];
+}
+
+export interface PolicyStopListScope {
+  workspaceId: string;
+  runId?: string;
 }

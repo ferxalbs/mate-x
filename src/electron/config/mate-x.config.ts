@@ -172,7 +172,6 @@ export async function createMaTeXStack(config: MaTeXConfig, dependencies: Create
     privacySentinel: sdk.privacySentinel ?? { scan: async () => ({ hasSecrets: false, categories: [] }) },
     evidenceRecorder: sdk.evidenceRecorder ?? { appendAgentActionEvent: async () => undefined },
     failureMemory: sdk.failureMemory ?? failMissingFailureMemoryRecorder(),
-    confirmHighImpact: sdk.confirmHighImpact ?? failMissingPolicyApproval,
     config: config.orchestration,
   });
 
@@ -198,11 +197,6 @@ function failMissingFailureMemoryRecorder() {
       throw new Error("Failure Memory Engine is not wired into SDKOrchestrator.");
     },
   };
-}
-
-async function failMissingPolicyApproval() {
-  throw new Error("Policy Service is not wired into SDKOrchestrator.");
-  return false;
 }
 
 function formatConfigIssues(issues: z.ZodIssue[]) {

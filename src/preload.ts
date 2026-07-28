@@ -91,6 +91,8 @@ const repoApi: RepoInspectorApi = {
     ipcRenderer.invoke("repo:run-assistant", prompt, history, options, runId),
   cancelAssistant: (runId) =>
     ipcRenderer.invoke("repo:cancel-assistant", runId),
+  updateAssistantBehavior: (runId, behaviorMode) =>
+    ipcRenderer.invoke("repo:update-assistant-behavior", runId, behaviorMode),
   generateComplianceReport: (evidencePack) =>
     ipcRenderer.invoke("repo:generate-compliance-report", evidencePack),
   onAssistantProgress: (listener) => {
@@ -225,7 +227,7 @@ const githubApi: GitHubIntegrationApi = {
 
 
 const policyApi: PolicyApi = {
-  listStops: (runId) => ipcRenderer.invoke("policy:list-stops", runId),
+  listStops: (scope) => ipcRenderer.invoke("policy:list-stops", scope),
   getRunState: (runId) => ipcRenderer.invoke("policy:get-run-state", runId),
   resolveStop: (request) => ipcRenderer.invoke("policy:resolve-stop", request),
 };

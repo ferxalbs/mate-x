@@ -9,7 +9,7 @@ import { EvidencePackStorage } from "../storage/evidence-pack-storage";
 import { FailureMemorySync } from "../storage/failure-memory-sync";
 import { SDKOrchestrator } from "../orchestration/sdk-orchestrator";
 import type { FailureMemory } from "../../contracts/workspace";
-import type { AgentAction, AgentSdkClient } from "../../contracts/sdk-orchestrator.types";
+import type { AgentSdkClient } from "../../contracts/sdk-orchestrator.types";
 import type { FilesSdkClient } from "../../contracts/storage-adapter.types";
 import { ConfigValidationError, createMaTeXStack, loadConfig, MaTeXConfigSchema } from "./mate-x.config";
 
@@ -129,7 +129,6 @@ describe("MaTE X config", () => {
         privacySentinel: { scan: async () => ({ hasSecrets: false, categories: [] }) },
         evidenceRecorder: { appendAgentActionEvent: async () => undefined },
         failureMemory: { recordFailure: async () => undefined },
-        confirmHighImpact: async (_action: AgentAction) => true,
       },
     });
 

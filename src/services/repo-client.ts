@@ -3,6 +3,7 @@ import type {
   AssistantRunProgress,
   Conversation,
 } from '../contracts/chat';
+import type { BehaviorMode } from '../contracts/behavior-mode';
 import type { RepoInspectorApi } from '../contracts/ipc';
 import type {
   WorkspaceMemoryFileKind,
@@ -107,6 +108,13 @@ export function runAssistant(
 
 export function cancelAssistant(runId: string) {
   return getMateApi().cancelAssistant(runId);
+}
+
+export function updateAssistantBehavior(
+  runId: string,
+  behaviorMode: BehaviorMode,
+) {
+  return getMateApi().updateAssistantBehavior(runId, behaviorMode);
 }
 
 export function onAssistantProgress(

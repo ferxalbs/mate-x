@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+
+import type { BehaviorMode } from "../contracts/behavior-mode";
 import type {
   PolicyRunState,
   PolicyStop,
@@ -5,11 +8,19 @@ import type {
   PolicyStopAttemptKind,
   ResolvePolicyStopRequest,
 } from "../contracts/policy";
+import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type {
+  AgentCapability,
+  ExecutionAuthorityContext,
+} from "./capability-resolver";
 
 type CreatePolicyStopInput = {
   runId: string;
+  workspaceId: string;
   workspacePath: string;
   toolName: string;
+  requiredCapability: AgentCapability;
+  operationArgs: Record<string, unknown>;
   severity: PolicyStop["severity"];
   policyId: string;
   title: string;
@@ -22,9 +33,33 @@ type CreatePolicyStopInput = {
   availableActions: PolicyStopAction[];
 };
 
+type RunExecutionContext = {
+  workspaceId: string;
+  workspacePath: string;
+  behaviorMode: BehaviorMode;
+  resolvePolicy: () => Promise<{
+    workspacePolicy: WorkspaceTrustContract;
+    engineeringTaskStatus?: ExecutionAuthorityContext["engineeringTaskStatus"];
+  }>;
+  cancelled: boolean;
+};
+
+export type ApprovalConsumptionResult =
+  | { consumed: true; stop: PolicyStop }
+  | {
+      consumed: false;
+      reason:
+        | "not_found"
+        | "not_approved"
+        | "run_mismatch"
+        | "workspace_mismatch"
+        | "operation_mismatch"
+        | "run_inactive";
+    };
+
 /**
- * Stores approval state only. Capability decisions belong to
- * capability-resolver.ts so an operation has exactly one authorization path.
+ * Stores pending-operation approval and live run context only. Capability
+ * decisions remain exclusively in capability-resolver.ts.
  */
 class PolicyService {
   private stops = new Map<string, PolicyStop>();
@@ -37,6 +72,79 @@ class PolicyService {
       onAbort?: () => void;
     }
   >();
+  private runContexts = new Map<string, RunExecutionContext>();
+
+  registerRunContext(input: {
+    runId: string;
+    workspaceId: string;
+    workspacePath: string;
+    behaviorMode: BehaviorMode;
+    resolvePolicy: RunExecutionContext["resolvePolicy"];
+  }) {
+    const existing = this.runContexts.get(input.runId);
+    if (
+      existing &&
+      (existing.workspaceId !== input.workspaceId ||
+        existing.workspacePath !== input.workspacePath)
+    ) {
+      throw new Error("Run execution context cannot change workspaces.");
+    }
+    this.runContexts.set(input.runId, {
+      workspaceId: input.workspaceId,
+      workspacePath: input.workspacePath,
+      behaviorMode:
+        existing ? existing.behaviorMode : input.behaviorMode,
+      resolvePolicy: input.resolvePolicy,
+      cancelled: existing?.cancelled ?? false,
+    });
+  }
+
+  updateRunBehavior(runId: string, behaviorMode: BehaviorMode): boolean {
+    const context = this.runContexts.get(runId);
+    if (!context || context.cancelled) return false;
+    context.behaviorMode = behaviorMode;
+    return true;
+  }
+
+  async resolveCurrentAuthority(input: {
+    runId: string;
+    workspaceId: string;
+    workspacePath: string;
+  }): Promise<ExecutionAuthorityContext | null> {
+    const context = this.runContexts.get(input.runId);
+    if (
+      !context ||
+      context.cancelled ||
+      context.workspaceId !== input.workspaceId ||
+      context.workspacePath !== input.workspacePath
+    ) {
+      return null;
+    }
+    const current = await context.resolvePolicy();
+    if (current.workspacePolicy.workspaceId !== context.workspaceId) {
+      return null;
+    }
+    return {
+      behaviorMode: context.behaviorMode,
+      workspacePolicy: current.workspacePolicy,
+      engineeringTaskStatus: current.engineeringTaskStatus,
+    };
+  }
+
+  cancelRun(runId: string) {
+    const context = this.runContexts.get(runId);
+    if (context) context.cancelled = true;
+    for (const stop of this.listStops(runId)) {
+      if (stop.status === "open" || stop.status === "approved") {
+        this.failStopAndRejectWaiter(stop.id, createPolicyAbortError());
+      }
+    }
+  }
+
+  closeRun(runId: string) {
+    this.cancelRun(runId);
+    this.runContexts.delete(runId);
+  }
 
   createStop(input: CreatePolicyStopInput): PolicyStop {
     const stop: PolicyStop = {
@@ -55,6 +163,16 @@ class PolicyService {
         command: input.command,
         metadata: input.metadata,
       },
+      operation: {
+        workspaceId: input.workspaceId,
+        operationName: input.toolName,
+        requiredCapability: input.requiredCapability,
+        fingerprint: fingerprintOperation({
+          operationName: input.toolName,
+          requiredCapability: input.requiredCapability,
+          args: input.operationArgs,
+        }),
+      },
       recommendation: input.recommendation,
       availableActions: input.availableActions,
       status: "open",
@@ -63,11 +181,15 @@ class PolicyService {
     return stop;
   }
 
-  listStops(runId?: string) {
+  listStops(runId?: string, workspaceId?: string) {
     const stops = Array.from(this.stops.values()).sort((left, right) =>
       right.createdAt.localeCompare(left.createdAt),
     );
-    return runId ? stops.filter((stop) => stop.runId === runId) : stops;
+    return stops.filter(
+      (stop) =>
+        (!runId || stop.runId === runId) &&
+        (!workspaceId || stop.operation.workspaceId === workspaceId),
+    );
   }
 
   getRunState(runId: string): PolicyRunState {
@@ -79,18 +201,49 @@ class PolicyService {
     };
   }
 
-  isApprovedForExecution(input: {
+  consumeApprovedOperation(input: {
     stopId: string;
-    runId?: string;
-    toolName: string;
-  }): boolean {
+    runId: string;
+    workspaceId: string;
+    workspacePath: string;
+    operationName: string;
+    requiredCapability: AgentCapability;
+    args: Record<string, unknown>;
+  }): ApprovalConsumptionResult {
     const stop = this.stops.get(input.stopId);
-    if (!stop) return false;
-    if (input.runId && stop.runId !== input.runId) return false;
-    return (
-      stop.attemptedAction.toolName === input.toolName &&
-      (stop.status === "approved" || stop.status === "resumed")
-    );
+    if (!stop) return { consumed: false, reason: "not_found" };
+    if (stop.status !== "approved") {
+      return { consumed: false, reason: "not_approved" };
+    }
+    if (stop.runId !== input.runId) {
+      return { consumed: false, reason: "run_mismatch" };
+    }
+    if (
+      stop.workspacePath !== input.workspacePath ||
+      stop.operation.workspaceId !== input.workspaceId
+    ) {
+      return { consumed: false, reason: "workspace_mismatch" };
+    }
+    const fingerprint = fingerprintOperation({
+      operationName: input.operationName,
+      requiredCapability: input.requiredCapability,
+      args: input.args,
+    });
+    if (
+      stop.operation.operationName !== input.operationName ||
+      stop.operation.requiredCapability !== input.requiredCapability ||
+      stop.operation.fingerprint !== fingerprint
+    ) {
+      return { consumed: false, reason: "operation_mismatch" };
+    }
+    const runContext = this.runContexts.get(input.runId);
+    if (!runContext || runContext.cancelled) {
+      return { consumed: false, reason: "run_inactive" };
+    }
+    const resumed = this.updateStopStatus(stop.id, "resumed");
+    return resumed
+      ? { consumed: true, stop: resumed }
+      : { consumed: false, reason: "not_found" };
   }
 
   resolveStop(request: ResolvePolicyStopRequest): PolicyStop {
@@ -106,6 +259,13 @@ class PolicyService {
 
     const stop = this.stops.get(request.stopId);
     if (!stop) throw new Error("Policy stop not found.");
+    if (
+      request.runId !== stop.runId ||
+      request.workspaceId !== stop.operation.workspaceId ||
+      request.operationFingerprint !== stop.operation.fingerprint
+    ) {
+      throw new Error("Policy stop resolution context does not match the pending operation.");
+    }
     if (stop.status !== "open") return stop;
 
     const resolvedStop: PolicyStop = {
@@ -148,16 +308,23 @@ class PolicyService {
     });
   }
 
-  markStopResumed(stopId: string) {
-    return this.updateStopStatus(stopId, "resumed");
-  }
-
   markStopCompleted(stopId: string) {
     return this.updateStopStatus(stopId, "completed");
   }
 
   markStopFailed(stopId: string) {
     return this.updateStopStatus(stopId, "failed");
+  }
+
+  private failStopAndRejectWaiter(stopId: string, error: Error) {
+    this.updateStopStatus(stopId, "failed");
+    const resolver = this.stopResolvers.get(stopId);
+    if (!resolver) return;
+    this.stopResolvers.delete(stopId);
+    if (resolver.signal && resolver.onAbort) {
+      resolver.signal.removeEventListener("abort", resolver.onAbort);
+    }
+    resolver.reject(error);
   }
 
   private updateStopStatus(stopId: string, status: PolicyStop["status"]) {
@@ -185,3 +352,57 @@ function createPolicyAbortError() {
 }
 
 export const policyService = new PolicyService();
+
+export function fingerprintOperation(input: {
+  operationName: string;
+  requiredCapability: string;
+  args: Record<string, unknown>;
+}): string {
+  return createHash("sha256")
+    .update(stableJson(input))
+    .digest("hex");
+}
+
+function stableJson(value: unknown): string {
+  return stableJsonValue(value, new WeakSet<object>());
+}
+
+function stableJsonValue(value: unknown, ancestors: WeakSet<object>): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("Approval operation arguments must contain finite numbers.");
+    }
+    return JSON.stringify(value);
+  }
+  if (typeof value !== "object") {
+    throw new Error("Approval operation arguments must be JSON-compatible.");
+  }
+  if (ancestors.has(value)) {
+    throw new Error("Approval operation arguments must not contain cycles.");
+  }
+  ancestors.add(value);
+  if (Array.isArray(value)) {
+    if (Object.keys(value).length !== value.length) {
+      throw new Error("Approval operation argument arrays must not be sparse.");
+    }
+    const serialized = `[${value
+      .map((entry) => stableJsonValue(entry, ancestors))
+      .join(",")}]`;
+    ancestors.delete(value);
+    return serialized;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error("Approval operation arguments must use plain objects.");
+  }
+  const record = value as Record<string, unknown>;
+  const serialized = `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJsonValue(record[key], ancestors)}`)
+    .join(",")}}`;
+  ancestors.delete(value);
+  return serialized;
+}

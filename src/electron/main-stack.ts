@@ -7,9 +7,11 @@ import { MissingSDKClientError } from './orchestration/sdk-orchestrator';
 import { setSDKOrchestrator } from './sdk-orchestrator-state';
 import { tursoService } from './turso-service';
 import { startupPerfMark } from './startup-perf';
-import type { AgentAction, AgentSdkClient } from '../contracts/sdk-orchestrator.types';
+import type { AgentId, AgentSdkClient } from '../contracts/sdk-orchestrator.types';
 import type { FailureMemorySyncStateStore } from '../contracts/failure-memory-sync.types';
 import type { FilesSdkClient, StorageEvent } from '../contracts/storage-adapter.types';
+import { resolveOperationAuthorization } from './capability-resolver';
+import { createDefaultWorkspaceTrustContract } from './workspace-trust';
 
 export type MaTeXStack = Awaited<ReturnType<typeof createMaTeXStack>>;
 
@@ -177,7 +179,6 @@ export async function initStack(): Promise<void> {
           return failureMemoryEngine.recordFailure(input);
         },
       },
-      confirmHighImpact: (action, signal) => requestPolicyApproval(`sdk:${action.agentId}`, action.actionType, action, signal),
     },
   });
   configSnapshot = resolvedConfig;
@@ -232,7 +233,7 @@ export async function teardownStack(): Promise<void> {
   configSnapshot = null;
 }
 
-function createUnavailableSdkClient(agentId: AgentAction['agentId']): AgentSdkClient {
+function createUnavailableSdkClient(agentId: AgentId): AgentSdkClient {
   return {
     async execute() {
       throw new MissingSDKClientError(agentId);
@@ -323,19 +324,38 @@ async function requestPolicyApproval(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const { policyService } = await import('./policy-service');
-  const runId = `policy-${Date.now()}`;
+  const runId = `policy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const workspacePath = app.getPath('userData');
+  const workspaceId = await tursoService.getActiveWorkspaceId() ?? 'app-storage';
+  const workspacePolicy = createDefaultWorkspaceTrustContract(
+    workspaceId,
+    'MaTE X application storage',
+  );
+  workspacePolicy.writeAccess = 'approval-required';
+  policyService.registerRunContext({
+    runId,
+    workspaceId,
+    workspacePath,
+    behaviorMode: 'execute',
+    resolvePolicy: async () => ({ workspacePolicy }),
+  });
   const stop = policyService.createStop({
     runId,
-    // Use a stable app-scoped path for policy context (high-impact storage/SDK approvals).
+    workspaceId,
+    // Use a stable app-scoped path for high-impact application storage approval.
     // Previously process.cwd() leaked target context and could point at the wrong tree.
     // Real per-target workspacePath for evidence/compliance is supplied via snapshot
     // at run time in the assistant and orchestrator paths.
-    workspacePath: app.getPath('userData'),
+    workspacePath,
     toolName,
+    requiredCapability: 'sensitive.execute',
+    operationArgs: payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : { value: payload },
     severity: 'critical',
-    policyId: 'sdk.high_impact_approval',
-    title: 'Approve high-impact SDK action',
-    explanation: `MaTE X requested high-impact action "${actionType}".`,
+    policyId: 'storage.high_impact_approval',
+    title: 'Approve high-impact storage action',
+    explanation: `MaTE X requested storage action "${actionType}".`,
     kind: 'tool_call',
     command: actionType,
     metadata: { payload: JSON.stringify(payload).slice(0, 4_000) },
@@ -347,9 +367,53 @@ async function requestPolicyApproval(
     resolved = await policyService.waitForResolution(stop.id, signal);
   } catch (error) {
     policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
     throw error;
   }
-  return resolved.status === 'approved';
+  if (resolved.status !== 'approved') {
+    policyService.markStopCompleted(stop.id);
+    policyService.closeRun(runId);
+    return false;
+  }
+  const currentAuthority = await policyService.resolveCurrentAuthority({
+    runId,
+    workspaceId,
+    workspacePath,
+  });
+  const currentAuthorization = currentAuthority
+    ? resolveOperationAuthorization({
+        operationName: toolName,
+        args: payload && typeof payload === 'object'
+          ? payload as Record<string, unknown>
+          : { value: payload },
+        capability: 'sensitive.execute',
+        ...currentAuthority,
+      })
+    : null;
+  if (!currentAuthorization || currentAuthorization.decision === 'blocked') {
+    policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
+    return false;
+  }
+  const consumption = policyService.consumeApprovedOperation({
+    stopId: stop.id,
+    runId,
+    workspaceId,
+    workspacePath,
+    operationName: toolName,
+    requiredCapability: currentAuthorization.capability,
+    args: payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : { value: payload },
+  });
+  if (!consumption.consumed) {
+    policyService.markStopFailed(stop.id);
+    policyService.closeRun(runId);
+    return false;
+  }
+  policyService.markStopCompleted(stop.id);
+  policyService.closeRun(runId);
+  return true;
 }
 
 function scheduleFailureMemorySyncStart(sync: { start: () => void; stop: () => void }) {

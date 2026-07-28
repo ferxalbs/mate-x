@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { DEFAULT_APP_SETTINGS } from "../contracts/settings";
 import type { BehaviorMode } from "../contracts/behavior-mode";
@@ -7,6 +10,8 @@ import type { WorkspaceWriteAccess } from "../contracts/workspace";
 import { ToolService } from "./tool-service";
 import type { Tool } from "./tool-types";
 import { createDefaultWorkspaceTrustContract } from "./workspace-trust";
+import { policyService } from "./policy-service";
+import { createPolicyStopResolutionRequest } from "../contracts/policy";
 
 function workspacePolicy(writeAccess: WorkspaceWriteAccess) {
   const contract = createDefaultWorkspaceTrustContract("workspace", "Repo", {
@@ -43,6 +48,7 @@ function fakeTool(
       type: "object",
       properties: {
         path: { type: "string" },
+        content: { type: "string" },
       },
       required: ["path"],
       additionalProperties: false,
@@ -173,4 +179,211 @@ describe("ToolService execution authority", () => {
     assert.match(result, /UNCLASSIFIED_OPERATION|metadata is missing/i);
     assert.deepEqual(calls, []);
   });
+
+  test("live provider continuation approves one concrete write and executes it once", async () => {
+    const fixture = await approvalFixture("provider-once");
+    try {
+      const execution = fixture.execute();
+      const stop = fixture.openStop();
+      policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
+      policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
+
+      await execution;
+      assert.equal(await readFile(fixture.countPath, "utf8"), "1");
+      assert.equal(await readFile(fixture.filePath, "utf8"), "old\n");
+      assert.equal(policyService.listStops(fixture.runId)[0]?.status, "completed");
+    } finally {
+      fixture.cleanup();
+      await rm(fixture.workspacePath, { recursive: true, force: true });
+    }
+  });
+
+  test("live provider denial and current workspace or Behavior ceilings prevent writes", async () => {
+    for (const scenario of ["deny", "read-only", "review"] as const) {
+      const fixture = await approvalFixture(`provider-${scenario}`);
+      try {
+        const execution = fixture.execute();
+        const stop = fixture.openStop();
+        if (scenario === "read-only") {
+          fixture.currentPolicy.writeAccess = "read-only";
+        } else if (scenario === "review") {
+          policyService.updateRunBehavior(fixture.runId, "review");
+        }
+        policyService.resolveStop(
+          createPolicyStopResolutionRequest(
+            stop,
+            scenario === "deny" ? "abort" : "approve_once",
+          ),
+        );
+
+        const result = await execution;
+        assert.equal(await readFile(fixture.filePath, "utf8"), "old\n");
+        assert.equal(await readFile(fixture.countPath, "utf8").catch(() => "0"), "0");
+        assert.match(
+          result.content,
+          scenario === "deny"
+            ? /Action cancelled|APPROVAL_DENIED/i
+            : scenario === "read-only"
+              ? /read-only|WORKSPACE_READ_ONLY/i
+              : /Review mode|MODE_READ_ONLY/i,
+        );
+      } finally {
+        fixture.cleanup();
+        await rm(fixture.workspacePath, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("approved direct ToolService call rejects changed identity and replay before side effects", async () => {
+    const calls: string[] = [];
+    const service = new ToolService();
+    const toolName = `approval_bound_edit_${Date.now()}`;
+    service.registerTool(fakeTool(toolName, calls, true));
+    const currentPolicy = workspacePolicy("approval-required");
+    const runId = `run-bound-${Date.now()}`;
+    const workspacePath = process.cwd();
+    policyService.registerRunContext({
+      runId,
+      workspaceId: currentPolicy.workspaceId,
+      workspacePath,
+      behaviorMode: "execute",
+      resolvePolicy: async () => ({ workspacePolicy: currentPolicy }),
+    });
+    const approvedArgs = { path: "README.md" };
+    const stop = policyService.createStop({
+      runId,
+      workspaceId: currentPolicy.workspaceId,
+      workspacePath,
+      toolName,
+      requiredCapability: "workspace.write",
+      operationArgs: approvedArgs,
+      severity: "warning",
+      policyId: "workspace.approval",
+      title: "Approval required",
+      explanation: "Approve once.",
+      kind: "file_write",
+      recommendation: "approve_once",
+      availableActions: ["approve_once", "abort"],
+    });
+    policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
+
+    const mismatch = await service.callTool(
+      toolName,
+      { path: "README.md", content: "changed" },
+      {
+        ...context("execute", "approval-required"),
+        workspacePath,
+        runId,
+        authority: {
+          behaviorMode: "execute",
+          workspacePolicy: currentPolicy,
+        },
+        approvedPolicyStopId: stop.id,
+      },
+    );
+    assert.match(mismatch, /does not match|operation_mismatch/i);
+    assert.deepEqual(calls, []);
+
+    const first = await service.callTool(toolName, approvedArgs, {
+      ...context("execute", "approval-required"),
+      workspacePath,
+      runId,
+      authority: {
+        behaviorMode: "execute",
+        workspacePolicy: currentPolicy,
+      },
+      approvedPolicyStopId: stop.id,
+    });
+    const replay = await service.callTool(toolName, approvedArgs, {
+      ...context("execute", "approval-required"),
+      workspacePath,
+      runId,
+      authority: {
+        behaviorMode: "execute",
+        workspacePolicy: currentPolicy,
+      },
+      approvedPolicyStopId: stop.id,
+    });
+    assert.match(first, /"ok":true/);
+    assert.match(replay, /already consumed|not_approved/i);
+    assert.deepEqual(calls, [toolName]);
+    policyService.closeRun(runId);
+  });
 });
+
+async function approvalFixture(label: string) {
+  const { executeAgentToolCall } = await import(
+    "./repo-service/agentic-runtime/tool-executor"
+  );
+  const workspacePath = await mkdtemp(join(tmpdir(), `mate-x-${label}-`));
+  const filePath = join(workspacePath, "README.md");
+  const countPath = join(workspacePath, "count.txt");
+  await writeFile(filePath, "old\n", "utf8");
+  await writeFile(
+    join(workspacePath, "verify.ts"),
+    'const path = "count.txt"; const current = Number(await Bun.file(path).text().catch(() => "0")); await Bun.write(path, String(current + 1));\n',
+    "utf8",
+  );
+  const currentPolicy = workspacePolicy("approval-required");
+  currentPolicy.allowedCommands.push("bun verify.ts");
+  const runId = `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  policyService.registerRunContext({
+    runId,
+    workspaceId: currentPolicy.workspaceId,
+    workspacePath,
+    behaviorMode: "execute",
+    resolvePolicy: async () => ({ workspacePolicy: currentPolicy }),
+  });
+  const execute = () =>
+    executeAgentToolCall({
+      toolCall: {
+        id: `${label}-call`,
+        name: "mutation",
+        arguments: JSON.stringify({
+          path: "README.md",
+          searchString: "old",
+          mutationString: "new",
+          verificationCommand: "bun verify.ts",
+        }),
+      },
+      toolIndex: 0,
+      iteration: 0,
+      snapshot: {
+        workspace: {
+          id: currentPolicy.workspaceId,
+          path: workspacePath,
+          name: "Repo",
+          branch: "main",
+          status: "ready",
+          stack: [],
+          facts: [],
+        },
+        trustContract: currentPolicy,
+        files: ["README.md"],
+        packageJson: null,
+        statusLines: [],
+        promptMatches: [],
+      },
+      events: [],
+      emitProgress: () => undefined,
+      appSettings: DEFAULT_APP_SETTINGS,
+      runId,
+      behaviorMode: "execute",
+    });
+  return {
+    currentPolicy,
+    execute,
+    countPath,
+    filePath,
+    openStop: () => {
+      const stop = policyService
+        .listStops(runId)
+        .find((candidate) => candidate.status === "open");
+      assert.ok(stop);
+      return stop;
+    },
+    runId,
+    workspacePath,
+    cleanup: () => policyService.closeRun(runId),
+  };
+}

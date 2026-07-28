@@ -3,8 +3,10 @@ import { describe, it } from "bun:test";
 
 import {
   CriticLoopExhaustedError,
+  HighImpactApprovalError,
   PrivacySentinelBlockError,
   SDKExecutionError,
+  SDKAuthorizationError,
   SDKOrchestrator,
 } from "./orchestration/sdk-orchestrator";
 import type {
@@ -15,6 +17,13 @@ import type {
   AgentSdkResult,
 } from "../contracts/sdk-orchestrator.types";
 import { createDefaultWorkspaceTrustContract } from "./workspace-trust";
+import { policyService } from "./policy-service";
+import {
+  createPolicyStopResolutionRequest,
+  type PolicyStop,
+} from "../contracts/policy";
+
+let integrationRunSequence = 0;
 
 describe("Electron SDK integration pipeline", () => {
   it("privacy_sentinel_blocks_before_sdk_call", async () => {
@@ -50,15 +59,7 @@ describe("Electron SDK integration pipeline", () => {
   });
 
   it("high_impact_action_triggers_policy_stop", async () => {
-    let approve: ((value: boolean) => void) | undefined;
-    const context = createIntegrationContext({
-      confirmHighImpact: async (action) => {
-        context.policyStops.push(action);
-        return new Promise<boolean>((resolve) => {
-          approve = resolve;
-        });
-      },
-    });
+    const context = createIntegrationContext({ manualApproval: true });
     context.clients.antigravity.results.push(successResult());
 
     const execution = context.execute({
@@ -66,15 +67,142 @@ describe("Electron SDK integration pipeline", () => {
       payload: { path: "src/main.ts" },
       agentId: "antigravity",
     });
-    await Promise.resolve();
-
+    const stop = context.policyStops.at(-1);
     assert.equal(context.policyStops.length, 1);
     assert.equal(context.clients.antigravity.calls.length, 0);
-    approve?.(true);
+    assert.ok(stop);
+    policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
+    policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
 
     const result = await execution;
     assert.equal(context.clients.antigravity.calls.length, 1);
     assert.equal(result.agentId, "antigravity");
+  });
+
+  it("sdk approval revalidates current Workspace Policy and Behavior", async () => {
+    for (const scenario of ["read-only", "review"] as const) {
+      const context = createIntegrationContext({ manualApproval: true });
+      const execution = context.execute({
+        actionType: "rewrite",
+        payload: { path: "README.md" },
+        agentId: "codex",
+      });
+      const stop = context.policyStops.at(-1);
+      assert.ok(stop);
+      if (scenario === "read-only") {
+        context.workspacePolicy.writeAccess = "read-only";
+      } else {
+        policyService.updateRunBehavior(stop.runId, "review");
+      }
+      policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
+
+      await assert.rejects(execution, SDKAuthorizationError);
+      assert.equal(context.clients.codex.calls.length, 0);
+    }
+  });
+
+  it("sdk pending approvals are scoped by run and workspace", async () => {
+    const first = createIntegrationContext({
+      manualApproval: true,
+      workspaceId: "sdk-workspace-shared",
+    });
+    const second = createIntegrationContext({
+      manualApproval: true,
+      workspaceId: "sdk-workspace-shared",
+    });
+    const otherWorkspace = createIntegrationContext({
+      manualApproval: true,
+      workspaceId: "sdk-workspace-other",
+    });
+    const firstExecution = first.execute({
+      actionType: "rewrite",
+      payload: { path: "README.md", content: "first" },
+      agentId: "codex",
+    });
+    const secondExecution = second.execute({
+      actionType: "rewrite",
+      payload: { path: "README.md", content: "second" },
+      agentId: "codex",
+    });
+    const otherWorkspaceExecution = otherWorkspace.execute({
+      actionType: "rewrite",
+      payload: { path: "README.md", content: "other" },
+      agentId: "codex",
+    });
+    const firstStop = first.policyStops.at(-1);
+    const secondStop = second.policyStops.at(-1);
+    const otherWorkspaceStop = otherWorkspace.policyStops.at(-1);
+    assert.ok(firstStop);
+    assert.ok(secondStop);
+    assert.ok(otherWorkspaceStop);
+    assert.notEqual(firstStop.runId, secondStop.runId);
+    assert.equal(
+      firstStop.operation.workspaceId,
+      secondStop.operation.workspaceId,
+    );
+    assert.notEqual(
+      firstStop.operation.workspaceId,
+      otherWorkspaceStop.operation.workspaceId,
+    );
+
+    policyService.resolveStop(
+      createPolicyStopResolutionRequest(firstStop, "approve_once"),
+    );
+    await firstExecution;
+    assert.equal(first.clients.codex.calls.length, 1);
+    assert.equal(second.clients.codex.calls.length, 0);
+    assert.equal(otherWorkspace.clients.codex.calls.length, 0);
+
+    policyService.resolveStop(
+      createPolicyStopResolutionRequest(secondStop, "abort"),
+    );
+    await assert.rejects(secondExecution, HighImpactApprovalError);
+    assert.equal(second.clients.codex.calls.length, 0);
+    policyService.resolveStop(
+      createPolicyStopResolutionRequest(otherWorkspaceStop, "abort"),
+    );
+    await assert.rejects(otherWorkspaceExecution, HighImpactApprovalError);
+    assert.equal(otherWorkspace.clients.codex.calls.length, 0);
+  });
+
+  it("sdk approval cannot authorize a materially changed pending operation", async () => {
+    const context = createIntegrationContext({ manualApproval: true });
+    const payload = { path: "README.md", content: "first" };
+    const execution = context.execute({
+      actionType: "rewrite",
+      payload,
+      agentId: "codex",
+    });
+    const stop = context.policyStops.at(-1);
+    assert.ok(stop);
+    payload.content = "second";
+    policyService.resolveStop(
+      createPolicyStopResolutionRequest(stop, "approve_once"),
+    );
+
+    await assert.rejects(execution, SDKAuthorizationError);
+    assert.equal(context.clients.codex.calls.length, 0);
+  });
+
+  it("cancelled SDK run cannot resume from a stale approval", async () => {
+    const context = createIntegrationContext({ manualApproval: true });
+    const controller = new AbortController();
+    const execution = context.execute(
+      {
+        actionType: "rewrite",
+        payload: { path: "README.md" },
+        agentId: "codex",
+      },
+      controller.signal,
+    );
+    const stop = context.policyStops.at(-1);
+    assert.ok(stop);
+    policyService.cancelRun(stop.runId);
+    controller.abort();
+    policyService.resolveStop(createPolicyStopResolutionRequest(stop, "approve_once"));
+
+    await assert.rejects(execution);
+    assert.equal(context.clients.codex.calls.length, 0);
   });
 
   it("vts_below_threshold_triggers_critic_retry", async () => {
@@ -114,8 +242,10 @@ describe("Electron SDK integration pipeline", () => {
 function createIntegrationContext(options: {
   secretCategories?: string[];
   config?: ConstructorParameters<typeof SDKOrchestrator>[0]["config"];
-  confirmHighImpact?: (action: AgentAction) => Promise<boolean>;
+  manualApproval?: boolean;
+  workspaceId?: string;
 } = {}) {
+  const workspaceId = options.workspaceId ?? "integration-workspace";
   const clients = {
     codex: new IntegrationClient("codex"),
     cursor: new IntegrationClient("cursor"),
@@ -123,9 +253,9 @@ function createIntegrationContext(options: {
   };
   const events: AgentActionEvidenceEvent[] = [];
   const failures: Array<{ errorSignature: string }> = [];
-  const policyStops: AgentAction[] = [];
+  const policyStops: PolicyStop[] = [];
   const orchestrator = new SDKOrchestrator({
-    workspaceId: "integration-workspace",
+    workspaceId,
     codexClient: clients.codex,
     cursorClient: clients.cursor,
     antigravityClient: clients.antigravity,
@@ -145,25 +275,56 @@ function createIntegrationContext(options: {
         failures.push({ errorSignature: failure.errorSignature });
       },
     },
-    confirmHighImpact: options.confirmHighImpact ?? (async (action) => {
-      policyStops.push(action);
-      return true;
-    }),
     config: options.config,
     now: () => new Date("2026-06-01T12:00:00.000Z"),
   });
   const workspacePolicy = createDefaultWorkspaceTrustContract(
-    "integration-workspace",
+    workspaceId,
     "Repo",
     { packageManager: "bun", hasPackageJson: true },
   );
   workspacePolicy.writeAccess = "workspace";
-  const execute = (request: Parameters<SDKOrchestrator["execute"]>[0]) =>
-    orchestrator.execute(request, {
-      authority: { behaviorMode: "execute", workspacePolicy },
+  const execute = (
+    request: Parameters<SDKOrchestrator["execute"]>[0],
+    signal?: AbortSignal,
+  ) => {
+    const runId = `sdk-integration-${integrationRunSequence += 1}`;
+    const workspacePath = "/tmp/sdk-integration-workspace";
+    policyService.registerRunContext({
+      runId,
+      workspaceId: workspacePolicy.workspaceId,
+      workspacePath,
+      behaviorMode: "execute",
+      resolvePolicy: async () => ({ workspacePolicy }),
     });
+    const execution = orchestrator.execute(request, {
+      authority: { behaviorMode: "execute", workspacePolicy },
+      signal,
+      runId,
+      workspaceId: workspacePolicy.workspaceId,
+      workspacePath,
+    });
+    const stop = policyService.listStops(runId).find((candidate) => candidate.status === "open");
+    if (stop) {
+      policyStops.push(stop);
+      if (!options.manualApproval) {
+        policyService.resolveStop(
+          createPolicyStopResolutionRequest(stop, "approve_once"),
+        );
+      }
+    }
+    return execution.finally(() => policyService.closeRun(runId));
+  };
 
-  return { clients, events, failures, policyStops, orchestrator, execute };
+  return {
+    clients,
+    events,
+    failures,
+    policyStops,
+    orchestrator,
+    execute,
+    workspacePolicy,
+  };
 }
 
 function successResult(): AgentSdkResult {

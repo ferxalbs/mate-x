@@ -117,7 +117,6 @@ export class MaTeXStorageAdapter {
         operation: "overwriteFile",
         path,
         reason: "Overwriting a remote object is destructive.",
-        allowHighImpact: options.allowHighImpact,
       });
     }
 
@@ -163,12 +162,11 @@ export class MaTeXStorageAdapter {
     });
   }
 
-  async deleteFile(path: string, allowHighImpact?: boolean): Promise<void> {
+  async deleteFile(path: string): Promise<void> {
     await this.options.approvalGate.requireApproval({
       operation: "deleteFile",
       path,
       reason: "Deleting a remote object is destructive.",
-      allowHighImpact,
     });
     await this.execute("delete", path, 0, async () => {
       await this.options.files.delete(path);

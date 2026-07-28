@@ -12,13 +12,17 @@ import {
   listEngineeringTasks,
 } from '../services/engineering-client';
 import type { AppSettings } from '../contracts/settings';
-import type { PolicyStop, PolicyStopAction } from '../contracts/policy';
+import {
+  createPolicyStopResolutionRequest,
+  type PolicyStop,
+  type PolicyStopAction,
+} from '../contracts/policy';
 import type { AssistantRunOptions } from '../contracts/chat';
 import { buildHomePageSubmission } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
 import { DEFAULT_BEHAVIOR_PREFERENCE, type BehaviorPreference } from '../contracts/behavior-mode';
 import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
-import { updateWorkspaceTrustContract } from '../services/repo-client';
+import { updateAssistantBehavior, updateWorkspaceTrustContract } from '../services/repo-client';
 import type { WorkspaceWriteAccess } from '../contracts/workspace';
 import { useVisibilityInterval } from '../hooks/use-visibility-interval';
 
@@ -36,6 +40,7 @@ export function HomePage() {
   const threadsByWorkspace = useChatStore((state) => state.threadsByWorkspace);
   const activeThreadIds = useChatStore((state) => state.activeThreadIds);
   const runStatus = useChatStore((state) => state.runStatus);
+  const activeRun = useChatStore((state) => state.activeRun);
   const isBootstrapped = useChatStore((state) => state.isBootstrapped);
   const lastError = useChatStore((state) => state.lastError);
   const importWorkspace = useChatStore((state) => state.importWorkspace);
@@ -53,7 +58,7 @@ export function HomePage() {
     messages.some((message) => message.role === 'user');
 
   async function handleResolvePolicyStop(stop: PolicyStop, action: PolicyStopAction) {
-    await resolvePolicyStop({ stopId: stop.id, action });
+    await resolvePolicyStop(createPolicyStopResolutionRequest(stop, action));
     setPendingPolicyStop(null);
   }
 
@@ -98,6 +103,9 @@ export function HomePage() {
       onBehaviorChange={(next) => {
         setBehavior(next);
         if (activeWorkspaceId) saveBehaviorPreference(activeWorkspaceId, next);
+        if (activeRun?.runId) {
+          void updateAssistantBehavior(activeRun.runId, next.mode);
+        }
       }}
       onTrustChange={async (writeAccess: WorkspaceWriteAccess) => {
         if (!trustContract) {
@@ -170,13 +178,22 @@ export function HomePage() {
   }, [refreshEngineeringTasks, runStatus, messages.length]);
 
   const refreshPolicyStops = useCallback(async () => {
+    if (!activeWorkspaceId || !workspace?.path) {
+      setPendingPolicyStop(null);
+      return;
+    }
     try {
-      const stops = await listPolicyStops();
-      setPendingPolicyStop(stops.find((stop) => stop.status === 'open') ?? null);
+      const stops = await listPolicyStops({
+        workspaceId: activeWorkspaceId,
+        runId: activeRun?.runId,
+      });
+      setPendingPolicyStop(
+        stops.find((stop) => stop.status === 'open') ?? null,
+      );
     } catch {
       setPendingPolicyStop(null);
     }
-  }, []);
+  }, [activeRun?.runId, activeWorkspaceId, workspace?.path]);
 
   useVisibilityInterval(refreshPolicyStops, 2_000, { runImmediately: false });
 

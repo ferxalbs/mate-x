@@ -43,7 +43,6 @@ export interface StorageUploadOptions {
   overwrite?: boolean;
   contentType?: string;
   metadata?: Record<string, string>;
-  allowHighImpact?: boolean;
 }
 
 export interface StorageDownloadOptions {
@@ -84,7 +83,6 @@ export interface StorageApprovalGate {
     operation: "deleteFile" | "overwriteFile";
     path: string;
     reason: string;
-    allowHighImpact?: boolean;
   }): Promise<void>;
 }
 

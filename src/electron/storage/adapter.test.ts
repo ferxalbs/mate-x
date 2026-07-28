@@ -56,13 +56,12 @@ describe("MaTeXStorageAdapter", () => {
     const context = testContext();
     const adapter = context.adapter();
 
-    await adapter.deleteFile("old.txt", true);
+    await adapter.deleteFile("old.txt");
 
     assert.deepEqual(context.approvals, [{
       operation: "deleteFile",
       path: "old.txt",
       reason: "Deleting a remote object is destructive.",
-      allowHighImpact: true,
     }]);
     assert.deepEqual(context.files.deleted, ["old.txt"]);
   });
@@ -71,7 +70,7 @@ describe("MaTeXStorageAdapter", () => {
     const context = testContext();
     const adapter = context.adapter();
 
-    await adapter.uploadFile("existing.txt", "new", { overwrite: true, allowHighImpact: true });
+    await adapter.uploadFile("existing.txt", "new", { overwrite: true });
 
     assert.equal(context.approvals[0]?.operation, "overwriteFile");
     assert.equal(context.files.uploads[0]?.key, "existing.txt");
@@ -113,7 +112,6 @@ function testContext(options: {
     operation: "deleteFile" | "overwriteFile";
     path: string;
     reason: string;
-    allowHighImpact?: boolean;
   }> = [];
   const files = new MemoryFilesSdkClient(options.uploadError);
 

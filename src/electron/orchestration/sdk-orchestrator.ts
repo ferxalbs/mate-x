@@ -20,6 +20,7 @@ import {
   resolveOperationAuthorization,
   type ExecutionAuthorityContext,
 } from "../capability-resolver";
+import { policyService } from "../policy-service";
 
 const AGENTS: AgentId[] = ["codex", "cursor", "antigravity"];
 const DEFAULT_MIN_VTS = 0.85;
@@ -37,8 +38,10 @@ interface ActionMetric {
 export interface SDKOrchestratorExecutionContext {
   evidenceRecorder?: SDKOrchestratorDependencies["evidenceRecorder"];
   failureMemory?: SDKOrchestratorDependencies["failureMemory"];
-  confirmHighImpact?: SDKOrchestratorDependencies["confirmHighImpact"];
   authority?: ExecutionAuthorityContext;
+  runId?: string;
+  workspaceId?: string;
+  workspacePath?: string;
   signal?: AbortSignal;
 }
 
@@ -146,39 +149,120 @@ export class SDKOrchestrator {
         authorization.outcome.summary,
       );
     }
+    let approvedPolicyStopId: string | undefined;
     if (authorization.decision === "needs_approval") {
-      const approved = await (
-        context.confirmHighImpact ?? this.deps.confirmHighImpact
-      )(action, context.signal);
-      if (!approved) {
+      if (!context.runId || !context.workspaceId || !context.workspacePath) {
+        throw new SDKAuthorizationError(
+          "APPROVAL_CONTEXT_REQUIRED",
+          "SDK approval requires a scoped run and workspace context.",
+        );
+      }
+      const stop = policyService.createStop({
+        runId: context.runId,
+        workspaceId: context.workspaceId,
+        workspacePath: context.workspacePath,
+        toolName: `sdk:${action.agentId}`,
+        requiredCapability: authorization.capability,
+        operationArgs: sdkAuthorityArgs(action),
+        severity: "critical",
+        policyId: authorization.code,
+        title: authorization.summary,
+        explanation: authorization.summary,
+        kind: "tool_call",
+        command: action.actionType,
+        recommendation: "approve_once",
+        availableActions: ["approve_once", "abort", "safer_alternative"],
+      });
+      let resolved;
+      try {
+        resolved = await policyService.waitForResolution(stop.id, context.signal);
+      } catch (error) {
+        policyService.markStopFailed(stop.id);
+        throw error;
+      }
+      if (resolved.resolution?.action !== "approve_once") {
+        policyService.markStopCompleted(stop.id);
         throw new HighImpactApprovalError();
       }
+      const currentAuthority = await policyService.resolveCurrentAuthority({
+        runId: context.runId,
+        workspaceId: context.workspaceId,
+        workspacePath: context.workspacePath,
+      });
+      if (!currentAuthority) {
+        policyService.markStopFailed(stop.id);
+        throw new SDKAuthorizationError(
+          "APPROVAL_CONTEXT_STALE",
+          "The approved SDK operation no longer has an active execution context.",
+        );
+      }
+      const currentAuthorization = resolveOperationAuthorization({
+        operationName: `sdk:${action.agentId}`,
+        args: sdkAuthorityArgs(action),
+        capability: "sensitive.execute",
+        ...currentAuthority,
+      });
+      if (currentAuthorization.decision === "blocked") {
+        policyService.markStopFailed(stop.id);
+        throw new SDKAuthorizationError(
+          currentAuthorization.outcome.blocker.code,
+          currentAuthorization.outcome.summary,
+        );
+      }
+      const consumption = policyService.consumeApprovedOperation({
+        stopId: stop.id,
+        runId: context.runId,
+        workspaceId: context.workspaceId,
+        workspacePath: context.workspacePath,
+        operationName: `sdk:${action.agentId}`,
+        requiredCapability: currentAuthorization.capability,
+        args: sdkAuthorityArgs(action),
+      });
+      if (!consumption.consumed) {
+        policyService.markStopFailed(stop.id);
+        throw new SDKAuthorizationError(
+          "APPROVAL_OPERATION_MISMATCH",
+          "Approval does not match this SDK operation or was already consumed.",
+        );
+      }
+      approvedPolicyStopId = stop.id;
     }
 
-    const payloadHash = sha256(canonicalJson(action.payload));
-    const privacyScan = await this.deps.privacySentinel.scan(canonicalJson(action.payload));
-    if (privacyScan.hasSecrets) {
-      const error = new PrivacySentinelBlockError(privacyScan.categories);
-      await this.evidenceRecorder(context).appendAgentActionEvent({
-        type: "AGENT_ACTION_BLOCKED",
-        agentId: action.agentId,
-        actionType: action.actionType,
-        timestamp: this.nowIso(),
-        payloadHash,
-        detectedCategories: privacyScan.categories,
-        errorCode: error.code,
-        errorMessage: error.message,
-      });
-      await this.recordFailure(
-        action,
-        `${action.agentId}:PRIVACY_BLOCK:${privacyScan.categories.join(",")}`,
-        error.message,
-        context,
-      );
+    try {
+      const payloadHash = sha256(canonicalJson(action.payload));
+      const privacyScan = await this.deps.privacySentinel.scan(canonicalJson(action.payload));
+      if (privacyScan.hasSecrets) {
+        const error = new PrivacySentinelBlockError(privacyScan.categories);
+        await this.evidenceRecorder(context).appendAgentActionEvent({
+          type: "AGENT_ACTION_BLOCKED",
+          agentId: action.agentId,
+          actionType: action.actionType,
+          timestamp: this.nowIso(),
+          payloadHash,
+          detectedCategories: privacyScan.categories,
+          errorCode: error.code,
+          errorMessage: error.message,
+        });
+        await this.recordFailure(
+          action,
+          `${action.agentId}:PRIVACY_BLOCK:${privacyScan.categories.join(",")}`,
+          error.message,
+          context,
+        );
+        throw error;
+      }
+
+      const result = await this.executeWithCriticLoop(action, payloadHash, context);
+      if (approvedPolicyStopId) {
+        policyService.markStopCompleted(approvedPolicyStopId);
+      }
+      return result;
+    } catch (error) {
+      if (approvedPolicyStopId) {
+        policyService.markStopFailed(approvedPolicyStopId);
+      }
       throw error;
     }
-
-    return this.executeWithCriticLoop(action, payloadHash, context);
   }
 
   getRoutingRecommendations(): RoutingRecommendations {
@@ -449,6 +533,7 @@ function sdkAuthorityArgs(action: AgentAction): Record<string, unknown> {
       : {};
   return {
     ...payload,
+    actionType: action.actionType,
   };
 }
 

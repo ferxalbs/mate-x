@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { getConfigSnapshot, getStack } from '../main-stack';
 import { bootstrapWorkspaceState } from '../repo-service/workspace';
+import { policyService } from '../policy-service';
 import { IPC } from '../preload/contracts';
 import type { AgentActionRequest, EvidencePackStoragePublishInput, MaTeXConfig } from '../../contracts';
 import {
@@ -112,19 +113,40 @@ export function registerMaTeXStackIpcHandlers() {
     }
     try {
       const workspace = await bootstrapWorkspaceState();
-      if (!workspace.trustContract) {
+      if (!workspace.workspace || !workspace.trustContract) {
         throw new Error('An active workspace policy is required for SDK execution.');
       }
-      return await getStack().orchestrator.execute(
-        agentActionSchema.parse(payload) as AgentActionRequest,
-        {
-          signal: controller.signal,
-          authority: {
-            behaviorMode: 'execute',
-            workspacePolicy: workspace.trustContract,
-          },
+      const runId = `sdk-ipc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      policyService.registerRunContext({
+        runId,
+        workspaceId: workspace.workspace.id,
+        workspacePath: workspace.workspace.path,
+        behaviorMode: 'execute',
+        resolvePolicy: async () => {
+          const current = await bootstrapWorkspaceState();
+          if (!current.trustContract) {
+            throw new Error('An active workspace policy is required for SDK execution.');
+          }
+          return { workspacePolicy: current.trustContract };
         },
-      );
+      });
+      try {
+        return await getStack().orchestrator.execute(
+          agentActionSchema.parse(payload) as AgentActionRequest,
+          {
+            signal: controller.signal,
+            authority: {
+              behaviorMode: 'execute',
+              workspacePolicy: workspace.trustContract,
+            },
+            runId,
+            workspaceId: workspace.workspace.id,
+            workspacePath: workspace.workspace.path,
+          },
+        );
+      } finally {
+        policyService.closeRun(runId);
+      }
     } finally {
       event.sender.removeListener("destroyed", onDestroyed);
     }

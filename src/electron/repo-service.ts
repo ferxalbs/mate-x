@@ -21,7 +21,7 @@ import type { AgentRoutingRecommendation } from "../contracts/agent-capability-p
 import { resolveAssistantRunOptions, resolveRunbookDefinition, toAssistantRunbookId } from "./assistant-runbooks";
 import { canQueryDomain } from "./workspace-trust";
 import { buildAgentCapabilityRunMetrics, recommendAgentModel } from "./agent-capability-profiler";
-import { collectRepoSnapshot } from "./repo-service/workspace";
+import { collectRepoSnapshot, getWorkspaceTrustContract } from "./repo-service/workspace";
 import { buildArtifacts, buildFallbackResponse, buildWorkspaceMemoryArtifacts, executeAgentToolCall, parseDirectDeepAnalysisPipelineArgs, parseDirectSecurityPathTraceArgs, requestRainyAgenticResponse, resolveDefaultRainyRuntimeConfig } from "./repo-service/agentic-runtime";
 import { buildWorkEngineArtifactSnapshot, loadCompliancePolicySources } from "./repo-service/work-engine-artifacts";
 import { getRainyServiceTierOptions } from "../contracts/rainy";
@@ -31,6 +31,7 @@ import {
   getSDKOrchestratorReadinessError,
 } from "./sdk-orchestrator-state";
 import { resolveRunIntentOutcome } from "./capability-resolver";
+import { policyService } from "./policy-service";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -68,6 +69,7 @@ export async function runAssistant(
   const startedAt = Date.now();
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
+  const effectiveRunId = progressReporter?.runId ?? `assistant-${Date.now()}`;
   const workingSet = await workingSetCompiler.compile({
     prompt,
     workspace: snapshot.workspace,
@@ -109,6 +111,25 @@ export async function runAssistant(
   const planningPhase =
     resolvedOptions.behaviorMode !== "execute" ||
     awaitingTaskApproval;
+  policyService.registerRunContext({
+    runId: effectiveRunId,
+    workspaceId: snapshot.workspace.id,
+    workspacePath: snapshot.workspace.path,
+    behaviorMode: resolvedOptions.behaviorMode,
+    resolvePolicy: async () => {
+      let currentTaskStatus = engineeringTaskStatus;
+      if (resolvedOptions.engineeringTaskId) {
+        const { getEngineeringRepository } = await import("./engineering/repository");
+        currentTaskStatus =
+          getEngineeringRepository().getTask(resolvedOptions.engineeringTaskId)?.status ??
+          null;
+      }
+      return {
+        workspacePolicy: await getWorkspaceTrustContract(snapshot.workspace.id),
+        engineeringTaskStatus: currentTaskStatus,
+      };
+    },
+  });
   const runbookDefinition = resolveRunbookDefinition(
     resolvedOptions.runbookId ?? toAssistantRunbookId(workPlan.runbook),
   );
@@ -321,7 +342,7 @@ export async function runAssistant(
       events,
       emitProgress,
       appSettings,
-      runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+      runId: effectiveRunId,
       engineeringTaskStatus,
       behaviorMode: resolvedOptions.behaviorMode,
     });
@@ -354,7 +375,7 @@ export async function runAssistant(
       events,
       emitProgress,
       appSettings,
-      runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+      runId: effectiveRunId,
       engineeringTaskStatus,
       behaviorMode: resolvedOptions.behaviorMode,
     });
@@ -387,6 +408,9 @@ export async function runAssistant(
         workspacePolicy: snapshot.trustContract,
         engineeringTaskStatus,
       },
+      runId: effectiveRunId,
+      workspaceId: snapshot.workspace.id,
+      workspacePath: snapshot.workspace.path,
     });
     content = typeof sdkResult.output === "string" ? sdkResult.output : JSON.stringify(sdkResult.output, null, 2);
     toolExecutions = [
@@ -448,7 +472,7 @@ export async function runAssistant(
         runbookDefinition,
         emitProgress,
         appSettings,
-        runId: progressReporter?.runId ?? `assistant-${Date.now()}`,
+        runId: effectiveRunId,
         signal: progressReporter?.signal,
         engineeringTaskStatus,
         planningPhase,
@@ -540,7 +564,6 @@ export async function runAssistant(
   // Stable taskId generated early and tied to the runId (when provided by caller).
   // This makes the .mate-x/evidence/<taskId> dir predictable, survives chat reloads/history,
   // and enables true standalone pack listing/browsing independent of message objects.
-  const effectiveRunId = progressReporter?.runId ?? `run-${Date.now()}`;
   const taskId = `task-${effectiveRunId}`;
   const baseEvidencePack = await buildEvidencePack({
     workspacePath: snapshot.workspace.path,
@@ -700,7 +723,7 @@ export async function runAssistant(
   });
   const artifactResult = await persistWorkEngineRunArtifactSafely({
     appDataRoot: app.getPath("userData"),
-    runId: progressReporter?.runId ?? taskId,
+    runId: effectiveRunId,
     workspaceId: snapshot.workspace.id,
     model: configuredModel ? { provider: "rainy", id: configuredModel } : undefined,
     snapshot: buildWorkEngineArtifactSnapshot({
@@ -839,7 +862,7 @@ export async function runAssistant(
     };
     await persistWorkEngineRunArtifactSafely({
       appDataRoot: app.getPath("userData"),
-      runId: progressReporter?.runId ?? `assistant-failed-${Date.now()}`,
+      runId: effectiveRunId,
       workspaceId: snapshot.workspace.id,
       snapshot: buildWorkEngineArtifactSnapshot({
         prompt,
@@ -878,6 +901,8 @@ export async function runAssistant(
         workingSet,
       },
     };
+  } finally {
+    policyService.closeRun(effectiveRunId);
   }
 }
 
