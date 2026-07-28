@@ -104,10 +104,7 @@ export async function runAssistant(
       engineeringTaskStatus = null;
     }
   }
-  const { isPreApprovalStatus } = await import("../contracts/engineering-phase-result");
-  const awaitingTaskApproval = Boolean(
-    engineeringTaskStatus && isPreApprovalStatus(engineeringTaskStatus),
-  );
+  const awaitingTaskApproval = engineeringTaskStatus === "awaiting_approval";
   const planningPhase =
     resolvedOptions.behaviorMode !== "execute" ||
     awaitingTaskApproval;

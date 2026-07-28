@@ -1,5 +1,4 @@
 import type { EngineeringTaskStatus } from "../contracts/engineering-task";
-import { isPreApprovalStatus } from "../contracts/engineering-phase-result";
 import type {
   AgentBlockReason,
   AgentOutcome,
@@ -173,8 +172,7 @@ export function resolveOperationAuthorization(input: {
   }
 
   if (
-    input.engineeringTaskStatus &&
-    isPreApprovalStatus(input.engineeringTaskStatus) &&
+    input.engineeringTaskStatus === "awaiting_approval" &&
     capability !== "workspace.read" &&
     capability !== "network.access"
   ) {

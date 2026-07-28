@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, test } from "bun:test";
+import { describe, mock, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -145,6 +145,157 @@ describe("ToolService execution authority", () => {
     assert.match(readOnly, /Workspace is read-only/i);
     assert.match(allowed, /"ok":true/);
     assert.deepEqual(calls, ["test_edit_boundary"]);
+  });
+
+  test("provider file_editor enforces all four write policies through runtime exactly once", async () => {
+    mock.module("electron", (() => ({
+      app: {
+        getPath: () => tmpdir(),
+        isPackaged: false,
+      },
+      safeStorage: {
+        decryptString: () => "",
+        encryptString: (value: string) => Buffer.from(value),
+        isEncryptionAvailable: () => false,
+      },
+      shell: {
+        openExternal: async () => true,
+      },
+    })) as any);
+    const { executeAgentToolCall } = await import(
+      "./repo-service/agentic-runtime/tool-executor"
+    );
+    const scenarios = [
+      {
+        label: "execute-workspace",
+        behaviorMode: "execute",
+        writeAccess: "workspace",
+        expected: "allowed",
+      },
+      {
+        label: "execute-ask",
+        behaviorMode: "execute",
+        writeAccess: "approval-required",
+        expected: "approval",
+      },
+      {
+        label: "execute-read-only",
+        behaviorMode: "execute",
+        writeAccess: "read-only",
+        expected: "blocked",
+      },
+      {
+        label: "review-workspace",
+        behaviorMode: "review",
+        writeAccess: "workspace",
+        expected: "blocked",
+      },
+    ] as const;
+
+    for (const scenario of scenarios) {
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), `mate-x-file-editor-${scenario.label}-`),
+      );
+      const filePath = join(workspacePath, "README.md");
+      const policy = workspacePolicy(scenario.writeAccess);
+      const runId = `${scenario.label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await writeFile(filePath, "base\n", "utf8");
+      policyService.registerRunContext({
+        runId,
+        workspaceId: policy.workspaceId,
+        workspacePath,
+        behaviorMode: scenario.behaviorMode,
+        resolvePolicy: async () => ({
+          workspacePolicy: policy,
+          engineeringTaskStatus: "captured",
+        }),
+      });
+
+      try {
+        const execution = executeAgentToolCall({
+          toolCall: {
+            id: `${scenario.label}-call`,
+            name: "file_editor",
+            arguments: JSON.stringify({
+              path: "README.md",
+              operation: "append",
+              newContent: "temporary\n",
+            }),
+          },
+          toolIndex: 0,
+          iteration: 0,
+          snapshot: {
+            workspace: {
+              id: policy.workspaceId,
+              path: workspacePath,
+              name: "Repo",
+              branch: "main",
+              status: "ready",
+              stack: [],
+              facts: [],
+            },
+            trustContract: policy,
+            files: ["README.md"],
+            packageJson: null,
+            statusLines: [],
+            promptMatches: [],
+          },
+          events: [],
+          emitProgress: () => undefined,
+          appSettings: DEFAULT_APP_SETTINGS,
+          runId,
+          engineeringTaskStatus: "captured",
+          behaviorMode: scenario.behaviorMode,
+        });
+
+        if (scenario.expected === "approval") {
+          const stops = policyService.listStops(runId);
+          assert.equal(stops.length, 1);
+          assert.equal(stops[0]?.policyId, "WORKSPACE_APPROVAL_REQUIRED");
+          assert.equal(stops[0]?.operation.requiredCapability, "workspace.write");
+          policyService.resolveStop(
+            createPolicyStopResolutionRequest(stops[0]!, "approve_once"),
+          );
+        }
+
+        const result = await execution;
+        const content = await readFile(filePath, "utf8");
+        const stops = policyService.listStops(runId);
+        const occurrenceCount = content.split("temporary\n").length - 1;
+        if (scenario.expected === "allowed") {
+          assert.equal(result.outcome, undefined);
+          assert.equal(stops.length, 0);
+          assert.equal(occurrenceCount, 1, result.content);
+        } else if (scenario.expected === "approval") {
+          assert.equal(result.outcome, undefined);
+          assert.equal(stops.length, 1);
+          assert.equal(stops[0]?.status, "completed");
+          assert.equal(occurrenceCount, 1, result.content);
+        } else {
+          assert.equal(result.outcome?.status, "blocked");
+          assert.equal(stops.length, 0);
+          assert.equal(occurrenceCount, 0);
+          if (scenario.behaviorMode === "review") {
+            assert.equal(
+              result.outcome?.status === "blocked"
+                ? result.outcome.blocker.code
+                : undefined,
+              "MODE_READ_ONLY",
+            );
+          } else {
+            assert.equal(
+              result.outcome?.status === "blocked"
+                ? result.outcome.blocker.code
+                : undefined,
+              "WORKSPACE_READ_ONLY",
+            );
+          }
+        }
+      } finally {
+        policyService.closeRun(runId);
+        await rm(workspacePath, { recursive: true, force: true });
+      }
+    }
   });
 
   test("manually constructed calls without authority never execute", async () => {

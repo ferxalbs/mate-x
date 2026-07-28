@@ -106,13 +106,13 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
     hasPackageJson: true,
   });
 
-  it("Execute still respects EngineeringTask approval gate", () => {
+  it("Execute respects an EngineeringTask that is actually awaiting approval", () => {
     const decision = resolveToolAuthorization({
       toolName: "file_editor",
       args: { path: "src/lib/id.ts" },
       behaviorMode: "execute",
       workspacePolicy,
-      engineeringTaskStatus: "captured",
+      engineeringTaskStatus: "awaiting_approval",
     });
     assert.equal(decision.decision, "needs_approval");
   });
@@ -201,13 +201,13 @@ describe("Founder approval-gated workflow [A–M + amendments]", () => {
       false,
     );
 
-    // E. mutation tool before approval rejected
+    // E. an actual awaiting-approval task rejects mutation
     const denied = resolveToolAuthorization({
       toolName: "file_editor",
       args: { path: "src/x.ts" },
       behaviorMode: "execute",
       workspacePolicy,
-      engineeringTaskStatus: "captured",
+      engineeringTaskStatus: "awaiting_approval",
     });
     assert.equal(denied.decision, "needs_approval");
     const allowedRead = resolveToolAuthorization({
