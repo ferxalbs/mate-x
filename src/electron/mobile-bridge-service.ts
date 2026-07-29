@@ -209,7 +209,7 @@ class MobileBridgeService {
       "",
     ].join("\r\n"));
     const client: ClientConnection = { socket, sessionId: null, buffer: Buffer.alloc(0) };
-    socket.on("data", (chunk) => this.handleSocketData(client, chunk));
+    socket.on("data", (chunk) => this.handleSocketData(client, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
     socket.on("error", () => socket.destroy());
   }
 

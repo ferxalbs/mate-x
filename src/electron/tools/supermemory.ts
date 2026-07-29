@@ -50,9 +50,9 @@ export const supermemoryTool: Tool = {
 
         case "search": {
           if (!query) return "Error: 'query' is required for 'search' action.";
-          const searchResult = await sm.search.execute({
+          const searchResult = await sm.search({
             q: query,
-            containerTags: [tag],
+            containerTag: tag,
           });
           return JSON.stringify(searchResult, null, 2);
         }

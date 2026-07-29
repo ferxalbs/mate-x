@@ -207,10 +207,11 @@ export const redosAnalyzerTool: Tool = {
         }
       });
 
-      worker.on('error', (err) => {
+      worker.on('error', (err: unknown) => {
         clearTimeout(timeout);
         worker.terminate();
-        resolve(`Worker error: ${err.message}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        resolve(`Worker error: ${msg}`);
       });
     });
   },
