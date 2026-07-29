@@ -38,7 +38,7 @@ export function RepoHealthSection({
       </div>
       <div
         className={cn(
-          "control-surface rounded-2xl border border-border/40 px-3.5 py-3 shadow-none bg-card text-card-foreground",
+          "rounded-2xl border border-border/40 px-3.5 py-3 shadow-none bg-mate-control-bg text-card-foreground",
           toneSurfaceClassName(verdict.tone),
         )}
       >
@@ -50,7 +50,7 @@ export function RepoHealthSection({
         </p>
       </div>
       {workspace ? (
-        <div className="control-surface rounded-2xl border border-border/40 bg-card text-card-foreground px-3.5 py-3 shadow-none">
+        <div className="rounded-2xl border border-border/40 bg-mate-control-bg text-card-foreground px-3.5 py-3 shadow-none">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Workspace
           </p>
@@ -70,7 +70,7 @@ export function RepoHealthSection({
           <HealthSignalCell signal={signal} key={signal.label} />
         ))}
       </dl>
-      <div className="control-surface break-words rounded-2xl border border-border/40 bg-card text-card-foreground px-3.5 py-2.5 text-[12px] text-muted-foreground">
+      <div className="break-words rounded-2xl border border-border/40 bg-mate-control-bg text-card-foreground px-3.5 py-2.5 text-[12px] text-muted-foreground">
         {action}
       </div>
     </section>
@@ -81,25 +81,23 @@ export function RepoHealthSection({
 
 function HealthSignalCell({ signal }: { signal: RepoHealthSignal }) {
   return (
-    <Card
+    <div
       className={cn(
-        "control-surface min-w-0 rounded-xl border border-border/40 bg-card text-card-foreground shadow-none hover:border-border transition-all duration-150",
+        "min-w-0 rounded-2xl border border-border/40 bg-mate-control-bg text-card-foreground px-3 py-2 shadow-none hover:border-foreground/25 transition-all duration-150",
       )}
     >
-      <CardContent className="px-2.5 py-2">
-        <dt className="flex items-center justify-between gap-2 text-muted-foreground">
-          <span className="truncate">{signal.label}</span>
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              toneDotClassName(signal.tone),
-            )}
-          />
-        </dt>
-        <dd className="mt-1 truncate font-medium text-foreground" title={signal.value}>
-          {signal.value}
-        </dd>
-      </CardContent>
-    </Card>
+      <dt className="flex items-center justify-between gap-2 text-muted-foreground text-[10px] font-semibold uppercase tracking-wider">
+        <span className="truncate">{signal.label}</span>
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            toneDotClassName(signal.tone),
+          )}
+        />
+      </dt>
+      <dd className="mt-1 truncate font-medium text-[13px] text-foreground" title={signal.value}>
+        {signal.value}
+      </dd>
+    </div>
   );
 }

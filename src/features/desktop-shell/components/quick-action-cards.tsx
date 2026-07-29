@@ -6,6 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import { useTheme } from "../../../hooks/use-theme";
 import { cn } from "../../../lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../components/ui/tooltip";
 
 interface QuickActionCardProps {
   icon: ReactNode;
@@ -51,29 +52,41 @@ function QuickActionCard({
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <motion.button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      title={`${title}: ${evidence}`}
-      variants={variants}
-      whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.96 }}
-      transition={{ type: "spring", stiffness: 450, damping: 28 }}
-      className={cn(
-        "group relative flex items-center gap-2 rounded-full border border-border/40 px-3.5 py-1.5 text-left shadow-none transition-all duration-150 ease-out hover:border-foreground/25 hover:bg-foreground/[0.08] motion-reduce:transform-none cursor-pointer",
-        blurEnabled ? "mate-glass-float" : "bg-foreground/[0.03]",
-        disabled && "cursor-not-allowed opacity-50",
-      )}
-    >
-      <div className="shrink-0 text-muted-foreground/80 transition-colors duration-150 group-hover:text-foreground">
-        {icon}
-      </div>
-      <span className="text-[12.5px] font-medium leading-none tracking-tight text-foreground/85 transition-colors duration-150 group-hover:text-foreground">
-        {title}
-      </span>
-      <span className="sr-only">{evidence}</span>
-    </motion.button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <motion.button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            variants={variants}
+            whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
+            whileTap={shouldReduceMotion ? undefined : { scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 450, damping: 28 }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-full border border-border/40 px-3.5 py-1.5 text-left shadow-none transition-all duration-150 ease-out hover:border-foreground/25 hover:bg-foreground/[0.08] motion-reduce:transform-none cursor-pointer",
+              blurEnabled ? "mate-glass-float" : "bg-foreground/[0.03]",
+              disabled && "cursor-not-allowed opacity-50",
+            )}
+          />
+        }
+      >
+        <div className="shrink-0 text-muted-foreground/80 transition-colors duration-150 group-hover:text-foreground">
+          {icon}
+        </div>
+        <span className="text-[12.5px] font-medium leading-none tracking-tight text-foreground/85 transition-colors duration-150 group-hover:text-foreground">
+          {title}
+        </span>
+        <span className="sr-only">{evidence}</span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        sideOffset={6}
+        className="rounded-full border border-border/40 px-3 py-1 text-[11px] text-muted-foreground shadow-none max-w-[260px] leading-snug"
+      >
+        <span>{evidence}</span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

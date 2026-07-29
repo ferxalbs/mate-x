@@ -3,24 +3,20 @@ import React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { Switch } from "./switch"
 
-describe("Apple-designed Switch component", () => {
+describe("HeroUI Switch component", () => {
   it("renders basic unchecked switch correctly", () => {
     const html = renderToStaticMarkup(<Switch checked={false}>Dark mode</Switch>)
     expect(html).toContain('data-slot="switch"')
-    expect(html).toContain('data-slot="switch-thumb"')
-    expect(html).toContain('data-slot="switch-content"')
     expect(html).toContain("Dark mode")
   })
 
-  it("renders controlled selected switch without tacky glows", () => {
+  it("renders controlled selected switch correctly", () => {
     const html = renderToStaticMarkup(
       <Switch checked={true} color="success" size="lg">
         Enable Notifications
       </Switch>
     )
-    expect(html).toContain('data-checked=""')
-    expect(html).toContain("data-checked:bg-[#34c759]")
-    expect(html).not.toContain("shadow-[0_0_12px")
+    expect(html).toContain('data-selected="true"')
     expect(html).toContain("Enable Notifications")
   })
 

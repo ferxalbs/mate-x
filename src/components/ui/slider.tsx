@@ -1,9 +1,19 @@
-import { Slider as SliderPrimitive } from "@base-ui/react/slider"
+"use client";
 
-import { cn } from "@/lib/utils"
+import { Slider as HeroUISlider, Label } from "@heroui/react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { cn } from "~/lib/utils";
 
-type SliderProps = SliderPrimitive.Root.Props & {
-  thumbLabel?: string
+export interface SliderProps
+  extends Omit<ComponentPropsWithoutRef<typeof HeroUISlider>, "onChange"> {
+  label?: ReactNode;
+  showValueLabel?: boolean;
+  min?: number;
+  max?: number;
+  thumbLabel?: string;
+  onValueChange?: (value: number | number[]) => void;
+  onChange?: (value: number | number[]) => void;
+  disabled?: boolean;
 }
 
 function Slider({
@@ -12,9 +22,28 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  minValue,
+  maxValue,
+  step = 1,
   thumbLabel = "Slider value",
+  label,
+  showValueLabel = false,
+  onValueChange,
+  onChange,
+  disabled,
+  isDisabled,
+  orientation = "horizontal",
   ...props
 }: SliderProps) {
+  const actualMin = minValue ?? min;
+  const actualMax = maxValue ?? max;
+  const actualDisabled = isDisabled ?? disabled;
+
+  const handleChange = (val: number | number[]) => {
+    onValueChange?.(val);
+    onChange?.(val);
+  };
+
   const values = Array.isArray(value)
     ? value
     : typeof value === "number"
@@ -23,40 +52,42 @@ function Slider({
         ? defaultValue
         : typeof defaultValue === "number"
           ? [defaultValue]
-          : [min]
+          : [actualMin];
 
   return (
-    <SliderPrimitive.Root
-      className={cn("data-horizontal:w-full data-vertical:h-full", className)}
-      data-slot="slider"
+    <HeroUISlider
+      className={cn("w-full max-w-xs", className)}
       defaultValue={defaultValue}
+      isDisabled={actualDisabled}
+      maxValue={actualMax}
+      minValue={actualMin}
+      onChange={handleChange}
+      orientation={orientation}
+      step={step}
       value={value}
-      min={min}
-      max={max}
-      thumbAlignment="edge"
       {...props}
     >
-      <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col">
-        <SliderPrimitive.Track
-          data-slot="slider-track"
-          className="relative grow overflow-hidden rounded-2xl bg-input/90 select-none data-horizontal:h-1 data-horizontal:w-full data-vertical:h-full data-vertical:w-1"
-        >
-          <SliderPrimitive.Indicator
-            data-slot="slider-range"
-            className="bg-primary select-none data-horizontal:h-full data-vertical:w-full"
-          />
-        </SliderPrimitive.Track>
+      {label ? <Label>{label}</Label> : null}
+      {showValueLabel ? <HeroUISlider.Output /> : null}
+      <HeroUISlider.Track
+        className={cn(
+          orientation === "horizontal"
+            ? "data-[fill-start=true]:border-s-primary data-[fill-end=true]:border-e-primary"
+            : "data-[fill-start=true]:border-b-primary data-[fill-end=true]:border-t-primary"
+        )}
+      >
+        <HeroUISlider.Fill className="bg-primary" />
         {Array.from({ length: values.length }, (_, index) => (
-          <SliderPrimitive.Thumb
+          <HeroUISlider.Thumb
             aria-label={thumbLabel}
-            data-slot="slider-thumb"
+            index={index}
             key={index}
-            className="block size-4 shrink-0 rounded-2xl bg-white shadow-md ring-1 ring-black/10 transition-[color,box-shadow] duration-[var(--motion-menu)] ease-[var(--ease-out)] select-none not-dark:bg-clip-padding hover:ring-4 hover:ring-ring/30 focus-visible:ring-4 focus-visible:ring-ring/30 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+            className="bg-primary"
           />
         ))}
-      </SliderPrimitive.Control>
-    </SliderPrimitive.Root>
-  )
+      </HeroUISlider.Track>
+    </HeroUISlider>
+  );
 }
 
-export { Slider }
+export { Slider };

@@ -1,6 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Task01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 
 
 import { Card, CardContent } from "../../../components/ui/card";
@@ -223,6 +224,8 @@ export function EnhancementPanel({
     );
   }, [topbarShipStatus, trustGate, shipStatusMode]);
 
+  const shouldReduceMotion = useReducedMotion();
+
   if (!workspaceId) {
     return null;
   }
@@ -232,9 +235,9 @@ export function EnhancementPanel({
   }
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-[60] flex h-full w-[min(316px,calc(100vw-32px))] shrink-0 border-l border-[var(--panel-border)]/45 bg-transparent min-[1275px]:static min-[1275px]:z-auto min-[1275px]:w-[292px] 2xl:w-[316px]">
+    <aside className="fixed inset-y-0 right-0 z-[60] flex h-full w-[min(316px,calc(100vw-32px))] shrink-0 border-l border-border/30 bg-background min-[1275px]:static min-[1275px]:z-auto min-[1275px]:w-[292px] 2xl:w-[316px]">
       <div className="flex min-h-0 w-full flex-col">
-        <div className="border-b border-[var(--panel-border)]/45 px-4 py-4 bg-transparent">
+        <div className="border-b border-border/30 px-4 py-3 bg-transparent">
           <PanelHeader
             activeRunTitle={runtime.activeRunTitle}
             eventCount={runtime.events.length}
@@ -256,74 +259,81 @@ export function EnhancementPanel({
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="px-4 py-4">
-          {activeGroup === "status" ? (
-            showActiveGate ? (
-              <TrustGateCard
-                isRunning={runtime.isRunning}
-                onMakeTrustworthy={onMakeTrustworthy}
-                onReviewChanges={() => setActiveView("review")}
-                state={trustGate}
-              />
-            ) : (
-              <ShipStatusStrip
-                isRunning={runtime.isRunning}
-                onMakeTrustworthy={onMakeTrustworthy}
-                onReviewLater={() => setCollapsed(true)}
-                state={trustGate}
-              />
-            )
-          ) : null}
-          {activeGroup === "review" ? (
-            <ReviewQueueSection
-              changedFiles={changedFiles}
-              impactedFiles={impactedFiles}
-              isLoading={loading}
-              onMapChanges={runEnhancementScan}
-              state={trustGate}
-              summary={summary}
-            />
-          ) : null}
-          {activeGroup === "details" ? (
-            <DetailsSection
-              commands={commands}
-              evidencePack={runtime.evidencePack}
-              hasProfile={Boolean(health)}
-              nextAction={health?.recommendedNextAction}
-              signals={repoSignals}
-              tests={tests}
-              workspace={workspace}
-            />
-          ) : null}
-          {activeGroup === "advanced" ? (
-            <div className="mt-4">
-              <EvidencePackSection
-                changedFiles={changedFiles}
-                commands={commands}
-                evidenceFiles={evidenceFiles}
-                evidencePack={runtime.evidencePack}
-                impactedFiles={impactedFiles}
-                score={verifiedScore}
-                summary={summary}
-              />
-            </div>
-          ) : null}
+          <LazyMotion features={domMax} strict>
+            <AnimatePresence mode="wait" initial={false}>
+              <m.div
+                key={activeGroup}
+                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -5 }}
+                transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                className="px-4 py-4"
+              >
+                {activeGroup === "status" ? (
+                  showActiveGate ? (
+                    <TrustGateCard
+                      isRunning={runtime.isRunning}
+                      onMakeTrustworthy={onMakeTrustworthy}
+                      onReviewChanges={() => setActiveView("review")}
+                      state={trustGate}
+                    />
+                  ) : (
+                    <ShipStatusStrip
+                      isRunning={runtime.isRunning}
+                      onMakeTrustworthy={onMakeTrustworthy}
+                      onReviewLater={() => setCollapsed(true)}
+                      state={trustGate}
+                    />
+                  )
+                ) : null}
+                {activeGroup === "review" ? (
+                  <ReviewQueueSection
+                    changedFiles={changedFiles}
+                    impactedFiles={impactedFiles}
+                    isLoading={loading}
+                    onMapChanges={runEnhancementScan}
+                    state={trustGate}
+                    summary={summary}
+                  />
+                ) : null}
+                {activeGroup === "details" ? (
+                  <DetailsSection
+                    commands={commands}
+                    evidencePack={runtime.evidencePack}
+                    hasProfile={Boolean(health)}
+                    nextAction={health?.recommendedNextAction}
+                    signals={repoSignals}
+                    tests={tests}
+                    workspace={workspace}
+                  />
+                ) : null}
+                {activeGroup === "advanced" ? (
+                  <div className="mt-4">
+                    <EvidencePackSection
+                      changedFiles={changedFiles}
+                      commands={commands}
+                      evidenceFiles={evidenceFiles}
+                      evidencePack={runtime.evidencePack}
+                      impactedFiles={impactedFiles}
+                      score={verifiedScore}
+                      summary={summary}
+                    />
+                  </div>
+                ) : null}
 
-          {error ? (
-            <Card className="mt-3 border-destructive/40 shadow-none bg-destructive/5">
-              <CardContent className="px-3 py-2 text-[12px] text-destructive">
-                {error}
-              </CardContent>
-            </Card>
-          ) : !runtime.evidencePack && activeGroup === "advanced" ? (
-            <Card className="mt-3 border-border/70 bg-[var(--mate-control-bg)] shadow-none">
-              <CardContent className="mate-text-secondary px-3 py-2">
-                <HugeiconsIcon icon={Task01Icon} className="mr-1 inline size-4" />
-                Ship Proof appears after verified run completes.
-              </CardContent>
-            </Card>
-          ) : null}
-          </div>
+                {error ? (
+                  <div className="mt-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-[12px] text-destructive shadow-none">
+                    {error}
+                  </div>
+                ) : !runtime.evidencePack && activeGroup === "advanced" ? (
+                  <div className="mt-3 rounded-2xl border border-border/40 bg-mate-control-bg p-3 text-[12px] text-muted-foreground shadow-none">
+                    <HugeiconsIcon icon={Task01Icon} className="mr-1.5 inline size-4 text-primary" />
+                    Ship Proof appears after verified run completes.
+                  </div>
+                ) : null}
+              </m.div>
+            </AnimatePresence>
+          </LazyMotion>
         </ScrollArea>
       </div>
     </aside>

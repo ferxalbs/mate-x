@@ -11,7 +11,7 @@ export function TonePill({ label, tone }: { label: string; tone: SignalTone }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-tight",
+        "shrink-0 rounded-full border border-border/40 bg-foreground/[0.03] px-2.5 py-0.5 text-[10.5px] font-medium tracking-tight",
         toneTextClassName(tone),
       )}
     >
@@ -52,12 +52,10 @@ export function PanelTitle({
 
 export function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground shadow-none">
-      <CardContent className="px-2.5 py-2">
-        <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
-        <dd className="mt-0.5 text-[15px] font-bold tabular-nums text-foreground">{value}</dd>
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-border/40 bg-mate-control-bg px-3 py-2 text-card-foreground shadow-none">
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-[14px] font-semibold tabular-nums text-foreground">{value}</dd>
+    </div>
   );
 }
 

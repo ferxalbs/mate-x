@@ -7,7 +7,7 @@ import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { ImpactSummary, SignalTone } from "./enhancement-panel-utils";
 import { cn } from "../../../lib/utils";
 import { Card, CardContent } from "../../../components/ui/card";
-import { PanelTitle, SkeletonStack } from "./enhancement-panel-primitives";
+import { PanelTitle, SkeletonStack, TonePill } from "./enhancement-panel-primitives";
 import {
   cleanVerdictLabel,
   getSecurityRiskTone,
@@ -78,7 +78,7 @@ export function EvidencePackSection({
           verdict={verdict}
         />
       ) : null}
-      <div className="control-surface rounded-2xl border border-border/50 bg-card/60 text-card-foreground shadow-none divide-y divide-border/30 overflow-hidden">
+      <div className="rounded-2xl border border-border/40 bg-mate-control-bg text-card-foreground shadow-none divide-y divide-border/20 overflow-hidden">
         <EvidenceRow
           label="Files touched"
           tone={filesCount > 0 ? "good" : "warn"}
@@ -139,59 +139,53 @@ export function EvidencePackSection({
                 : "good"
           }
           value={
-            runFailed
-              ? "Incomplete"
-              : lowConfidence
-                ? "Not validated"
-                : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
+            runFailed || lowConfidence
+              ? "Not validated"
+              : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
           }
         />
       </div>
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
-        <Card className="control-surface rounded-2xl border border-border/40 bg-card/60 text-card-foreground shadow-none">
-          <CardContent className="px-3.5 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
-            Local repo signals show {fallbackFileCount} changed file
-            {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
-            command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
-            Ship Proof has been generated for this run yet.
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl border border-border/40 bg-mate-control-bg p-3.5 text-[11.5px] leading-relaxed text-muted-foreground shadow-none">
+          Local repo signals show {fallbackFileCount} changed file
+          {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
+          command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
+          Ship Proof has been generated for this run yet.
+        </div>
       ) : null}
-      <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
-        <CardContent className="p-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Compliance Actions
-          </p>
-          <button
-            className="control-surface mt-2 flex min-h-8.5 w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 text-[12px] font-semibold text-foreground transition-all duration-150 hover:bg-card/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
-            disabled={!canExportCompliance}
-            onClick={() => {
-              const taskId = evidencePack?.attestation?.taskId;
-              if (taskId)
-                void window.mate.repo.generateComplianceReport({ taskId });
-            }}
-            title="Export SOC 2 / Procurement Package"
-            type="button"
-          >
-            <HugeiconsIcon icon={File01Icon} className="size-4 text-primary" />
-            Generate Compliance Report
-          </button>
-          <button
-            className="control-surface mt-2 flex min-h-8.5 w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 text-[12px] font-semibold text-foreground transition-all duration-150 hover:bg-card/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-55"
-            disabled={!canExportCompliance}
-            onClick={() => {
-              const taskId = evidencePack?.attestation?.taskId;
-              if (taskId)
-                void window.mate.repo.generateComplianceReport({ taskId });
-            }}
-            title="Export Agent Runbook"
-            type="button"
-          >
-            <HugeiconsIcon icon={File01Icon} className="size-4 text-primary" />
-            Export Agent Runbook
-          </button>
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl border border-border/40 bg-mate-control-bg p-3.5 text-card-foreground shadow-none">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Compliance Actions
+        </p>
+        <button
+          className="mt-2 flex min-h-8.5 w-full items-center justify-center gap-2 rounded-full border border-border/40 bg-foreground/[0.03] px-3 py-2 text-[12px] font-medium text-foreground transition-all duration-150 hover:bg-foreground/[0.08] hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          disabled={!canExportCompliance}
+          onClick={() => {
+            const taskId = evidencePack?.attestation?.taskId;
+            if (taskId)
+              void window.mate.repo.generateComplianceReport({ taskId });
+          }}
+          title="Export SOC 2 / Procurement Package"
+          type="button"
+        >
+          <HugeiconsIcon icon={File01Icon} className="size-4 text-primary" />
+          Generate Compliance Report
+        </button>
+        <button
+          className="mt-2 flex min-h-8.5 w-full items-center justify-center gap-2 rounded-full border border-border/40 bg-foreground/[0.03] px-3 py-2 text-[12px] font-medium text-foreground transition-all duration-150 hover:bg-foreground/[0.08] hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          disabled={!canExportCompliance}
+          onClick={() => {
+            const taskId = evidencePack?.attestation?.taskId;
+            if (taskId)
+              void window.mate.repo.generateComplianceReport({ taskId });
+          }}
+          title="Export Agent Runbook"
+          type="button"
+        >
+          <HugeiconsIcon icon={File01Icon} className="size-4 text-primary" />
+          Export Agent Runbook
+        </button>
+      </div>
     </section>
   );
 }
@@ -224,42 +218,32 @@ function EvidenceConfidenceCard({
       : "Needs evidence";
 
   return (
-    <Card
+    <div
       className={cn(
-        "control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none",
+        "rounded-2xl border border-border/30 bg-muted/15 p-3 text-card-foreground shadow-none",
         toneSurfaceClassName(hasVerifiedScore ? scoreTone : "watch"),
       )}
     >
-      <CardContent className="p-3.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
           Proof Confidence
-        </p>
-        <div className="mt-1 flex items-baseline gap-1">
-          <span
-            className={cn(
-              hasVerifiedScore ? "text-3xl" : "text-[17px]",
-              "break-words font-semibold leading-7",
-              toneValueClassName(hasVerifiedScore ? scoreTone : "watch"),
-            )}
-          >
-            {label}
-          </span>
-          {hasVerifiedScore ? (
-            <span className="text-[12px] text-muted-foreground">/100</span>
-          ) : null}
-        </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-          {getEvidenceScoreReason(
-            hasVerifiedScore ? score : null,
-            verdict,
-            runFailed,
-            commandCount,
-            filesCount,
-            scoreBreakdown,
-          )}
-        </p>
-      </CardContent>
-    </Card>
+        </span>
+        <TonePill
+          label={hasVerifiedScore ? `${score}/100` : label}
+          tone={hasVerifiedScore ? scoreTone : "watch"}
+        />
+      </div>
+      <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground/90">
+        {getEvidenceScoreReason(
+          hasVerifiedScore ? score : null,
+          verdict,
+          runFailed,
+          commandCount,
+          filesCount,
+          scoreBreakdown,
+        )}
+      </p>
+    </div>
   );
 }
 

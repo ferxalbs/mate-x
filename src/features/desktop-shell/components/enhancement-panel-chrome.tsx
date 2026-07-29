@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, GitBranchIcon } from "@hugeicons/core-free-icons";
+import { GitBranchIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import { LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 
 
@@ -43,7 +43,7 @@ export function PanelHeader({
           <h2 className="truncate text-[13px] font-semibold tracking-tight text-foreground">
             Live
           </h2>
-          <div className="flex items-center gap-1.5 rounded-full border border-border/50 bg-accent/30 px-2 py-0.5">
+          <div className="flex items-center gap-1.5 rounded-full border border-border/40 bg-mate-control-bg px-2.5 py-0.5">
             <span
               className={cn(
                 "size-1.5 rounded-full",
@@ -56,7 +56,7 @@ export function PanelHeader({
                       : "bg-muted-foreground/50",
               )}
             />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {eventCount} events
             </span>
           </div>
@@ -67,22 +67,22 @@ export function PanelHeader({
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <Button
-          className="control-surface h-7.5 rounded-xl border border-border/70 bg-card px-2.5 text-[11.5px] font-medium text-foreground shadow-none hover:border-border transition-all duration-150 active:scale-[0.97]"
+          className="h-7.5 rounded-full border border-border/40 bg-mate-control-bg px-3 text-[11.5px] font-medium text-foreground shadow-none hover:border-foreground/25 hover:bg-foreground/[0.08] transition-all duration-150 active:scale-[0.97]"
           disabled={isLoading}
           onClick={onScan}
           size="xs"
           variant="outline"
         >
-          <HugeiconsIcon icon={GitBranchIcon} className="size-3.5" />
+          <HugeiconsIcon icon={GitBranchIcon} className="size-3.5 text-primary" />
           {isLoading ? "Processing" : "Scan"}
         </Button>
         <button
           aria-label="Hide enhancement panel"
-          className="control-surface flex size-7.5 items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground hover:text-foreground hover:border-border transition-all duration-150 active:scale-[0.97]"
+          className="flex size-7.5 items-center justify-center rounded-full border border-border/40 bg-mate-control-bg text-muted-foreground hover:text-foreground hover:border-foreground/25 hover:bg-foreground/[0.08] transition-all duration-150 active:scale-[0.97]"
           onClick={onCollapse}
           type="button"
         >
-          <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />
+          <HugeiconsIcon icon={SidebarLeftIcon} className="size-3.5 rotate-180" />
         </button>
       </div>
     </div>
@@ -102,32 +102,33 @@ export function PanelTabs({
 
   return (
     <LazyMotion features={domMax} strict>
-      <div className="control-surface mt-3 flex items-center justify-between gap-0.5 rounded-xl border border-border/70 bg-card/60 p-0.5">
+      <div className="mt-3 flex items-center justify-between gap-1 rounded-2xl border border-border/40 bg-mate-control-bg p-1 shadow-none">
         {tabs.map((view) => (
           <m.button
             className={cn(
-              "relative flex h-7 flex-1 items-center justify-center rounded-lg text-[11.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              "relative flex h-7.5 flex-1 items-center justify-center rounded-xl text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               activeView === view.id
                 ? "text-foreground font-semibold"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground hover:text-foreground font-medium",
             )}
             key={view.id}
             onClick={() => onChange(view.id)}
-            transition={RESPONSIVE_SPRING}
             type="button"
             whileHover={
-              reducedMotion ? undefined : { transform: "scale(1.01)" }
+              reducedMotion ? undefined : { scale: 1.02 }
             }
             whileTap={
-              reducedMotion ? undefined : { transform: "scale(0.97)" }
+              reducedMotion ? undefined : { scale: 0.97 }
             }
           >
             {activeView === view.id && (
               <m.div
-                className="control-surface absolute inset-0 rounded-lg border border-border/70 bg-card shadow-xs"
+                className="absolute inset-0 rounded-xl border border-border/50 bg-foreground/[0.08] text-foreground shadow-xs"
                 layoutId="activeTabEnhancement"
                 transition={
-                  reducedMotion ? { duration: 0 } : RESPONSIVE_SPRING
+                  reducedMotion
+                    ? { duration: 0 }
+                    : { type: "spring", stiffness: 450, damping: 30 }
                 }
               />
             )}
