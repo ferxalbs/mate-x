@@ -1,28 +1,28 @@
 @variant dark {
   color-scheme: dark;
-  /* Canonical dark canvas — entire app chrome uses pure #111111. */
-  --background: #111111;
-  --foreground: color-mix(in srgb, white 92%, #c8cbd4 8%);
-  --card: #111111;
+  /* Dark depth scale: neutral-950 canvas, subtly lifted cards. */
+  --background: var(--color-neutral-950);
+  --foreground: var(--color-neutral-100);
+  --card: color-mix(in srgb, var(--background) 97%, var(--color-white));
   --card-foreground: var(--color-neutral-100);
-  --popover: #111111;
+  --popover: color-mix(in srgb, var(--background) 94%, var(--color-white));
   --popover-foreground: var(--color-neutral-100);
-  --primary: oklch(0.68 0.09 145);
+  --primary: oklch(0.588 0.217 264);
   --primary-foreground: var(--color-white);
-  --secondary: color-mix(in srgb, white 4%, transparent);
+  --secondary: color-mix(in srgb, var(--color-white) 4%, transparent);
   --secondary-foreground: var(--color-neutral-100);
-  --muted: color-mix(in srgb, white 4%, transparent);
-  --muted-foreground: color-mix(in srgb, #9499a6 88%, white 15%);
+  --muted: color-mix(in srgb, var(--color-white) 4%, transparent);
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-white));
   --text-operational: var(--foreground);
   --text-secondary: var(--muted-foreground);
   --text-metadata: var(--muted-foreground);
-  --accent: color-mix(in srgb, white 4%, transparent);
+  --accent: color-mix(in srgb, var(--color-white) 4%, transparent);
   --accent-foreground: var(--color-neutral-100);
   --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
-  --border: color-mix(in srgb, white 8%, transparent);
-  --input: color-mix(in srgb, white 9%, transparent);
-  --ring: oklch(0.68 0.09 145);
-  --destructive-foreground: var(--color-red-400);
+  --border: color-mix(in srgb, var(--color-white) 6%, transparent);
+  --input: color-mix(in srgb, var(--color-white) 8%, transparent);
+  --ring: oklch(0.588 0.217 264);
+  --destructive-foreground: #ffffff;
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-400);
   --success: var(--color-emerald-500);
@@ -30,20 +30,22 @@
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-400);
 
-  /* Stronger glass on elevated controls over flat #111 canvas. */
-  --blur-opacity: 0.7;
-  --glass-blur: 20px;
-  --glass-saturate: 1.65;
-  --glass-tint: 0.7;
-  --glass-tint-strong: 0.82;
+  /* Dark glass is slightly deeper and less saturated over neutral-950. */
+  --blur-opacity: 80%;
+  --glass-opacity: 80%;
+  --glass-blur: 16px;
+  --glass-saturation: 1.08;
+  --glass-saturate: var(--glass-saturation);
+  --glass-tint: var(--glass-opacity);
+  --glass-tint-strong: 0.90;
   --control-glass-blur: 14px;
   --control-glass-tint: 0.68;
   --overlay-glass-blur: 18px;
   --overlay-glass-tint: 0.10;
   --glass-bg: var(--control);
-  --ambient-a: color-mix(in srgb, var(--primary) 14%, #111111);
-  --ambient-b: color-mix(in srgb, #6366f1 10%, #111111);
-  --ambient-c: #111111;
+  --ambient-a: color-mix(in srgb, var(--primary) 12%, var(--background));
+  --ambient-b: color-mix(in srgb, #6366f1 8%, var(--background));
+  --ambient-c: var(--background);
 
   /* Refined Code Highlighting (Dark) */
   --code-bg: #0d0e11;
@@ -57,26 +59,55 @@
   --code-tag: #ff6188;
   --code-class: #78dce8;
 
-  /* Flat #111 app chrome — matches window backing. */
-  --app-chrome-background: #111111;
+  /* Sidebar anchors the dark layout as pure pitch black (#000000). */
+  --app-chrome-background: var(--background);
   --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
-  --sidebar: #111111;
+  --sidebar: #000000;
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
-  --sidebar-accent: color-mix(in srgb, white 6%, transparent);
+  --sidebar-muted-foreground: var(--muted-foreground);
+  --sidebar-border: color-mix(in srgb, var(--color-white) 6%, transparent);
+  --sidebar-row-hover: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --sidebar-row-active: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --sidebar-row-selected: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --sidebar-accent: var(--sidebar-row-hover);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-ring: var(--ring);
-  --surface: #111111;
-  --surface-soft: color-mix(in srgb, white 3%, #111111);
-  --panel: #111111;
-  --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --sidebar-control-surface: color-mix(in srgb, var(--color-white) 4%, transparent);
+  --sidebar-stage-fade: #000000;
+  --surface: var(--background);
+  --surface-soft: color-mix(in srgb, var(--color-white) 3%, var(--background));
+  --panel: var(--card);
+  --panel-border: var(--border);
   /*
-   * Elevated control exception (~#1a1a1a family from screenshot).
+   * Elevated control exception (white 4% over neutral-950).
    * Inputs / selects / composer fill sit above the flat canvas.
    */
-  --control: #1a1a1a;
-  --titlebar: #111111;
-  --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
+  --control: color-mix(in srgb, var(--color-white) 4%, var(--background));
+  --titlebar: var(--background);
+  --titlebar-border: transparent;
+}
+
+.dark [data-sidebar-version="v1"],
+.dark [data-sidebar-version="v2"] {
+  --background: #000;
+  --foreground: #f1f3f7;
+  --card: #000;
+  --card-foreground: var(--foreground);
+  --accent: #191a1d;
+  --accent-foreground: #f7f9ff;
+  --muted: #0a0a0a;
+  --muted-foreground: #a3a3a3;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 18%);
+  --sidebar: #000;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-muted-foreground: var(--muted-foreground);
+  --sidebar-control-surface: var(--muted);
+  --sidebar-row-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --sidebar-row-active: color-mix(in srgb, var(--foreground) 11%, transparent);
+  --sidebar-row-selected: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --sidebar-border: var(--border);
+  --sidebar-stage-fade: #000;
 }

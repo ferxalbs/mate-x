@@ -694,7 +694,7 @@ export function SettingsPage() {
             "drag-region sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 px-4",
             appSettings.vibrancyMode === 'special'
               ? "mate-glass-float border-b border-border/70"
-              : "bg-[var(--titlebar)] border-b border-[var(--titlebar-border)]",
+              : "bg-[var(--titlebar)] border-b border-transparent",
             state === "collapsed" && platform === "mac" && "pl-[88px]",
             platform === "windows" && "pr-[138px]"
           )}

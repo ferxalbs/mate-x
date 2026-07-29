@@ -63,9 +63,9 @@ export function Metric({ label, value }: { label: string; value: number }) {
 
 export function SkeletonStack() {
   return (
-    <div className="space-y-2">
-      <div className="h-10 animate-pulse rounded-2xl border border-border/70 bg-[var(--mate-control-bg)] motion-reduce:animate-none" />
-      <div className="h-8 w-4/5 animate-pulse rounded-2xl border border-border/70 bg-[var(--mate-control-bg)] motion-reduce:animate-none" />
+    <div className="space-y-1.5 py-1">
+      <div className="h-4 w-full animate-pulse rounded-md bg-muted/40 motion-reduce:animate-none" />
+      <div className="h-3.5 w-3/4 animate-pulse rounded-md bg-muted/30 motion-reduce:animate-none" />
     </div>
   );
 }

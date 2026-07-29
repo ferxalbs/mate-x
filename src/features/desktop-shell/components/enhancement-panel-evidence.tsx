@@ -78,24 +78,78 @@ export function EvidencePackSection({
           verdict={verdict}
         />
       ) : null}
-      <EvidenceRow
-        label="Files touched"
-        tone={filesCount > 0 ? "good" : "warn"}
-        value={fileLabel}
-      />
-      <EvidenceRow
-        label="Commands"
-        tone={commandCount > 0 ? "good" : "warn"}
-        value={commandLabel}
-      />
-      <EvidenceRow
-        label="Score basis"
-        tone={scoreBreakdown.total > 0 ? scoreTone : "warn"}
-        value={formatScoreBasis(scoreBreakdown)}
-      />
+      <div className="control-surface rounded-2xl border border-border/50 bg-card/60 text-card-foreground shadow-none divide-y divide-border/30 overflow-hidden">
+        <EvidenceRow
+          label="Files touched"
+          tone={filesCount > 0 ? "good" : "warn"}
+          value={fileLabel}
+        />
+        <EvidenceRow
+          label="Commands"
+          tone={commandCount > 0 ? "good" : "warn"}
+          value={commandLabel}
+        />
+        <EvidenceRow
+          label="Score basis"
+          tone={scoreBreakdown.total > 0 ? scoreTone : "warn"}
+          value={formatScoreBasis(scoreBreakdown)}
+        />
+        <EvidenceRow
+          label="Security risk"
+          tone={securityTone}
+          value={cleanVerdictLabel(verdict)}
+        />
+        <EvidenceRow
+          label="Evidence confidence"
+          tone={scoreTone}
+          value={getConfidenceLabel(score, runFailed)}
+        />
+        <EvidenceRow
+          label="Compliance"
+          tone={
+            evidencePack?.attestation?.status === "signed"
+              ? "good"
+              : evidencePack?.attestation
+                ? "warn"
+                : "muted"
+          }
+          value={
+            evidencePack?.attestation?.status === "signed"
+              ? "Attestation ready"
+              : (evidencePack?.attestation?.status ?? "Pending")
+          }
+        />
+        <EvidenceRow
+          label="Blast radius"
+          tone={impactTone(blastRadius)}
+          value={blastRadius}
+        />
+        <EvidenceRow
+          label="Verdict"
+          tone={scoreTone}
+          value={runFailed ? verdict : getVerdictReadiness(score)}
+        />
+        <EvidenceRow
+          label="Risk log"
+          tone={
+            runFailed || lowConfidence
+              ? "bad"
+              : (evidencePack?.unresolvedRisks?.length ?? 0) > 0
+                ? "warn"
+                : "good"
+          }
+          value={
+            runFailed
+              ? "Incomplete"
+              : lowConfidence
+                ? "Not validated"
+                : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
+          }
+        />
+      </div>
       {!evidencePack && (fallbackFileCount > 0 || fallbackCommandCount > 0) ? (
-        <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
-          <CardContent className="px-3.5 py-3 text-[11.5px] leading-relaxed text-muted-foreground">
+        <Card className="control-surface rounded-2xl border border-border/40 bg-card/60 text-card-foreground shadow-none">
+          <CardContent className="px-3.5 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
             Local repo signals show {fallbackFileCount} changed file
             {fallbackFileCount === 1 ? "" : "s"} and {fallbackCommandCount} possible
             command signal{fallbackCommandCount === 1 ? "" : "s"}, but no
@@ -103,58 +157,6 @@ export function EvidencePackSection({
           </CardContent>
         </Card>
       ) : null}
-      <EvidenceRow
-        label="Security risk"
-        tone={securityTone}
-        value={cleanVerdictLabel(verdict)}
-      />
-      <EvidenceRow
-        label="Evidence confidence"
-        tone={scoreTone}
-        value={getConfidenceLabel(score, runFailed)}
-      />
-      <EvidenceRow
-        label="Compliance"
-        tone={
-          evidencePack?.attestation?.status === "signed"
-            ? "good"
-            : evidencePack?.attestation
-              ? "warn"
-              : "muted"
-        }
-        value={
-          evidencePack?.attestation?.status === "signed"
-            ? "Attestation ready"
-            : (evidencePack?.attestation?.status ?? "Pending")
-        }
-      />
-      <EvidenceRow
-        label="Blast radius"
-        tone={impactTone(blastRadius)}
-        value={blastRadius}
-      />
-      <EvidenceRow
-        label="Verdict"
-        tone={scoreTone}
-        value={runFailed ? verdict : getVerdictReadiness(score)}
-      />
-      <EvidenceRow
-        label="Risk log"
-        tone={
-          runFailed || lowConfidence
-            ? "bad"
-            : (evidencePack?.unresolvedRisks?.length ?? 0) > 0
-              ? "warn"
-              : "good"
-        }
-        value={
-          runFailed
-            ? "Incomplete"
-            : lowConfidence
-              ? "Not validated"
-              : `${evidencePack?.unresolvedRisks?.length ?? 0} unresolved`
-        }
-      />
       <Card className="control-surface rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none">
         <CardContent className="p-3.5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -299,18 +301,16 @@ function EvidenceRow({
   value: string;
 }) {
   return (
-    <Card className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground shadow-none hover:border-border transition-all duration-150">
-      <CardContent className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-[12.5px]">
-        <span className="text-muted-foreground font-medium">{label}</span>
-        <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold">
-          <HugeiconsIcon
-            icon={CheckmarkCircle01Icon}
-            className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
-          />
-          <span className="truncate text-foreground">{value}</span>
-        </span>
-      </CardContent>
-    </Card>
+    <div className="flex items-center justify-between gap-3 px-3.5 py-2 text-[12px] transition-colors hover:bg-accent/20">
+      <span className="text-muted-foreground font-medium">{label}</span>
+      <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold">
+        <HugeiconsIcon
+          icon={CheckmarkCircle01Icon}
+          className={cn("size-3.5 shrink-0", toneValueClassName(tone))}
+        />
+        <span className="truncate text-foreground">{value}</span>
+      </span>
+    </div>
   );
 }
 

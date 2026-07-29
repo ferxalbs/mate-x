@@ -485,7 +485,7 @@ export function ComposerPanel({
             className={cn(
               "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold shadow-none transition-[background-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] active:scale-[0.97] motion-reduce:transform-none",
               isRunning
-                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                ? "bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:text-white dark:hover:bg-red-700 shadow-sm"
                 : actionDisabled
                   ? "cursor-not-allowed bg-foreground/5 text-foreground/30"
                   : "bg-foreground text-background hover:bg-foreground/90",

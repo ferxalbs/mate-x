@@ -618,6 +618,16 @@ label:has(> select#reasoning-effort) select {
   --glass-bg: color-mix(in srgb, var(--app-dynamic-muted, var(--control)) 5%, var(--control));
 }
 
+/* Sidebar hierarchy: hover stays on the sidebar tint, active rows lift to card. */
+.app-sidebar-container [data-slot="menu-button"][data-active="true"],
+.app-sidebar-container [aria-current="page"] {
+  background-color: var(--sidebar-row-active, var(--sidebar-accent)) !important;
+}
+
+.app-sidebar-container [data-slot="menu-button"][data-selected="true"] {
+  background-color: var(--sidebar-row-selected, var(--sidebar-row-active, var(--sidebar-accent))) !important;
+}
+
 /*
  * Sidebar mode: glass on sidebar only (single layer over ambient).
  * Main stays fully opaque so form controls never wash out.

@@ -38,7 +38,7 @@ export function TrustGateCard({
   return (
     <Card
       className={cn(
-        "control-surface mb-4 rounded-2xl border border-border/70 bg-card text-card-foreground shadow-none",
+        "control-surface mb-4 rounded-2xl border border-border/40 bg-card text-card-foreground shadow-none",
         toneSurfaceClassName(state.tone),
       )}
     >
@@ -68,7 +68,7 @@ function OutcomeCheck({ map }: { map: OutcomeMap }) {
   const critical = map.entries.filter((entry) => entry.state === "missing" || entry.state === "violated" || entry.state === "weak").slice(0, 2);
   const drift = map.scopeDrift.slice(0, 1);
   return (
-    <div className="mt-3 rounded-2xl border border-border/70 bg-panel px-3 py-2 text-[13px]">
+    <div className="mt-3 rounded-2xl border border-border/40 bg-panel px-3 py-2 text-[13px]">
       <p className="mate-text-metadata">Outcome check</p>
       <p className="mt-1 font-medium text-foreground">{proven} proven{critical.length ? ` · ${critical.length} needs check` : " · Ready"}</p>
       {critical.map((entry) => <p className="mt-1 break-words text-muted-foreground" key={entry.outcomeId}><span className="font-medium text-foreground">{entry.state === "violated" ? "Blocked" : entry.state === "weak" ? "Evidence is weak" : "Missing"}</span> {entry.statement}</p>)}
@@ -112,7 +112,7 @@ export function ShipStatusStrip({
           : "Needs check";
 
   return (
-    <div className="control-surface mb-3 rounded-2xl border border-border/70 bg-card text-card-foreground p-3.5 shadow-none">
+    <div className="control-surface mb-3 rounded-2xl border border-border/40 bg-card text-card-foreground p-3.5 shadow-none">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Repo Safety
@@ -134,7 +134,7 @@ export function ShipStatusStrip({
           </button>
         ) : null}
         <button
-          className="control-surface h-7.5 rounded-xl border border-border/70 bg-card px-3 text-[11.5px] font-medium text-muted-foreground transition-all duration-150 hover:text-foreground hover:border-border active:scale-[0.97]"
+          className="control-surface h-7.5 rounded-xl border border-border/40 bg-card px-3 text-[11.5px] font-medium text-muted-foreground transition-all duration-150 hover:text-foreground hover:border-border active:scale-[0.97]"
           onClick={onReviewLater}
           type="button"
         >
@@ -167,7 +167,7 @@ function TrustGateFactGrid({ facts }: { facts: TrustGateFact[] }) {
   return (
     <dl className="mt-3 grid grid-cols-2 gap-2">
       {facts.map((fact) => (
-        <div className="control-surface rounded-xl border border-border/70 bg-card text-card-foreground px-2.5 py-2" key={fact.label}>
+        <div className="control-surface rounded-xl border border-border/40 bg-card text-card-foreground px-2.5 py-2" key={fact.label}>
           <dt className="mate-text-metadata">
             {fact.label}
           </dt>

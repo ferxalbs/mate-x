@@ -97,10 +97,8 @@ export function ChatTopbar({
     <header
       className={cn(
         "drag-region sticky top-0 z-10 flex h-[52px] items-center justify-between gap-3 px-4 transition-[padding,background-color] duration-300 ease-[var(--ease-apple)]",
-        // Flat canvas titlebar — matches #111 / #fff; glass only if blur + special.
-        isSpecialMode
-          ? "border-b border-[var(--titlebar-border)]/50 bg-background"
-          : "border-b border-[var(--titlebar-border)] bg-background",
+        // Flat canvas titlebar — seamlessly integrated with app background.
+        "border-b border-transparent bg-background",
         state === "collapsed" && platform === "mac" && "pl-[88px]",
         platform === "windows" && "pr-[138px]",
       )}

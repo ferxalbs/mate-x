@@ -12,33 +12,30 @@
   --motion-menu: 180ms;
   --motion-drawer: 250ms;
   --motion-sidebar: 300ms;
-  /* Canonical light canvas — entire app chrome uses pure white. */
-  --background: #ffffff;
-  --foreground: oklch(0.28 0.014 260);
-  --card: #ffffff;
-  --card-foreground: var(--foreground);
-  --popover: #ffffff;
-  --popover-foreground: var(--foreground);
-  --primary: oklch(0.48 0.07 145);
+
+  /* Zinc 25 color definition for light canvas */
+  --color-zinc-25: color-mix(in srgb, var(--color-zinc-50) 50%, var(--color-white));
+
+  /* Light depth scale: zinc-25 canvas, white elevated surfaces. */
+  --background: var(--color-zinc-25);
+  --foreground: var(--color-zinc-800);
+  --card: var(--color-white);
+  --card-foreground: var(--color-zinc-800);
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-zinc-800);
+  --primary: oklch(0.488 0.217 264);
   --primary-foreground: var(--color-white);
-  --secondary: color-mix(in srgb, black 4%, transparent);
-  --secondary-foreground: var(--foreground);
-  --muted: color-mix(in srgb, black 4%, transparent);
-  --muted-foreground: color-mix(in srgb, var(--foreground) 65%, transparent);
-  /*
-   * Semantic text roles. Operational copy never stacks opacity on these colors:
-   * body 14px, compact rows 13px, secondary copy 12px, metadata 10–11px only.
-   */
-  --text-operational: var(--foreground);
-  --text-secondary: var(--muted-foreground);
-  --text-metadata: var(--muted-foreground);
-  --accent: color-mix(in srgb, black 4%, transparent);
-  --accent-foreground: var(--foreground);
+  --secondary: var(--color-zinc-50);
+  --secondary-foreground: var(--color-zinc-800);
+  --muted: var(--color-zinc-50);
+  --muted-foreground: var(--color-zinc-500);
+  --accent: var(--color-zinc-100);
+  --accent-foreground: var(--color-zinc-900);
   --destructive: var(--color-red-500);
-  --border: color-mix(in srgb, black 8%, transparent);
-  --input: color-mix(in srgb, black 10%, transparent);
-  --ring: oklch(0.48 0.07 145);
-  --destructive-foreground: var(--color-red-700);
+  --border: var(--color-zinc-200);
+  --input: var(--color-zinc-300);
+  --ring: oklch(0.488 0.217 264);
+  --destructive-foreground: #ffffff;
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-700);
   --success: var(--color-emerald-500);
@@ -47,24 +44,34 @@
   --warning-foreground: var(--color-amber-700);
 
   /*
+   * Semantic text roles. Operational copy never stacks opacity on these colors:
+   * body 14px, compact rows 13px, secondary copy 12px, metadata 10–11px only.
+   */
+  --text-operational: var(--foreground);
+  --text-secondary: var(--muted-foreground);
+  --text-metadata: var(--muted-foreground);
+
+  /*
    * CSS glass system (no native mica/vibrancy).
-   * Canvas is flat #fff / #111. Only controls + floating chrome elevate.
+   * Canvas stays flat; only controls + floating chrome elevate.
    * Single-layer backdrop-filter; never on main-content ancestors.
    */
-  --blur-opacity: 0.72;
-  --glass-blur: 20px;
-  --glass-saturate: 1.55;
-  --glass-tint: 0.78;
-  --glass-tint-strong: 0.88;
+  --blur-opacity: 80%;
+  --glass-opacity: 80%;
+  --glass-blur: 12px;
+  --glass-saturation: 1.14;
+  --glass-saturate: var(--glass-saturation);
+  --glass-tint: var(--glass-opacity);
+  --glass-tint-strong: 0.90;
   --control-glass-blur: 14px;
   --control-glass-tint: 0.72;
   --overlay-glass-blur: 18px;
   --overlay-glass-tint: 0.20;
   --glass-border: color-mix(in srgb, var(--border) 75%, transparent);
   --glass-bg: var(--control);
-  --ambient-a: color-mix(in srgb, var(--primary) 10%, #ffffff);
-  --ambient-b: color-mix(in srgb, #6366f1 8%, #ffffff);
-  --ambient-c: #ffffff;
+  --ambient-a: color-mix(in srgb, var(--primary) 8%, var(--color-white));
+  --ambient-b: color-mix(in srgb, #6366f1 6%, var(--color-white));
+  --ambient-c: var(--color-white);
 
   /* Code Syntax Highlighting (Light) */
   --code-bg: #f8f9fa;
@@ -79,23 +86,29 @@
   --code-tag: #22863a;
   --code-class: #005cc5;
 
-  /* Flat white app chrome — no gray panels/sidebars by default. */
-  --app-chrome-background: #ffffff;
-  --app-frame-border: color-mix(in srgb, var(--border) 80%, transparent);
-  --sidebar: #ffffff;
+  /* Sidebar chrome: sidebar is zinc-50, hover zinc-25, selected/active rows return to white. */
+  --app-chrome-background: var(--background);
+  --app-frame-border: var(--border);
+  --sidebar: var(--color-zinc-50);
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: color-mix(in srgb, var(--border) 86%, transparent);
-  --sidebar-accent: color-mix(in srgb, black 4%, transparent);
+  --sidebar-muted-foreground: var(--muted-foreground);
+  --sidebar-control-surface: var(--color-zinc-100);
+  --sidebar-border: var(--border);
+  --sidebar-row-hover: var(--color-zinc-25);
+  --sidebar-row-active: var(--color-white);
+  --sidebar-row-selected: var(--color-white);
+  --sidebar-accent: var(--sidebar-row-hover);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-ring: var(--ring);
-  --surface: #ffffff;
-  --surface-soft: color-mix(in srgb, black 3%, #ffffff);
-  --panel: #ffffff;
-  --panel-border: color-mix(in srgb, var(--border) 88%, transparent);
-  /* Elevated control exception — soft gray so inputs read on pure white. */
-  --control: #f2f3f5;
-  --titlebar: #ffffff;
-  --titlebar-border: color-mix(in srgb, var(--border) 84%, transparent);
+  --sidebar-stage-fade: var(--sidebar);
+  --surface: var(--background);
+  --surface-soft: color-mix(in srgb, var(--background) 92%, var(--color-white));
+  --panel: var(--card);
+  --panel-border: var(--border);
+  /* Elevated control exception — soft zinc so inputs read on pure white. */
+  --control: var(--color-zinc-100);
+  --titlebar: var(--background);
+  --titlebar-border: transparent;
 }
