@@ -65,6 +65,7 @@ This release establishes one capability-based authorization path for every opera
 * Added fail-closed packaged E2E and ASAR purity qualification, SHA-256 manifests, aggregate run evidence, and guarded draft-prerelease publication that requires an existing exact tag.
 * Repositioned public documentation around MaTE X as an agent-independent engineering harness and Trust Engine, with explicit unsigned-preview, Gatekeeper, manual-update, rollback, and future signing guidance.
 * Made product telemetry opt-in by default and updated manual update checks to include non-draft Public Preview releases without enabling silent installation.
+* Pinned ONNX Runtime to the last release carrying both native macOS architectures, forced Transformers.js to share that runtime, and made packaging fail if the host binding, linked library, or packaged model runtime cannot load.
 
 ## Unreleased - 2026.07.28 (1) [Privacy-safe Rainy Telemetry]
 

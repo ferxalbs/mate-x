@@ -111,7 +111,7 @@
     "lucide-react": "^1.27.0",
     "motion": "^12.42.2",
     "node-vibrant": "^4.0.4",
-    "onnxruntime-node": "1.27.0",
+    "onnxruntime-node": "1.23.2",
     "onnxruntime-web": "1.27.0",
     "openai": "^6.49.0",
     "pptxgenjs": "^4.0.1",
@@ -138,6 +138,9 @@
     "@libsql/darwin-arm64": "0.5.29",
     "@libsql/darwin-x64": "0.5.29",
     "@libsql/win32-x64-msvc": "0.5.29"
+  },
+  "overrides": {
+    "onnxruntime-node": "1.23.2"
   },
   "trustedDependencies": [
     "bun",

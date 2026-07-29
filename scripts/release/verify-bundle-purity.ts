@@ -133,6 +133,17 @@ if (requireAsar) {
       failures.push(`asar list failed: ${list.stderr || list.stdout}`);
     } else {
       const entries = list.stdout.split('\n').filter(Boolean);
+      const requiredModelEntries = [
+        '/node_modules/@huggingface/transformers/package.json',
+        '/node_modules/onnxruntime-node/package.json',
+        '/node_modules/onnxruntime-common/package.json',
+      ];
+      for (const entry of requiredModelEntries) {
+        if (!entries.includes(entry)) {
+          failures.push(`ASAR missing required model runtime entry: ${entry}`);
+        }
+      }
+
       for (const entry of entries) {
         const e = entry.toLowerCase();
         if (
@@ -217,6 +228,56 @@ if (requireAsar) {
         if (!rgFiles.some((f) => f.endsWith('.exe') || f.endsWith('/rg.exe'))) {
           failures.push(
             'Windows package missing spawnable rg.exe binary in unpacked',
+          );
+        }
+      }
+
+      const onnxDir = join(
+        unpacked,
+        'node_modules',
+        'onnxruntime-node',
+        'bin',
+        'napi-v6',
+        process.platform,
+        process.arch,
+      );
+      const onnxBinding = join(onnxDir, 'onnxruntime_binding.node');
+      if (!existsSync(onnxBinding)) {
+        failures.push(
+          `packaged ONNX binding missing for ${process.platform}/${process.arch}: ${onnxBinding}`,
+        );
+      }
+      if (
+        process.platform === 'darwin' &&
+        (!existsSync(onnxDir) ||
+          !readdirSync(onnxDir).some(
+            (file) => file.startsWith('libonnxruntime.') && file.endsWith('.dylib'),
+          ))
+      ) {
+        failures.push(
+          `packaged ONNX dynamic library missing for ${process.platform}/${process.arch}: ${onnxDir}`,
+        );
+      }
+
+      if (process.platform === 'darwin') {
+        const electronBinary = join(
+          root,
+          'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron',
+        );
+        const runtimeScript = [
+          `const path = require('node:path');`,
+          `const { createRequire } = require('node:module');`,
+          `const req = createRequire(path.join(${JSON.stringify(asar)}, '.vite/build/main.js'));`,
+          `req('onnxruntime-node');`,
+          `req('@huggingface/transformers');`,
+        ].join(' ');
+        const runtimeCheck = spawnSync(electronBinary, ['-e', runtimeScript], {
+          encoding: 'utf8',
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        });
+        if (runtimeCheck.status !== 0) {
+          failures.push(
+            `packaged model runtime load failed: ${runtimeCheck.stderr || runtimeCheck.stdout}`,
           );
         }
       }

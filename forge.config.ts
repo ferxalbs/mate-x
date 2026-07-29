@@ -6,7 +6,7 @@ import { PublisherGithub } from '@electron-forge/publisher-github';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 
@@ -47,6 +47,17 @@ const libsqlRuntimePackages = [
   'ws',
 ];
 
+// Transformers.js stays external so its native ONNX binding and optional Sharp
+// runtime remain loadable. Forge's .vite-only package surface must copy the
+// external package plus dependencies not nested inside its published package.
+const modelRuntimePackages = [
+  '@huggingface/transformers',
+  '@huggingface/jinja',
+  '@huggingface/tokenizers',
+  'onnxruntime-node',
+  'onnxruntime-common',
+];
+
 // Vite marks @vscode/ripgrep as external (native binary resolver). Forge's
 // .vite-only ignore would otherwise omit it from the package → crash on launch.
 // Only ship the host platform binary where practical (smaller release surface).
@@ -80,6 +91,7 @@ export const RIPGREP_PLATFORM_PACKAGES = [
 
 const requiredRuntimePackagesForHost = (): string[] => [
   ...libsqlRuntimePackages,
+  ...modelRuntimePackages,
   ripgrepCorePackage,
   ripgrepPlatformPackageForHost(),
 ];
@@ -105,8 +117,8 @@ const config: ForgeConfig = {
       // `@electron/asar` minimatch-matches absolute paths. Bare basenames and
       // globs that assume only `/` fail on Windows (`\` is an escape). This
       // brace set matches both POSIX and Windows absolute paths in practice:
-      //   **/*.node, **/rg (darwin), **/rg.exe + **/*.exe (win32)
-      unpack: '{**/*.node,**/rg,**/rg.exe,**/*.exe}',
+      //   **/*.node + linked libraries, **/rg (darwin), **/rg.exe (win32)
+      unpack: '{**/*.node,**/*.dylib,**/*.dll,**/*.so,**/*.so.*,**/rg,**/rg.exe,**/*.exe}',
     },
     // Using a function suppresses the Forge Vite-plugin warning while letting
     // us keep our custom exclusions on top of its default ".vite-only" logic.
@@ -162,6 +174,32 @@ const config: ForgeConfig = {
       if (!existsSync(rgBin)) {
         throw new Error(
           `packageAfterCopy: ripgrep binary missing at ${rgBin} — packaging aborted`,
+        );
+      }
+
+      // Fail closed: model runtime must contain native binding and linked library
+      // for packaging host. Intel support depends on pinned 1.23.x binaries.
+      const onnxBin = join(
+        buildPath,
+        'node_modules',
+        'onnxruntime-node',
+        'bin',
+        'napi-v6',
+        process.platform,
+        process.arch,
+      );
+      const onnxFiles = existsSync(onnxBin) ? readdirSync(onnxBin) : [];
+      if (!onnxFiles.includes('onnxruntime_binding.node')) {
+        throw new Error(
+          `packageAfterCopy: ONNX binding missing for ${process.platform}/${process.arch} at ${onnxBin}`,
+        );
+      }
+      if (
+        process.platform === 'darwin' &&
+        !onnxFiles.some((file) => file.startsWith('libonnxruntime.') && file.endsWith('.dylib'))
+      ) {
+        throw new Error(
+          `packageAfterCopy: ONNX dynamic library missing for ${process.platform}/${process.arch} at ${onnxBin}`,
         );
       }
     },

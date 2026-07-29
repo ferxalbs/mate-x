@@ -29,7 +29,12 @@ describe("Forge release configuration", () => {
     assert.match(forgeConfig, /OnlyLoadAppFromAsar\]: true/);
   });
 
-  it("packages @vscode/ripgrep runtime and constrains platform assets to host", () => {
+  it("packages model and ripgrep runtimes with host-native binaries", () => {
+    assert.match(forgeConfig, /@huggingface\/transformers/);
+    assert.match(forgeConfig, /onnxruntime-node/);
+    assert.match(forgeConfig, /onnxruntime_binding\.node/);
+    assert.match(forgeConfig, /libonnxruntime\./);
+    assert.match(forgeConfig, /\*\*\/\*\.dylib/);
     assert.match(forgeConfig, /@vscode\/ripgrep/);
     assert.match(forgeConfig, /@vscode\/ripgrep-darwin-x64/);
     assert.match(forgeConfig, /@vscode\/ripgrep-darwin-arm64/);
