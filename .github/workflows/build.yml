@@ -1,40 +1,79 @@
-name: v0.1.3 macOS Public Preview
+name: macOS Public Preview
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish draft prerelease from an existing v0.1.3 tag
+        description: Publish draft prerelease from an existing release tag
         required: true
         type: boolean
         default: false
       release_tag:
-        description: Existing tag to publish when publication is explicitly enabled
-        required: false
+        description: Existing v-prefixed semver tag (must match package.json)
+        required: true
         type: string
-        default: v0.1.3
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: v0.1.3-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
   BUN_VERSION: "1.3.14"
-  RELEASE_VERSION: "0.1.3"
 
 jobs:
   gate:
     name: Exact-commit release gate
     runs-on: macos-15
     timeout-minutes: 120
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      release_version: ${{ steps.release.outputs.release_version }}
     steps:
       - name: Checkout exact workflow commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup pinned Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Resolve and validate release version
+        id: release
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" = "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            release_tag="${REQUESTED_TAG}"
+          fi
+          if [[ ! "$release_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Release tag must use stable semver format vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          release_version="${release_tag#v}"
+          package_version="$(bun -e 'console.log(require("./package.json").version)')"
+          if [[ "$release_version" != "$package_version" ]]; then
+            echo "::error::Tag ${release_tag} does not match package.json version ${package_version}"
+            exit 1
+          fi
+          tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"
+          if [[ "$tag_commit" != "${GITHUB_SHA}" ]]; then
+            echo "::error::Tag ${release_tag} does not point to workflow commit ${GITHUB_SHA}"
+            exit 1
+          fi
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
 
       - name: Record release commit
         shell: bash
@@ -43,11 +82,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           mkdir -p artifacts/release-logs
           git rev-parse HEAD | tee artifacts/release-logs/commit-sha.txt
-
-      - name: Setup pinned Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies from lockfile
         shell: bash
@@ -110,7 +144,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v0.1.3-release-gate-logs
+          name: ${{ steps.release.outputs.release_tag }}-release-gate-logs
           path: artifacts/release-logs
           if-no-files-found: error
           retention-days: 30
@@ -126,10 +160,10 @@ jobs:
         include:
           - arch: x64
             runner: macos-15-intel
-            artifact: mate-x-v0.1.3-macos-x64
+            artifact: mate-x-${{ needs.gate.outputs.release_tag }}-macos-x64
           - arch: arm64
             runner: macos-15
-            artifact: mate-x-v0.1.3-macos-arm64
+            artifact: mate-x-${{ needs.gate.outputs.release_tag }}-macos-arm64
     steps:
       - name: Checkout gated commit
         uses: actions/checkout@v4
@@ -222,11 +256,13 @@ jobs:
 
       - name: Generate exact-commit release evidence
         shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.gate.outputs.release_tag }}
         run: |
           set -euo pipefail
           mkdir -p final-evidence
-          test_summary="$(grep -E '^[[:space:]]*[0-9]+ pass' release-artifacts/v0.1.3-release-gate-logs/test-all.log | tail -1 | xargs || true)"
-          test_failures="$(grep -E '^[[:space:]]*[0-9]+ fail' release-artifacts/v0.1.3-release-gate-logs/test-all.log | tail -1 | xargs || true)"
+          test_summary="$(grep -E '^[[:space:]]*[0-9]+ pass' "release-artifacts/${RELEASE_TAG}-release-gate-logs/test-all.log" | tail -1 | xargs || true)"
+          test_failures="$(grep -E '^[[:space:]]*[0-9]+ fail' "release-artifacts/${RELEASE_TAG}-release-gate-logs/test-all.log" | tail -1 | xargs || true)"
           : "${test_summary:=See attached test-all.log}"
           : "${test_failures:=0 fail}"
 
@@ -238,7 +274,7 @@ jobs:
           test -s final-evidence/SHA256SUMS.txt
 
           {
-            echo '# MaTE X v0.1.3 Release Evidence'
+            echo "# MaTE X ${RELEASE_TAG} Release Evidence"
             echo
             echo '- Release: unsigned macOS Public Preview'
             echo "- Exact commit: \`${GITHUB_SHA}\`"
@@ -277,13 +313,13 @@ jobs:
             echo '- Artifacts are unsigned and not notarized because Apple credentials are unavailable.'
             echo '- Gatekeeper requires explicit user approval through Finder or System Settings.'
             echo '- Native silent auto-update remains disabled; updates open official GitHub Releases for manual download.'
-            echo '- Windows and Linux are not v0.1.3 public release targets.'
-          } > final-evidence/v0.1.3-release-evidence.md
+            echo "- Windows and Linux are not ${RELEASE_TAG} public release targets."
+          } > "final-evidence/${RELEASE_TAG}-release-evidence.md"
 
       - name: Upload aggregate evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mate-x-v0.1.3-release-evidence
+          name: mate-x-${{ needs.gate.outputs.release_tag }}-release-evidence
           path: final-evidence
           if-no-files-found: error
           retention-days: 90
@@ -291,7 +327,7 @@ jobs:
   publish:
     name: Publish guarded draft prerelease
     needs: [gate, build, evidence]
-    if: ${{ inputs.publish_release }}
+    if: ${{ github.ref_type == 'tag' || inputs.publish_release }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -301,13 +337,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Require existing exact v0.1.3 tag
+      - name: Require existing exact release tag
         shell: bash
         env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TAG: ${{ needs.gate.outputs.release_tag }}
         run: |
           set -euo pipefail
-          test "$RELEASE_TAG" = "v0.1.3"
           git fetch --tags --force
           tag_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
           test "$tag_commit" = "${GITHUB_SHA}"
@@ -320,14 +355,14 @@ jobs:
       - name: Publish draft prerelease from existing tag
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag }}
+          tag_name: ${{ needs.gate.outputs.release_tag }}
           draft: true
           prerelease: true
-          body_path: docs/release/v0.1.3-release-notes.md
+          generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            release-artifacts/mate-x-v0.1.3-macos-x64/files/*
-            release-artifacts/mate-x-v0.1.3-macos-x64/SHA256SUMS-x64.txt
-            release-artifacts/mate-x-v0.1.3-macos-arm64/files/*
-            release-artifacts/mate-x-v0.1.3-macos-arm64/SHA256SUMS-arm64.txt
-            release-artifacts/mate-x-v0.1.3-release-evidence/*
+            release-artifacts/mate-x-${{ needs.gate.outputs.release_tag }}-macos-x64/files/*
+            release-artifacts/mate-x-${{ needs.gate.outputs.release_tag }}-macos-x64/SHA256SUMS-x64.txt
+            release-artifacts/mate-x-${{ needs.gate.outputs.release_tag }}-macos-arm64/files/*
+            release-artifacts/mate-x-${{ needs.gate.outputs.release_tag }}-macos-arm64/SHA256SUMS-arm64.txt
+            release-artifacts/mate-x-${{ needs.gate.outputs.release_tag }}-release-evidence/*
