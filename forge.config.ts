@@ -25,6 +25,12 @@ const macIcons = supportsIconComposerIcon()
   ? ['./assets/icon.icns', './assets/icon.icon']
   : './assets/matex';
 
+const hasAppleReleaseCredentials = Boolean(
+  process.env.APPLE_ID &&
+  process.env.APPLE_ID_PASSWORD &&
+  process.env.APPLE_TEAM_ID,
+);
+
 const libsqlRuntimePackages = [
   '@libsql/client',
   '@libsql/core',
@@ -118,12 +124,12 @@ const config: ForgeConfig = {
       return false;
     },
     executableName: 'mate-x',
-    ...(process.env.APPLE_ID && {
+    ...(hasAppleReleaseCredentials && {
       osxSign: {},
       osxNotarize: {
-        appleId: process.env.APPLE_ID,
-        appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
-        teamId: process.env.APPLE_TEAM_ID || '',
+        appleId: process.env.APPLE_ID!,
+        appleIdPassword: process.env.APPLE_ID_PASSWORD!,
+        teamId: process.env.APPLE_TEAM_ID!,
       },
     }),
   },
@@ -184,7 +190,7 @@ const config: ForgeConfig = {
         owner: 'ferxalbs',
         name: 'mate-x',
       },
-      prerelease: false,
+      prerelease: true,
       draft: true,
     }),
   ],

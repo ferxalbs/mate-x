@@ -1282,7 +1282,7 @@ export function SettingsPage() {
               <SettingsSection title="Product telemetry" icon={<HugeiconsIcon icon={Shield01Icon} className="size-3.5" />}>
                 <SettingsRow
                   title="Share privacy-safe telemetry"
-                  description="Enabled by default. Sends anonymous session lifecycle, stable operation names, coarse product metadata, and sanitized errors. Never sends prompts, responses, source code, paths, repository identity, credentials, or billing data."
+                  description="Off by default. If enabled, shares session lifecycle, stable operation names, coarse product metadata, and sanitized error names/codes. Prompts, responses, source code, repository paths or identity, commands, credentials, secrets, billing data, and raw stack traces are excluded. Turn this off here at any time; product functionality is unchanged."
                   control={
                     <Switch
                       checked={appSettings.telemetryEnabled}

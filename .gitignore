@@ -128,3 +128,9 @@ artifacts/
 out/
 .vite/
 *.ndjson
+
+# Public release documentation is source-controlled.
+!docs/
+docs/*
+!docs/release/
+!docs/release/*.md

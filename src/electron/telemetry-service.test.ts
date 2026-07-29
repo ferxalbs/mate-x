@@ -39,8 +39,8 @@ function fakeClient(input?: {
 }
 
 describe("MateTelemetryService", () => {
-  it("defaults telemetry on in persisted application settings", () => {
-    assert.equal(DEFAULT_APP_SETTINGS.telemetryEnabled, true);
+  it("defaults telemetry off until the user opts in", () => {
+    assert.equal(DEFAULT_APP_SETTINGS.telemetryEnabled, false);
   });
 
   it("constructs no SDK client and sends nothing after explicit opt-out", async () => {

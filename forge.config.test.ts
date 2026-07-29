@@ -12,6 +12,14 @@ describe("Forge release configuration", () => {
     assert.doesNotMatch(forgeConfig, /MakerDeb|maker-deb|MakerRpm|maker-rpm/);
   });
 
+  it("keeps v0.1.3 publication as a draft prerelease and signing credential-gated", () => {
+    assert.match(forgeConfig, /prerelease: true/);
+    assert.match(forgeConfig, /draft: true/);
+    assert.match(forgeConfig, /hasAppleReleaseCredentials/);
+    assert.match(forgeConfig, /process\.env\.APPLE_ID_PASSWORD/);
+    assert.match(forgeConfig, /process\.env\.APPLE_TEAM_ID/);
+  });
+
   it("keeps security fuses enabled for packaged builds", () => {
     assert.match(forgeConfig, /RunAsNode\]: false/);
     assert.match(forgeConfig, /EnableCookieEncryption\]: true/);

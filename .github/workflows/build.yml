@@ -1,106 +1,333 @@
-name: Build & Release
+name: v0.1.3 macOS Public Preview
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
+    inputs:
+      publish_release:
+        description: Publish draft prerelease from an existing v0.1.3 tag
+        required: true
+        type: boolean
+        default: false
+      release_tag:
+        description: Existing tag to publish when publication is explicitly enabled
+        required: false
+        type: string
+        default: v0.1.3
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: v0.1.3-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: "1.3.14"
+  RELEASE_VERSION: "0.1.3"
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
+  gate:
+    name: Exact-commit release gate
+    runs-on: macos-15
+    timeout-minutes: 120
     steps:
-      - name: Checkout Code
+      - name: Checkout exact workflow commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Bun
+      - name: Record release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          mkdir -p artifacts/release-logs
+          git rev-parse HEAD | tee artifacts/release-logs/commit-sha.txt
+
+      - name: Setup pinned Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install Dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Install dependencies from lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile 2>&1 | tee artifacts/release-logs/install.log
 
-      - name: Check Deprecated APIs
-        run: bun run check:deprecated
+      - name: Check deprecated APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run check:deprecated 2>&1 | tee artifacts/release-logs/check-deprecated.log
 
       - name: Lint
-        run: bun run lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run lint 2>&1 | tee artifacts/release-logs/lint.log
 
       - name: Typecheck
-        run: bun run typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run typecheck 2>&1 | tee artifacts/release-logs/typecheck.log
 
-  make:
-    needs: verify
-    runs-on: ${{ matrix.os }}
+      - name: Run all tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run test:all 2>&1 | tee artifacts/release-logs/test-all.log
+
+      - name: Run full verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run verify 2>&1 | tee artifacts/release-logs/verify.log
+
+      - name: Run release verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run verify:release 2>&1 | tee artifacts/release-logs/verify-release.log
+          cp artifacts/packaged-e2e/packaged-e2e-evidence.json artifacts/release-logs/gate-packaged-e2e-evidence.json
+
+      - name: Check patch whitespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check 2>&1 | tee artifacts/release-logs/git-diff-check.log
+
+      - name: Confirm exact checkout stayed clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain --untracked-files=no)"
+
+      - name: Upload gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v0.1.3-release-gate-logs
+          path: artifacts/release-logs
+          if-no-files-found: error
+          retention-days: 30
+
+  build:
+    name: macOS ${{ matrix.arch }} package
+    needs: gate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            arch: x64
-            artifact: mate-x-windows-x64
-          - os: macos-15
-            arch: arm64
-            artifact: mate-x-macos-arm64
-          - os: macos-15
-            arch: x64
-            artifact: mate-x-macos-x64
-
+          - arch: x64
+            runner: macos-15-intel
+            artifact: mate-x-v0.1.3-macos-x64
+          - arch: arm64
+            runner: macos-15
+            artifact: mate-x-v0.1.3-macos-arm64
     steps:
-      - name: Checkout Code
+      - name: Checkout gated commit
         uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          fetch-depth: 0
 
-      - name: Install Dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Install native libsql optional dependency
+      - name: Confirm native runner architecture
         shell: bash
         run: |
-          case "${{ runner.os }}-${{ matrix.arch }}" in
-            macOS-arm64) bun add --optional --exact @libsql/darwin-arm64@0.5.29 ;;
-            macOS-x64) bun add --optional --exact @libsql/darwin-x64@0.5.29 ;;
-            Windows-x64) bun add --optional --exact @libsql/win32-x64-msvc@0.5.29 ;;
-          esac
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(uname -m)" = "${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}"
 
-      - name: Show toolchain
-        if: startsWith(matrix.os, 'macos')
+      - name: Setup pinned Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies from lockfile
+        run: bun install --frozen-lockfile
+
+      - name: Verify native dependencies load
+        shell: bash
         run: |
-          xcodebuild -version
-          xcrun --find actool
+          set -euo pipefail
+          bun -e 'await import("@libsql/client"); await import("sharp"); await import("onnxruntime-node"); console.log(`native dependencies loaded on ${process.platform}/${process.arch}`)'
 
-      - name: Make
-        run: bun run make -- --arch ${{ matrix.arch }}
+      - name: Qualify packaged application
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run verify:release
 
-      - name: Upload artifact
+      - name: Build unsigned distributables
+        shell: bash
+        env:
+          APPLE_ID: ""
+          APPLE_ID_PASSWORD: ""
+          APPLE_TEAM_ID: ""
+        run: |
+          set -euo pipefail
+          bun run make -- --arch ${{ matrix.arch }}
+
+      - name: Recheck ASAR purity and packaged E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run scripts/release/verify-bundle-purity.ts --require-asar
+          bun run scripts/release/run-packaged-e2e.ts
+
+      - name: Stage artifacts and SHA-256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          staging="artifacts/release/${{ matrix.arch }}"
+          mkdir -p "$staging/files" "$staging/evidence"
+          found=0
+          while IFS= read -r -d '' file; do
+            found=1
+            cp "$file" "$staging/files/$(basename "$file")"
+          done < <(find out/make -type f \( -name '*.dmg' -o -name '*.zip' \) -print0)
+          test "$found" -eq 1
+          (
+            cd "$staging/files"
+            for file in *; do
+              shasum -a 256 "$file"
+            done
+          ) > "$staging/SHA256SUMS-${{ matrix.arch }}.txt"
+          cp artifacts/packaged-e2e/packaged-e2e-evidence.json "$staging/evidence/packaged-e2e-${{ matrix.arch }}.json"
+          printf '%s\n' "${GITHUB_SHA}" > "$staging/evidence/commit-sha.txt"
+          printf '%s\n' "${{ matrix.arch }}" > "$staging/evidence/architecture.txt"
+
+      - name: Upload qualified macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            out/make/**/*
+          path: artifacts/release/${{ matrix.arch }}
           if-no-files-found: error
+          retention-days: 30
 
-  release:
-    needs: make
-    if: startsWith(github.ref, 'refs/tags/')
+  evidence:
+    name: Aggregate release evidence
+    needs: [gate, build]
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
+      - name: Download qualified artifacts and gate logs
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
 
-      - name: Publish GitHub Release
+      - name: Generate exact-commit release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p final-evidence
+          test_summary="$(grep -E '^[[:space:]]*[0-9]+ pass' release-artifacts/v0.1.3-release-gate-logs/test-all.log | tail -1 | xargs || true)"
+          test_failures="$(grep -E '^[[:space:]]*[0-9]+ fail' release-artifacts/v0.1.3-release-gate-logs/test-all.log | tail -1 | xargs || true)"
+          : "${test_summary:=See attached test-all.log}"
+          : "${test_failures:=0 fail}"
+
+          find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' \) -print0 \
+            | sort -z \
+            | while IFS= read -r -d '' file; do
+                sha256sum "$file"
+              done > final-evidence/SHA256SUMS.txt
+          test -s final-evidence/SHA256SUMS.txt
+
+          {
+            echo '# MaTE X v0.1.3 Release Evidence'
+            echo
+            echo '- Release: unsigned macOS Public Preview'
+            echo "- Exact commit: \`${GITHUB_SHA}\`"
+            echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo '- Publication: disabled for this run; no tag or GitHub Release created'
+            echo
+            echo '## Required command results'
+            echo
+            echo '| Command | Result |'
+            echo '| --- | --- |'
+            echo '| `bun install --frozen-lockfile` | PASS |'
+            echo '| `bun run check:deprecated` | PASS |'
+            echo '| `bun run lint` | PASS |'
+            echo '| `bun run typecheck` | PASS |'
+            echo "| \`bun run test:all\` | PASS — ${test_summary}; ${test_failures} |"
+            echo '| `bun run verify` | PASS |'
+            echo '| `bun run verify:release` | PASS |'
+            echo '| `git diff --check` | PASS |'
+            echo
+            echo '## Architecture qualification'
+            echo
+            echo '| Architecture | Native runner | Packaging | ASAR purity | Packaged E2E |'
+            echo '| --- | --- | --- | --- | --- |'
+            echo '| Intel x64 | `macos-15-intel` | PASS | PASS | PASS |'
+            echo '| Apple Silicon arm64 | `macos-15` | PASS | PASS | PASS |'
+            echo
+            echo '## Artifacts and SHA-256'
+            echo
+            echo '```text'
+            cat final-evidence/SHA256SUMS.txt
+            echo '```'
+            echo
+            echo '## Unresolved risks'
+            echo
+            echo '- Artifacts are unsigned and not notarized because Apple credentials are unavailable.'
+            echo '- Gatekeeper requires explicit user approval through Finder or System Settings.'
+            echo '- Native silent auto-update remains disabled; updates open official GitHub Releases for manual download.'
+            echo '- Windows and Linux are not v0.1.3 public release targets.'
+          } > final-evidence/v0.1.3-release-evidence.md
+
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mate-x-v0.1.3-release-evidence
+          path: final-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    name: Publish guarded draft prerelease
+    needs: [gate, build, evidence]
+    if: ${{ inputs.publish_release }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require existing exact v0.1.3 tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          test "$RELEASE_TAG" = "v0.1.3"
+          git fetch --tags --force
+          tag_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          test "$tag_commit" = "${GITHUB_SHA}"
+
+      - name: Download qualified artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish draft prerelease from existing tag
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag }}
           draft: true
           prerelease: true
-          files: release-artifacts/**/*
+          body_path: docs/release/v0.1.3-release-notes.md
+          fail_on_unmatched_files: true
+          files: |
+            release-artifacts/mate-x-v0.1.3-macos-x64/files/*
+            release-artifacts/mate-x-v0.1.3-macos-x64/SHA256SUMS-x64.txt
+            release-artifacts/mate-x-v0.1.3-macos-arm64/files/*
+            release-artifacts/mate-x-v0.1.3-macos-arm64/SHA256SUMS-arm64.txt
+            release-artifacts/mate-x-v0.1.3-release-evidence/*

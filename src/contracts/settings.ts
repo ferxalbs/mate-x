@@ -73,7 +73,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   privacyPlaceholderStyle: 'typed',
   privacyMinModelConfidence: 0.5,
   privacyShowPreviewBeforeCloudSend: true,
-  telemetryEnabled: true,
+  telemetryEnabled: false,
   codexIntegrationEnabled: false,
   antigravityIntegrationEnabled: false,
   cursorIntegrationEnabled: false,

@@ -3,174 +3,227 @@
 </p>
 
 <p align="center">
-  <strong>The trust layer for AI-written code.</strong><br/>
-  Keep your coding agent. MaTE X verifies what it changed and blocks unproven changes before they reach production.
+  <strong>Execution and trust runtime for AI software agents.</strong><br/>
+  Connect the agent you prefer; MaTE X governs what it can do, records what happened, validates the result, and produces evidence you can inspect.
 </p>
 
 <p align="center">
-  <a href="https://github.com/ferxalbs/mate-x/releases"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20(v0.1.2%20qualified)-171717?labelColor=171717&color=0ea5e9"></a>
+  <a href="https://github.com/ferxalbs/mate-x/releases"><img alt="Release" src="https://img.shields.io/badge/v0.1.3-unsigned%20macOS%20Public%20Preview-171717?labelColor=171717&color=f59e0b"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MaTE%20X%20Licence-171717?labelColor=171717&color=0ea5e9"></a>
   <a href="https://mate-x.xyz"><img alt="Website" src="https://img.shields.io/badge/website-mate--x.xyz-171717?labelColor=171717&color=10b981"></a>
 </p>
 
-MaTE X is a source-available/OpenCore desktop application for developers who use AI coding agents. It opens a local repository, maps the real repository state, identifies changed and risky surfaces, plans proportional validation, records what actually ran, and produces a reproducible Ship Proof before commit, push, or release intent.
+> MaTE X is the execution and trust runtime for AI software agents. Connect the agent you prefer; MaTE X governs what it can do, records what actually happened, validates the result, and produces evidence you can trust.
 
-MaTE X is not another IDE, a generic chatbot, a model marketplace, a scanner-only dashboard, or a fully autonomous software factory. It is the verification and proof layer between AI-generated code and production.
+MaTE X is an agent-independent engineering harness and Trust Engine for local repositories. It coordinates agents, SDK-backed runtimes, repository tools, execution policy, approvals, validation, integrations, and Ship Proof through one control plane.
 
-## Product Promise
+MaTE X is not an IDE, generic coding chatbot, code-review bot, scanner dashboard, model marketplace, or thin GUI over an LLM. It does not require users to replace Codex, OpenAI models, Rainy, Linear, or future agents. Those systems can act as integrations and execution engines under MaTE X workspace authority, approval, privacy, evidence, and validation contracts.
 
-AI coding tools are fast, but model prose is not proof. MaTE X keeps the developer's agent while enforcing deterministic evidence:
+**v0.1.3 is an unsigned macOS Public Preview, not a stable or generally available release.** Public artifacts target native Intel x64 and Apple Silicon arm64 Macs. Windows remains architecturally supported and separately qualified; Windows and Linux are not public v0.1.3 release targets.
 
-- **Repository state**: current branch, dirty files, package manager, scripts, runtime surfaces, and trust state.
-- **Changed surfaces**: touched files, runtime entry points, secrets-risk files, infrastructure, auth, billing, crypto, migrations, IPC, shell, and Git-sensitive areas.
-- **Required validation**: the smallest useful plan backed by detected package manager and available scripts. MaTE X does not invent package-manager commands.
-- **Executed evidence**: commands and tools that actually ran, with passed, failed, skipped, unavailable, missing, partial, cancelled, and stale states kept visible.
-- **Ship decision**: `Ready`, `Needs check`, `Risk found`, `Blocked`, or `Not proven`.
+## Why MaTE X exists
 
-A clean working tree is not the same as a trusted repository. A model saying "ready" cannot unlock Git. Commit and push fail closed when policy requires proof.
+Assistant prose cannot prove repository work succeeded. MaTE X separates requested work from executed evidence:
 
-## EngineeringTask and behavior modes (v0.1.2)
+1. Inspect repository and active workspace state.
+2. Resolve what selected behavior may attempt.
+3. Apply Workspace Policy and approval requirements at execution boundary.
+4. Run authorized tools and validation.
+5. Record actual outputs, failures, skips, policy stops, and stale evidence.
+6. Produce Ship Proof from runtime evidence rather than assistant claims.
 
-`EngineeringTask` is the sole workflow authority. The normal product surface is conversational: compact status, inline activity, optional task details, and concise results — not a large persistent workflow card.
+A clean working tree is not proof. A confident response is not proof. Validation that did not run is not reported as passed.
 
-**Behavior modes** control autonomy only (they are not separate workflow engines):
+## One harness, multiple agents
 
-| Mode | Policy | Behavior |
-| --- | --- | --- |
-| **Auto** (default) | `auto_scoped` | Scoped autonomy inside the workspace. Safe edits and validation may run automatically. **Never** unrestricted Full access. |
-| **Guided** | `guided_approval` | Inspect freely; contextual approval before mutations. |
-| **Review** | `review_read_only` | Read-only analysis and recommendations. |
-| **Custom** | `custom` | Independent toggles: ask before edits/commands/network/Git; optional auto-validation. |
+MaTE X is designed to host and coordinate different agent and SDK-backed runtimes without giving any provider direct authority over workspace policy.
 
-Git commit and push remain hard-gated in every mode. The agent inspects repository evidence before asking questions.
+- Rainy provides current cloud-backed model access and agent execution.
+- OpenAI-compatible models and Responses/Chat execution paths operate behind the same MaTE X contracts.
+- Codex, Cursor, and Antigravity SDK integrations are represented as user-controlled integrations.
+- Linear can initiate and resume work through the canonical EngineeringTask runtime.
+- Future providers can integrate without becoming a separate workflow engine or bypassing policy.
 
-## Ship Proof
+Third-party agents may reason differently. They still receive only capabilities allowed by MaTE X, and their actions remain subject to workspace scope, approvals, Privacy Firewall checks, evidence capture, and validation.
 
-Ship Proof is the user-facing release receipt generated from deterministic run evidence. It is decision-first and includes, where available:
+## Behavior and authorization are separate
 
-- final verdict;
-- repository and branch;
-- base commit and HEAD;
-- diff identity or hash;
-- changed file count;
-- runtime and risk surfaces;
-- validation plan;
-- commands and tools actually executed;
-- passed, failed, skipped, unavailable, and missing checks;
-- Privacy Firewall status;
-- policy stops;
-- model/provider metadata;
-- requested and effective service tier;
-- whether commit/push is allowed;
-- timestamp and proof freshness.
+`EngineeringTask` is the canonical workflow authority. Behavior describes how an agent approaches work; Workspace Policy defines what can change.
 
-Evidence Pack remains the richer artifact name for compliance exports and disk bundles under `.mate-x/evidence/<taskId>/`.
+| Behavior | Agent behavior |
+| --- | --- |
+| **Review** | Read-only, evidence-backed findings and recommendations. |
+| **Plan** | Read-only executable strategy based on repository evidence. |
+| **Execute** | Performs and validates work allowed by current workspace authority. |
 
-## First Run
+Workspace Policy independently controls paths, commands, domains, actions, and write access:
 
-On first launch, MaTE X should be understandable without founder assistance:
+- **Read-only**: no workspace mutation.
+- **Approval-required**: proposed mutations pause for explicit approval.
+- **Permitted**: scoped changes may run when all other gates allow them.
 
-1. Configure or validate a Rainy API v3 key in Settings.
-2. Open a local repository.
-3. Choose a behavior mode (Auto is default) if you need Guided, Review, or Custom.
-4. Describe the engineering objective in the composer.
-5. Review inline status, approvals, and the Ship Proof when validation completes.
+Sensitive operations and Git writes remain explicit. Commit and push require user authorization in every behavior. Provider guidance, tool metadata, repository instructions, or assistant prose cannot promote their own authority.
 
-If Rainy is unavailable or credentials are missing, local repository state remains visible and cloud-backed review/verification is clearly unavailable rather than silently trusted.
+## Runtime outcomes and Ship Proof
 
-## Security Model
+MaTE X carries completed, blocked, approval, and failure states through typed runtime contracts. UI does not infer success from text.
 
-MaTE X assumes the opened repository is hostile.
+Ship Proof is reproducible result of executed work. Depending on available evidence, it records:
 
-- Renderer code has no direct filesystem, shell, Git, database, or credential access.
-- Privileged operations cross typed IPC channels and are validated in the main process.
-- Repository content cannot override system policy, escalate permissions, execute without approval, mark itself trusted, modify evidence, bypass the Privacy Firewall, change the active workspace silently, enable Git writes, or inject arbitrary IPC messages.
-- Rainy credentials are user-provided in Settings, resolved in the main process, and must not be hardcoded, logged, or exposed to the renderer.
-- Raw secret payloads must not be signed or exported as trusted evidence.
+- repository, branch, base commit, HEAD, and diff identity;
+- changed files, runtime surfaces, and risk surfaces;
+- applied behavior, Workspace Policy, approvals, and policy stops;
+- commands and tools that actually ran;
+- passed, failed, skipped, unavailable, missing, partial, cancelled, and stale checks;
+- Privacy Firewall outcome;
+- provider/model metadata without provider reasoning content;
+- whether commit or push remains allowed;
+- proof timestamp and freshness.
+
+Evidence Pack is richer local compliance artifact under `.mate-x/evidence/<taskId>/`, including deterministic policy identity and in-toto/SLSA-compatible attestation data when available.
+
+## Privacy and telemetry
+
+Repository content is treated as hostile and sensitive.
+
+- Renderer has no direct filesystem, shell, Git, database, or credential access.
+- Privileged work crosses typed preload/IPC boundaries and is validated in Electron main.
+- Privacy Firewall scans outbound cloud context locally and can block sensitive transmission.
+- Rainy credentials remain main-process only and are never exposed to renderer logs.
+- Raw secret-bearing payloads are not signed or exported as trusted evidence.
+
+Product telemetry is **off by default**. Users may opt in under **Settings → Privacy → Product telemetry**. Enabled telemetry uses allowlisted operation names, coarse product metadata, anonymous installation identity, and sanitized error names/codes. Prompts, responses, source code, repository paths or identity, commands, credentials, secrets, billing data, and raw stack traces are excluded. Disabling telemetry does not change product functionality.
+
+## Performance work
+
+Performance claims should come from runtime measurements, not adjectives. v0.1.3 work includes:
+
+- parallel and deferred startup initialization;
+- lazy loading for heavy provider, graph, privacy-model, and integration modules;
+- bounded tool concurrency and single-flight refresh scheduling;
+- context budgeting and semantic working-set management;
+- power-aware background work and native dependency handling;
+- separate native packaging and qualification for macOS Intel and Apple Silicon.
+
+Release evidence records checks that actually ran. Packaged performance probes remain qualification tools, not blanket speed claims.
 
 ## Architecture
 
 ```text
-Renderer UI
-  React 19, TanStack Router, TanStack Query, Zustand
+React renderer
+  conversation, settings, evidence, status
         |
-        | typed IPC contracts
+        | typed window.mate IPC
         v
 Preload boundary
         |
         v
 Electron main process
-  IPC handlers, validation, repository access, Git, Rainy orchestration,
-  local database, Privacy Firewall, evidence generation
-        |
-        +--> Local repository
-        +--> libSQL / Turso local state
-        +--> Rainy API v3, only through main-process services
+  capability resolver + EngineeringTask runtime
+  repository/filesystem/Git tools
+  Rainy and SDK integrations
+  Privacy Firewall
+  local libSQL/Turso state
+  validation + Evidence Pack + Ship Proof
 ```
 
 | Area | Path | Responsibility |
 | --- | --- | --- |
-| Main process | `src/electron/` | Security-sensitive services, IPC handlers, Git integration, Rainy orchestration |
-| Renderer features | `src/features/` | Product UI and feature views |
-| Shared contracts | `src/contracts/` | IPC payloads, settings schemas, shared TypeScript interfaces |
-| Service facades | `src/services/` | Renderer-facing service wrappers |
-| State | `src/store/` | Zustand stores |
-| Utilities | `src/lib/` | Shared helpers |
-| UI primitives | `src/components/ui/` | Reusable UI components and colocated tests |
-| Entry points | `src/main.ts`, `src/preload.ts`, `src/renderer.tsx` | Electron main, preload, renderer bootstrap |
+| Main process | `src/electron/` | Privileged services, authorization, tools, integrations, evidence |
+| Renderer features | `src/features/`, `src/routes/` | Product UI and route surfaces |
+| Shared contracts | `src/contracts/` | Typed IPC, settings, workflow, and evidence contracts |
+| Renderer facades/state | `src/services/`, `src/store/` | Preload-facing services and UI state |
+| Qualification | `qa/` | Packaged, platform, migration, and performance checks |
+| Release automation | `scripts/release/`, `.github/workflows/build.yml` | Package purity, packaged E2E, artifacts, checksums, release gate |
 
-## Tech Stack
+## Install v0.1.3 unsigned Public Preview
 
-| Layer | Technology |
-| --- | --- |
-| Desktop runtime | Electron 43 |
-| Renderer | React 19 |
-| Language | TypeScript 6 |
-| Styling | Tailwind CSS v4 |
-| Routing | TanStack Router |
-| Data fetching | TanStack Query |
-| State | Zustand |
-| Local database | libSQL / Turso |
-| Toolchain | Bun 1.3+ |
-| AI backend | Rainy API v3+ |
+Download artifact matching Mac architecture from [GitHub Releases](https://github.com/ferxalbs/mate-x/releases):
 
-## Requirements
+- `x64` for Intel Macs.
+- `arm64` for Apple Silicon Macs.
 
-- Bun 1.3+ for development (Bun only — do not use npm/pnpm/yarn for project scripts).
-- **macOS 12+** on Intel or Apple Silicon is the **qualified v0.1.2** platform.
-- Windows 10/11 remains architecturally supported; **Windows qualification is deferred** for this release cut.
-- Rainy API v3+ key configured in app Settings for cloud-backed verification.
+Verify downloaded file against published `SHA256SUMS` file:
 
-Linux is not a supported public release target.
+```bash
+shasum -a 256 "/path/to/MaTE X artifact"
+```
 
-Release notes for this cut: [docs/release/v0.1.2-release-notes.md](docs/release/v0.1.2-release-notes.md).
+Compare full output hash with matching release checksum. Then open DMG or ZIP and move MaTE X to Applications.
+
+Because v0.1.3 is unsigned and not notarized, macOS Gatekeeper may block first launch. Use Apple-provided approval flow; do not disable Gatekeeper:
+
+1. Try to open MaTE X once.
+2. In Finder, Control-click MaTE X and choose **Open**, then confirm **Open**; or open **System Settings → Privacy & Security** and choose **Open Anyway** for MaTE X after blocked launch.
+3. Confirm only when app came from official `ferxalbs/mate-x` GitHub Release and checksum matches.
+
+Do not use `xattr` removal, disable Gatekeeper, or lower macOS security settings.
+
+## Updates
+
+Native silent auto-update is disabled for unsigned preview. **Check for Updates** queries non-draft GitHub Releases and, when newer version exists, opens official release page. MaTE X never silently downloads or installs v0.1.3 updates.
+
+Signed automatic updates can be activated only after:
+
+1. Apple Developer Program access and Developer ID Application certificate exist.
+2. Apple notarization credentials (`APPLE_ID`, app-specific `APPLE_ID_PASSWORD`, `APPLE_TEAM_ID`) are configured as protected release secrets.
+3. Both Intel and Apple Silicon artifacts pass signing, notarization, stapling, ASAR purity, packaged E2E, and update-feed qualification from exact release commit.
+4. Release config confirms complete credentials before enabling signing/notarization.
+5. `HAS_CRYPTOGRAPHIC_KEYS` in `src/electron/updater.ts` is changed only in qualified signed release.
 
 ## Development
 
+Requirements: Bun `1.3.14`; macOS for release qualification.
+
 ```bash
-bun install
+bun install --frozen-lockfile
 bun run start
 ```
 
-Release verification contract:
+Do not use npm, pnpm, yarn, or npx for project scripts or dependency changes.
+
+Fast iteration:
+
+```bash
+bun run test:fast
+```
+
+Full source verification:
 
 ```bash
 bun run verify
 ```
 
-`bun run verify` runs lint, typecheck, all Bun tests, and packaging configuration validation. Packaging commands are:
+Exact v0.1.3 release contract:
 
 ```bash
-bun run package
-bun run make
+bun install --frozen-lockfile
+bun run check:deprecated
+bun run lint
+bun run typecheck
+bun run test:all
+bun run verify
+bun run verify:release
+git diff --check
 ```
+
+Dual-architecture distributables, packaged E2E evidence, ASAR purity results, and SHA-256 manifests are produced only by successful macOS release-gate jobs.
+
+## Release documentation
+
+- [v0.1.3 release notes](docs/release/v0.1.3-release-notes.md)
+- [v0.1.3 known issues](docs/release/v0.1.3-known-issues.md)
+- [v0.1.3 final checklist](docs/release/v0.1.3-final-checklist.md)
+- [v0.1.3 rollback](docs/release/v0.1.3-rollback.md)
+- [v0.1.3 evidence contract](docs/release/v0.1.3-release-evidence.md)
 
 ## License
 
-MaTE X is source-available under the [MaTE X Licence](LICENSE). Commercial use by companies, organizations, or teams requires a separate commercial licence from Enosis Labs, Inc.
+MaTE X is source-available under [MaTE X Licence](LICENSE). Commercial use by companies, organizations, or teams requires separate commercial licence from Enosis Labs, Inc.
 
 ## Links
 
+- Releases: [github.com/ferxalbs/mate-x/releases](https://github.com/ferxalbs/mate-x/releases)
 - Website: [mate-x.xyz](https://mate-x.xyz)
 - Enosis Labs: [enosislabs.com](https://enosislabs.com)
 - Security policy: [SECURITY.md](SECURITY.md)
