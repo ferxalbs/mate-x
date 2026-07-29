@@ -6,7 +6,7 @@ import { PublisherGithub } from '@electron-forge/publisher-github';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 
@@ -25,6 +25,12 @@ const macIcons = supportsIconComposerIcon()
   ? ['./assets/icon.icns', './assets/icon.icon']
   : './assets/matex';
 
+const hasAppleReleaseCredentials = Boolean(
+  process.env.APPLE_ID &&
+  process.env.APPLE_ID_PASSWORD &&
+  process.env.APPLE_TEAM_ID,
+);
+
 const libsqlRuntimePackages = [
   '@libsql/client',
   '@libsql/core',
@@ -39,6 +45,17 @@ const libsqlRuntimePackages = [
   'libsql',
   'promise-limit',
   'ws',
+];
+
+// Transformers.js stays external so its native ONNX binding and optional Sharp
+// runtime remain loadable. Forge's .vite-only package surface must copy the
+// external package plus dependencies not nested inside its published package.
+const modelRuntimePackages = [
+  '@huggingface/transformers',
+  '@huggingface/jinja',
+  '@huggingface/tokenizers',
+  'onnxruntime-node',
+  'onnxruntime-common',
 ];
 
 // Vite marks @vscode/ripgrep as external (native binary resolver). Forge's
@@ -74,6 +91,7 @@ export const RIPGREP_PLATFORM_PACKAGES = [
 
 const requiredRuntimePackagesForHost = (): string[] => [
   ...libsqlRuntimePackages,
+  ...modelRuntimePackages,
   ripgrepCorePackage,
   ripgrepPlatformPackageForHost(),
 ];
@@ -99,8 +117,8 @@ const config: ForgeConfig = {
       // `@electron/asar` minimatch-matches absolute paths. Bare basenames and
       // globs that assume only `/` fail on Windows (`\` is an escape). This
       // brace set matches both POSIX and Windows absolute paths in practice:
-      //   **/*.node, **/rg (darwin), **/rg.exe + **/*.exe (win32)
-      unpack: '{**/*.node,**/rg,**/rg.exe,**/*.exe}',
+      //   **/*.node + linked libraries, **/rg (darwin), **/rg.exe (win32)
+      unpack: '{**/*.node,**/*.dylib,**/*.dll,**/*.so,**/*.so.*,**/rg,**/rg.exe,**/*.exe}',
     },
     // Using a function suppresses the Forge Vite-plugin warning while letting
     // us keep our custom exclusions on top of its default ".vite-only" logic.
@@ -118,12 +136,12 @@ const config: ForgeConfig = {
       return false;
     },
     executableName: 'mate-x',
-    ...(process.env.APPLE_ID && {
+    ...(hasAppleReleaseCredentials && {
       osxSign: {},
       osxNotarize: {
-        appleId: process.env.APPLE_ID,
-        appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
-        teamId: process.env.APPLE_TEAM_ID || '',
+        appleId: process.env.APPLE_ID!,
+        appleIdPassword: process.env.APPLE_ID_PASSWORD!,
+        teamId: process.env.APPLE_TEAM_ID!,
       },
     }),
   },
@@ -158,6 +176,32 @@ const config: ForgeConfig = {
           `packageAfterCopy: ripgrep binary missing at ${rgBin} — packaging aborted`,
         );
       }
+
+      // Fail closed: model runtime must contain native binding and linked library
+      // for packaging host. Intel support depends on pinned 1.23.x binaries.
+      const onnxBin = join(
+        buildPath,
+        'node_modules',
+        'onnxruntime-node',
+        'bin',
+        'napi-v6',
+        process.platform,
+        process.arch,
+      );
+      const onnxFiles = existsSync(onnxBin) ? readdirSync(onnxBin) : [];
+      if (!onnxFiles.includes('onnxruntime_binding.node')) {
+        throw new Error(
+          `packageAfterCopy: ONNX binding missing for ${process.platform}/${process.arch} at ${onnxBin}`,
+        );
+      }
+      if (
+        process.platform === 'darwin' &&
+        !onnxFiles.some((file) => file.startsWith('libonnxruntime.') && file.endsWith('.dylib'))
+      ) {
+        throw new Error(
+          `packageAfterCopy: ONNX dynamic library missing for ${process.platform}/${process.arch} at ${onnxBin}`,
+        );
+      }
     },
   },
   rebuildConfig: {},
@@ -184,7 +228,7 @@ const config: ForgeConfig = {
         owner: 'ferxalbs',
         name: 'mate-x',
       },
-      prerelease: false,
+      prerelease: true,
       draft: true,
     }),
   ],

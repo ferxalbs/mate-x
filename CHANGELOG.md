@@ -59,9 +59,17 @@ This release establishes one capability-based authorization path for every opera
 * Expanded tool metadata, mission fixtures, authorization integration coverage, release checks, package configuration checks, legacy-term checks, and production-bundle purity validation.
 * Verified the final authorization regression through a fresh Electron main-process run: an ordinary README edit under Execute and Workspace changes completed once, without approval or a blocked outcome.
 
+## Unreleased - 2026.07.28 (2) [v0.1.3 Unsigned Public Preview Release Gate]
+
+* Added a pinned-Bun, exact-commit GitHub Actions release gate that runs the full verification contract before producing separate native macOS Intel and Apple Silicon distributables.
+* Added fail-closed packaged E2E and ASAR purity qualification, SHA-256 manifests, aggregate run evidence, and guarded draft-prerelease publication that requires an existing exact tag.
+* Repositioned public documentation around MaTE X as an agent-independent engineering harness and Trust Engine, with explicit unsigned-preview, Gatekeeper, manual-update, rollback, and future signing guidance.
+* Made product telemetry opt-in by default and updated manual update checks to include non-draft Public Preview releases without enabling silent installation.
+* Pinned ONNX Runtime to the last release carrying both native macOS architectures, forced Transformers.js to share that runtime, and made packaging fail if the host binding, linked library, or packaged model runtime cannot load.
+
 ## Unreleased - 2026.07.28 (1) [Privacy-safe Rainy Telemetry]
 
-* Added default-enabled, persistent opt-out telemetry through `rainy-sdk-ts` `0.4.2`, owned by Electron main.
+* Added persistent opt-in telemetry through `rainy-sdk-ts` `0.4.2`, owned by Electron main.
 * Added automatic session lifecycle reporting, stable product-flow observations, sanitized errors, and best-effort shutdown flushing.
 * Added anonymous installation identity, allowlisted renderer IPC, privacy tests, and the app-owned public Rainy HTTPS origin while keeping credentials private.
 

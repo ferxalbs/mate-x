@@ -1,5 +1,7 @@
 import { afterEach, describe, expect as rawExpect, it } from "bun:test";
 import { createHmac } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { LinearWebhookClient } from "@linear/sdk/webhooks";
 import { EngineeringCommandBus } from "../engineering/command-bus";
 import { InMemoryEngineeringRepository } from "../engineering/in-memory-repository";
@@ -166,7 +168,7 @@ describe("Linear session authority and recovery", () => {
   });
 
   it("replays persisted deliveries and outbound activity after restart", async () => {
-    const db = `file:${process.cwd()}/artifacts/linear-recovery-${crypto.randomUUID()}.sqlite`;
+    const db = `file:${join(tmpdir(), `mate-x-linear-recovery-${crypto.randomUUID()}.sqlite`)}`;
     const first = await store(db);
     await first.persistDelivery({ deliveryId: "offline", receivedAt: new Date().toISOString(), payload: payload("created") });
     const second = new LinearStore(db);
