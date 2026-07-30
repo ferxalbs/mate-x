@@ -1,7 +1,10 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 
-import { resolveAssistantRunOptions } from "./assistant-runbooks";
+import {
+  resolveAssistantRunOptions,
+  toAssistantRunbookId,
+} from "./assistant-runbooks";
 
 describe("resolveAssistantRunOptions", () => {
   it("defaults to Execute strategy", () => {
@@ -31,5 +34,13 @@ describe("resolveAssistantRunOptions", () => {
       runbookId: "patch_test_verify",
     });
     assert.equal(options.runbookId, "review_classify_summarize");
+  });
+
+  it("maps executable WorkPlan runbooks to executable assistant runbooks", () => {
+    assert.equal(toAssistantRunbookId("validate_only"), "patch_test_verify");
+    assert.equal(
+      toAssistantRunbookId("trace_source_to_sink"),
+      "audit_reproduce_remediate",
+    );
   });
 });

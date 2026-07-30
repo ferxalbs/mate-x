@@ -127,6 +127,47 @@ test("preparatory answer without tool evidence cannot be success", () => {
   assert.match(result.warnings.join("\n"), /No repository tool evidence was captured/);
 });
 
+test("typed provider failure replaces contradictory model prose", () => {
+  const result = finalizeWorkRun({
+    workPlan: {
+      ...basePlan,
+      intent: "patch",
+      runbook: "patch_test_verify",
+      validationPlan: {
+        required: true,
+        primaryCommand: "bun run typecheck",
+        fallbackCommand: null,
+        reason: "Patch requires validation.",
+      },
+    },
+    stages,
+    toolExecutions: [],
+    content:
+      "Completed partially. Validation not required. Migration incomplete.",
+    evidenceAttached: true,
+    terminalOutcome: {
+      status: "failed",
+      summary: "The selected model cannot use required repository tools.",
+      diagnostic: {
+        code: "MODEL_TOOLS_UNAVAILABLE",
+        message: "Required tools were rejected.",
+      },
+      remediation: {
+        type: "select_model",
+        label: "Choose another model",
+      },
+    },
+    synthesisStatus: "failed",
+  });
+
+  assert.equal(result.terminalState, "failed");
+  assert.equal(
+    result.content,
+    "The selected model cannot use required repository tools.",
+  );
+  assert.equal(result.summary, result.content);
+});
+
 test("Privacy Sentinel placeholders are not treated as source evidence", () => {
   const result = finalizeWorkRun({
     workPlan: basePlan,

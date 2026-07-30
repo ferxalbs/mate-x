@@ -34,6 +34,12 @@ import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
 import { attemptFinalResponsesSynthesis } from "./synthesis";
 import { resolveAdvertisedToolNames } from "../../capability-resolver";
+import { sanitizePublicProgress } from "../../../lib/assistant-output";
+import {
+  createModelToolsUnavailableResult,
+  createProviderFailureResult,
+  isModelToolsUnavailableError,
+} from "./model-tools-unavailable";
 
 export async function requestRainyResponsesAgenticResponse({
   apiKey,
@@ -149,28 +155,16 @@ export async function requestRainyResponsesAgenticResponse({
           reasoningEnabled: options.reasoningEnabled,
           reasoning: options.reasoning,
         }),
+        requireTools: runtime.executionIntent,
       });
     } catch (error) {
-      events.push({
-        id: `step-agent-failure-${iterations}`,
-        label: "Agent runtime stopped",
-        detail:
-          error instanceof Error
-            ? `Model request failed before final synthesis: ${error.message}`
-            : "Model request failed before final synthesis.",
-        status: "error",
-        visibility: "technical",
-      });
-      emitProgress(lastContent || undefined);
-      return {
+      if (isModelToolsUnavailableError(error)) {
+        return createModelToolsUnavailableResult(toolExecutions);
+      }
+      return createProviderFailureResult(
         toolExecutions,
-        synthesisStatus: "failed",
-        synthesisSummary: "The model request failed before a final synthesis was available.",
-        content: await finalizeContent(
-          lastContent ||
-            "The model request stopped before a final synthesis was available.",
-        ),
-      };
+        error instanceof Error ? error.message : "Unknown provider failure.",
+      );
     }
 
     previousResponseId = response.id;
@@ -200,12 +194,20 @@ export async function requestRainyResponsesAgenticResponse({
         arguments: toolCall.arguments,
       }),
     );
+    if (
+      !planningPhase &&
+      runtime.requireToolingFirst &&
+      toolRounds < runtime.minToolRounds &&
+      toolCalls.length === 0
+    ) {
+      return createModelToolsUnavailableResult(toolExecutions);
+    }
     if (responseText.trim()) {
       events.push({
         id: `${passId}:response`, segmentId: `${passId}:response`, passId, runId,
         segmentKind: toolCalls.length ? "intermediate_response" : "final_response",
         type: "result", label: toolCalls.length ? `Agent pass ${iterations} response` : "Final response",
-        detail: responseText, status: "completed",
+        detail: sanitizePublicProgress(responseText), status: "completed",
         visibility: "public",
       });
       emitProgress();

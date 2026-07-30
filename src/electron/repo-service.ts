@@ -130,9 +130,8 @@ export async function runAssistant(
       };
     },
   });
-  const runbookDefinition = resolveRunbookDefinition(
-    resolvedOptions.runbookId ?? toAssistantRunbookId(workPlan.runbook),
-  );
+  const effectiveRunbookId = toAssistantRunbookId(workPlan.runbook);
+  const runbookDefinition = resolveRunbookDefinition(effectiveRunbookId);
   const initialWorkPlanMetadata = buildWorkPlanMetadata(workPlan, "pending");
   const events: ToolEvent[] = [
     {
@@ -550,7 +549,11 @@ export async function runAssistant(
       visibility: "technical",
     });
   }
-  const noPatchNeeded = /\b(no patch|patch not needed|no code change|read-only)\b/i.test(content);
+  const noPatchNeeded =
+    workPlan.intent !== "patch" &&
+    !toolExecutions.some((execution) =>
+      /(?:file_editor|auto_patch|mutation|patch|edit)/i.test(execution.toolName),
+    );
   const workStages = deriveWorkStages({
     workPlan,
     events,
@@ -591,7 +594,7 @@ export async function runAssistant(
     trustContract: snapshot.trustContract,
     // Note: buildEvidencePack now internally wraps computeVerifiedTaskScore for crash resilience.
     // Attestation generation below is best-effort in surrounding try (see catch in this flow).
-    runbookId: resolvedOptions.runbookId,
+    runbookId: effectiveRunbookId,
     initialStatusLines: snapshot.statusLines,
   });
   const agentIdentity = await resolveAgentRunIdentity({
@@ -704,7 +707,7 @@ export async function runAssistant(
     evidencePack,
     workspacePath: snapshot.workspace.path,
     taskId,
-    policyApplied: resolvedOptions.runbookId ?? "workspace-policy-v2",
+    policyApplied: effectiveRunbookId,
     agentIdentity,
     privacyScan: async (payload) => {
       const scan = await privacyFirewall.scanTextSafe(payload);

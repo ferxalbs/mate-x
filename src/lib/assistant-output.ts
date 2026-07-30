@@ -30,6 +30,16 @@ export function sanitizeAssistantOutput(value: string): string {
     .trim();
 }
 
+/** Public progress may describe scope, but never exposes absolute local paths. */
+export function sanitizePublicProgress(value: string): string {
+  return sanitizeAssistantOutput(value)
+    .replace(
+      /(?:\/(?:Users|home|var|private|tmp)\/[^\s`'")\]}>,;:]+|[A-Za-z]:\\[^\s`'")\]}>,;:]+)/g,
+      "[relevant file]",
+    )
+    .trim();
+}
+
 function isSerializedToolCall(paragraph: string): boolean {
   const candidate = paragraph.trim();
   if (!candidate.startsWith("{") || !candidate.endsWith("}")) return false;

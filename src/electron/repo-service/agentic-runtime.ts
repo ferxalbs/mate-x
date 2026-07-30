@@ -10,7 +10,7 @@ import type { ExecutionSynthesisStatus } from "../../contracts/execution";
 import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } from "../../contracts/rainy";
 import { supportsTools } from "../../lib/rainy-model-capabilities";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../config/mate-agent";
-import { behaviorInstruction } from "../../contracts/behavior-mode";
+import { behaviorInstruction, type BehaviorMode } from "../../contracts/behavior-mode";
 import type { AppSettings } from "../../contracts/settings";
 import type { RepoSnapshot } from "./workspace";
 
@@ -19,6 +19,7 @@ import { buildAgentRuntimeConfig } from "./agentic-runtime/config";
 import { appendAttachmentContext } from "./agentic-runtime/helpers";
 import { requestRainyResponsesAgenticResponse } from "./agentic-runtime/responses-runner";
 import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
+import { createModelToolsUnavailableResult } from "./agentic-runtime/model-tools-unavailable";
 
 // Re-exports for absolute backward-compatibility
 export * from "./agentic-runtime/types";
@@ -31,14 +32,29 @@ export * from "./agentic-runtime/chat-runner";
 export * from "./agentic-runtime/responses-runner";
 
 /** Runbook-conditional playbooks keep the system prompt smaller for simple tasks. */
-function buildRunbookPlaybookSection(runbook: WorkRunbook): string {
+function buildRunbookPlaybookSection(
+  runbook: WorkRunbook,
+  behaviorMode: BehaviorMode,
+): string {
   const sections: string[] = [];
 
-  sections.push(`Fast search/read playbook:
-- Use rg before read when you need exact symbols, text, imports, config keys, or error strings. Prefer path/paths and include to keep search scoped.
-- Use rg maxResults and maxOutputChars for broad terms; raise them only after narrowing. Use contextLines 1-3 for nearby evidence.
-- Use read_many after rg when you need several files or line ranges. Prefer one read_many call over many read calls.
-- Avoid ls/tree/find for code discovery when rg, RepoGraph, glob, or read_many can answer faster.`);
+  sections.push(`Repository inspection:
+- Use rg for exact symbols, imports, config keys, and error strings; scope by path and result limits.
+- Use read_many for the smallest relevant set of files. Stop expanding once evidence is sufficient.`);
+
+  if (behaviorMode === "review") {
+    sections.push(`Review contract:
+- Inspect only. Produce evidence-backed findings, impact, and confidence.
+- Do not edit files, run commands, or describe unperformed work as execution.`);
+    return sections.join("\n");
+  }
+
+  if (behaviorMode === "plan") {
+    sections.push(`Plan contract:
+- Investigate read-only, resolve implementation decisions, and return ordered steps, affected areas, validation, and risks.
+- Do not edit files or run commands.`);
+    return sections.join("\n");
+  }
 
   if (
     runbook === "audit_reproduce_remediate" ||
@@ -59,23 +75,19 @@ function buildRunbookPlaybookSection(runbook: WorkRunbook): string {
     runbook === "validate_only" ||
     runbook === "audit_reproduce_remediate"
   ) {
-    sections.push(`Validation playbook:
-- Before running validation for code changes, create a validation plan with plan_validation. plan_validation only plans; never report PROVEN/GO from it alone.
-- When a validation plan exists, use it; do not choose commands ad hoc. After run_tests, call verify_validation_persistence before claiming persistence.
-- Before retrying a failed command/validation/patch, call find_similar_failures unless known failures already match. After new failures call record_failure; after a retry clears a failure call record_resolution.
-Sandbox timeout facts:
-- sandbox_run accepts timeoutSeconds 30, 45, 60, 120, or 240 plus grace; do not claim a fixed 20s wrapper kills sandbox_run without current code evidence.`);
+    sections.push(`Execute validation:
+- Create a validation plan with plan_validation, run the relevant advertised checks, and verify persistence before claiming success.
+- Report the exact typed result: passed, failed, or blocked by policy. Never infer validation from prose.`);
   }
 
   if (
     runbook === "patch_test_verify" ||
     runbook === "audit_reproduce_remediate"
   ) {
-    sections.push(`Reproduction harness contract:
-- Before patching suspicious behavior, attempt the smallest useful reproduction first.
-- Prefer non-invasive checks: existing test, validation run, minimal script, HTTP/browser, then static proof.
-- Do not invent temp paths, commands, exit codes, or pre/post outcomes. Only report a command when a tool result exists for that exact command.
-- If sandbox_run executed, do not say runtime was blocked.`);
+    sections.push(`Execute patch sequence:
+- Establish the smallest useful reproduction or static proof.
+- Read the relevant files, apply scoped edits with file_editor, search for remaining obsolete patterns, then validate.
+- Do not invent paths, commands, exit codes, or pre/post outcomes.`);
   }
 
   if (runbook === "review_classify_summarize") {
@@ -194,17 +206,11 @@ export async function requestRainyAgenticResponse({
         `Model ${model} does not advertise tool-calling support in the Rainy catalog. ` +
         "This task requires repository tools for patching or validation, so MaTE X will not treat this run as verified.",
       status: "error",
+      visibility: "technical",
     });
     emitProgress();
 
-    return {
-      toolExecutions: [],
-      synthesisStatus: "failed",
-      synthesisSummary: "The configured model does not support the required repository tools.",
-      content:
-        `Model ${model} cannot run repository tools for this task. ` +
-        "Choose a model with tool-calling support, then retry patch/validation.",
-    };
+    return createModelToolsUnavailableResult([]);
   }
   const matches = snapshot.promptMatches
     .slice(0, 12)
@@ -230,7 +236,10 @@ export async function requestRainyAgenticResponse({
     runtimeExecutionIntent: runtime.executionIntent,
     workingSet: renderWorkingSetForPrompt(workingSet),
     workPlan: renderWorkPlanForPrompt(workPlan),
-    playbook: buildRunbookPlaybookSection(workPlan.runbook),
+    playbook: buildRunbookPlaybookSection(
+      workPlan.runbook,
+      options.behaviorMode,
+    ),
     gitStatus,
     matches,
     memory: snapshot.memoryContext?.context ?? "",

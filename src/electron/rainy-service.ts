@@ -382,6 +382,13 @@ export function isToolsNotAllowedError(error: unknown) {
   );
 }
 
+export function shouldRetryRainyWithoutTools(
+  error: unknown,
+  requireTools = false,
+): boolean {
+  return isToolsNotAllowedError(error) && !requireTools;
+}
+
 export function isReasoningNotAllowedError(error: unknown) {
   const candidate = error as {
     status?: unknown;
@@ -913,6 +920,7 @@ export async function requestRainyChatCompletionStream(params: {
   signal?: AbortSignal;
   /** Override request timeout (agent loops use longer budgets). */
   timeoutMs?: number;
+  requireTools?: boolean;
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = await createRainyClient(params.apiKey);
   const requestTimeoutMs = params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS;
@@ -974,6 +982,9 @@ export async function requestRainyChatCompletionStream(params: {
       )) as unknown as AsyncIterable<any>;
     } catch (error) {
       if (isToolsNotAllowedError(error) && !omitTools) {
+        if (!shouldRetryRainyWithoutTools(error, params.requireTools)) {
+          throw new RainyToolsUnavailableError();
+        }
         omitTools = true;
         continue;
       }
@@ -1072,6 +1083,7 @@ export async function requestRainyResponsesCompletion(params: {
   signal?: AbortSignal;
   /** Override request timeout (agent loops use longer budgets). */
   timeoutMs?: number;
+  requireTools?: boolean;
 }): Promise<OpenAIResponse> {
   const client = await createRainyClient(params.apiKey);
   const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
@@ -1105,6 +1117,9 @@ export async function requestRainyResponsesCompletion(params: {
     if (!isToolsNotAllowedError(error)) {
       throw error;
     }
+    if (!shouldRetryRainyWithoutTools(error, params.requireTools)) {
+      throw new RainyToolsUnavailableError();
+    }
 
     return client.responses.create(
       {
@@ -1117,6 +1132,17 @@ export async function requestRainyResponsesCompletion(params: {
         timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
       },
     );
+  }
+}
+
+export class RainyToolsUnavailableError extends Error {
+  readonly code = "MODEL_TOOLS_UNAVAILABLE";
+
+  constructor(
+    message = "The selected model cannot use the repository tools required for this run.",
+  ) {
+    super(message);
+    this.name = "RainyToolsUnavailableError";
   }
 }
 

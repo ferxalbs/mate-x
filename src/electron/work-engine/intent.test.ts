@@ -9,6 +9,11 @@ const acmeReviewPrompt = `The Acme SDK was upgraded to v3.
 Find every incompatible use of the old customer API, explain what will break,
 and identify the required migration. Do not modify the repository.`;
 
+const acmeExecutePrompt = `Migrate every Acme SDK v2 customer API call to v3.
+
+Update the three runtime service call sites, search for remaining deprecated
+usages, and run the focused tests plus typecheck. Do not modify tests unless required.`;
+
 describe('work intent classification', () => {
   const cases = [
     ['Do not modify anything. Show me what should change.', 'inspect'],
@@ -16,6 +21,7 @@ describe('work intent classification', () => {
     ['Identify the required migration.', 'inspect'],
     ['Review and fix the errors.', 'patch'],
     ['Edit README.md.', 'patch'],
+    [acmeExecutePrompt, 'patch'],
     [acmeReviewPrompt, 'inspect'],
   ] as const;
 
@@ -29,6 +35,13 @@ describe('work intent classification', () => {
     assert.equal(
       classifyWorkIntent('Explain the fix without making any code changes.'),
       'inspect',
+    );
+  });
+
+  test('scoped mutation constraints do not make the whole request read-only', () => {
+    assert.equal(
+      classifyWorkIntent('Fix the runtime. Do not modify tests unless required.'),
+      'patch',
     );
   });
 

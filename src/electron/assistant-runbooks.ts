@@ -302,9 +302,11 @@ export function toAssistantRunbookId(
     case "review_classify_summarize":
     case "answer_from_context":
     case "inspect_explain":
-    case "trace_source_to_sink":
-    case "validate_only":
       return "review_classify_summarize";
+    case "trace_source_to_sink":
+      return "audit_reproduce_remediate";
+    case "validate_only":
+      return "patch_test_verify";
     case "patch_test_verify":
     default:
       return "patch_test_verify";

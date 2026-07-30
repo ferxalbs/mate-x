@@ -41,6 +41,7 @@ const {
   isReasoningNotAllowedError,
   isToolsNotAllowedError,
   isOpenAIGpt5OrNewerModel,
+  shouldRetryRainyWithoutTools,
   listRainyModelLaunches,
   listRainyModels,
   resolvePreferredRainyApiMode,
@@ -71,6 +72,18 @@ describe("Rainy plan compatibility errors", () => {
       }),
       false,
     );
+  });
+
+  it("preserves textual fallback for chat but forbids it when Execute requires tools", () => {
+    const error = {
+      status: 403,
+      error: {
+        code: "TOOLS_NOT_ALLOWED",
+        message: "Custom tools are not available on your plan",
+      },
+    };
+    assert.equal(shouldRetryRainyWithoutTools(error, false), true);
+    assert.equal(shouldRetryRainyWithoutTools(error, true), false);
   });
 
   it("recognizes only the structured reasoning entitlement rejection", () => {

@@ -200,21 +200,15 @@ export function finalizeWorkRun(input: {
     rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0),
     terminalState,
   );
-  const blockedOutcome =
-    input.terminalOutcome?.status === "blocked"
-      ? input.terminalOutcome
+  const typedTerminalSummary =
+    input.terminalOutcome && input.terminalOutcome.status !== "completed"
+      ? input.terminalOutcome.summary
       : undefined;
-  const rejectionSummary =
-    blockedOutcome &&
-    blockedOutcome.blocker.code !== "APPROVAL_DENIED" &&
-    evidence.changedFiles.length === 0
-      ? blockedOutcome.summary
-      : undefined;
-  const summary = rejectionSummary
-    ? rejectionSummary
-    : buildUserFacingExecutionSummary(terminalState, evidence);
-  const content = rejectionSummary
-    ? rejectionSummary
+  const summary =
+    typedTerminalSummary ??
+    buildUserFacingExecutionSummary(terminalState, evidence);
+  const content = typedTerminalSummary
+    ? typedTerminalSummary
     : appendExecutionSummary(rewrittenContent, summary);
 
   return {

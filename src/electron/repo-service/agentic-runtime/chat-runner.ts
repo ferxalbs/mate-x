@@ -27,13 +27,11 @@ import {
   isCleanCurrentChangeReview,
   isCleanGitDiffToolResult,
   isCurrentChangeReviewPrompt,
-  isRainyConnectionTimeout,
   isPreparatoryAssistantText,
   executeToolBatchWithSafety,
   normalizeAssistantText,
   sanitizeAssistantOutput,
   summarizeCheckpoint,
-  buildTimeoutFinalResponse,
   buildNoContentFinalResponse,
   buildChatUserContent,
   selectFinalAssistantText,
@@ -42,6 +40,12 @@ import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
 import { attemptFinalChatSynthesis } from "./synthesis";
 import { resolveAdvertisedToolNames } from "../../capability-resolver";
+import { sanitizePublicProgress } from "../../../lib/assistant-output";
+import {
+  createModelToolsUnavailableResult,
+  createProviderFailureResult,
+  isModelToolsUnavailableError,
+} from "./model-tools-unavailable";
 
 export async function requestRainyChatAgenticResponse({
   apiKey,
@@ -178,6 +182,7 @@ export async function requestRainyChatAgenticResponse({
           reasoningEnabled: options.reasoningEnabled,
           reasoning: options.reasoning,
         }),
+        requireTools: runtime.executionIntent,
         onContentDelta: (delta: string) => {
           streamedPassText += delta;
           const visibleStream = sanitizeAssistantOutput(streamedPassText);
@@ -189,63 +194,12 @@ export async function requestRainyChatAgenticResponse({
         },
       });
     } catch (error) {
-      const partialText = [lastNonEmptyAssistantText, sanitizeAssistantOutput(streamedPassText)]
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .join("\n\n");
-      if (!isRainyConnectionTimeout(error)) {
-        events.push({
-          id: `step-agent-failure-${iterations}`,
-          label: "Agent runtime stopped",
-          detail:
-            error instanceof Error
-              ? `Model request failed before final synthesis: ${error.message}`
-              : "Model request failed before final synthesis.",
-          status: "error",
-          visibility: "technical",
-        });
-        emitProgress(partialText || undefined);
-        return {
-          toolExecutions,
-          synthesisStatus: "failed",
-          synthesisSummary: "The model request failed before a final synthesis was available.",
-          content: await finalizeContent(
-            partialText ||
-              buildNoContentFinalResponse({
-                iterations,
-                toolRounds,
-                totalToolCalls,
-                events,
-              }),
-          ),
-        };
+      if (isModelToolsUnavailableError(error)) {
+        return createModelToolsUnavailableResult(toolExecutions);
       }
-
-      events.push({
-        id: `step-agent-timeout-${iterations}`,
-        label: "Rainy timeout recovery",
-        detail:
-          error instanceof Error
-            ? `${error.name || "Error"}: ${error.message}. Returned partial local synthesis.`
-            : "Rainy request timed out. Returned partial local synthesis.",
-        status: "error",
-      });
-      emitProgress(partialText || undefined);
-
-      return {
-        toolExecutions,
-        synthesisStatus: "failed",
-        synthesisSummary: "The model request timed out before a final synthesis was available.",
-        content: await finalizeContent(
-          buildTimeoutFinalResponse({
-            iterations,
-            toolRounds,
-            totalToolCalls,
-            events,
-            lastText: partialText,
-          }),
-        ),
-      };
+      const providerMessage =
+        error instanceof Error ? error.message : "Unknown provider failure.";
+      return createProviderFailureResult(toolExecutions, providerMessage);
     }
 
     messages.push(responseMessage);
@@ -258,6 +212,14 @@ export async function requestRainyChatAgenticResponse({
       }));
 
     const responseText = normalizeAssistantText(responseMessage.content);
+    if (
+      !planningPhase &&
+      runtime.requireToolingFirst &&
+      toolRounds < runtime.minToolRounds &&
+      (!toolCalls || toolCalls.length === 0)
+    ) {
+      return createModelToolsUnavailableResult(toolExecutions);
+    }
     if (responseText.trim()) {
       events.push({
         id: `${passId}:response`,
@@ -267,7 +229,7 @@ export async function requestRainyChatAgenticResponse({
         segmentKind: toolCalls?.length ? "intermediate_response" : "final_response",
         type: "result",
         label: toolCalls?.length ? `Agent pass ${iterations} response` : "Final response",
-        detail: responseText,
+        detail: sanitizePublicProgress(responseText),
         status: "completed",
         visibility: "public",
       });

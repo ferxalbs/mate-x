@@ -259,7 +259,7 @@ export async function executeAgentToolCall({
       });
     }
     if (toolEvent) {
-      Object.assign(toolEvent, createPublicToolProgress(toolName));
+      Object.assign(toolEvent, createPublicToolProgress(toolName, toolArgs));
     }
     emitProgress();
   }
@@ -267,7 +267,7 @@ export async function executeAgentToolCall({
   if (!policyStop) {
     events.push({
       id: eventId,
-      ...createPublicToolProgress(toolName),
+      ...createPublicToolProgress(toolName, toolArgs),
     });
     emitProgress();
   }
@@ -299,8 +299,14 @@ export async function executeAgentToolCall({
     const outputIndicatesFailure = isToolFailureOutput(rawResult);
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
-      toolEvent.status = outputIndicatesFailure ? "error" : "done";
-      toolEvent.detail = outputIndicatesFailure ? "Action failed." : "";
+      Object.assign(
+        toolEvent,
+        createPublicToolProgress(
+          toolName,
+          toolArgs,
+          outputIndicatesFailure ? "failed" : "completed",
+        ),
+      );
     }
     if (policyStop) {
       if (outputIndicatesFailure) {
@@ -360,8 +366,10 @@ export async function executeAgentToolCall({
       error instanceof Error ? error.message : `Tool ${toolName} failed.`;
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
-      toolEvent.status = "error";
-      toolEvent.detail = "Action failed.";
+      Object.assign(
+        toolEvent,
+        createPublicToolProgress(toolName, toolArgs, "failed"),
+      );
     }
     if (policyStop) {
       policyService.markStopFailed(policyStop.id);
@@ -400,19 +408,36 @@ function blockedToolResult(input: {
   emitProgress: () => void;
   outcome: Extract<AgentOutcome, { status: "blocked" }>;
 }) {
+  const publicProgress = createPublicToolProgress(
+    input.toolName,
+    input.toolArgs,
+    "failed",
+  );
+  const blockedLabel =
+    publicProgress.type === "validation"
+      ? "Validation blocked by policy"
+      : publicProgress.type === "edit"
+        ? "Edit blocked by policy"
+        : "Action blocked by policy";
+  const blockedDetail =
+    publicProgress.type === "validation"
+      ? "Workspace policy did not allow validation."
+      : publicProgress.type === "edit"
+        ? "Workspace policy did not allow the requested edit."
+        : "Workspace policy did not allow the requested operation.";
   const event = input.events.find((candidate) => candidate.id === input.eventId);
   if (event) {
-    event.label = "Action blocked";
-    event.detail = input.outcome.summary;
+    Object.assign(event, publicProgress);
+    event.label = blockedLabel;
+    event.detail = blockedDetail;
     event.status = "blocked";
-    event.visibility = "public";
   } else {
     input.events.push({
       id: input.eventId,
-      label: "Action blocked",
-      detail: input.outcome.summary,
+      ...publicProgress,
+      label: blockedLabel,
+      detail: blockedDetail,
       status: "blocked",
-      visibility: "public",
     });
   }
   input.emitProgress();

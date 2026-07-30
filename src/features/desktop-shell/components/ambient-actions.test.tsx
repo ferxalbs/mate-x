@@ -171,6 +171,54 @@ describe("Ambient Safety Actions in MessageStream", () => {
     );
   });
 
+  it("opens the existing model selector for a typed tool incompatibility", async () => {
+    let selectorClicks = 0;
+    const view = await renderAmbient(
+      <>
+        <button
+          data-model-selector-trigger
+          onClick={() => {
+            selectorClicks += 1;
+          }}
+          type="button"
+        >
+          Run settings
+        </button>
+        <MessageStream
+          canUndoLastTurn={false}
+          messages={[
+            {
+              id: "model-tools-failure",
+              role: "assistant",
+              content: "A discarded provider draft.",
+              createdAt: new Date().toISOString(),
+              outcome: {
+                status: "failed",
+                summary: "The selected model cannot use required tools.",
+                diagnostic: {
+                  code: "MODEL_TOOLS_UNAVAILABLE",
+                  message: "Required tools were rejected.",
+                },
+                remediation: {
+                  type: "select_model",
+                  label: "Choose a model with tool support",
+                },
+              },
+            },
+          ]}
+          isRunning={false}
+          onSelectPrompt={mockOnSelect}
+          onSubmitPrompt={mockOnSubmit}
+          onUndoLastTurn={mockOnUndo}
+        />
+      </>,
+    );
+
+    fireEvent.click(view.getByText("Choose a model with tool support"));
+    assert.equal(selectorClicks, 1);
+    assert.equal(view.queryByText("A discarded provider draft."), null);
+  });
+
   it("clicking Run verification submits immediately and preserves mode/intent", async () => {
     const view = await renderAmbient(
       <MessageStream

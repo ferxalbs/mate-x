@@ -116,7 +116,9 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
       >
         <span className="min-w-0 flex-1">
           {isRunning
-            ? activeEvent?.title ?? "Waiting for observable activity"
+            ? activeEvent?.title ??
+              activeEvent?.label ??
+              "Waiting for observable activity"
             : `Worked for ${formatDuration(duration)}${activitySummary ? ` · ${activitySummary}` : ""}`}
         </span>
         {isRunning ? <HugeiconsIcon icon={Loading01Icon} className="size-3.5 animate-spin motion-reduce:animate-none" /> : expanded ? <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />}
@@ -139,8 +141,35 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
 });
 
 function getActivitySummary(events: ToolEvent[]) {
-  const summary = getGroupName(events);
-  return summary === "Used tools" ? "activity captured" : summary;
+  const parts: string[] = [];
+  const editCount = events.filter(
+    (event) => event.type === "edit" && event.status === "done",
+  ).length;
+  if (editCount > 0) {
+    parts.push(`${editCount} ${editCount === 1 ? "file edited" : "files edited"}`);
+  }
+  if (events.some((event) => event.type === "search" && event.status === "done")) {
+    parts.push("search completed");
+  }
+  const validationEvents = events.filter((event) => event.type === "validation");
+  if (validationEvents.some((event) => event.status === "done")) {
+    parts.push("validation passed");
+  } else if (
+    validationEvents.some(
+      (event) => event.status === "error" || event.status === "blocked",
+    )
+  ) {
+    parts.push("validation blocked or failed");
+  }
+  if (parts.length > 0) return parts.join(" · ");
+
+  const readCount = events.filter(
+    (event) => event.type === "read" && event.status === "done",
+  ).length;
+  if (readCount > 0) {
+    return `${readCount} ${readCount === 1 ? "read completed" : "reads completed"}`;
+  }
+  return events.length > 0 ? "work recorded" : "";
 }
 
 function toPublicExecutionEvent(event: ToolEvent): ToolEvent | null {

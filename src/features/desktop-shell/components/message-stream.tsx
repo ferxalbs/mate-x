@@ -461,7 +461,12 @@ function AgentOutcomeCard({
   outcome: Exclude<AgentOutcome, { status: "completed" }>;
 }) {
   const remediation =
-    outcome.status === "blocked" ? outcome.blocker.remediation : undefined;
+    outcome.status === "blocked"
+      ? outcome.blocker.remediation
+      : outcome.status === "failed"
+        ? outcome.remediation
+        : undefined;
+  const canSelectModel = remediation?.type === "select_model";
   return (
     <section className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none">
       <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
@@ -476,9 +481,23 @@ function AgentOutcomeCard({
         {outcome.summary}
       </p>
       {remediation ? (
-        <p className="mt-2 text-[11px] font-medium text-foreground/80">
-          Next: {remediation.label}
-        </p>
+        canSelectModel ? (
+          <button
+            className="mt-2 rounded-xl border border-border/70 px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
+            onClick={() =>
+              document
+                .querySelector<HTMLElement>("[data-model-selector-trigger]")
+                ?.click()
+            }
+            type="button"
+          >
+            {remediation.label}
+          </button>
+        ) : (
+          <p className="mt-2 text-[11px] font-medium text-foreground/80">
+            Next: {remediation.label}
+          </p>
+        )
       ) : null}
     </section>
   );

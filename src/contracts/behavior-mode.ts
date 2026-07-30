@@ -27,7 +27,7 @@ export const BEHAVIOR_MODE_DEFINITIONS: Readonly<
     runbookId: "review_classify_summarize",
     allowsMutation: false,
     allowsCommands: false,
-    responseContract: "Return findings with evidence and impact. Do not propose fake execution.",
+    responseContract: "Use read-only repository tools. Return findings with evidence and impact. Never edit files or run commands.",
   }),
   plan: Object.freeze({
     mode: "plan",
@@ -36,7 +36,7 @@ export const BEHAVIOR_MODE_DEFINITIONS: Readonly<
     runbookId: "review_classify_summarize",
     allowsMutation: false,
     allowsCommands: false,
-    responseContract: "Return ordered implementation steps, affected areas, and verification.",
+    responseContract: "Use read-only repository tools. Return a decision-complete implementation plan with affected areas and verification. Never edit files or run commands.",
   }),
   execute: Object.freeze({
     mode: "execute",
@@ -45,7 +45,7 @@ export const BEHAVIOR_MODE_DEFINITIONS: Readonly<
     runbookId: "patch_test_verify",
     allowsMutation: true,
     allowsCommands: true,
-    responseContract: "Return outcome, essential changes, validation, and unresolved issues only.",
+    responseContract: "For mutation work, use repository tools before answering: inspect, edit, search for remaining issues, validate, then return the typed outcome and evidence.",
   }),
 });
 

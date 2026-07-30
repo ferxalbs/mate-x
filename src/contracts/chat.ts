@@ -127,6 +127,7 @@ export type AgentBlockReason =
 export type AgentRemediation =
   | { type: "change_mode"; target: BehaviorMode; label: string }
   | { type: "update_workspace_policy"; label: string }
+  | { type: "select_model"; label: string }
   | { type: "retry"; label: string };
 
 export type AgentOutcome =
@@ -154,6 +155,7 @@ export type AgentOutcome =
       status: "failed";
       summary: string;
       diagnostic?: { code: string; message: string };
+      remediation?: AgentRemediation;
     };
 
 export interface ToolEvent {

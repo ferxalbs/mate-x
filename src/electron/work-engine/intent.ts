@@ -1,9 +1,9 @@
 import type { WorkIntent } from './types';
 
 const MUTATION_VERB = '(?:fix|patch|update|implement|change|add|remove|edit|modify|repair|migrate)';
-const READ_ONLY_RE = new RegExp(
+const GLOBAL_READ_ONLY_RE = new RegExp(
   [
-    `\\b(?:do\\s+not|don't|never)\\s+(?:\\w+\\s+){0,3}${MUTATION_VERB}\\b`,
+    `\\b(?:do\\s+not|don't|never)\\s+(?:\\w+\\s+){0,2}${MUTATION_VERB}(?=\\s+(?:anything|(?:the\\s+)?(?:repository|workspace|codebase)|(?:any\\s+)?(?:files?|code))\\b|[.!?]\\s*$)`,
     '\\bwithout\\s+(?:making\\s+)?(?:any\\s+)?(?:changes?|edits?|modifications?)\\b',
     '\\bno\\s+(?:(?:workspace|repository|file|code)\\s+)?(?:changes?|edits?|modifications?)\\b',
     '\\bread[- ]only\\b',
@@ -30,7 +30,7 @@ export function classifyWorkIntent(prompt: string): WorkIntent {
   const text = prompt.trim();
   if (!text) return 'unknown';
 
-  if (READ_ONLY_RE.test(text)) return 'inspect';
+  if (GLOBAL_READ_ONLY_RE.test(text)) return 'inspect';
   if (IMPERATIVE_MUTATION_RE.test(text)) return 'patch';
   if (REVIEW_CHANGES_RE.test(text)) return 'review_changes';
   if (SECURITY_RE.test(text)) return 'security_review';

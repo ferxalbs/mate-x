@@ -105,6 +105,7 @@ export function ComposerRunSettings({
       <DropdownMenuTrigger
         aria-label="Run settings"
         className="flex h-8 min-w-0 items-center gap-1.5 rounded-full border border-border/70 px-2.5 text-[11px] font-medium text-foreground shadow-none transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] motion-reduce:transform-none [@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-px hover:bg-foreground/5"
+        data-model-selector-trigger
         data-testid="run-settings-trigger"
         ref={triggerRef}
       >

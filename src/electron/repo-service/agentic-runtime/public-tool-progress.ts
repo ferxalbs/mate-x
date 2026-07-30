@@ -4,6 +4,7 @@ type PublicToolProgress = Pick<
   ToolEvent,
   "detail" | "label" | "segmentKind" | "status" | "type" | "visibility"
 >;
+type PublicToolProgressPhase = "active" | "completed" | "failed";
 
 const READ_TOOLS = /^(?:read|read_many|pwd|ls|tree|du|file_metadata)$/;
 const SEARCH_TOOLS = /^(?:rg|find|glob|ast_grep|repo_graph|git_forensics)$/;
@@ -11,13 +12,18 @@ const EDIT_TOOLS = /(?:file_editor|auto_patch|mutation|patch|edit)/;
 const VALIDATION_TOOLS =
   /(?:run_tests|sandbox_run|eslint_scan|semgrep_scan|audit|scan|revalidator|validation|fuzzer|prober|trace|dependency_check|cve)/;
 
-export function createPublicToolProgress(toolName: string): PublicToolProgress {
+export function createPublicToolProgress(
+  toolName: string,
+  args: Record<string, unknown> = {},
+  phase: PublicToolProgressPhase = "active",
+): PublicToolProgress {
   const type = classifyPublicToolType(toolName);
   return {
-    detail: "",
-    label: publicToolLabel(type),
+    detail: publicToolDetail(type, args, phase),
+    label: publicToolLabel(type, args, phase),
     segmentKind: "tool",
-    status: "active",
+    status:
+      phase === "active" ? "active" : phase === "completed" ? "done" : "error",
     type,
     visibility: "public",
   };
@@ -32,17 +38,85 @@ function classifyPublicToolType(toolName: string): ToolEventType {
   return "command";
 }
 
-function publicToolLabel(type: ToolEventType): string {
+function publicToolLabel(
+  type: ToolEventType,
+  args: Record<string, unknown>,
+  phase: PublicToolProgressPhase,
+): string {
+  const completed = phase === "completed";
+  const failed = phase === "failed";
   switch (type) {
-    case "read":
-      return "Reading files";
+    case "read": {
+      const count = countRequestedFiles(args);
+      if (count > 1) {
+        return `${completed ? "Read" : failed ? "Could not read" : "Reading"} ${count} relevant files`;
+      }
+      return completed
+        ? "Read relevant file"
+        : failed
+          ? "File read failed"
+          : "Reading relevant file";
+    }
     case "search":
-      return "Searching repository";
+      return completed
+        ? "Repository search completed"
+        : failed
+          ? "Repository search failed"
+          : "Searching repository";
     case "edit":
-      return "Editing files";
-    case "validation":
-      return "Running validation";
+      return completed
+        ? "Updated workspace file"
+        : failed
+          ? "File update failed"
+          : "Editing workspace file";
+    case "validation": {
+      const target = validationTarget(args);
+      return completed
+        ? `${target} passed`
+        : failed
+          ? `${target} failed`
+          : `Running ${target.toLowerCase()}`;
+    }
     default:
-      return "Running workspace action";
+      return completed
+        ? "Workspace action completed"
+        : failed
+          ? "Workspace action failed"
+          : "Running workspace action";
   }
+}
+
+function publicToolDetail(
+  type: ToolEventType,
+  args: Record<string, unknown>,
+  phase: PublicToolProgressPhase,
+): string {
+  if (type === "validation" && phase !== "active") {
+    return phase === "completed"
+      ? "Validation completed successfully."
+      : "Validation did not complete successfully.";
+  }
+  if (type === "edit" && phase === "completed") {
+    return "A scoped workspace edit was applied.";
+  }
+  if (type === "search" && phase === "completed") {
+    return "The requested repository search finished.";
+  }
+  return "";
+}
+
+function countRequestedFiles(args: Record<string, unknown>): number {
+  for (const key of ["requests", "paths", "files"]) {
+    if (Array.isArray(args[key])) return args[key].length;
+  }
+  return 1;
+}
+
+function validationTarget(args: Record<string, unknown>): string {
+  const command = String(args.command ?? args.script ?? "").toLowerCase();
+  if (command.includes("typecheck") || command.includes("tsc")) return "Typecheck";
+  if (command.includes("lint") || command.includes("eslint")) return "Lint";
+  if (command.includes("test")) return "Tests";
+  if (command.includes("build") || command.includes("package")) return "Build";
+  return "Validation";
 }
