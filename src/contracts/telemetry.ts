@@ -24,6 +24,20 @@ export interface RendererTelemetryMessage {
   attributes?: SafeTelemetryAttributes;
 }
 
+export type TelemetryFeedbackRating = "like" | "dislike";
+
+export interface RendererTelemetryFeedback {
+  messageId: string;
+  rating: TelemetryFeedbackRating;
+}
+
+export interface TelemetryFeedbackResult {
+  accepted: boolean;
+}
+
 export interface TelemetryApi {
   track: (message: RendererTelemetryMessage) => Promise<void>;
+  sendFeedback: (
+    feedback: RendererTelemetryFeedback,
+  ) => Promise<TelemetryFeedbackResult>;
 }

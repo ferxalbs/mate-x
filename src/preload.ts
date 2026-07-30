@@ -261,6 +261,7 @@ const mobileApi: MobileBridgeApi = {
 
 const telemetryApi: TelemetryApi = {
   track: (message) => ipcRenderer.invoke("telemetry:track", message),
+  sendFeedback: (feedback) => ipcRenderer.invoke("telemetry:feedback", feedback),
 };
 
 contextBridge.exposeInMainWorld("mate", {

@@ -1,5 +1,14 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ReloadIcon, CheckIcon, CopyIcon, File01Icon, Loading02Icon, Alert01Icon } from "@hugeicons/core-free-icons";
+import {
+  ReloadIcon,
+  CheckIcon,
+  CopyIcon,
+  File01Icon,
+  Loading02Icon,
+  Alert01Icon,
+  ThumbsUpIcon,
+  ThumbsDownIcon,
+} from "@hugeicons/core-free-icons";
 
 import {
   memo,
@@ -15,6 +24,7 @@ import type {
   AssistantRunOptions,
   ChatMessage,
 } from "../../../contracts/chat";
+import type { TelemetryFeedbackRating } from "../../../contracts/telemetry";
 import { sanitizeAssistantOutput } from "../../../lib/assistant-output";
 import { formatTimestamp } from "../../../lib/time";
 import { cn } from "../../../lib/utils";
@@ -90,6 +100,13 @@ export function MessageStream({
               onSelectPrompt={onSelectPrompt}
               onSubmitPrompt={onSubmitPrompt}
               onUndo={onUndoLastTurn}
+              retryPrompt={
+                message.role === "assistant"
+                  ? [...messages.slice(0, index)]
+                      .reverse()
+                      .find((candidate) => candidate.role === "user")?.content
+                  : undefined
+              }
             />
           </MessageScrollerItem>
         ))}
@@ -113,6 +130,7 @@ const MessageEntry = memo(function MessageEntry({
   onSelectPrompt,
   onSubmitPrompt,
   onUndo,
+  retryPrompt,
 }: {
   message: ChatMessage;
   isStreaming: boolean;
@@ -125,6 +143,7 @@ const MessageEntry = memo(function MessageEntry({
     overrides?: Partial<AssistantRunOptions>,
   ) => Promise<void> | void;
   onUndo: () => Promise<string | null>;
+  retryPrompt?: string;
 }) {
   const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
@@ -132,6 +151,8 @@ const MessageEntry = memo(function MessageEntry({
   const hasTimeline = events.length > 0;
   const [copied, setCopied] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<TelemetryFeedbackRating | null>(null);
+  const [pendingFeedback, setPendingFeedback] = useState<TelemetryFeedbackRating | null>(null);
   // Synchronous guard so double-clicks in the same tick cannot start two submits
   // before React re-renders with pendingAction set.
   const ambientActionInFlightRef = useRef(false);
@@ -147,7 +168,9 @@ const MessageEntry = memo(function MessageEntry({
 
   async function handleCopy() {
     try {
-      await window.mate.ui.copyToClipboard(message.content);
+      await window.mate.ui.copyToClipboard(
+        isUser ? message.content : stripTraceTransportMarkers(message.content),
+      );
       setCopied(true);
       if (copyResetTimerRef.current) {
         clearTimeout(copyResetTimerRef.current);
@@ -158,6 +181,51 @@ const MessageEntry = memo(function MessageEntry({
       }, 1200);
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
+    }
+  }
+
+  async function handleRetry() {
+    if (
+      !retryPrompt ||
+      isRunning ||
+      ambientActionInFlightRef.current ||
+      pendingAction !== null
+    ) {
+      return;
+    }
+
+    ambientActionInFlightRef.current = true;
+    setPendingAction("retry");
+    try {
+      const prompt = isLast ? await onUndo() : retryPrompt;
+      if (!prompt) return;
+      if (onSubmitPrompt) {
+        await onSubmitPrompt(prompt);
+      } else {
+        onSelectPrompt(prompt);
+      }
+    } catch (error) {
+      console.error("Failed to retry response:", error);
+    } finally {
+      ambientActionInFlightRef.current = false;
+      setPendingAction(null);
+    }
+  }
+
+  async function handleFeedback(rating: TelemetryFeedbackRating) {
+    if (pendingFeedback || feedback === rating) return;
+
+    setPendingFeedback(rating);
+    try {
+      const result = await window.mate.telemetry.sendFeedback({
+        messageId: message.id,
+        rating,
+      });
+      if (result.accepted) setFeedback(rating);
+    } catch (error) {
+      console.error("Failed to send response feedback:", error);
+    } finally {
+      setPendingFeedback(null);
     }
   }
 
@@ -240,7 +308,7 @@ const MessageEntry = memo(function MessageEntry({
           message.outcome.status === "needs_approval" ||
           message.outcome.status === "failed") ? (
           <AgentOutcomeCard outcome={message.outcome} />
-        ) : normalizedContent.length > 0 ? (
+        ) : normalizedContent.length > 0 && (!isStreaming || !hasTimeline) ? (
           <ChatMarkdown
             content={stripTraceTransportMarkers(message.content)}
             isStreaming={isStreaming}
@@ -279,17 +347,19 @@ const MessageEntry = memo(function MessageEntry({
         <p className="mate-text-secondary">
           {formatTimestamp(message.createdAt)}
         </p>
-        <MessageActionButton
-          ariaLabel={copied ? "Copied message" : "Copy message"}
-          icon={
-            copied ? (
-              <HugeiconsIcon icon={CheckIcon} className="size-3.5" />
-            ) : (
-              <HugeiconsIcon icon={CopyIcon} className="size-3.5" />
-            )
-          }
-          onClick={() => void handleCopy()}
-        />
+        {normalizedContent.length > 0 && !isStreaming ? (
+          <ResponseActions
+            copied={copied}
+            feedback={feedback}
+            onCopy={() => void handleCopy()}
+            onFeedback={(rating) => void handleFeedback(rating)}
+            onRetry={() => void handleRetry()}
+            pendingFeedback={pendingFeedback}
+            retryDisabled={
+              isRunning || pendingAction !== null || !retryPrompt
+            }
+          />
+        ) : null}
       </div>
     </article>
   );
@@ -297,6 +367,77 @@ const MessageEntry = memo(function MessageEntry({
 
 function stripTraceTransportMarkers(value: string) {
   return sanitizeAssistantOutput(value);
+}
+
+function ResponseActions({
+  copied,
+  feedback,
+  onCopy,
+  onFeedback,
+  onRetry,
+  pendingFeedback,
+  retryDisabled,
+}: {
+  copied: boolean;
+  feedback: TelemetryFeedbackRating | null;
+  onCopy: () => void;
+  onFeedback: (rating: TelemetryFeedbackRating) => void;
+  onRetry: () => void;
+  pendingFeedback: TelemetryFeedbackRating | null;
+  retryDisabled: boolean;
+}) {
+  const buttonClass =
+    "inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground/70 transition-[background-color,color,opacity,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-accent hover:text-foreground active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 motion-reduce:transform-none";
+
+  return (
+    <div className="flex items-center gap-0.5" aria-label="Response actions">
+      {(["like", "dislike"] as const).map((rating) => {
+        const selected = feedback === rating;
+        const pending = pendingFeedback === rating;
+        return (
+          <button
+            aria-label={rating === "like" ? "Thumbs up" : "Thumbs down"}
+            aria-pressed={selected}
+            className={cn(buttonClass, selected && "bg-accent text-foreground")}
+            disabled={pendingFeedback !== null}
+            key={rating}
+            onClick={() => onFeedback(rating)}
+            title={rating === "like" ? "Thumbs up" : "Thumbs down"}
+            type="button"
+          >
+            <HugeiconsIcon
+              icon={
+                rating === "like" ? ThumbsUpIcon : ThumbsDownIcon
+              }
+              className={cn("size-3.5", pending && "animate-pulse")}
+            />
+          </button>
+        );
+      })}
+      <button
+        aria-label="Retry"
+        className={buttonClass}
+        disabled={retryDisabled}
+        onClick={onRetry}
+        title="Retry"
+        type="button"
+      >
+        <HugeiconsIcon icon={ReloadIcon} className="size-3.5" />
+      </button>
+      <button
+        aria-label={copied ? "Copied" : "Copy"}
+        className={buttonClass}
+        onClick={onCopy}
+        title="Copy"
+        type="button"
+      >
+        <HugeiconsIcon
+          icon={copied ? CheckIcon : CopyIcon}
+          className="size-3.5"
+        />
+      </button>
+    </div>
+  );
 }
 
 function ResultFallback() {

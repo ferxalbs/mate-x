@@ -55,29 +55,31 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
       .map((event, sequence) => normalizeToolEvent(event, { sequence }))
       .sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0));
   }, [events]);
-  const timeline = normalizedEvents.filter(
-    (segment) =>
-      segment.segmentKind !== "reasoning" &&
-      segment.type !== "reasoning" &&
-      segment.segmentKind !== "intermediate_response" &&
-      segment.segmentKind !== "final_response" &&
-      segment.visibility !== "technical" &&
-      segment.visibility !== "restricted",
-  );
+  const timeline = normalizedEvents
+    .map(toPublicExecutionEvent)
+    .filter((event): event is ToolEvent => event !== null);
   const settledTimeline = isRunning
     ? timeline
     : timeline.filter((event) => event.status !== "active" && event.status !== "queued");
-  const errors = settledTimeline.filter((event) => ["error", "failed", "blocked"].includes(event.status));
-  const visible = isRunning || expanded ? settledTimeline : errors;
+  const visible = isRunning || expanded ? settledTimeline : [];
   const duration = useRunDuration(normalizedEvents, isRunning);
+  const activeEvent = [...timeline].reverse().find((event) =>
+    event.status === "active" || event.status === "queued",
+  );
+  const activitySummary = getActivitySummary(settledTimeline);
 
   const groupedEvents = useMemo(() => {
     const groups: (ToolEvent | { isGroup: true; id: string; items: ToolEvent[] })[] = [];
     let currentGroup: ToolEvent[] = [];
 
     for (const event of visible) {
-      const isReasoning = event.segmentKind === "reasoning" || event.type === "reasoning";
-      if (!isReasoning && event.type !== "error" && event.type !== "approval" && event.status !== "active") {
+      const isGroupableTool =
+        event.segmentKind === "tool" &&
+        event.type !== "error" &&
+        event.type !== "approval" &&
+        event.status !== "active" &&
+        event.status !== "queued";
+      if (isGroupableTool) {
         currentGroup.push(event);
       } else {
         if (currentGroup.length > 0) {
@@ -101,7 +103,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     return groups;
   }, [visible]);
 
-  if (timeline.length === 0) return null;
+  if (timeline.length === 0 && !isRunning) return null;
 
   return (
     <section className="min-w-0 max-w-full space-y-3 overflow-hidden" aria-label="Agent activity">
@@ -113,12 +115,17 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
         onClick={() => !isRunning && setExpanded((value) => !value)}
       >
         <span className="min-w-0 flex-1">
-          {isRunning ? "Working" : "Worked"} for {formatDuration(duration)}
+          {isRunning
+            ? activeEvent?.title ?? "Waiting for observable activity"
+            : `Worked for ${formatDuration(duration)}${activitySummary ? ` · ${activitySummary}` : ""}`}
         </span>
         {isRunning ? <HugeiconsIcon icon={Loading01Icon} className="size-3.5 animate-spin motion-reduce:animate-none" /> : expanded ? <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />}
       </button>
 
       <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
+        {isRunning && timeline.length === 0 ? (
+          <ActivityLabel label="Working · waiting for observable activity" />
+        ) : null}
         {groupedEvents.map((item) =>
           "isGroup" in item ? (
             <TimelineGroup key={item.id} items={item.items} />
@@ -130,6 +137,25 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     </section>
   );
 });
+
+function getActivitySummary(events: ToolEvent[]) {
+  const summary = getGroupName(events);
+  return summary === "Used tools" ? "activity captured" : summary;
+}
+
+function toPublicExecutionEvent(event: ToolEvent): ToolEvent | null {
+  const isPrivateContent =
+    event.segmentKind === "reasoning" ||
+    event.segmentKind === "final_response" ||
+    event.type === "reasoning" ||
+    event.visibility === "restricted";
+
+  if (isPrivateContent) return null;
+
+  if (event.visibility === "technical") return null;
+
+  return event;
+}
 
 function useRunDuration(timeline: ToolEvent[], isRunning: boolean) {
   const startedAt = useMemo(() => getTimelineStart(timeline), [timeline]);
@@ -186,7 +212,8 @@ function TimelineGroup({ items }: { items: ToolEvent[] }) {
 function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const isReasoning = event.segmentKind === "reasoning" || event.type === "reasoning";
-  const isActive = event.status === "active";
+  const isPublicProgress = event.segmentKind === "intermediate_response";
+  const isActive = event.status === "active" || event.status === "queued";
   const hasDetails = Boolean(event.detail?.trim()) && !isReasoning;
 
   if (isReasoning) {
@@ -196,6 +223,15 @@ function TimelineRow({ event, nested }: { event: ToolEvent; nested?: boolean }) 
       </div>
     ) : isActive ? (
       <ActivityLabel label="Thinking" />
+    ) : null;
+  }
+
+  if (isPublicProgress) {
+    const content = event.detail?.trim() || event.summary?.trim() || event.title || event.label;
+    return content ? (
+      <div className="max-w-full break-words [overflow-wrap:anywhere] text-[14px] leading-6 text-foreground/90">
+        <ChatMarkdown content={content} />
+      </div>
     ) : null;
   }
 

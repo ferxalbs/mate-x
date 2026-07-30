@@ -269,7 +269,7 @@ export async function requestRainyChatAgenticResponse({
         label: toolCalls?.length ? `Agent pass ${iterations} response` : "Final response",
         detail: responseText,
         status: "completed",
-        visibility: toolCalls?.length ? "restricted" : "public",
+        visibility: "public",
       });
       // Intermediate pass text is already preserved in events. Keep only the
       // latest draft visible so final output cannot accumulate repeated drafts.

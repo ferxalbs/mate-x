@@ -38,4 +38,13 @@ describe("assistant output boundary", () => {
       "",
     );
   });
+
+  test("removes serialized tool calls from public assistant output", () => {
+    assert.equal(
+      normalizeAssistantText(
+        'Reading the relevant service files first.\n\n{"call":"read_many","files":["src/private.ts"]}',
+      ),
+      "Reading the relevant service files first.",
+    );
+  });
 });

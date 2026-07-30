@@ -206,7 +206,7 @@ export async function requestRainyResponsesAgenticResponse({
         segmentKind: toolCalls.length ? "intermediate_response" : "final_response",
         type: "result", label: toolCalls.length ? `Agent pass ${iterations} response` : "Final response",
         detail: responseText, status: "completed",
-        visibility: toolCalls.length ? "restricted" : "public",
+        visibility: "public",
       });
       emitProgress();
     }

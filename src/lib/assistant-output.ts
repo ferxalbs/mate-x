@@ -21,10 +21,30 @@ export function sanitizeAssistantOutput(value: string): string {
     .split(/\n{2,}/)
     .filter(
       (paragraph) =>
+        !isSerializedToolCall(paragraph) &&
         !/\b(system prompt|workspace trust contract|behavior mode policy|internal policy|policy evaluation|hidden reasoning|chain[- ]of[- ]thought)\b/i.test(
           paragraph,
         ),
     )
     .join("\n\n")
     .trim();
+}
+
+function isSerializedToolCall(paragraph: string): boolean {
+  const candidate = paragraph.trim();
+  if (!candidate.startsWith("{") || !candidate.endsWith("}")) return false;
+
+  try {
+    const parsed = JSON.parse(candidate) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return false;
+    }
+    const record = parsed as Record<string, unknown>;
+    return (
+      (typeof record.call === "string" || typeof record.tool === "string") &&
+      Object.keys(record).length > 1
+    );
+  } catch {
+    return false;
+  }
 }

@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import {
   RainyClient,
   SDK_VERSION,
+  type FeedbackInput,
+  type FeedbackResult,
   type ObserveOptions,
   type RainyClientOptions,
   type Severity,
@@ -12,7 +14,9 @@ import { z } from "zod";
 import {
   TELEMETRY_OPERATION_NAMES,
   type RendererTelemetryMessage,
+  type RendererTelemetryFeedback,
   type SafeTelemetryAttributes,
+  type TelemetryFeedbackResult,
   type TelemetryOperationName,
 } from "../contracts/telemetry";
 
@@ -34,6 +38,12 @@ const rendererTelemetryMessageSchema = z
     attributes: attributesSchema.optional(),
   })
   .strict();
+const rendererTelemetryFeedbackSchema = z
+  .object({
+    messageId: z.string().trim().min(1).max(200),
+    rating: z.enum(["like", "dislike"]),
+  })
+  .strict();
 
 export interface TelemetryClient {
   telemetry: {
@@ -52,6 +62,7 @@ export interface TelemetryClient {
       operation: () => T | PromiseLike<T>,
       options?: ObserveOptions<T>,
     ) => Promise<T>;
+    sendFeedback: (input: FeedbackInput) => Promise<FeedbackResult>;
   };
   destroy: () => Promise<unknown>;
 }
@@ -73,6 +84,12 @@ export function parseRendererTelemetryMessage(
   value: unknown,
 ): RendererTelemetryMessage {
   return rendererTelemetryMessageSchema.parse(value);
+}
+
+export function parseRendererTelemetryFeedback(
+  value: unknown,
+): RendererTelemetryFeedback {
+  return rendererTelemetryFeedbackSchema.parse(value);
 }
 
 export function bucketFileCount(count: number): SafeTelemetryAttributes["fileCountBucket"] {
@@ -174,6 +191,24 @@ export class MateTelemetryService {
       ...this.runtimeAttributes,
       ...attributesSchema.parse(attributes),
     });
+  }
+
+  async sendFeedback(
+    input: RendererTelemetryFeedback,
+  ): Promise<TelemetryFeedbackResult> {
+    if (!this.enabled || !this.client) return { accepted: false };
+
+    try {
+      await this.client.telemetry.sendFeedback({
+        eventId: input.messageId,
+        rating: input.rating,
+        category: "assistant_response",
+        labels: ["mate-x"],
+      });
+      return { accepted: true };
+    } catch {
+      return { accepted: false };
+    }
   }
 
   async observe<T>(

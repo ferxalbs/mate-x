@@ -45,6 +45,7 @@ import { setAuthorizedBackgroundImagePath } from "./background-image-auth";
 import { powerStateService } from "./power-state-service";
 import { applyTelemetryPreference } from "./telemetry-runtime";
 import {
+  parseRendererTelemetryFeedback,
   parseRendererTelemetryMessage,
   telemetryService,
 } from "./telemetry-service";
@@ -1699,6 +1700,9 @@ export function registerIpcHandlers() {
   handle("telemetry:track", async (_event, message: unknown) => {
     const parsed = parseRendererTelemetryMessage(message);
     telemetryService.track(parsed.name, parsed.attributes);
+  });
+  handle("telemetry:feedback", async (_event, feedback: unknown) => {
+    return telemetryService.sendFeedback(parseRendererTelemetryFeedback(feedback));
   });
 
   // ── Mobile Companion ───────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { describe, it } from "bun:test";
 import { DEFAULT_APP_SETTINGS } from "../contracts/settings";
 import {
   MateTelemetryService,
+  parseRendererTelemetryFeedback,
   parseRendererTelemetryMessage,
   sanitizeApplicationError,
   type TelemetryClient,
@@ -32,6 +33,7 @@ function fakeClient(input?: {
       captureError: (error) => errors.push(error),
       observe: async <T>(_name: string, operation: () => T | PromiseLike<T>) =>
         input?.observe ? input.observe(operation) : await operation(),
+      sendFeedback: async () => ({ feedbackId: null, promoted: false }),
     },
     destroy: input?.destroy ?? (async () => undefined),
   };
@@ -55,6 +57,10 @@ describe("MateTelemetryService", () => {
     await service.initialize(initialization(false));
     service.track("mate.app.startup", { feature: "application" });
     await service.observe("mate.analysis.run", async () => "ok");
+    assert.deepEqual(
+      await service.sendFeedback({ messageId: "assistant-1", rating: "like" }),
+      { accepted: false },
+    );
     service.captureError(new Error("ignored"), { operation: "mate.analysis.run" });
     await service.shutdown();
 
@@ -81,6 +87,51 @@ describe("MateTelemetryService", () => {
     assert.equal(
       (options[0] as { telemetry: { sessionTracking: boolean } }).telemetry.sessionTracking,
       true,
+    );
+  });
+
+  it("forwards response feedback through Rainy when telemetry is enabled", async () => {
+    const feedback: unknown[] = [];
+    const service = new MateTelemetryService({
+      createClient: () => ({
+        ...fakeClient().client,
+        telemetry: {
+          ...fakeClient().client.telemetry,
+          sendFeedback: async (input) => {
+            feedback.push(input);
+            return { feedbackId: "feedback-1", promoted: false };
+          },
+        },
+      }),
+    });
+
+    await service.initialize(initialization());
+    assert.deepEqual(
+      await service.sendFeedback({ messageId: "assistant-1", rating: "like" }),
+      { accepted: true },
+    );
+    assert.deepEqual(feedback, [
+      {
+        eventId: "assistant-1",
+        rating: "like",
+        category: "assistant_response",
+        labels: ["mate-x"],
+      },
+    ]);
+  });
+
+  it("validates renderer feedback without accepting arbitrary payloads", () => {
+    assert.deepEqual(
+      parseRendererTelemetryFeedback({ messageId: "assistant-1", rating: "dislike" }),
+      { messageId: "assistant-1", rating: "dislike" },
+    );
+    assert.throws(
+      () => parseRendererTelemetryFeedback({ messageId: "assistant-1", rating: "love" }),
+      /Invalid enum value/,
+    );
+    assert.throws(
+      () => parseRendererTelemetryFeedback({ messageId: "assistant-1", rating: "like", prompt: "secret" }),
+      /Unrecognized key/,
     );
   });
 

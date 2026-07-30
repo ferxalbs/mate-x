@@ -5,12 +5,13 @@ import type { AgentOutcome, ToolEvent } from "../../../contracts/chat";
 import type { AppSettings } from "../../../contracts/settings";
 import { policyService } from "../../policy-service";
 import { toolService } from "../../tool-service";
-import { isToolFailureOutput, parseToolArguments, summarizeToolOutput, truncateToolOutputForModel, withTimeout } from "./helpers";
+import { isToolFailureOutput, parseToolArguments, truncateToolOutputForModel, withTimeout } from "./helpers";
 import { resolveToolExecutionTimeoutMs } from "./config";
 import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
 import { normalizeToolEvidence } from "../../work-engine/execution-evidence";
 import { resolveToolAuthorization } from "../../capability-resolver";
 import type { BehaviorMode } from "../../../contracts/behavior-mode";
+import { createPublicToolProgress } from "./public-tool-progress";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -258,10 +259,7 @@ export async function executeAgentToolCall({
       });
     }
     if (toolEvent) {
-      toolEvent.label = "Applying approved action";
-      toolEvent.detail = "Approval received.";
-      toolEvent.status = "active";
-      toolEvent.visibility = "technical";
+      Object.assign(toolEvent, createPublicToolProgress(toolName));
     }
     emitProgress();
   }
@@ -269,10 +267,7 @@ export async function executeAgentToolCall({
   if (!policyStop) {
     events.push({
       id: eventId,
-      label: `Executing ${toolName}`,
-      detail: `Running ${toolName} with arguments: ${JSON.stringify(toolArgs)}`,
-      status: "active",
-      visibility: "technical",
+      ...createPublicToolProgress(toolName),
     });
     emitProgress();
   }
@@ -305,7 +300,7 @@ export async function executeAgentToolCall({
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
       toolEvent.status = outputIndicatesFailure ? "error" : "done";
-      toolEvent.detail = summarizeToolOutput(rawResult);
+      toolEvent.detail = outputIndicatesFailure ? "Action failed." : "";
     }
     if (policyStop) {
       if (outputIndicatesFailure) {
