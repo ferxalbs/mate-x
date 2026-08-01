@@ -164,6 +164,36 @@ describe("trust gate derivation", () => {
     assert.match(state.missingProof.join(" "), /Passing validation/);
   });
 
+  it("uses canonical incomplete validation over an individual passing test signal", () => {
+    const state = deriveTrustGate({
+      changedFiles: [],
+      commands: [],
+      evidencePack: {
+        status: "blocked",
+        verdict: { label: "Blocked" },
+        commandsExecuted: [{ command: "run_tests" }],
+        executionOutcome: {
+          terminalState: "blocked",
+          validationState: "not_run",
+          evidence: {
+            validation: { status: "not_run", cause: "TYPECHECK_UNAVAILABLE" },
+          },
+        },
+        verifiedTaskScore: {
+          score: 88,
+          status: "failed",
+          signals: [{ id: "validation_passed", satisfied: true, weight: 1 }],
+        },
+      } as unknown as EvidencePack,
+      health: cleanHealth,
+      summary: baseSummary,
+    });
+
+    assert.equal(state.verdict, "Blocked");
+    assert.equal(state.validationState, "not_run");
+    assert.doesNotMatch(state.reasonChips.join(" "), /Validation passed/);
+  });
+
   it("blocks when a policy stop is recorded", () => {
     const state = deriveTrustGate({
       changedFiles: ["src/electron/ipc.ts"],

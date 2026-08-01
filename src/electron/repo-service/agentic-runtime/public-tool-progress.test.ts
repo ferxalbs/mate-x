@@ -30,6 +30,15 @@ describe("public tool progress", () => {
       "Typecheck passed",
     );
     assert.equal(
+      createPublicToolProgress(
+        "run_tests",
+        { scope: "full-suite" },
+        "completed",
+        { command: "bun test", requirementId: "test" },
+      ).label,
+      "Tests passed",
+    );
+    assert.equal(
       createPublicToolProgress("custom_workspace_tool").label,
       "Running workspace action",
     );

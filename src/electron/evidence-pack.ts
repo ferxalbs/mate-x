@@ -5,10 +5,14 @@ import { policyService } from "./policy-service";
 
 import type { EvidencePack, EvidencePackReproduction, ToolEvent } from "../contracts/chat";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
-import type { ToolExecutionRecord } from "../contracts/execution";
+import type { ExecutionValidationStatus, ToolExecutionRecord } from "../contracts/execution";
+import type { WorkPlan } from "./work-engine/types";
 import {
   normalizeToolEvidence,
   normalizeToolExecution,
+  reconcileToolEvidence,
+  reconcileToolExecutions,
+  resolveRequiredValidation,
 } from "./work-engine/execution-evidence";
 
 export type { ToolExecutionRecord };
@@ -31,7 +35,18 @@ function summarizeToolOutput(content: string) {
 function classifyEvidenceStatus(
   events: ToolEvent[],
   toolExecutions: ToolExecutionRecord[],
+  canonicalValidationStatus?: ExecutionValidationStatus | null,
 ): EvidencePack["status"] {
+  const hasMutation = toolExecutions.some((execution) =>
+    normalizeToolExecution(execution).changedFiles.length > 0,
+  );
+  if (canonicalValidationStatus === "blocked" || canonicalValidationStatus === "not_run") {
+    return hasMutation ? "partial" : "blocked";
+  }
+  if (canonicalValidationStatus === "failed") {
+    return hasMutation ? "partial" : "failed";
+  }
+
   const hasBlockingStep = events.some(
     (event) =>
       event.id === "step-rainy-missing" ||
@@ -42,7 +57,11 @@ function classifyEvidenceStatus(
     return "blocked";
   }
 
-  const hasErrors = events.some((event) => event.status === "error");
+  const hasErrors = events.some(
+    (event) =>
+      event.status === "error" &&
+      !(canonicalValidationStatus === "passed" && event.type === "validation"),
+  );
   if (hasErrors) {
     return "partial";
   }
@@ -121,9 +140,16 @@ function buildVerdict(
   };
 }
 
-function deriveWarnings(events: ToolEvent[]) {
+function deriveWarnings(
+  events: ToolEvent[],
+  canonicalValidationStatus?: ExecutionValidationStatus | null,
+) {
   return events
-    .filter((event) => event.status === "error")
+    .filter(
+      (event) =>
+        event.status === "error" &&
+        !(canonicalValidationStatus === "passed" && event.type === "validation"),
+    )
     .map((event) => `${event.label}: ${event.detail}`)
     .slice(0, 6);
 }
@@ -133,6 +159,7 @@ export async function buildEvidencePack(params: {
   events: ToolEvent[];
   content: string;
   toolExecutions: ToolExecutionRecord[];
+  workPlan?: WorkPlan;
   trustContract?: WorkspaceTrustContract | null;
   runbookId?: string;
   initialStatusLines?: string[];
@@ -145,10 +172,20 @@ export async function buildEvidencePack(params: {
     runbookId,
     initialStatusLines,
   } = params;
-  const status = classifyEvidenceStatus(events, toolExecutions);
+  const canonicalValidationStatus = params.workPlan
+    ? resolveRequiredValidation(
+        params.workPlan,
+        reconcileToolEvidence(toolExecutions),
+      )?.status ?? null
+    : null;
+  const reconciledToolExecutions = reconcileToolExecutions(toolExecutions);
+  const effectiveEvents = canonicalValidationStatus === "passed"
+    ? events.filter((event) => !(event.type === "validation" && event.status === "error"))
+    : events;
+  const status = classifyEvidenceStatus(events, toolExecutions, canonicalValidationStatus);
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
-  const runtimeWarnings = deriveWarnings(events);
+  const runtimeWarnings = deriveWarnings(events, canonicalValidationStatus);
   let warnings = Array.from(
     new Set([...(finalization.warnings ?? []), ...runtimeWarnings]),
   ).slice(0, 6);
@@ -178,7 +215,7 @@ export async function buildEvidencePack(params: {
   });
 
   const seenValidationExecutions = new Set<string>();
-  const testsRun = toolExecutions
+  const testsRun = reconciledToolExecutions
     .filter((execution) =>
       execution.toolName === "run_tests" || execution.toolName === "sandbox_run"
     )
@@ -237,10 +274,10 @@ export async function buildEvidencePack(params: {
   // === Derive machine evidence first (ground truth), fall back to LLM narrative only for gaps ===
   // This demotes brittle heading parsing (extractEvidenceFinalization) from being the source of
   // structured pack fields. The LLM verdict/recommendation text remains valuable as human narrative.
-  const runtimeReproduction = deriveRuntimeReproduction(toolExecutions, events);
+  const runtimeReproduction = deriveRuntimeReproduction(reconciledToolExecutions, effectiveEvents);
   const reproduction = runtimeReproduction ?? finalization.reproduction;
 
-  const runtimeUnresolved = deriveRuntimeUnresolvedRisks(toolExecutions, events, warnings);
+  const runtimeUnresolved = deriveRuntimeUnresolvedRisks(reconciledToolExecutions, effectiveEvents, warnings);
   const unresolvedRisks =
     (finalization.unresolvedRisks?.length ?? 0) > 0
       ? finalization.unresolvedRisks
@@ -257,10 +294,11 @@ export async function buildEvidencePack(params: {
       workspacePath,
       evidenceStatus: status,
       filesModified,
-      toolExecutions,
+      toolExecutions: reconciledToolExecutions,
       reproduction,
       warnings,
       unresolvedRisks,
+      validationStatus: canonicalValidationStatus ?? undefined,
     });
   } catch (err) {
     // Resilience: never let scoring (or path checks inside it) crash evidence pack generation.
@@ -290,7 +328,7 @@ export async function buildEvidencePack(params: {
     testsRun,
     reproduction,
     stages: deriveRuntimeStages(events, runbookId) ?? (finalization.stages?.length ? finalization.stages : undefined),
-    checks: deriveRuntimeChecks(toolExecutions, events, runbookId) ?? (finalization.checks?.length ? finalization.checks : undefined),
+    checks: deriveRuntimeChecks(reconciledToolExecutions, effectiveEvents, runbookId) ?? (finalization.checks?.length ? finalization.checks : undefined),
     policyStops: policyService
       .listStops()
       .filter((stop) => stop.workspacePath === workspacePath)

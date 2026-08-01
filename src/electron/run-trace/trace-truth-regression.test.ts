@@ -527,7 +527,30 @@ describe("trace and terminal truth regression", () => {
       evidence,
       stages: [],
       evidenceAttached: true,
-    }), "partial");
+    }), "blocked");
+    const finalization = finalizeWorkRun({
+      workPlan,
+      stages: [],
+      toolExecutions: [{
+        toolName: "sandbox_run",
+        args: { command: "bun", args: ["test"] },
+        output: JSON.stringify({
+          status: "completed",
+          validationExecution: {
+            executionId: "test-only",
+            command: "bun test",
+            processStarted: true,
+            exitCode: 0,
+            requirementId: "test",
+          },
+        }),
+      }],
+      content: "Tests passed.",
+      evidenceAttached: true,
+      synthesisStatus: "valid",
+    });
+    assert.equal(finalization.terminalState, "blocked");
+    assert.match(finalization.summary, /typecheck is unavailable/i);
   });
 
   test("approved fallback satisfies unresolved typecheck without stale cause", () => {
@@ -595,8 +618,10 @@ describe("trace and terminal truth regression", () => {
 
     assert.equal(evidence.validation.status, "passed");
     assert.equal(evidence.validation.cause, undefined);
+    assert.equal(evidence.validation.validationAuthorization, "approved_override");
     assert.equal(result.terminalState, "completed");
     assert.equal(result.evidence.validation.status, "passed");
+    assert.equal(result.evidence.validation.validationAuthorization, "approved_override");
   });
 
   test("unapproved fallback cannot satisfy unresolved typecheck", () => {
@@ -641,7 +666,39 @@ describe("trace and terminal truth regression", () => {
     assert.equal(evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
   });
 
-  test("approved fallback clears prior unresolved command failure for same requirement", () => {
+  test("Evidence Pack uses the requirement-level validation status", async () => {
+    const workPlan = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run tests and typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [{ name: "test", command: "bun test", signal: "test" }],
+    });
+    const pack = await buildEvidencePack({
+      workspacePath: process.cwd(),
+      events: [{ id: "response", label: "Response complete", detail: "", status: "completed" }],
+      content: "Tests passed.",
+      toolExecutions: [{
+        toolName: "run_tests",
+        args: { scope: "changed-files" },
+        output: JSON.stringify({
+          status: "completed",
+          validationExecution: {
+            executionId: "test-only-pack",
+            command: "bun test",
+            processStarted: true,
+            exitCode: 0,
+            requirementId: "test",
+          },
+        }),
+      }],
+      workPlan,
+    });
+
+    assert.equal(pack.status, "blocked");
+  });
+
+  test("approved fallback clears prior unresolved command failure for same requirement", async () => {
     const workPlan = buildWorkPlanFromSnapshot({
       prompt: "Patch service, run typecheck.",
       mode: "execute",
@@ -699,6 +756,31 @@ describe("trace and terminal truth regression", () => {
     assert.equal(evidence.validation.status, "passed");
     assert.equal(evidence.failedSteps.length, 0);
     assert.deepEqual(evidence.validation.executionIds, ["approved-typecheck-retry"]);
+
+    const pack = await buildEvidencePack({
+      workspacePath: process.cwd(),
+      events: [
+        {
+          id: "stale-validation-error",
+          label: "Validation failed",
+          detail: "No executable validation command is resolved.",
+          status: "error",
+          type: "validation",
+        },
+        { id: "response", label: "Response complete", detail: "", status: "completed" },
+      ],
+      content: "Typecheck passed.",
+      toolExecutions: [unresolvedRun, approvedFallback],
+      workPlan,
+    });
+    assert.equal(pack.status, "complete");
+    assert.equal(pack.testsRun?.length, 1);
+    assert.equal(pack.testsRun?.[0]?.executionId, "approved-typecheck-retry");
+    assert.equal(
+      pack.verifiedTaskScore?.signals.find((signal) => signal.id === "validation_passed")?.satisfied,
+      true,
+    );
+    assert.doesNotMatch(pack.warnings?.join(" ") ?? "", /unresolved|unavailable/i);
   });
 
   test("keeps finalizer, ledger projection, UI outcome, and Evidence Pack in parity", async () => {

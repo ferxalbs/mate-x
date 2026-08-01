@@ -18,6 +18,7 @@ export function createPublicToolProgress(
   toolName: string,
   args: Record<string, unknown> = {},
   phase: PublicToolProgressPhase = "active",
+  result?: Record<string, unknown>,
 ): PublicToolProgress {
   const type = classifyPublicToolType(toolName);
   const visibility = INTERNAL_TOOLS.test(toolName.trim().toLowerCase())
@@ -25,7 +26,7 @@ export function createPublicToolProgress(
     : "public";
   return {
     detail: publicToolDetail(type, args, phase),
-    label: publicToolLabel(type, args, phase),
+    label: publicToolLabel(type, args, phase, result),
     segmentKind: "tool",
     status:
       phase === "active" ? "active" : phase === "completed" ? "done" : "error",
@@ -47,6 +48,7 @@ function publicToolLabel(
   type: ToolEventType,
   args: Record<string, unknown>,
   phase: PublicToolProgressPhase,
+  result?: Record<string, unknown>,
 ): string {
   const completed = phase === "completed";
   const failed = phase === "failed";
@@ -75,7 +77,7 @@ function publicToolLabel(
           ? "File update failed"
           : "Editing workspace file";
     case "validation": {
-      const target = validationTarget(args);
+      const target = validationTarget(args, result);
       return completed
         ? `${target} passed`
         : failed
@@ -117,15 +119,31 @@ function countRequestedFiles(args: Record<string, unknown>): number {
   return 1;
 }
 
-function validationTarget(args: Record<string, unknown>): string {
+function validationTarget(
+  args: Record<string, unknown>,
+  result?: Record<string, unknown>,
+): string {
+  const validationExecution = asRecord(result?.validationExecution);
   const command = [
     args.command,
     args.script,
     ...(Array.isArray(args.args) ? args.args : []),
+    result?.command,
+    result?.script,
+    ...(Array.isArray(result?.args) ? result.args : []),
+    validationExecution?.command,
+    result?.requirementId,
+    validationExecution?.requirementId,
   ].join(" ").toLowerCase();
   if (command.includes("typecheck") || command.includes("tsc")) return "Typecheck";
   if (command.includes("lint") || command.includes("eslint")) return "Lint";
   if (command.includes("test")) return "Tests";
   if (command.includes("build") || command.includes("package")) return "Build";
   return "Validation";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }

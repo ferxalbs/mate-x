@@ -11,6 +11,7 @@ import type {
   RunStatus,
   ToolEvent,
 } from "../../../contracts/chat";
+import type { ExecutionValidationStatus } from "../../../contracts/execution";
 
 export type ImpactRisk = "High" | "Medium" | "Low risk" | "None";
 export type SignalTone = "good" | "watch" | "warn" | "bad" | "muted";
@@ -77,6 +78,14 @@ export interface TrustGateState {
   nextAction: string;
   proofLabel: string;
   sourceSignalsUsed: string[];
+}
+
+function projectValidationState(
+  state: ExecutionValidationStatus,
+): TrustGateValidationState {
+  if (state === "passed" || state === "failed" || state === "not_run") return state;
+  if (state === "pending" || state === "running") return "planned";
+  return "not_run";
 }
 
 export function getShipStatusHeaderLabel(state: TrustGateState, mode: ShipStatusMode = "active") {
@@ -409,34 +418,44 @@ export function deriveTrustGate({
   const isPartial = evidencePack?.status === "partial";
   const hasVerifiedSignals = hasVerifiedEvidenceSignals(evidencePack);
   const score = getVerifiedEvidenceScore(evidencePack);
-  const hasPassedValidationSignal =
-    evidencePack?.verifiedTaskScore?.signals?.some(
-      (signal) => signal.id === "validation_passed" && signal.satisfied,
-    ) ?? false;
-  const hasFailedValidationSignal =
-    evidencePack?.verifiedTaskScore?.signals?.some(
-      (signal) =>
-        signal.id === "validation_command_executed" &&
-        signal.satisfied &&
-        evidencePack?.verifiedTaskScore?.status === "failed",
-    ) ?? false;
+  const canonicalValidationState =
+    evidencePack?.executionOutcome?.validationState ??
+    evidencePack?.executionOutcome?.evidence.validation.status;
+  const projectedCanonicalValidationState = canonicalValidationState
+    ? projectValidationState(canonicalValidationState)
+    : undefined;
+  const hasPassedValidationSignal = projectedCanonicalValidationState
+    ? projectedCanonicalValidationState === "passed"
+    : evidencePack?.verifiedTaskScore?.signals?.some(
+        (signal) => signal.id === "validation_passed" && signal.satisfied,
+      ) ?? false;
+  const hasFailedValidationSignal = projectedCanonicalValidationState
+    ? projectedCanonicalValidationState === "failed"
+    : evidencePack?.verifiedTaskScore?.signals?.some(
+        (signal) =>
+          signal.id === "validation_command_executed" &&
+          signal.satisfied &&
+          evidencePack?.verifiedTaskScore?.status === "failed",
+      ) ?? false;
   const hasExecutedValidation =
     (evidencePack?.commandsExecuted?.length ?? 0) > 0 ||
     hasPassedValidationSignal ||
     hasFailedValidationSignal;
   const hasValidation =
     hasExecutedValidation || commands.length > 0;
-  const validationState: TrustGateValidationState = hasPassedValidationSignal
-    ? "passed"
-    : hasFailedValidationSignal
-      ? "failed"
-      : hasExecutedValidation
-        ? score !== null && score >= 75
-          ? "passed"
-          : "failed"
-        : commands.length > 0
-          ? "planned"
-          : "not_run";
+  const validationState: TrustGateValidationState = projectedCanonicalValidationState ?? (
+    hasPassedValidationSignal
+      ? "passed"
+      : hasFailedValidationSignal
+        ? "failed"
+        : hasExecutedValidation
+          ? score !== null && score >= 75
+            ? "passed"
+            : "failed"
+          : commands.length > 0
+            ? "planned"
+            : "not_run"
+  );
   const dirtyState = health?.gitDirtyState ?? "unknown";
   const hasDirtyRepo = changedFiles.length > 0 || dirtyState !== "clean";
   const riskyFiles = changedFiles.filter(isRiskySurfacePath);

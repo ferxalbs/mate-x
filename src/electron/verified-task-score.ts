@@ -6,6 +6,7 @@ import type {
   VerifiedTaskScore,
   VerifiedTaskScoreSignal,
 } from "../contracts/chat";
+import type { ExecutionValidationStatus } from "../contracts/execution";
 import type { ToolExecutionRecord } from "./evidence-pack";
 
 type SignalId = VerifiedTaskScoreSignal["id"];
@@ -18,6 +19,7 @@ interface ScoreInput {
   reproduction?: EvidencePack["reproduction"];
   warnings?: string[];
   unresolvedRisks?: string[];
+  validationStatus?: ExecutionValidationStatus;
 }
 
 const weights: Record<SignalId, number> = {
@@ -93,6 +95,10 @@ export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
   const validationExecutions = input.toolExecutions.filter((execution) =>
     validationExecutionTools.has(execution.toolName),
   );
+  const validationPassed = input.validationStatus
+    ? input.validationStatus === "passed"
+    : validationExecutions.length > 0 &&
+      validationExecutions.every((execution) => executionPassed(execution));
 
   const hasProofSignal = input.toolExecutions.some(
     (execution) =>
@@ -133,9 +139,10 @@ export function computeVerifiedTaskScore(input: ScoreInput): VerifiedTaskScore {
     ),
     signal(
       "validation_passed",
-      validationExecutions.length > 0 &&
-        validationExecutions.every((execution) => executionPassed(execution)),
-      summarizeValidation(validationExecutions),
+      validationPassed,
+      input.validationStatus === "passed"
+        ? "All required validation requirements passed."
+        : summarizeValidation(validationExecutions),
     ),
     signal(
       "reproduction_exists",

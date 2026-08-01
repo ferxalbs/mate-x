@@ -11,6 +11,7 @@ import type { WorkStage } from "./stages";
 import {
   isExecutableValidationCommand,
   validationRequirementForCommand,
+  type ValidationRequirementId,
 } from "../validation-command";
 
 const PATCH_TOOL_RE = /edit|patch|write|replace|mutation/i;
@@ -183,11 +184,11 @@ export function buildExecutionEvidence(input: {
   const changedFiles = dedupeChangedFiles(normalized.flatMap((item) => item.changedFiles));
   const validationEvidence = normalized.filter((item) => item.validationStatus);
   const validationStage = input.stages.find((stage) => stage.id === "validation_executed");
-  const requiredValidation = resolveRequiredValidationStatus(
+  const requiredValidation = resolveRequiredValidation(
     input.workPlan,
     validationEvidence,
   );
-  const validationStatus = requiredValidation ?? (
+  const validationStatus = requiredValidation?.status ?? (
     validationEvidence.some((item) => item.validationStatus === "blocked") ||
     validationStage?.status === "blocked"
       ? "blocked"
@@ -217,10 +218,17 @@ export function buildExecutionEvidence(input: {
       cause:
         validationStatus === "passed"
           ? undefined
-          : validationRequirementCause(input.workPlan, validationEvidence),
+          : validationRequirementCause(input.workPlan, validationEvidence, requiredValidation),
       executionIds: [...new Set(validationEvidence
         .map((item) => item.validationExecutionId)
         .filter((id): id is string => Boolean(id)))],
+      validationAuthorization: validationEvidence.some(
+        (item) =>
+          item.validationStatus === "passed" &&
+          item.validationAuthorization === "approved_override",
+      )
+        ? "approved_override"
+        : undefined,
     },
     synthesis: {
       status: input.synthesisStatus,
@@ -234,35 +242,117 @@ export function resolveRequiredValidationStatus(
   workPlan: WorkPlan,
   evidence: NormalizedToolEvidence[],
 ): ExecutionEvidence["validation"]["status"] | null {
+  return resolveRequiredValidation(workPlan, evidence)?.status ?? null;
+}
+
+export interface RequiredValidationResolution {
+  status: ExecutionEvidence["validation"]["status"];
+  missingRequirementIds: ValidationRequirementId[];
+  unavailableRequirementIds: ValidationRequirementId[];
+}
+
+export function resolveRequiredValidation(
+  workPlan: WorkPlan,
+  evidence: NormalizedToolEvidence[],
+): RequiredValidationResolution | null {
   const requirements = workPlan.validationPlan.requirements ?? [];
   if (!workPlan.validationPlan.required || requirements.length === 0) return null;
+
+  let blocked = false;
+  let failed = false;
+  const missingRequirementIds: ValidationRequirementId[] = [];
+  const unavailableRequirementIds: ValidationRequirementId[] = [];
+
   for (const requirement of requirements) {
     const matches = evidence.filter((item) =>
       item.validationRequirementId === requirement.id,
     );
-    if (matches.some((item) => item.validationStatus === "blocked")) return "blocked";
-    if (matches.some((item) => item.validationStatus === "failed")) return "failed";
+    if (matches.some((item) => item.validationStatus === "blocked")) blocked = true;
+    if (matches.some((item) => item.validationStatus === "failed")) failed = true;
     const passed = matches.filter((item) => item.validationStatus === "passed");
-    if (passed.length === 0) return "not_run";
+    if (passed.length === 0) {
+      missingRequirementIds.push(requirement.id);
+      if (requirement.availability === "unresolved") {
+        unavailableRequirementIds.push(requirement.id);
+      }
+      continue;
+    }
     if (
       requirement.availability === "unresolved" &&
       !passed.some((item) => item.validationAuthorization === "approved_override")
     ) {
-      return "not_run";
+      missingRequirementIds.push(requirement.id);
+      unavailableRequirementIds.push(requirement.id);
     }
   }
-  return "passed";
+
+  return {
+    status: blocked
+      ? "blocked"
+      : failed
+        ? "failed"
+        : missingRequirementIds.length > 0
+          ? "not_run"
+          : "passed",
+    missingRequirementIds,
+    unavailableRequirementIds,
+  };
+}
+
+export function describeRequiredValidationGap(
+  workPlan: WorkPlan,
+  evidence: NormalizedToolEvidence[],
+): string | undefined {
+  const resolution = resolveRequiredValidation(workPlan, evidence);
+  if (!resolution || resolution.status === "passed") return undefined;
+
+  const terminalEvidence = evidence.find(
+    (item) =>
+      (resolution.status === "blocked" &&
+        (item.validationStatus === "blocked" || item.outcome === "blocked")) ||
+      (resolution.status === "failed" &&
+        (item.validationStatus === "failed" || item.outcome === "failed")),
+  );
+  const requirementId = terminalEvidence?.validationRequirementId ??
+    resolution.unavailableRequirementIds[0] ??
+      resolution.missingRequirementIds[0];
+  if (!requirementId) {
+    return resolution.status === "failed"
+      ? "Required validation failed."
+      : resolution.status === "blocked"
+        ? "Required validation is blocked."
+        : "Required validation has not completed.";
+  }
+
+  const label = requirementId === "typecheck"
+    ? "typecheck"
+    : requirementId === "test"
+      ? "tests"
+      : requirementId;
+  if (resolution.status === "failed") return `Required ${label} validation failed.`;
+  if (resolution.status === "blocked") return `Required ${label} validation is blocked.`;
+  if (resolution.unavailableRequirementIds.includes(requirementId)) {
+    return requirementId === "typecheck"
+      ? "Required typecheck is unavailable in this repository."
+      : `Required ${label} command is unavailable in this repository.`;
+  }
+  return `Required ${label} validation has not completed.`;
 }
 
 function validationRequirementCause(
   workPlan: WorkPlan,
   evidence: NormalizedToolEvidence[],
+  resolution: RequiredValidationResolution | null,
 ) {
-  const unresolved = workPlan.validationPlan.requirements?.find(
-    (requirement) => requirement.availability === "unresolved",
-  );
-  return unresolved?.unavailableCause ??
-    evidence.find((item) => item.validationCause)?.validationCause;
+  if (resolution?.status === "not_run") {
+    const unavailable = workPlan.validationPlan.requirements?.find(
+      (requirement) => resolution.unavailableRequirementIds.includes(requirement.id),
+    );
+    if (unavailable?.unavailableCause) return unavailable.unavailableCause;
+  }
+  return evidence.find((item) =>
+    item.validationStatus === "failed" || item.validationStatus === "blocked",
+  )?.validationCause;
 }
 
 /**
@@ -273,6 +363,16 @@ function validationRequirementCause(
 export function reconcileToolEvidence(
   executions: ToolExecutionRecord[],
 ): NormalizedToolEvidence[] {
+  return reconcileToolEntries(executions).map((entry) => entry.evidence);
+}
+
+export function reconcileToolExecutions(
+  executions: ToolExecutionRecord[],
+): ToolExecutionRecord[] {
+  return reconcileToolEntries(executions).map((entry) => entry.execution);
+}
+
+function reconcileToolEntries(executions: ToolExecutionRecord[]) {
   const entries = executions.map((execution) => ({
     execution,
     evidence: normalizeToolExecution(execution),
@@ -301,14 +401,14 @@ export function reconcileToolEvidence(
       ) {
         return false;
       }
+      if (entry.evidence.validationStatus) return true;
       if (entry.evidence.outcome === "completed" || !entry.identity) return true;
       return !entries.slice(index + 1).some(
         (later) =>
           later.identity === entry.identity &&
           later.evidence.outcome === "completed",
       );
-    })
-    .map((entry) => entry.evidence);
+    });
 }
 
 function isResolutionFailure(
@@ -384,8 +484,9 @@ export function resolveExecutionTerminalState(input: {
   if (hasTrustBlock) return "blocked";
   if (hasApprovalPending || input.awaitingApproval) return "blocked";
   if (hasBlockedStep) return "blocked";
+  if (validationBlocked) return "blocked";
   if (hasFailedStep || validationFailed) return "failed";
-  if (validationMissing) return "partial";
+  if (validationMissing) return "blocked";
   if (input.incompleteEvidence || input.preparatoryOnly || missingRequiredStage) return "partial";
   if (synthesisMissing) return "failed";
   if (input.workPlan.evidencePlan.required && !input.evidenceAttached) return "failed";
@@ -402,11 +503,15 @@ export function buildUserFacingExecutionSummary(
   } else if (outcome === "partial") {
     lines.push("Completed partially; review the remaining work before relying on the result.");
   } else if (outcome === "blocked") {
-    lines.push(
-      evidence.requiredUserAction
-        ? `Stopped pending required action: ${evidence.requiredUserAction}`
-        : "Stopped because required access is unavailable.",
-    );
+    if (evidence.requiredUserAction) {
+      lines.push(`Stopped pending required action: ${evidence.requiredUserAction}`);
+    } else if (evidence.validation.status === "not_run") {
+      lines.push(
+        `Stopped because ${validationCauseDescription(evidence.validation.cause) ?? "required validation did not run"}.`,
+      );
+    } else {
+      lines.push("Stopped because required access is unavailable.");
+    }
   } else {
     lines.push("The run could not complete.");
   }
@@ -424,7 +529,7 @@ export function buildUserFacingExecutionSummary(
     lines.push("Changed files: none confirmed.");
   }
   const notRun = [
-    evidence.validation.status === "not_run" ? "validation" : "",
+    evidence.validation.status === "not_run" ? validationNotRunLabel(evidence.validation.cause) : "",
     evidence.synthesis.status !== "valid" ? "final synthesis" : "",
   ].filter(Boolean);
   if (notRun.length > 0) lines.push(`Not run or incomplete: ${notRun.join(" and ")}.`);
@@ -432,6 +537,29 @@ export function buildUserFacingExecutionSummary(
   if (reason) lines.push(`Why it stopped: ${sanitizeUserReason(reason)}.`);
   if (evidence.requiredUserAction) lines.push(`Next action: ${sanitizeUserReason(evidence.requiredUserAction)}.`);
   return lines.join("\n");
+}
+
+function validationNotRunLabel(
+  cause: ExecutionEvidence["validation"]["cause"],
+) {
+  if (cause === "TYPECHECK_UNAVAILABLE") return "typecheck validation";
+  if (cause === "TOOLCHAIN_AMBIGUOUS") return "toolchain resolution";
+  return "required validation";
+}
+
+function validationCauseDescription(
+  cause: ExecutionEvidence["validation"]["cause"],
+) {
+  if (cause === "TYPECHECK_UNAVAILABLE") {
+    return "the required typecheck is unavailable in this repository";
+  }
+  if (cause === "TOOLCHAIN_AMBIGUOUS") {
+    return "the target repository toolchain is ambiguous";
+  }
+  if (cause === "VALIDATION_COMMAND_UNRESOLVED") {
+    return "no executable validation command is resolved";
+  }
+  return undefined;
 }
 
 function parseTrailingObject(value: string): Record<string, unknown> | null {

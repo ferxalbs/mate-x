@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { ToolEvent } from "../../../contracts/chat";
+import { getActivitySummary } from "./agent-execution-trace";
 import { formatDuration, getTimelineDuration } from "./agent-execution-trace-utils";
 
 function event(id: string, timestamp?: string): ToolEvent {
@@ -39,5 +40,34 @@ describe("agent execution duration", () => {
     ];
 
     expect(formatDuration(getTimelineDuration(timeline))).toMatch(/^4s$/);
+  });
+});
+
+describe("agent execution validation summary", () => {
+  test("does not promote one completed validation event to an overall pass", () => {
+    const validationEvent: ToolEvent = {
+      id: "validation",
+      label: "Tests passed",
+      detail: "",
+      status: "done",
+      type: "validation",
+    };
+
+    expect(getActivitySummary([validationEvent])).toMatch(/^validation checks run$/);
+    expect(getActivitySummary([validationEvent], "not_run")).toMatch(/^validation incomplete$/);
+    expect(getActivitySummary([validationEvent], "passed")).toMatch(/^validation passed$/);
+  });
+
+  test("uses canonical recovery over a stale validation error event", () => {
+    const staleFailure: ToolEvent = {
+      id: "stale-validation",
+      label: "Validation failed",
+      detail: "No executable validation command is resolved.",
+      status: "error",
+      type: "validation",
+    };
+
+    expect(getActivitySummary([staleFailure], "passed")).toMatch(/^validation passed$/);
+    expect(getActivitySummary([staleFailure], "failed")).toMatch(/^validation blocked or failed$/);
   });
 });

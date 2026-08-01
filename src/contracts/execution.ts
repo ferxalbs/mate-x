@@ -99,6 +99,8 @@ export interface ExecutionEvidence {
     summary?: string;
     cause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE" | "TOOLCHAIN_AMBIGUOUS";
     executionIds?: string[];
+    /** Internal provenance for a validation command explicitly approved once. */
+    validationAuthorization?: "approved_override";
   };
   synthesis: {
     status: ExecutionSynthesisStatus;

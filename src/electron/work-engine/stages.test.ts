@@ -156,3 +156,127 @@ test("validation and proof evidence satisfy Preventive Guard warning stage", () 
   assert.equal(stages.find((stage) => stage.id === "preventive_validation_warned")?.status, "passed");
   assert.equal(shouldEmitPreventiveWarning(plan, toolExecutions), false);
 });
+
+test("a passing test does not mark the validation stage passed when typecheck is unavailable", () => {
+  const plan = baseWorkPlan({
+    validationPlan: {
+      required: true,
+      primaryCommand: "bun test",
+      fallbackCommand: null,
+      reason: "The request requires tests and typecheck.",
+      requirements: [
+        { id: "test", command: "bun test", availability: "resolved" },
+        {
+          id: "typecheck",
+          command: null,
+          availability: "unresolved",
+          unavailableCause: "TYPECHECK_UNAVAILABLE",
+        },
+      ],
+    },
+  });
+  const stages = deriveWorkStages({
+    workPlan: plan,
+    events: [],
+    toolExecutions: [{
+      toolName: "run_tests",
+      args: { scope: "full-suite" },
+      output: "Tests passed.",
+      parsedOutput: {
+        status: "success",
+        validationExecution: {
+          executionId: "test-exec",
+          command: "bun test",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "test",
+        },
+      },
+    }],
+    privacyBlocked: false,
+    evidenceAttached: false,
+    noPatchNeeded: true,
+  });
+
+  const validation = stages.find((stage) => stage.id === "validation_executed");
+  assert.equal(validation?.status, "pending");
+  assert.match(validation?.reason ?? "", /typecheck is unavailable/i);
+});
+
+test("an approved retry clears a stale unresolved validation failure before stage finalization", () => {
+  const plan = baseWorkPlan({
+    validationPlan: {
+      required: true,
+      primaryCommand: "bun test",
+      fallbackCommand: null,
+      reason: "The request requires tests and typecheck.",
+      requirements: [
+        { id: "test", command: "bun test", availability: "resolved" },
+        {
+          id: "typecheck",
+          command: null,
+          availability: "unresolved",
+          unavailableCause: "TYPECHECK_UNAVAILABLE",
+        },
+      ],
+    },
+  });
+  const stages = deriveWorkStages({
+    workPlan: plan,
+    events: [],
+    toolExecutions: [
+      {
+        toolName: "run_tests",
+        args: { scope: "changed-files" },
+        output: JSON.stringify({
+          status: "completed",
+          validationExecution: {
+            executionId: "approved-tests",
+            command: "bun test",
+            processStarted: true,
+            exitCode: 0,
+            requirementId: "test",
+          },
+        }),
+      },
+      {
+        toolName: "run_tests",
+        args: { scope: "changed-files" },
+        output: JSON.stringify({
+          ok: false,
+          status: "failed",
+          error: {
+            code: "DEPENDENCY_UNAVAILABLE",
+            message: "No executable validation command is resolved.",
+            details: {
+              cause: "TYPECHECK_UNAVAILABLE",
+              requirementId: "typecheck",
+            },
+          },
+        }),
+      },
+      {
+        toolName: "sandbox_run",
+        args: { command: "bun", args: ["x", "tsc", "--noEmit"] },
+        output: JSON.stringify({
+          status: "completed",
+          validationExecution: {
+            executionId: "approved-typecheck",
+            command: "bun x tsc --noEmit",
+            processStarted: true,
+            exitCode: 0,
+            requirementId: "typecheck",
+            authorization: "approved_override",
+          },
+        }),
+      },
+    ],
+    privacyBlocked: false,
+    evidenceAttached: false,
+    noPatchNeeded: true,
+  });
+
+  const validation = stages.find((stage) => stage.id === "validation_executed");
+  assert.equal(validation?.status, "passed");
+  assert.match(validation?.reason ?? "", /all required validation requirements passed/i);
+});

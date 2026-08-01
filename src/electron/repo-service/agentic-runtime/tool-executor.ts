@@ -320,6 +320,7 @@ export async function executeAgentToolCall({
           toolName,
           toolArgs,
           outputIndicatesFailure ? "failed" : "completed",
+          parsedOutput ?? undefined,
         ),
       );
     }

@@ -8,7 +8,7 @@ import {
 } from "../capability-resolver";
 import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 import { finalizeWorkRun } from "./finalizer";
-import { normalizeToolExecution } from "./execution-evidence";
+import { buildExecutionEvidence, normalizeToolExecution } from "./execution-evidence";
 import type { WorkStage } from "./stages";
 import type { WorkPlan } from "./types";
 
@@ -325,4 +325,58 @@ test("model success claims cannot override failed evidence", () => {
 
   assert.equal(result.terminalState, "failed");
   assert.notEqual(result.terminalState, "completed");
+});
+
+test("approved recovery does not suppress a real non-zero validation failure", () => {
+  const workPlan: WorkPlan = {
+    ...plan,
+    validationPlan: {
+      ...plan.validationPlan,
+      requirements: [
+        { id: "test", command: "bun test", availability: "resolved" },
+        {
+          id: "typecheck",
+          command: null,
+          availability: "unresolved",
+          unavailableCause: "TYPECHECK_UNAVAILABLE",
+        },
+      ],
+    },
+  };
+  const realFailure = execution(
+    "sandbox_run",
+    JSON.stringify({
+      status: "failed",
+      validationExecution: {
+        executionId: "typecheck-failed",
+        command: "bun x tsc --noEmit",
+        processStarted: true,
+        exitCode: 1,
+        requirementId: "typecheck",
+      },
+    }),
+  );
+  const approvedRecovery = execution(
+    "sandbox_run",
+    JSON.stringify({
+      status: "completed",
+      validationExecution: {
+        executionId: "typecheck-recovered",
+        command: "bun x tsc --noEmit",
+        processStarted: true,
+        exitCode: 0,
+        requirementId: "typecheck",
+        authorization: "approved_override",
+      },
+    }),
+  );
+  const result = buildExecutionEvidence({
+    workPlan,
+    stages: [],
+    toolExecutions: [realFailure, approvedRecovery],
+    synthesisStatus: "valid",
+  });
+
+  assert.equal(result.validation.status, "failed");
+  assert.equal(result.failedSteps.length, 1);
 });

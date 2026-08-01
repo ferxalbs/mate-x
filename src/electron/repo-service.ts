@@ -622,6 +622,7 @@ export async function runAssistant(
     events,
     content,
     toolExecutions,
+    workPlan,
     trustContract: snapshot.trustContract,
     // Note: buildEvidencePack now internally wraps computeVerifiedTaskScore for crash resilience.
     // Attestation generation below is best-effort in surrounding try (see catch in this flow).
@@ -661,6 +662,9 @@ export async function runAssistant(
     evidence: evidenceFinalization.evidence,
     summary: evidenceFinalization.summary,
   }, agentOutcome, workPlan);
+  const requiredValidationIncomplete =
+    workPlan.validationPlan.required &&
+    evidenceFinalization.evidence.validation.status !== "passed";
   evidencePack = {
     ...evidencePack,
     status:
@@ -675,6 +679,17 @@ export async function runAssistant(
     verifiedTaskScore: evidencePack.verifiedTaskScore
       ? {
           ...evidencePack.verifiedTaskScore,
+          signals: evidencePack.verifiedTaskScore.signals.map((signal) =>
+            requiredValidationIncomplete && signal.id === "validation_passed"
+              ? {
+                  ...signal,
+                  satisfied: false,
+                  evidence:
+                    evidenceFinalization.evidence.validation.cause ??
+                    "All required validation requirements did not pass.",
+                }
+              : signal,
+          ),
           status:
             evidenceFinalization.terminalState === "completed"
               ? evidencePack.verifiedTaskScore.status
@@ -687,6 +702,7 @@ export async function runAssistant(
               : Array.from(
                   new Set([
                     ...evidencePack.verifiedTaskScore.missingEvidence,
+                    ...(requiredValidationIncomplete ? ["Validation passed"] : []),
                     evidenceFinalization.summary,
                   ]),
                 ),

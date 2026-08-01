@@ -1,7 +1,13 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { ToolEvent } from "../../contracts/chat";
 import type { WorkPlan } from "./types";
-import { normalizeToolExecution } from "./execution-evidence";
+import {
+  describeRequiredValidationGap,
+  normalizeToolExecution,
+  reconcileToolEvidence,
+  resolveRequiredValidation,
+  type RequiredValidationResolution,
+} from "./execution-evidence";
 
 export type WorkStageId =
   | "context_compiled"
@@ -98,6 +104,11 @@ export function deriveWorkStages(input: {
     execution,
     evidence: normalizeToolExecution(execution),
   }));
+  const reconciledValidationEvidence = reconcileToolEvidence(input.toolExecutions);
+  const requiredValidation = resolveRequiredValidation(
+    input.workPlan,
+    reconciledValidationEvidence,
+  );
   const completedToolNames = new Set(
     normalizedExecutions
       .filter((item) =>
@@ -151,29 +162,69 @@ export function deriveWorkStages(input: {
   }
 
   const validationExecutions = normalizedExecutions.filter((item) => VALIDATION_EXEC_TOOLS.has(item.execution.toolName));
+  const validationEvidence = reconciledValidationEvidence.filter((item) => VALIDATION_EXEC_TOOLS.has(item.toolName));
   if (!planningPhase || validationExecutions.length > 0) {
-  if (hasAny(completedToolNames, VALIDATION_PLAN_TOOLS)) {
-    pass(stages, "validation_planned", "runtime", "Validation plan tool ran.", idsFor(eventIdsByTool, VALIDATION_PLAN_TOOLS));
-  } else if (!input.workPlan.validationPlan.required) {
-    skip(stages, "validation_planned", "deterministic", "Validation not required for this WorkPlan.");
-  }
+    if (hasAny(completedToolNames, VALIDATION_PLAN_TOOLS)) {
+      pass(stages, "validation_planned", "runtime", "Validation plan tool ran.", idsFor(eventIdsByTool, VALIDATION_PLAN_TOOLS));
+    } else if (!input.workPlan.validationPlan.required) {
+      skip(stages, "validation_planned", "deterministic", "Validation not required for this WorkPlan.");
+    }
 
-  if (validationExecutions.length > 0) {
-    const blocked = validationExecutions.some((item) =>
-      item.evidence.outcome === "blocked" ||
-      item.evidence.outcome === "awaiting_approval" ||
-      item.evidence.validationStatus === "blocked"
-    );
-    const failed = validationExecutions.some((item) =>
-      item.evidence.outcome === "failed" ||
-      item.evidence.validationStatus === "failed"
-    );
-    set(stages, "validation_executed", blocked ? "blocked" : failed ? "failed" : "passed", "runtime", blocked ? "Validation requires approval or access." : failed ? "Validation command failed." : "Validation command ran.", idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS));
-  } else if (!input.workPlan.validationPlan.required) {
-    skip(stages, "validation_executed", "deterministic", "Validation not required for this WorkPlan.");
-  } else if (input.privacyBlocked) {
-    block(stages, "validation_executed", "deterministic", "Cloud context was blocked before validation orchestration.");
-  }
+    if (validationEvidence.length > 0) {
+      const blocked = validationEvidence.some((item) =>
+        item.outcome === "blocked" ||
+        item.outcome === "awaiting_approval" ||
+        item.validationStatus === "blocked"
+      );
+      const failed = validationEvidence.some((item) =>
+        item.outcome === "failed" ||
+        item.validationStatus === "failed"
+      );
+      const incomplete = requiredValidation?.status === "not_run";
+      set(
+        stages,
+        "validation_executed",
+        blocked
+          ? "blocked"
+          : failed
+            ? "failed"
+            : incomplete
+              ? "pending"
+              : "passed",
+        blocked || failed || incomplete ? "deterministic" : "runtime",
+        blocked
+          ? "Validation requires approval or access."
+          : failed
+            ? "Validation command failed."
+            : incomplete
+              ? describeRequiredValidationGap(
+                  input.workPlan,
+                  reconciledValidationEvidence,
+                ) ?? "Required validation has not completed."
+              : "All required validation requirements passed.",
+        idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS),
+      );
+    } else if (!input.workPlan.validationPlan.required) {
+      skip(stages, "validation_executed", "deterministic", "Validation not required for this WorkPlan.");
+    } else if (input.privacyBlocked) {
+      block(stages, "validation_executed", "deterministic", "Cloud context was blocked before validation orchestration.");
+    } else if (requiredValidation?.status === "blocked") {
+      block(stages, "validation_executed", "deterministic", "Required validation is blocked.");
+    } else if (requiredValidation?.status === "failed") {
+      set(stages, "validation_executed", "failed", "deterministic", "Required validation failed.", []);
+    } else if (requiredValidation?.status === "not_run") {
+      set(
+        stages,
+        "validation_executed",
+        "pending",
+        "deterministic",
+        describeRequiredValidationGap(
+          input.workPlan,
+          reconciledValidationEvidence,
+        ) ?? "Required validation has not completed.",
+        [],
+      );
+    }
   }
 
   if (hasAny(completedToolNames, FAILURE_MEMORY_TOOLS) || input.workPlan.workingSet.knownFailures.length > 0) {
@@ -186,7 +237,13 @@ export function deriveWorkStages(input: {
     pass(stages, "security_proof_checked", "runtime", "Security proof/revalidation tool ran.", idsFor(eventIdsByTool, SECURITY_PROOF_TOOLS));
   }
 
-  derivePreventiveStages(stages, input.workPlan, completedToolNames, eventIdsByTool);
+  derivePreventiveStages(
+    stages,
+    input.workPlan,
+    completedToolNames,
+    eventIdsByTool,
+    requiredValidation,
+  );
 
   if (input.privacyBlocked) {
     block(stages, "privacy_preflight_passed", "deterministic", "Privacy Sentinel blocked outbound context.");
@@ -206,13 +263,19 @@ export function deriveWorkStages(input: {
 export function shouldEmitPreventiveWarning(workPlan: WorkPlan, toolExecutions: ToolExecutionRecord[]) {
   if (!workPlan.preventivePlan.enabled || workPlan.preventivePlan.strictness !== "warn") return false;
   if (workPlan.workingSet.sensitiveSurfaces.length === 0 && workPlan.preventivePlan.riskAreas.length === 0) return false;
+  const reconciledEvidence = reconcileToolEvidence(toolExecutions);
   const completedToolNames = new Set(
-    toolExecutions
-      .map(normalizeToolExecution)
+    reconciledEvidence
       .filter((evidence) => evidence.outcome === "completed")
       .map((evidence) => evidence.toolName),
   );
-  const hasValidation = hasAny(completedToolNames, VALIDATION_EXEC_TOOLS);
+  const requiredValidation = resolveRequiredValidation(
+    workPlan,
+    reconciledEvidence,
+  );
+  const hasValidation = requiredValidation
+    ? requiredValidation.status === "passed"
+    : hasAny(completedToolNames, VALIDATION_EXEC_TOOLS);
   const needsSecurityProof = workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
   const hasSecurityProof = hasAny(completedToolNames, SECURITY_PROOF_TOOLS);
   return !hasValidation || (needsSecurityProof && !hasSecurityProof);
@@ -230,6 +293,7 @@ function derivePreventiveStages(
   workPlan: WorkPlan,
   toolNames: Set<string>,
   eventIdsByTool: Map<string, string[]>,
+  requiredValidation: RequiredValidationResolution | null,
 ) {
   if (!workPlan.preventivePlan.enabled) {
     skip(stages, "preventive_risk_classified", "deterministic", workPlan.preventivePlan.reason);
@@ -251,7 +315,9 @@ function derivePreventiveStages(
     skip(stages, "preventive_controls_planned", "deterministic", "No specific preventive controls identified.");
   }
 
-  const hasValidation = hasAny(toolNames, VALIDATION_EXEC_TOOLS);
+  const hasValidation = requiredValidation
+    ? requiredValidation.status === "passed"
+    : hasAny(toolNames, VALIDATION_EXEC_TOOLS);
   const needsSecurityProof = workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink";
   const hasSecurityProof = hasAny(toolNames, SECURITY_PROOF_TOOLS);
   if (hasValidation && (!needsSecurityProof || hasSecurityProof)) {

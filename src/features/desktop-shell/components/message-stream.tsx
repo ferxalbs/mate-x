@@ -303,6 +303,12 @@ const MessageEntry = memo(function MessageEntry({
         <AgentExecutionTrace
           events={events}
           isRunning={isStreaming}
+          validationState={
+            message.executionOutcome?.validationState ??
+            message.executionOutcome?.evidence.validation.status ??
+            message.evidencePack?.executionOutcome?.evidence.validation.status ??
+            message.evidencePack?.executionOutcome?.validationState
+          }
         />
         {message.executionOutcome &&
         message.executionOutcome.terminalState !== "completed" ? (

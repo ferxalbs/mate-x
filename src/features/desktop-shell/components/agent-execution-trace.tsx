@@ -15,6 +15,7 @@ import {
 import { memo, useMemo, useState } from "react";
 
 import { normalizeToolEvent, type ToolEvent, type ToolEventType } from "../../../contracts/chat";
+import type { ExecutionValidationStatus } from "../../../contracts/execution";
 import { useVisibilityInterval } from "../../../hooks/use-visibility-interval";
 import { ChatMarkdown, RawSyntaxHighlighter } from "./chat-markdown";
 import { formatDuration, getTimelineDuration, getTimelineStart } from "./agent-execution-trace-utils";
@@ -45,9 +46,11 @@ function getToolIcon(type?: ToolEventType) {
 export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   events,
   isRunning,
+  validationState,
 }: {
   events: ToolEvent[];
   isRunning: boolean;
+  validationState?: ExecutionValidationStatus;
 }) {
   const [expanded, setExpanded] = useState(false);
   const normalizedEvents = useMemo(() => {
@@ -74,7 +77,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     event.status === "active" || event.status === "queued",
   );
   const runningActivityLabel = getRunningActivityLabel(activeEvent);
-  const activitySummary = getActivitySummary(settledTimeline);
+  const activitySummary = getActivitySummary(settledTimeline, validationState);
 
   const groupedEvents = useMemo(() => {
     const groups: (ToolEvent | { isGroup: true; id: string; items: ToolEvent[] })[] = [];
@@ -154,7 +157,10 @@ export function getRunningActivityLabel(activeEvent?: ToolEvent) {
     "Preparing next repository action";
 }
 
-export function getActivitySummary(events: ToolEvent[]) {
+export function getActivitySummary(
+  events: ToolEvent[],
+  validationState?: ExecutionValidationStatus,
+) {
   const parts: string[] = [];
   const editCount = events.filter(
     (event) =>
@@ -171,7 +177,17 @@ export function getActivitySummary(events: ToolEvent[]) {
     parts.push("search completed");
   }
   const validationEvents = events.filter((event) => event.type === "validation");
-  if (validationEvents.some(
+  if (validationState === "failed" || validationState === "blocked") {
+    parts.push("validation blocked or failed");
+  } else if (validationState === "passed") {
+    parts.push("validation passed");
+  } else if (validationState === "not_run") {
+    parts.push("validation incomplete");
+  } else if (validationState === "pending" || validationState === "running") {
+    parts.push("validation in progress");
+  } else if (validationState === "not_required") {
+    parts.push("validation not required");
+  } else if (validationEvents.some(
     (event) =>
       event.status === "error" ||
       event.status === "failed" ||
@@ -181,7 +197,7 @@ export function getActivitySummary(events: ToolEvent[]) {
   } else if (validationEvents.some(
     (event) => event.status === "done" || event.status === "completed",
   )) {
-    parts.push("validation passed");
+    parts.push("validation checks run");
   }
   if (parts.length > 0) return parts.join(" · ");
 
