@@ -82,7 +82,7 @@ export interface NormalizedToolEvidence {
   validationStatus?: Exclude<ExecutionValidationStatus, "not_required">;
   validationExecutionId?: string;
   validationRequirementId?: "test" | "typecheck" | "lint" | "build" | "validation";
-  validationCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE";
+  validationCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE" | "TOOLCHAIN_AMBIGUOUS";
   requirement?: "required" | "optional" | "fallback";
   requiredUserAction?: string;
 }
@@ -95,7 +95,7 @@ export interface ExecutionEvidence {
   validation: {
     status: ExecutionValidationStatus;
     summary?: string;
-    cause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE";
+    cause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE" | "TOOLCHAIN_AMBIGUOUS";
     executionIds?: string[];
   };
   synthesis: {

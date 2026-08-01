@@ -85,7 +85,7 @@ export interface WorkPlan {
       id: "test" | "typecheck" | "lint" | "build" | "validation";
       command: string | null;
       availability: "resolved" | "unresolved";
-      unavailableCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE";
+      unavailableCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE" | "TOOLCHAIN_AMBIGUOUS";
     }>;
   };
   privacyPlan: {

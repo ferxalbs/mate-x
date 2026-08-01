@@ -990,7 +990,9 @@ function enrichExecutionOutcome(
         ? {
             code: outcome.evidence.validation.cause,
             summary:
-              outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE"
+              outcome.evidence.validation.cause === "TOOLCHAIN_AMBIGUOUS"
+                ? "Target repository toolchain metadata is ambiguous."
+                : outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE"
                 ? "Required typecheck is unavailable in this repository."
                 : "Required validation command is unresolved.",
             source: "validation" as const,

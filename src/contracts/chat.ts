@@ -163,6 +163,8 @@ export type AgentOutcome =
 
 export interface ToolEvent {
   id: string;
+  /** Canonical execution identity for this tool call and its ledger events. */
+  executionId?: string;
   version?: 2;
   runId?: string;
   /** Stable identity for one append-only timeline entry. */

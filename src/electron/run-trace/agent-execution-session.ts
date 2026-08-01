@@ -23,6 +23,7 @@ type AppendInput = {
   payload: PublicRunPayload | LocalDiagnosticPayload;
   spanId?: string;
   parentSpanId?: string | null;
+  executionId?: string;
 };
 
 const activeSessions = new Map<string, AgentExecutionSession>();
@@ -83,6 +84,7 @@ export class AgentExecutionSession {
         kind,
         phase,
         visibility,
+        executionId: event.executionId,
         spanId,
         payload:
           visibility === "public"
@@ -194,7 +196,7 @@ export class AgentExecutionSession {
         spanId: input.spanId ?? randomBytes(8).toString("hex"),
         parentSpanId: input.parentSpanId ?? null,
         engineeringTaskId: this.engineeringTaskId,
-        executionId: this.executionId,
+        executionId: input.executionId ?? this.executionId,
         runId: this.runId,
         seq,
         occurredAt,

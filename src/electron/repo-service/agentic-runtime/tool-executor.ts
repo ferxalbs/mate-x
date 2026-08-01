@@ -61,6 +61,7 @@ export async function executeAgentToolCall({
       error instanceof Error ? error.message : "Invalid tool arguments.";
     events.push({
       id: eventId,
+      executionId: toolCall.id,
       label: "Action could not start",
       detail: reason,
       status: "error",
@@ -135,6 +136,7 @@ export async function executeAgentToolCall({
   if (policyStop) {
     events.push({
       id: eventId,
+      executionId: toolCall.id,
       label: "Approval required",
       detail: policyStop.title,
       status: "active",
@@ -277,6 +279,7 @@ export async function executeAgentToolCall({
   if (!policyStop) {
     events.push({
       id: eventId,
+      executionId: toolCall.id,
       ...createPublicToolProgress(toolName, toolArgs),
     });
     emitProgress();
@@ -448,12 +451,14 @@ function blockedToolResult(input: {
   const event = input.events.find((candidate) => candidate.id === input.eventId);
   if (event) {
     Object.assign(event, publicProgress);
+    event.executionId = input.toolCallId;
     event.label = blockedLabel;
     event.detail = blockedDetail;
     event.status = "blocked";
   } else {
     input.events.push({
       id: input.eventId,
+      executionId: input.toolCallId,
       ...publicProgress,
       label: blockedLabel,
       detail: blockedDetail,
@@ -578,16 +583,26 @@ function enrichParsedForEvidence(
           .join(" ")
           .trim();
     const existingExecution = base.validationExecution;
-    if (!existingExecution && command) {
+    if (command) {
       base.validationExecution = {
+        ...(existingExecution && typeof existingExecution === "object" ? existingExecution : {}),
         executionId: toolCallId,
         command,
-        processStarted:
+        processStarted: typeof existingExecution === "object" && existingExecution &&
+          typeof (existingExecution as Record<string, unknown>).processStarted === "boolean"
+          ? (existingExecution as Record<string, unknown>).processStarted
+          :
           success &&
           !/\bStatus:\s*START_FAILED\b/i.test(rawOutput) &&
           typeof exitCode === "number",
-        exitCode,
-        requirementId: validationRequirementForCommand(command),
+        exitCode: typeof existingExecution === "object" && existingExecution &&
+          typeof (existingExecution as Record<string, unknown>).exitCode === "number"
+          ? (existingExecution as Record<string, unknown>).exitCode
+          : exitCode,
+        requirementId: typeof existingExecution === "object" && existingExecution &&
+          typeof (existingExecution as Record<string, unknown>).requirementId === "string"
+          ? (existingExecution as Record<string, unknown>).requirementId
+          : validationRequirementForCommand(command),
       };
     }
   }

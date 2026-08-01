@@ -112,7 +112,9 @@ export function normalizeToolEvidence(
         ? validationRequirementId
         : undefined,
     validationCause:
-      errorDetails?.cause === "TYPECHECK_UNAVAILABLE"
+      errorDetails?.cause === "TOOLCHAIN_AMBIGUOUS"
+        ? "TOOLCHAIN_AMBIGUOUS"
+        : errorDetails?.cause === "TYPECHECK_UNAVAILABLE"
         ? "TYPECHECK_UNAVAILABLE"
         : errorDetails?.cause === "VALIDATION_COMMAND_UNRESOLVED"
           ? "VALIDATION_COMMAND_UNRESOLVED"

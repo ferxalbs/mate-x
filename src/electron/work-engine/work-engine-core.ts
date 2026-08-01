@@ -6,6 +6,7 @@ import {
   runbookStopConditions,
 } from "./runbook-resolver";
 import type { PreventiveRiskArea, SensitiveSurfaceKind, WorkPlan, WorkPlanMetadata, WorkRisk } from "./types";
+import type { RepositoryToolchainProfile } from "../repository-toolchain";
 
 /** Internal work-engine execution posture — not user-facing AssistantMode */
 export type WorkEngineMode = "execute" | "analyze" | "quality" | "security_review";
@@ -28,13 +29,13 @@ export type WorkPlanInputSnapshot = {
     entrypoints: string[];
     impactedFiles: string[];
     relatedTests: string[];
-    dependencies?: string[];
     sensitiveSurfaces: Array<{
       kind: string;
       files: string[];
       reason: string;
     }>;
   };
+  targetToolchain?: RepositoryToolchainProfile;
   scripts?: Array<{
     name: string;
     command: string;
@@ -137,10 +138,8 @@ function requiredValidationSignals(
   if (requested.size === 0) requested.add(primaryCommand ? scriptRequirement(primaryCommand) : "validation");
 
   return [...requested].map((id) => {
-    const command = scripts.find((script) => script.signal === id)?.command ??
-      (id === "typecheck" && snapshot.repoGraph?.dependencies?.includes("typescript")
-        ? "bun x --no-install tsc --noEmit"
-        : null) ??
+    const command = (id === "typecheck" ? snapshot.targetToolchain?.typecheck.command : undefined) ??
+      scripts.find((script) => script.signal === id)?.command ??
       (primaryCommand && scriptRequirement(primaryCommand) === id ? primaryCommand : null);
     return command
       ? { id, command, availability: "resolved" as const }
@@ -149,7 +148,7 @@ function requiredValidationSignals(
           command: null,
           availability: "unresolved" as const,
           unavailableCause: id === "typecheck"
-            ? "TYPECHECK_UNAVAILABLE" as const
+            ? snapshot.targetToolchain?.cause ?? "TYPECHECK_UNAVAILABLE" as const
             : "VALIDATION_COMMAND_UNRESOLVED" as const,
         };
   });

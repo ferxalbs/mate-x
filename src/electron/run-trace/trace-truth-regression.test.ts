@@ -462,26 +462,49 @@ describe("trace and terminal truth regression", () => {
     assert.equal(typecheck?.availability, "unresolved");
     assert.equal(typecheck?.unavailableCause, "TYPECHECK_UNAVAILABLE");
 
-    const dependencyFallback = buildWorkPlanFromSnapshot({
+    const ambiguousToolchain = buildWorkPlanFromSnapshot({
       prompt: "Patch service, run typecheck.",
       mode: "execute",
       workspace: { root: "/repo", name: "repo" },
       git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
       scripts: [],
-      repoGraph: {
-        status: "ready",
-        entrypoints: [],
-        impactedFiles: [],
-        relatedTests: [],
-        dependencies: ["typescript"],
-        sensitiveSurfaces: [],
+      targetToolchain: {
+        packagePath: "/repo",
+        manager: null,
+        managerSource: "/repo",
+        status: "ambiguous",
+        cause: "TOOLCHAIN_AMBIGUOUS",
+        typecheck: { command: null, source: null, guarantee: null },
+      },
+    });
+    assert.equal(
+      ambiguousToolchain.validationPlan.requirements?.find((item) => item.id === "typecheck")?.unavailableCause,
+      "TOOLCHAIN_AMBIGUOUS",
+    );
+
+    const repositoryAwareResolution = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [],
+      targetToolchain: {
+        packagePath: "/repo",
+        manager: "npm",
+        managerSource: "/repo/package-lock.json",
+        status: "resolved",
+        typecheck: {
+          command: "npm exec --offline --no -- tsc --noEmit",
+          source: "local_toolchain",
+          guarantee: "local_only_no_install",
+        },
       },
     });
     assert.deepEqual(
-      dependencyFallback.validationPlan.requirements?.find((item) => item.id === "typecheck"),
+      repositoryAwareResolution.validationPlan.requirements?.find((item) => item.id === "typecheck"),
       {
         id: "typecheck",
-        command: "bun x --no-install tsc --noEmit",
+        command: "npm exec --offline --no -- tsc --noEmit",
         availability: "resolved",
       },
     );

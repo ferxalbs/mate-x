@@ -8,6 +8,7 @@ import {
   type WorkPlanInputSnapshot,
 } from "./work-engine-core";
 import type { WorkPlan } from "./types";
+import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 
 export { buildWorkPlanFromSnapshot, buildWorkPlanMetadata, renderWorkPlanForPrompt };
 export type { WorkPlanInputSnapshot };
@@ -26,12 +27,17 @@ export async function buildWorkPlan(input: BuildWorkPlanInput): Promise<WorkPlan
 async function collectWorkPlanSnapshotFromElectronServices(
   input: BuildWorkPlanInput,
 ): Promise<WorkPlanInputSnapshot> {
-  const [entrypoints, ipcSurface, envUsage, dependencySurface, impactedFiles] = await Promise.all([
+  const changedFiles = normalizeChangedFiles(input.gitStatus);
+  const [entrypoints, ipcSurface, envUsage, dependencySurface, impactedFiles, targetToolchain] = await Promise.all([
     repoGraphService.getEntrypoints(input.workspace).catch(() => []),
     repoGraphService.getIpcSurface(input.workspace).catch(() => []),
     repoGraphService.getEnvUsage(input.workspace).catch(() => []),
     repoGraphService.getDependencySurface(input.workspace).catch(() => []),
     collectImpactedFiles(input.workspace, input.workingSet).catch(() => []),
+    collectRepositoryToolchainProfile({
+      root: input.workspace.path,
+      changedFiles,
+    }),
   ]);
   return {
     prompt: input.prompt,
@@ -42,7 +48,7 @@ async function collectWorkPlanSnapshotFromElectronServices(
     },
     git: {
       branch: null,
-      changedFiles: normalizeChangedFiles(input.gitStatus),
+      changedFiles,
       stagedFiles: [],
       untrackedFiles: [],
     },
@@ -51,7 +57,6 @@ async function collectWorkPlanSnapshotFromElectronServices(
       entrypoints: entrypoints.map((entrypoint) => entrypoint.file),
       impactedFiles,
       relatedTests: input.workingSet.relatedTests.map((file) => file.path),
-      dependencies: dependencySurface.map((surface) => surface.dependency),
       sensitiveSurfaces: [
         ...envUsage.map((usage) => ({
           kind: "env",
@@ -70,6 +75,7 @@ async function collectWorkPlanSnapshotFromElectronServices(
         })),
       ].slice(0, 20),
     },
+    targetToolchain,
     scripts: input.workingSet.relevantPackageScripts.map((script) => ({
       name: script.name,
       command: script.command,

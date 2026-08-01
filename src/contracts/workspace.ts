@@ -74,7 +74,8 @@ export type ValidationRequirementId =
 
 export type ValidationUnavailableCause =
   | "VALIDATION_COMMAND_UNRESOLVED"
-  | "TYPECHECK_UNAVAILABLE";
+  | "TYPECHECK_UNAVAILABLE"
+  | "TOOLCHAIN_AMBIGUOUS";
 
 export interface ValidationPlanCommand {
   command: string | null;

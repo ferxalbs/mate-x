@@ -111,7 +111,9 @@ export const runTestsTool: Tool = {
         {
           retryable: false,
           recommendedNextAction:
-            cause === "TYPECHECK_UNAVAILABLE"
+            cause === "TOOLCHAIN_AMBIGUOUS"
+              ? "Resolve conflicting target-repository package manager metadata, then re-plan validation."
+              : cause === "TYPECHECK_UNAVAILABLE"
               ? "Add a repository typecheck script or dependency, then re-plan validation."
               : "Detect workspace validation capabilities and create a new validation plan.",
           details: {

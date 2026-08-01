@@ -18,6 +18,7 @@ test("records immutable ordered transitions and replays by cursor", () => {
 
   const legacyEvent = {
     id: "tool-1",
+    executionId: "execution-tool-1",
     label: "Search files",
     detail: "Searching the repository.",
     status: "active" as const,
@@ -35,6 +36,10 @@ test("records immutable ordered transitions and replays by cursor", () => {
   assert.deepEqual(
     events.map((event) => event.seq),
     [1, 2, 3, 4],
+  );
+  assert.deepEqual(
+    events.slice(2).map((event) => event.executionId),
+    ["execution-tool-1", "execution-tool-1"],
   );
   assert.equal(events[0].previousIntegrityHash, null);
   assert.equal(events[1].previousIntegrityHash, events[0].integrityHash);
@@ -67,4 +72,3 @@ test("rejects unsafe diagnostic payloads before append", () => {
   );
   assert.equal(session.getEvents().length, 1);
 });
-
