@@ -1,4 +1,5 @@
 import type OpenAI from "openai";
+import { randomUUID } from "node:crypto";
 import type {
   FunctionTool as ResponsesFunctionTool,
   Response as OpenAIResponse,
@@ -41,6 +42,24 @@ let openAIModulePromise: Promise<typeof import("openai")> | null = null;
 
 /** Reuse one OpenAI client per API key for the agent loop lifetime. */
 const rainyClientCache = new Map<string, OpenAI>();
+
+export function createRainyOperationRequestOptions(
+  input: {
+    signal?: AbortSignal;
+    timeout: number;
+  },
+  operationId = randomUUID(),
+) {
+  return {
+    signal: input.signal,
+    timeout: input.timeout,
+    idempotencyKey: operationId,
+    headers: {
+      "X-Idempotency-Key": operationId,
+      "X-Request-Id": operationId,
+    },
+  };
+}
 
 function loadOpenAIModule() {
   openAIModulePromise ??= import("openai");
@@ -924,6 +943,10 @@ export async function requestRainyChatCompletionStream(params: {
 }): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
   const client = await createRainyClient(params.apiKey);
   const requestTimeoutMs = params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS;
+  const operationRequestOptions = createRainyOperationRequestOptions({
+    signal: params.signal,
+    timeout: requestTimeoutMs,
+  });
   const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
     messages: params.messages,
     tools: params.tools,
@@ -978,7 +1001,7 @@ export async function requestRainyChatCompletionStream(params: {
     try {
       stream = (await client.chat.completions.create(
         { ...compatibleRequest, stream: true } as any,
-        { signal: params.signal, timeout: requestTimeoutMs },
+        operationRequestOptions,
       )) as unknown as AsyncIterable<any>;
     } catch (error) {
       if (isToolsNotAllowedError(error) && !omitTools) {
@@ -1034,9 +1057,10 @@ export async function requestRainyChatCompletionStream(params: {
       throw error;
     }
 
-    const response = await client.chat.completions.create(lastCompatibleRequest as any, {
-      timeout: requestTimeoutMs,
-    });
+    const response = await client.chat.completions.create(
+      lastCompatibleRequest as any,
+      operationRequestOptions,
+    );
     const message = response.choices?.[0]?.message;
     const content = extractTextFromChatPayload(response);
     if (content) {
@@ -1086,6 +1110,10 @@ export async function requestRainyResponsesCompletion(params: {
   requireTools?: boolean;
 }): Promise<OpenAIResponse> {
   const client = await createRainyClient(params.apiKey);
+  const operationRequestOptions = createRainyOperationRequestOptions({
+    signal: params.signal,
+    timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
+  });
   const sanitized = await (await getPrivacyFirewall()).sanitizeOutboundModelPayload({
     input: params.input,
     instructions: params.instructions,
@@ -1110,8 +1138,7 @@ export async function requestRainyResponsesCompletion(params: {
 
   try {
     return await client.responses.create(request as any, {
-      signal: params.signal,
-      timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
+      ...operationRequestOptions,
     });
   } catch (error) {
     if (!isToolsNotAllowedError(error)) {
@@ -1127,10 +1154,7 @@ export async function requestRainyResponsesCompletion(params: {
         tools: undefined,
         tool_choice: "none",
       } as any,
-      {
-        signal: params.signal,
-        timeout: params.timeoutMs ?? RAINY_REQUEST_TIMEOUT_MS,
-      },
+      operationRequestOptions,
     );
   }
 }

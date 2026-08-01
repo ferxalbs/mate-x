@@ -24,6 +24,7 @@ import type {
   AssistantRunOptions,
   ChatMessage,
 } from "../../../contracts/chat";
+import type { ExecutionOutcome } from "../../../contracts/execution";
 import type { TelemetryFeedbackRating } from "../../../contracts/telemetry";
 import { sanitizeAssistantOutput } from "../../../lib/assistant-output";
 import { formatTimestamp } from "../../../lib/time";
@@ -303,7 +304,10 @@ const MessageEntry = memo(function MessageEntry({
           events={events}
           isRunning={isStreaming}
         />
-        {message.outcome &&
+        {message.executionOutcome &&
+        message.executionOutcome.terminalState !== "completed" ? (
+          <ExecutionOutcomeCard outcome={message.executionOutcome} />
+        ) : message.outcome &&
         (message.outcome.status === "blocked" ||
           message.outcome.status === "needs_approval" ||
           message.outcome.status === "failed") ? (
@@ -451,6 +455,71 @@ function ResultFallback() {
         No final synthesis text was returned for this run. The audit timeline
         above has the full execution trace.
       </p>
+    </section>
+  );
+}
+
+function ExecutionOutcomeCard({ outcome }: { outcome: ExecutionOutcome }) {
+  const title =
+    outcome.terminalState === "partial"
+      ? "Completed partially"
+      : outcome.terminalState === "blocked"
+          ? "Blocked"
+          : outcome.terminalState === "cancelled"
+            ? "Cancelled"
+            : "Couldn’t complete";
+  const changedFiles = outcome.files ?? outcome.evidence.changedFiles.map((file) => ({
+    path: file.path,
+    operation: file.operation,
+    verification: "pending" as const,
+  }));
+
+  return (
+    <section className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none">
+      <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
+        <HugeiconsIcon icon={Alert01Icon} className="size-4 text-amber-500" />
+        {title}
+      </div>
+      <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+        {outcome.summary}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+        <span>Workspace</span>
+        <span>Validation</span>
+        <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
+          {(outcome.worktreeHealth ?? "unchanged").replaceAll("_", " ")}
+        </strong>
+        <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
+          {(outcome.validationState ?? outcome.evidence.validation.status).replaceAll("_", " ")}
+        </strong>
+      </div>
+      {changedFiles.length > 0 ? (
+        <div className="mt-3 border-t border-border/70 pt-2.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            Changed files
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {changedFiles.slice(0, 8).map((file) => (
+              <li
+                className="flex min-w-0 items-center justify-between gap-3 text-[11px]"
+                key={`${file.path}:${file.operation}`}
+              >
+                <span className="min-w-0 break-all text-foreground/85">
+                  {file.path}
+                </span>
+                <span className="shrink-0 text-muted-foreground">
+                  {file.verification}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {outcome.primaryCause ? (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Cause: {outcome.primaryCause.summary}
+        </p>
+      ) : null}
     </section>
   );
 }

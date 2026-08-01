@@ -1,6 +1,12 @@
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { relative } from "node:path";
 import type { Tool } from "../tool-service";
+import {
+  createToolError,
+  formatToolFailure,
+  formatToolSuccess,
+} from "../tool-result";
 import {
   analyzePatchAfter,
   analyzePatchBefore,
@@ -8,7 +14,8 @@ import {
   formatPatchImpactSkipped,
   formatPatchImpactSummary,
 } from "../patch-impact-engine";
-import { resolveWorkspacePath } from "./tool-utils";
+import { writeVerifiedMutation } from "../run-trace/verified-mutation";
+import { resolveWorkspacePathSecure } from "./tool-utils";
 
 export const fileEditorTool: Tool = {
   name: "file_editor",
@@ -57,6 +64,11 @@ export const fileEditorTool: Tool = {
         description:
           "Optional exact current content guard. For range operations it must match the target range. For append/overwrite it must match the whole file.",
       },
+      expectedHash: {
+        type: "string",
+        description:
+          "Expected SHA-256 of the whole current file for overwrite/append compare-and-swap.",
+      },
       failIfExists: {
         type: "boolean",
         description:
@@ -69,34 +81,84 @@ export const fileEditorTool: Tool = {
           "RepoGraph impact analysis level. Defaults to none for fast, precise edits on new or large files. Use full when dependency/risk summary is required.",
       },
     },
-    required: ["path"],
+    required: ["path", "operation"],
   },
-  async execute(args, { workspacePath }) {
+  async execute(args, { workspacePath, runId }) {
     const {
       path,
       startLine,
       endLine,
       newContent = "",
       expectedContent,
+      expectedHash,
       searchString,
       replaceAll = false,
       failIfExists = true,
     } = args;
     const operation = normalizeOperation(args.operation);
+    if (!operation) {
+      return formatToolFailure(
+        createToolError("INVALID_INPUT", "A supported operation is required."),
+        "file_editor",
+      );
+    }
     const impactAnalysis = args.impactAnalysis === "before" || args.impactAnalysis === "full"
       ? args.impactAnalysis
       : "none";
     
-    const targetFile = resolveWorkspacePath(workspacePath, path);
+    const targetFile = await resolveWorkspacePathSecure(workspacePath, path);
 
     try {
       let content = "";
       let fileExists = true;
+      let fileMode: number | null = null;
       try {
         content = await readFile(targetFile, "utf8");
+        fileMode = (await stat(targetFile)).mode;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         fileExists = false;
+      }
+      if (
+        (operation === "replace_range" ||
+          operation === "insert_before" ||
+          operation === "insert_after" ||
+          operation === "delete_range") &&
+        typeof expectedContent !== "string"
+      ) {
+        return formatToolFailure(
+          createToolError(
+            "INVALID_INPUT",
+            `${operation} requires expectedContent for compare-and-swap safety.`,
+          ),
+          "file_editor",
+        );
+      }
+      if (
+        (operation === "overwrite" || operation === "append") &&
+        fileExists &&
+        typeof expectedContent !== "string" &&
+        typeof expectedHash !== "string"
+      ) {
+        return formatToolFailure(
+          createToolError(
+            "INVALID_INPUT",
+            `${operation} requires expectedContent or expectedHash.`,
+          ),
+          "file_editor",
+        );
+      }
+      if (
+        typeof expectedHash === "string" &&
+        sha256(content) !== expectedHash.toLowerCase()
+      ) {
+        return formatToolFailure(
+          createToolError(
+            "CONFLICT",
+            "Edit rejected because expectedHash did not match. No file was changed.",
+          ),
+          "file_editor",
+        );
       }
 
       const editPlan = buildEditPlan({
@@ -112,7 +174,10 @@ export const fileEditorTool: Tool = {
         failIfExists,
       });
       if (typeof editPlan === "string") {
-        return editPlan;
+        return formatToolFailure(
+          createToolError("CONFLICT", editPlan),
+          "file_editor",
+        );
       }
 
       const impactBefore = impactAnalysis === "none"
@@ -121,15 +186,51 @@ export const fileEditorTool: Tool = {
       const decision = impactBefore ? assessPatchBeforeWrite(impactBefore) : null;
       const finalContent = editPlan.finalContent;
       if (finalContent === content) {
-        return impactBefore && decision
+        const summary = impactBefore && decision
           ? formatPatchImpactSkipped(impactBefore.targetFile, decision, impactBefore.summary)
           : `Edit skipped for ${relative(workspacePath, targetFile)}. ${editPlan.summary} would not change the file.`;
+        return formatToolSuccess(
+          {
+            changed: false,
+            path: relative(workspacePath, targetFile),
+            verification: "not_required",
+          },
+          { textFallback: summary, meta: { verified: true } },
+        );
       }
 
-      if (!fileExists) {
-        await mkdir(dirname(targetFile), { recursive: true });
+      const mutation = await writeVerifiedMutation({
+        workspacePath,
+        targetFile,
+        beforeExists: fileExists,
+        beforeContent: content,
+        beforeMode: fileMode,
+        finalContent,
+        runId,
+      });
+      if (!mutation.ok) {
+        return formatToolFailure(
+          createToolError(
+            mutation.code === "RECOVERY_CONFLICT"
+              ? "PARTIAL_EXECUTION"
+              : mutation.code,
+            mutation.reason,
+            {
+            mayHavePartialEffects: mutation.code === "RECOVERY_CONFLICT",
+            recommendedNextAction:
+              mutation.code === "RECOVERY_CONFLICT"
+                ? "Inspect the current diff and resolve the recovery conflict."
+                : "Correct the edit against the latest file content and retry.",
+            details: {
+              mutationId: mutation.mutationId,
+              relativePath: mutation.relativePath,
+              reverted: mutation.reverted,
+            },
+            },
+          ),
+          "file_editor",
+        );
       }
-      await atomicWriteFile(targetFile, finalContent);
 
       const rel = relative(workspacePath, targetFile);
       const impactSummary = impactAnalysis === "full" && impactBefore
@@ -137,9 +238,43 @@ export const fileEditorTool: Tool = {
         : impactAnalysis === "before" && impactBefore && decision
           ? `\nPATCH_IMPACT_DECISION\nRisk: ${decision.level.toUpperCase()}\nValidation: ${decision.validationCommands.join(", ")}`
           : "\nImpact analysis skipped for speed. Set impactAnalysis to full when dependency impact is required.";
-      return `File ${rel} successfully ${fileExists ? "edited" : "created"} with ${editPlan.summary}.\nNo backup file was created.${impactSummary}`;
+      return formatToolSuccess(
+        {
+          mutationId: mutation.mutationId,
+          changed: true,
+          path: rel,
+          changedFiles: [
+            {
+              path: rel,
+              operation: fileExists ? "modified" : "created",
+              backupCreated: false,
+            },
+          ],
+          beforeHash: mutation.beforeHash,
+          afterHash: mutation.afterHash,
+          verification: mutation.verification,
+          validationRequired: mutation.verification.status !== "passed",
+        },
+        {
+          textFallback: `File ${rel} safely ${fileExists ? "edited" : "created"} with ${editPlan.summary}.${impactSummary}`,
+          warnings:
+            mutation.verification.status === "pending"
+              ? [mutation.verification.reason]
+              : undefined,
+          meta: {
+            verified: mutation.verification.status === "passed",
+          },
+        },
+      );
     } catch (error) {
-      return `Error editing file: ${(error as Error).message}`;
+      return formatToolFailure(
+        createToolError(
+          "EXECUTION_ERROR",
+          `Error editing file: ${(error as Error).message}`,
+          { mayHavePartialEffects: false },
+        ),
+        "file_editor",
+      );
     }
   },
 };
@@ -172,7 +307,7 @@ type EditPlan = {
   summary: string;
 };
 
-function normalizeOperation(operation: unknown): FileEditOperation {
+function normalizeOperation(operation: unknown): FileEditOperation | null {
   return operation === "insert_before" ||
     operation === "insert_after" ||
     operation === "delete_range" ||
@@ -181,7 +316,9 @@ function normalizeOperation(operation: unknown): FileEditOperation {
     operation === "create" ||
     operation === "overwrite"
     ? operation
-    : "replace_range";
+    : operation === "replace_range"
+      ? operation
+      : null;
 }
 
 function buildEditPlan(input: EditPlanInput): EditPlan | string {
@@ -267,30 +404,6 @@ function asPositiveLine(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : null;
 }
 
-async function atomicWriteFile(targetFile: string, content: string) {
-  const targetDirectory = dirname(targetFile);
-  const tempFile = join(
-    targetDirectory,
-    `.${basename(targetFile)}.matex-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`,
-  );
-  let handle: Awaited<ReturnType<typeof open>> | null = null;
-
-  try {
-    handle = await open(tempFile, "wx");
-    await handle.writeFile(content, "utf8");
-    await handle.sync();
-    await handle.close();
-    handle = null;
-    await rename(tempFile, targetFile);
-  } catch (error) {
-    if (handle) {
-      await handle.close().catch(() => undefined);
-    }
-    await rm(tempFile, { force: true }).catch(() => undefined);
-    throw error;
-  }
-}
-
 function countLines(content: string) {
   if (!content) return 0;
   let lines = 1;
@@ -298,6 +411,10 @@ function countLines(content: string) {
     if (content.charCodeAt(index) === 10) lines++;
   }
   return lines;
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function locateLineRange(content: string, startLine: number, endLine: number) {

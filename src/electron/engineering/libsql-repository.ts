@@ -21,9 +21,14 @@ import type {
   TechnicalApproachDocument,
   ValidationRun,
 } from '../../contracts/engineering-task';
+import type {
+  AgentExecutionSessionState,
+  AgentRunEventV3,
+} from '../../contracts/agent-run-trace';
 import { deriveChangeContract } from '../../contracts/engineering-task';
 import { ENGINEERING_SCHEMA_SQL, ENGINEERING_SCHEMA_VERSION } from './schema';
 import { sha256Hex } from './ids';
+import { resolveSqliteRuntimePolicy } from '../sqlite-runtime-policy';
 import {
   type ApplyTransactionInput,
   type EngineeringRepository,
@@ -103,7 +108,13 @@ export class LibSqlEngineeringRepository implements EngineeringRepository {
       const filename =
         dbPathOrDb.startsWith('file:') ? dbPathOrDb.slice('file:'.length) : dbPathOrDb;
       this.db = new Database(filename);
-      this.db.pragma('journal_mode = WAL');
+      const versionRow = this.db
+        .prepare('SELECT sqlite_version() AS version')
+        .get() as { version: string };
+      const runtimePolicy = resolveSqliteRuntimePolicy(String(versionRow.version));
+      this.db.pragma(`journal_mode = ${runtimePolicy.journalMode}`);
+      this.db.pragma('synchronous = FULL');
+      this.db.pragma('busy_timeout = 5000');
       this.db.pragma('foreign_keys = ON');
     } else {
       this.db = dbPathOrDb;
@@ -815,6 +826,190 @@ export class LibSqlEngineeringRepository implements EngineeringRepository {
     return sha256Hex(
       JSON.stringify(events.map((e) => e.eventId + e.seq + e.type)),
     );
+  }
+
+  appendAgentRunEvents(input: {
+    runId: string;
+    traceId: string;
+    engineeringTaskId: string | null;
+    executionId: string | null;
+    behaviorMode: AgentRunEventV3["mode"];
+    state: AgentExecutionSessionState;
+    events: AgentRunEventV3[];
+  }): void {
+    if (input.events.length === 0) return;
+
+    const append = this.db.transaction(() => {
+      const current = this.db
+        .prepare(
+          `SELECT last_seq, last_integrity_hash FROM agent_runs WHERE run_id = ?`,
+        )
+        .get(input.runId) as
+        | { last_seq: number; last_integrity_hash: string | null }
+        | undefined;
+      let expectedSeq = Number(current?.last_seq ?? 0) + 1;
+      let previousHash = current?.last_integrity_hash ?? null;
+
+      for (const event of input.events) {
+        if (
+          event.runId !== input.runId ||
+          event.traceId !== input.traceId ||
+          event.seq !== expectedSeq ||
+          event.previousIntegrityHash !== previousHash
+        ) {
+          throw new EngineeringRepositoryError(
+            `Run event continuity violation for ${input.runId} at seq ${event.seq}.`,
+            'ERR_EVENT_SEQ',
+          );
+        }
+        expectedSeq++;
+        previousHash = event.integrityHash;
+      }
+
+      const now = input.events.at(-1)?.occurredAt ?? new Date().toISOString();
+      this.db
+        .prepare(
+          `INSERT INTO agent_runs (
+            run_id, trace_id, engineering_task_id, execution_id, behavior_mode,
+            state, last_seq, last_integrity_hash, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(run_id) DO UPDATE SET
+            engineering_task_id = COALESCE(excluded.engineering_task_id, agent_runs.engineering_task_id),
+            execution_id = COALESCE(excluded.execution_id, agent_runs.execution_id),
+            behavior_mode = excluded.behavior_mode,
+            state = excluded.state,
+            last_seq = excluded.last_seq,
+            last_integrity_hash = excluded.last_integrity_hash,
+            updated_at = excluded.updated_at`,
+        )
+        .run(
+          input.runId,
+          input.traceId,
+          input.engineeringTaskId,
+          input.executionId,
+          input.behaviorMode,
+          input.state,
+          expectedSeq - 1,
+          previousHash,
+          input.events[0].occurredAt,
+          now,
+        );
+
+      const insertEnvelope = this.db.prepare(
+        `INSERT INTO agent_run_events (
+          event_id, run_id, seq, schema_version, trace_id, span_id,
+          parent_span_id, engineering_task_id, execution_id, occurred_at,
+          kind, phase, behavior_mode, visibility, previous_integrity_hash,
+          integrity_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      const insertPublicPayload = this.db.prepare(
+        `INSERT INTO agent_run_public_payloads (event_id, payload_json)
+         VALUES (?, ?)`,
+      );
+      const insertDiagnosticPayload = this.db.prepare(
+        `INSERT INTO agent_run_diagnostic_payloads (event_id, payload_json)
+         VALUES (?, ?)`,
+      );
+
+      for (const event of input.events) {
+        insertEnvelope.run(
+          event.eventId,
+          event.runId,
+          event.seq,
+          event.schemaVersion,
+          event.traceId,
+          event.spanId,
+          event.parentSpanId,
+          event.engineeringTaskId,
+          event.executionId,
+          event.occurredAt,
+          event.kind,
+          event.phase,
+          event.mode,
+          event.visibility,
+          event.previousIntegrityHash,
+          event.integrityHash,
+        );
+        const payload = JSON.stringify(event.payload);
+        if (event.visibility === 'public') {
+          insertPublicPayload.run(event.eventId, payload);
+        } else {
+          insertDiagnosticPayload.run(event.eventId, payload);
+        }
+      }
+    });
+
+    try {
+      append();
+    } catch (error) {
+      if (error instanceof EngineeringRepositoryError) throw error;
+      throw new EngineeringRepositoryError(
+        `Run event append failed: ${error instanceof Error ? error.message : String(error)}`,
+        'ERR_DB_FAILURE',
+      );
+    }
+  }
+
+  getAgentRunEvents(
+    runId: string,
+    afterSeq = 0,
+    limit = 1_000,
+  ): AgentRunEventV3[] {
+    const boundedLimit = Math.max(1, Math.min(Math.floor(limit), 10_000));
+    const rows = this.db
+      .prepare(
+        `SELECT e.*, p.payload_json AS public_payload_json,
+                d.payload_json AS diagnostic_payload_json
+         FROM agent_run_events e
+         LEFT JOIN agent_run_public_payloads p ON p.event_id = e.event_id
+         LEFT JOIN agent_run_diagnostic_payloads d ON d.event_id = e.event_id
+         WHERE e.run_id = ? AND e.seq > ?
+         ORDER BY e.seq ASC
+         LIMIT ?`,
+      )
+      .all(runId, afterSeq, boundedLimit) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => ({
+      schemaVersion: 3,
+      eventId: String(row.event_id),
+      traceId: String(row.trace_id),
+      spanId: String(row.span_id),
+      parentSpanId:
+        row.parent_span_id == null ? null : String(row.parent_span_id),
+      engineeringTaskId:
+        row.engineering_task_id == null
+          ? null
+          : String(row.engineering_task_id),
+      executionId:
+        row.execution_id == null ? null : String(row.execution_id),
+      runId: String(row.run_id),
+      seq: Number(row.seq),
+      occurredAt: String(row.occurred_at),
+      kind: String(row.kind) as AgentRunEventV3['kind'],
+      phase: String(row.phase) as AgentRunEventV3['phase'],
+      mode: String(row.behavior_mode) as AgentRunEventV3['mode'],
+      visibility: String(row.visibility) as AgentRunEventV3['visibility'],
+      payload: parseJson(
+        String(row.public_payload_json ?? row.diagnostic_payload_json ?? '{}'),
+        'agent_run_event.payload',
+      ),
+      previousIntegrityHash:
+        row.previous_integrity_hash == null
+          ? null
+          : String(row.previous_integrity_hash),
+      integrityHash: String(row.integrity_hash),
+    }));
+  }
+
+  deleteAgentRunEventsBefore(cutoffIso: string): number {
+    const result = this.db
+      .prepare(
+        `DELETE FROM agent_runs
+         WHERE state = 'terminal' AND updated_at < ?`,
+      )
+      .run(cutoffIso) as { changes?: number };
+    return Number(result.changes ?? 0);
   }
 
   close(): void {

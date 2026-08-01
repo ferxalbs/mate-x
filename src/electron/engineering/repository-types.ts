@@ -17,6 +17,10 @@ import type {
   TechnicalApproachDocument,
   ValidationRun,
 } from '../../contracts/engineering-task';
+import type {
+  AgentExecutionSessionState,
+  AgentRunEventV3,
+} from '../../contracts/agent-run-trace';
 
 export interface EngineeringTaskBundle {
   task: EngineeringTask;
@@ -90,6 +94,17 @@ export interface EngineeringRepository {
   savePolicyPack(pack: PolicyPack): void;
   applyTransaction(input: ApplyTransactionInput): void;
   eventsIntegrityHash(engineeringTaskId: string): string;
+  appendAgentRunEvents(input: {
+    runId: string;
+    traceId: string;
+    engineeringTaskId: string | null;
+    executionId: string | null;
+    behaviorMode: AgentRunEventV3["mode"];
+    state: AgentExecutionSessionState;
+    events: AgentRunEventV3[];
+  }): void;
+  getAgentRunEvents(runId: string, afterSeq?: number, limit?: number): AgentRunEventV3[];
+  deleteAgentRunEventsBefore(cutoffIso: string): number;
   /** Optional test hook — not required on durable impl. */
   simulateAbortOnNextWrite?(): void;
   /** Close underlying resources when durable. */

@@ -2,6 +2,7 @@ import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
 import type { BehaviorMode } from "./behavior-mode";
 import type { ExecutionOutcome, ExecutionTerminalState } from "./execution";
+import type { RunEventDelta } from "./agent-run-trace";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
@@ -104,9 +105,11 @@ export interface AssistantAttachment {
 
 export interface AssistantRunProgress {
   runId: string;
-  status: Extract<RunStatus, "running" | "failed">;
+  status: Exclude<RunStatus, "idle">;
   content: string;
   events: ToolEvent[];
+  /** Authoritative ordered progress stream. `events` is a temporary legacy projection. */
+  delta?: RunEventDelta;
   artifacts: MessageArtifact[];
   outcome?: AgentOutcome;
 }

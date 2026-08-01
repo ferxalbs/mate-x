@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { lstat, readFile, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 const DEFAULT_MAX_OUTPUT_CHARS = 12_000;
 
@@ -41,6 +41,52 @@ export function resolveWorkspacePath(
   }
 
   return absoluteTarget;
+}
+
+/**
+ * Canonical workspace-boundary resolution. Existing symlinks are resolved and
+ * non-existing targets are authorized through their nearest existing ancestor.
+ */
+export async function resolveWorkspacePathSecure(
+  workspacePath: string,
+  inputPath: unknown,
+  fallbackPath = ".",
+): Promise<string> {
+  const lexicalTarget = resolveWorkspacePath(workspacePath, inputPath, fallbackPath);
+  const canonicalWorkspace = await realpath(workspacePath);
+  let existingAncestor = lexicalTarget;
+
+  while (true) {
+    try {
+      await lstat(existingAncestor);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const parent = dirname(existingAncestor);
+      if (parent === existingAncestor) {
+        throw new Error("Unable to resolve a safe workspace ancestor.", {
+          cause: error,
+        });
+      }
+      existingAncestor = parent;
+    }
+  }
+
+  const canonicalAncestor = await realpath(existingAncestor);
+  if (!isPathInsideRoot(canonicalWorkspace, canonicalAncestor)) {
+    throw new Error("Path resolves outside the active workspace.");
+  }
+
+  try {
+    const canonicalTarget = await realpath(lexicalTarget);
+    if (!isPathInsideRoot(canonicalWorkspace, canonicalTarget)) {
+      throw new Error("Path resolves outside the active workspace.");
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  return lexicalTarget;
 }
 
 export function limitTextOutput(

@@ -1,5 +1,6 @@
-import type { AgentOutcome } from "../../../contracts/chat";
+import type { AgentOutcome, ToolEvent } from "../../../contracts/chat";
 import type { ToolExecutionRecord } from "../../evidence-pack";
+import { getActiveAgentExecutionSession } from "../../run-trace/agent-execution-session";
 
 const SUMMARY =
   "The selected model cannot use the repository tools required for this Execute run.";
@@ -45,17 +46,17 @@ export function createModelToolsUnavailableResult(
 
 export function createProviderFailureResult(
   toolExecutions: ToolExecutionRecord[],
-  message: string,
+  error: unknown,
 ): ReturnType<typeof createModelToolsUnavailableResult> {
-  const summary = "The provider stopped before the repository run completed.";
+  const failure = classifyProviderFailure(error);
   return {
-    content: summary,
+    content: failure.summary,
     outcome: {
       status: "failed",
-      summary,
+      summary: failure.summary,
       diagnostic: {
-        code: "PROVIDER_UNAVAILABLE",
-        message,
+        code: failure.code,
+        message: failure.message,
       },
       remediation: {
         type: "retry",
@@ -63,7 +64,79 @@ export function createProviderFailureResult(
       },
     },
     synthesisStatus: "failed",
-    synthesisSummary: summary,
+    synthesisSummary: failure.summary,
     toolExecutions,
+  };
+}
+
+export function recordProviderFailure(
+  runId: string,
+  error: unknown,
+  attempt: number,
+): void {
+  const failure = classifyProviderFailure(error);
+  getActiveAgentExecutionSession(runId)?.record({
+    kind: "provider.failed",
+    phase: "inspection",
+    visibility: "local_diagnostic",
+    payload: {
+      toolClass: "rainy",
+      code: failure.code,
+      attempt,
+    },
+  });
+}
+
+export function createProviderFailurePublicEvent(input: {
+  runId: string;
+  attempt: number;
+  summary: string;
+}): ToolEvent {
+  return {
+    id: `${input.runId}:provider-failed:${input.attempt}`,
+    runId: input.runId,
+    passId: `${input.runId}:pass:${input.attempt}`,
+    segmentKind: "error",
+    type: "error",
+    label: "Provider request failed",
+    detail: input.summary,
+    status: "failed",
+    visibility: "public",
+  };
+}
+
+function classifyProviderFailure(error: unknown): {
+  code: string;
+  message: string;
+  summary: string;
+} {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Unknown provider failure.";
+
+  if (isModelToolsUnavailableError(error)) {
+    return {
+      code: "MODEL_TOOLS_UNAVAILABLE",
+      message,
+      summary: SUMMARY,
+    };
+  }
+
+  if (/stable billing operation id is required/i.test(message)) {
+    return {
+      code: "PROVIDER_BILLING_OPERATION_ID_REQUIRED",
+      message,
+      summary:
+        "The provider rejected the request because its billing operation identifier was missing.",
+    };
+  }
+
+  return {
+    code: "PROVIDER_UNAVAILABLE",
+    message,
+    summary: "The provider stopped before the repository run completed.",
   };
 }

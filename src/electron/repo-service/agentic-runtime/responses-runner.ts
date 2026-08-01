@@ -37,8 +37,10 @@ import { resolveAdvertisedToolNames } from "../../capability-resolver";
 import { sanitizePublicProgress } from "../../../lib/assistant-output";
 import {
   createModelToolsUnavailableResult,
+  createProviderFailurePublicEvent,
   createProviderFailureResult,
   isModelToolsUnavailableError,
+  recordProviderFailure,
 } from "./model-tools-unavailable";
 
 export async function requestRainyResponsesAgenticResponse({
@@ -158,13 +160,24 @@ export async function requestRainyResponsesAgenticResponse({
         requireTools: runtime.executionIntent,
       });
     } catch (error) {
-      if (isModelToolsUnavailableError(error)) {
-        return createModelToolsUnavailableResult(toolExecutions);
-      }
-      return createProviderFailureResult(
-        toolExecutions,
-        error instanceof Error ? error.message : "Unknown provider failure.",
+      const loopEvent = events.find(
+        (event) => event.id === `step-agent-loop-${iterations}`,
       );
+      if (loopEvent) {
+        loopEvent.status = "failed";
+        loopEvent.detail = "Provider request failed before this agent pass completed.";
+      }
+      recordProviderFailure(runId, error, iterations);
+      const failureResult = isModelToolsUnavailableError(error)
+        ? createModelToolsUnavailableResult(toolExecutions)
+        : createProviderFailureResult(toolExecutions, error);
+      events.push(createProviderFailurePublicEvent({
+        runId,
+        attempt: iterations,
+        summary: failureResult.content,
+      }));
+      emitProgress();
+      return failureResult;
     }
 
     previousResponseId = response.id;
@@ -391,9 +404,13 @@ export async function requestRainyResponsesAgenticResponse({
     totalToolCalls += toolResults.length;
     toolExecutions.push(...toolResults.map((result: any) => result.toolExecution));
     const terminalOutcome = toolResults.find(
-      (result: { outcome?: AgentOutcome }) =>
-        result.outcome?.status === "blocked" ||
-        result.outcome?.status === "failed",
+      (result: {
+        outcome?: AgentOutcome;
+        executionPolicy?: { failureDisposition?: string };
+      }) =>
+        result.executionPolicy?.failureDisposition !== "continue" &&
+        (result.outcome?.status === "blocked" ||
+          result.outcome?.status === "failed"),
     )?.outcome;
     if (terminalOutcome) {
       return {

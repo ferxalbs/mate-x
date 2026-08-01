@@ -12,6 +12,8 @@ import { normalizeToolEvidence } from "../../work-engine/execution-evidence";
 import { resolveToolAuthorization } from "../../capability-resolver";
 import type { BehaviorMode } from "../../../contracts/behavior-mode";
 import { createPublicToolProgress } from "./public-tool-progress";
+import { resolveToolExecutionPolicy } from "./tool-requirement";
+import type { ToolExecutionPolicy } from "../../../contracts/agent-run-trace";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -43,8 +45,10 @@ export async function executeAgentToolCall({
   content: string;
   toolExecution: ToolExecutionRecord;
   outcome?: AgentOutcome;
+  executionPolicy: ToolExecutionPolicy;
 }> {
   const toolName = toolCall.name;
+  const executionPolicy = resolveToolExecutionPolicy(toolName, behaviorMode);
   const eventId = `tool-${iteration}-${toolIndex}-${toolName}`;
   const rawArguments = toolCall.arguments;
   let toolArgs: Record<string, unknown>;
@@ -77,6 +81,7 @@ export async function executeAgentToolCall({
           { status: "failed", error: reason },
         ),
       } satisfies ToolExecutionRecord,
+      executionPolicy,
     };
   }
 
@@ -96,6 +101,7 @@ export async function executeAgentToolCall({
       events,
       emitProgress,
       outcome: authorization.outcome,
+      executionPolicy,
     });
   }
 
@@ -182,6 +188,7 @@ export async function executeAgentToolCall({
             status: cancelled ? "cancelled" : "error",
           }),
         } satisfies ToolExecutionRecord,
+        executionPolicy,
       };
     }
     const toolEvent = events.find((event) => event.id === eventId);
@@ -219,6 +226,7 @@ export async function executeAgentToolCall({
             status: "declined",
           }),
         } satisfies ToolExecutionRecord,
+        executionPolicy,
       };
     }
 
@@ -256,6 +264,7 @@ export async function executeAgentToolCall({
         events,
         emitProgress,
         outcome,
+        executionPolicy,
       });
     }
     if (toolEvent) {
@@ -360,6 +369,7 @@ export async function executeAgentToolCall({
           enrichedParsed ?? parsedOutput ?? undefined,
         ),
       } satisfies ToolExecutionRecord,
+      executionPolicy,
     };
   } catch (error) {
     const message =
@@ -395,6 +405,7 @@ export async function executeAgentToolCall({
           { status: "error", error: message },
         ),
       } satisfies ToolExecutionRecord,
+      executionPolicy,
     };
   }
 }
@@ -407,6 +418,7 @@ function blockedToolResult(input: {
   events: ToolEvent[];
   emitProgress: () => void;
   outcome: Extract<AgentOutcome, { status: "blocked" }>;
+  executionPolicy: ToolExecutionPolicy;
 }) {
   const publicProgress = createPublicToolProgress(
     input.toolName,
@@ -415,13 +427,13 @@ function blockedToolResult(input: {
   );
   const blockedLabel =
     publicProgress.type === "validation"
-      ? "Validation blocked by policy"
+      ? `${publicProgress.label.replace(/ failed$/i, "")} blocked by policy`
       : publicProgress.type === "edit"
         ? "Edit blocked by policy"
         : "Action blocked by policy";
   const blockedDetail =
     publicProgress.type === "validation"
-      ? "Workspace policy did not allow validation."
+      ? `${publicProgress.label.replace(/ failed$/i, "")} could not run because workspace policy does not allow its command.`
       : publicProgress.type === "edit"
         ? "Workspace policy did not allow the requested edit."
         : "Workspace policy did not allow the requested operation.";
@@ -441,18 +453,22 @@ function blockedToolResult(input: {
     });
   }
   input.emitProgress();
-  const serialized = JSON.stringify(input.outcome);
+  const outcome =
+    publicProgress.type === "validation"
+      ? { ...input.outcome, summary: blockedDetail }
+      : input.outcome;
+  const serialized = JSON.stringify(outcome);
   return {
     toolCallId: input.toolCallId,
     content: serialized,
-    outcome: input.outcome,
+    outcome,
     toolExecution: {
       toolName: input.toolName,
       args: input.toolArgs,
       output: serialized,
       parsedOutput: {
         status: "blocked",
-        outcome: input.outcome,
+        outcome,
       },
       evidence: normalizeToolEvidence(
         input.toolName,
@@ -460,10 +476,11 @@ function blockedToolResult(input: {
         serialized,
         {
           status: "blocked",
-          outcome: input.outcome,
+          outcome,
         },
       ),
     } satisfies ToolExecutionRecord,
+    executionPolicy: input.executionPolicy,
   };
 }
 

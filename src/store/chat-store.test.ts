@@ -208,10 +208,10 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
     const outcome = deriveExecutionOutcome(message);
 
     assert.equal(outcome.terminalState, "failed");
-    assert.notEqual(outcome.terminalState, "succeeded");
+    assert.notEqual(outcome.terminalState, "completed");
   });
 
-  it("keeps approval-required distinct from blocked in the outcome fallback", async () => {
+  it("keeps approval-required as a typed cause on the canonical blocked terminal", async () => {
     const { deriveExecutionOutcome } = await import("./chat-store");
     const message: ChatMessage = {
       id: "assistant-approval",
@@ -225,10 +225,10 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
       },
     };
 
-    assert.equal(
-      deriveExecutionOutcome(message).terminalState,
-      "awaiting_approval",
-    );
+    const outcome = deriveExecutionOutcome(message);
+    assert.equal(outcome.terminalState, "blocked");
+    assert.equal(outcome.primaryCause?.code, "APPROVAL_REQUIRED");
+    assert.equal(outcome.nextActions?.[0]?.id, "review-approval");
   });
 
   it("reuses an unused thread and only creates another after the current one has a prompt", () => {

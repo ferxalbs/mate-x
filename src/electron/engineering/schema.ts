@@ -3,7 +3,7 @@
  * Applied via CREATE TABLE IF NOT EXISTS — idempotent.
  */
 
-export const ENGINEERING_SCHEMA_VERSION = 2;
+export const ENGINEERING_SCHEMA_VERSION = 3;
 
 export const ENGINEERING_SCHEMA_SQL: string[] = [
   `CREATE TABLE IF NOT EXISTS engineering_schema_meta (
@@ -50,6 +50,52 @@ export const ENGINEERING_SCHEMA_SQL: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_engineering_events_task_seq
     ON engineering_events(engineering_task_id, seq)`,
+  `CREATE TABLE IF NOT EXISTS agent_runs (
+    run_id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    engineering_task_id TEXT,
+    execution_id TEXT,
+    behavior_mode TEXT NOT NULL,
+    state TEXT NOT NULL,
+    last_seq INTEGER NOT NULL DEFAULT 0,
+    last_integrity_hash TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_agent_runs_task_updated
+    ON agent_runs(engineering_task_id, updated_at)`,
+  `CREATE TABLE IF NOT EXISTS agent_run_events (
+    event_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    schema_version INTEGER NOT NULL,
+    trace_id TEXT NOT NULL,
+    span_id TEXT NOT NULL,
+    parent_span_id TEXT,
+    engineering_task_id TEXT,
+    execution_id TEXT,
+    occurred_at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    phase TEXT NOT NULL,
+    behavior_mode TEXT NOT NULL,
+    visibility TEXT NOT NULL,
+    previous_integrity_hash TEXT,
+    integrity_hash TEXT NOT NULL,
+    UNIQUE(run_id, seq),
+    FOREIGN KEY(run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_agent_run_events_run_seq
+    ON agent_run_events(run_id, seq)`,
+  `CREATE TABLE IF NOT EXISTS agent_run_public_payloads (
+    event_id TEXT PRIMARY KEY,
+    payload_json TEXT NOT NULL,
+    FOREIGN KEY(event_id) REFERENCES agent_run_events(event_id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS agent_run_diagnostic_payloads (
+    event_id TEXT PRIMARY KEY,
+    payload_json TEXT NOT NULL,
+    FOREIGN KEY(event_id) REFERENCES agent_run_events(event_id) ON DELETE CASCADE
+  )`,
   `CREATE TABLE IF NOT EXISTS engineering_specifications (
     engineering_task_id TEXT NOT NULL,
     version INTEGER NOT NULL,

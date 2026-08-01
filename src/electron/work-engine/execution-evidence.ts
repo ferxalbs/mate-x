@@ -62,9 +62,13 @@ export function normalizeToolEvidence(
     sandboxExitCode === 0 ||
     /\b(?:all\s+)?(?:tests?|checks?|validation)\s+(?:have\s+)?passed\b|\bexit(?:ed)?\s+(?:successfully|with\s+code\s+0)\b/i.test(output);
   const validationStatus = VALIDATION_TOOL_RE.test(toolName)
-    ? outcome === "completed" && validationPassed
+    ? outcome === "blocked" || outcome === "awaiting_approval"
+      ? "blocked"
+      : outcome === "failed"
+        ? "failed"
+        : outcome === "completed" && validationPassed
       ? "passed"
-      : outcome === "completed" || outcome === "failed"
+      : outcome === "completed"
         ? "failed"
         : "not_run"
     : undefined;
@@ -116,7 +120,7 @@ export function buildExecutionEvidence(input: {
   synthesisStatus: ExecutionSynthesisStatus;
   synthesisSummary?: string;
 }): ExecutionEvidence {
-  const normalized = input.toolExecutions.map(normalizeToolExecution);
+  const normalized = reconcileToolEvidence(input.toolExecutions);
   const completedSteps = normalized
     .filter((item) => item.outcome === "completed")
     .map((item) => item.toolName);
@@ -137,13 +141,23 @@ export function buildExecutionEvidence(input: {
   const changedFiles = dedupeChangedFiles(normalized.flatMap((item) => item.changedFiles));
   const validationEvidence = normalized.filter((item) => item.validationStatus);
   const validationStage = input.stages.find((stage) => stage.id === "validation_executed");
-  const validationStatus = validationEvidence.some((item) => item.validationStatus === "failed") || validationStage?.status === "failed"
-    ? "failed"
-    : validationEvidence.some((item) => item.validationStatus === "passed") || validationStage?.status === "passed"
-      ? "passed"
-      : input.workPlan.validationPlan.required
-        ? "not_run"
-        : "not_required";
+  const validationStatus =
+    validationEvidence.some((item) => item.validationStatus === "blocked") ||
+    validationStage?.status === "blocked"
+      ? "blocked"
+      : validationEvidence.some((item) => item.validationStatus === "failed") ||
+          validationStage?.status === "failed"
+        ? "failed"
+        : validationEvidence.some((item) => item.validationStatus === "running")
+          ? "running"
+          : validationEvidence.some((item) => item.validationStatus === "pending")
+            ? "pending"
+            : validationEvidence.some((item) => item.validationStatus === "passed") ||
+                validationStage?.status === "passed"
+              ? "passed"
+              : input.workPlan.validationPlan.required
+                ? "not_run"
+                : "not_required";
   const requiredUserAction = normalized.find((item) => item.requiredUserAction)?.requiredUserAction;
 
   return {
@@ -161,6 +175,46 @@ export function buildExecutionEvidence(input: {
     },
     requiredUserAction,
   };
+}
+
+/**
+ * A corrected retry is the final operational truth for the same tool target.
+ * Keep every attempt in the append-only trace, but do not promote a recovered
+ * transient failure into the canonical terminal outcome.
+ */
+function reconcileToolEvidence(
+  executions: ToolExecutionRecord[],
+): NormalizedToolEvidence[] {
+  const entries = executions.map((execution) => ({
+    execution,
+    evidence: normalizeToolExecution(execution),
+    identity: toolExecutionIdentity(execution),
+  }));
+
+  return entries
+    .filter((entry, index) => {
+      if (entry.evidence.outcome === "completed" || !entry.identity) return true;
+      return !entries.slice(index + 1).some(
+        (later) =>
+          later.identity === entry.identity &&
+          later.evidence.outcome === "completed",
+      );
+    })
+    .map((entry) => entry.evidence);
+}
+
+function toolExecutionIdentity(execution: ToolExecutionRecord): string | null {
+  const args = execution.args ?? {};
+  const target = [args.path, args.file, args.specificPath]
+    .find((value): value is string => typeof value === "string" && value.trim() !== "");
+  const command =
+    typeof args.command === "string" && args.command.trim()
+      ? args.command.trim()
+      : null;
+  if (!target && !command) return null;
+  const operation =
+    typeof args.operation === "string" ? args.operation.trim() : "";
+  return [execution.toolName, target ?? command, operation].join("\u001f");
 }
 
 export function resolveExecutionTerminalState(input: {
@@ -182,6 +236,7 @@ export function resolveExecutionTerminalState(input: {
   const hasBlockedStep = input.evidence.blockedSteps.length > 0;
   const hasFailedStep = input.evidence.failedSteps.length > 0;
   const validationFailed = input.evidence.validation.status === "failed";
+  const validationBlocked = input.evidence.validation.status === "blocked";
   const validationMissing =
     input.workPlan.validationPlan.required &&
     input.evidence.validation.status === "not_run";
@@ -193,17 +248,17 @@ export function resolveExecutionTerminalState(input: {
       stage.status === "blocked",
   );
 
-  if (hasMutation && (validationFailed || validationMissing || synthesisMissing || hasFailedStep || hasBlockedStep)) {
+  if (hasMutation && (validationFailed || validationBlocked || validationMissing || synthesisMissing || hasFailedStep || hasBlockedStep)) {
     return "partial";
   }
   if (hasTrustBlock) return "blocked";
-  if (hasApprovalPending || input.awaitingApproval) return "awaiting_approval";
+  if (hasApprovalPending || input.awaitingApproval) return "blocked";
   if (hasBlockedStep) return "blocked";
   if (hasFailedStep || validationFailed) return "failed";
   if (input.incompleteEvidence || input.preparatoryOnly || missingRequiredStage) return "partial";
   if (synthesisMissing) return "failed";
   if (input.workPlan.evidencePlan.required && !input.evidenceAttached) return "failed";
-  return "succeeded";
+  return "completed";
 }
 
 export function buildUserFacingExecutionSummary(
@@ -211,14 +266,16 @@ export function buildUserFacingExecutionSummary(
   evidence: ExecutionEvidence,
 ): string {
   const lines: string[] = [];
-  if (outcome === "succeeded") {
+  if (outcome === "completed") {
     lines.push("Completed successfully.");
   } else if (outcome === "partial") {
     lines.push("Completed partially; review the remaining work before relying on the result.");
-  } else if (outcome === "awaiting_approval") {
-    lines.push("Waiting for approval before continuing.");
   } else if (outcome === "blocked") {
-    lines.push("Stopped because required access is unavailable.");
+    lines.push(
+      evidence.requiredUserAction
+        ? `Stopped pending required action: ${evidence.requiredUserAction}`
+        : "Stopped because required access is unavailable.",
+    );
   } else {
     lines.push("The run could not complete.");
   }

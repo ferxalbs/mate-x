@@ -4,6 +4,7 @@
  */
 
 import assert from 'node:assert/strict';
+import Database from 'libsql';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -16,6 +17,7 @@ import {
   LibSqlEngineeringRepository,
 } from './repository';
 import { newEngineeringTaskId, nowIso, sha256Hex } from './ids';
+import { AgentExecutionSession } from '../run-trace/agent-execution-session';
 
 const dirs: string[] = [];
 
@@ -80,6 +82,48 @@ function makeEvent(taskId: string, seq: number, type: string): DomainEvent {
 }
 
 describe('LibSqlEngineeringRepository durable [R1]', () => {
+  it('persists a contiguous v3 run ledger across restart with separated payloads', () => {
+    const dbPath = tempDb();
+    const a = LibSqlEngineeringRepository.open(dbPath);
+    const session = new AgentExecutionSession(
+      'run_durable_trace',
+      'execute',
+      null,
+      null,
+      a,
+    );
+    session.start();
+    session.record({
+      kind: 'capability.decided',
+      phase: 'execution',
+      visibility: 'local_diagnostic',
+      payload: {
+        toolClass: 'file_editor',
+        capabilityDecisionId: 'decision_1',
+      },
+    });
+    a.close?.();
+
+    const b = LibSqlEngineeringRepository.open(dbPath);
+    const events = b.getAgentRunEvents('run_durable_trace');
+    assert.deepEqual(events.map((event) => event.seq), [1, 2, 3]);
+    assert.equal(events[0]!.previousIntegrityHash, null);
+    assert.equal(events[1]!.previousIntegrityHash, events[0]!.integrityHash);
+    assert.equal(events[2]!.previousIntegrityHash, events[1]!.integrityHash);
+    b.close?.();
+
+    const raw = new Database(dbPath);
+    const publicCount = raw
+      .prepare('SELECT COUNT(*) AS count FROM agent_run_public_payloads')
+      .get() as { count: number };
+    const diagnosticCount = raw
+      .prepare('SELECT COUNT(*) AS count FROM agent_run_diagnostic_payloads')
+      .get() as { count: number };
+    assert.equal(Number(publicCount.count), 2);
+    assert.equal(Number(diagnosticCount.count), 1);
+    raw.close();
+  });
+
   it('create and reload from a new repository instance', () => {
     const dbPath = tempDb();
     const a = LibSqlEngineeringRepository.open(dbPath);

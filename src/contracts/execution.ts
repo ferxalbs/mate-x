@@ -1,9 +1,9 @@
 export type ExecutionTerminalState =
-  | "succeeded"
+  | "completed"
   | "partial"
   | "blocked"
   | "failed"
-  | "awaiting_approval";
+  | "cancelled";
 
 export type ToolExecutionOutcome =
   | "completed"
@@ -14,8 +14,49 @@ export type ToolExecutionOutcome =
 export type ExecutionValidationStatus =
   | "passed"
   | "failed"
+  | "pending"
+  | "running"
+  | "blocked"
   | "not_run"
   | "not_required";
+
+export type WorktreeHealth =
+  | "unchanged"
+  | "changed_unverified"
+  | "changed_verified"
+  | "invalid_edit_reverted"
+  | "recovery_conflict";
+
+export interface TypedOutcomeCause {
+  code: string;
+  summary: string;
+  source: "provider" | "tool" | "policy" | "validation" | "recovery" | "runtime";
+}
+
+export interface FileMutationOutcome {
+  path: string;
+  operation: ExecutionChangedFile["operation"];
+  verification: "verified" | "pending" | "failed" | "reverted" | "conflict";
+}
+
+export interface RecoveryOutcome {
+  mutationId: string;
+  path: string;
+  status: "not_required" | "reverted" | "conflict" | "failed";
+  summary: string;
+}
+
+export interface CanonicalAction {
+  id: string;
+  type:
+    | "retry_validation"
+    | "review_workspace_policy"
+    | "inspect_diff"
+    | "resolve_recovery_conflict"
+    | "select_model"
+    | "retry";
+  label: string;
+}
 
 export type ExecutionSynthesisStatus = "valid" | "missing" | "failed";
 
@@ -59,6 +100,33 @@ export interface ExecutionEvidence {
 
 export interface ExecutionOutcome {
   terminalState: ExecutionTerminalState;
+  primaryCause?: TypedOutcomeCause | null;
+  worktreeHealth?: WorktreeHealth;
+  validationState?: ExecutionValidationStatus;
+  files?: FileMutationOutcome[];
+  recovery?: RecoveryOutcome[];
+  nextActions?: CanonicalAction[];
   evidence: ExecutionEvidence;
   summary: string;
+}
+
+export function normalizeExecutionOutcome(
+  outcome: ExecutionOutcome,
+): ExecutionOutcome {
+  const historicalState = outcome.terminalState as string;
+  if (historicalState === "succeeded") {
+    return { ...outcome, terminalState: "completed" };
+  }
+  if (historicalState === "awaiting_approval") {
+    return {
+      ...outcome,
+      terminalState: "blocked",
+      primaryCause: outcome.primaryCause ?? {
+        code: "APPROVAL_REQUIRED",
+        summary: outcome.summary,
+        source: "policy",
+      },
+    };
+  }
+  return outcome;
 }

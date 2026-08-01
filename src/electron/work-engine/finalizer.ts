@@ -191,7 +191,7 @@ export function finalizeWorkRun(input: {
       ? "blocked"
       : evidence.changedFiles.length === 0 &&
           input.terminalOutcome?.status === "needs_approval"
-        ? "awaiting_approval"
+        ? "blocked"
         : evidence.changedFiles.length === 0 &&
             input.terminalOutcome?.status === "failed"
           ? "failed"
@@ -201,7 +201,9 @@ export function finalizeWorkRun(input: {
     terminalState,
   );
   const typedTerminalSummary =
-    input.terminalOutcome && input.terminalOutcome.status !== "completed"
+    evidence.changedFiles.length === 0 &&
+    input.terminalOutcome &&
+    input.terminalOutcome.status !== "completed"
       ? input.terminalOutcome.summary
       : undefined;
   const summary =
@@ -506,7 +508,7 @@ function rewritePrivacySentinelPlaceholderMisuse(content: string) {
 }
 
 function rewriteTerminalClaims(content: string, terminalState: ExecutionTerminalState) {
-  if (terminalState === "succeeded") return content;
+  if (terminalState === "completed") return content;
   return content
     .replace(/\bVerdict:\s*(?:success|succeeded)\b/gi, "Verdict: completion not proven")
     .replace(/\b(run|execution|change|patch)\s+succeed(?:ed|s|ing)\b/gi, "$1 did not complete")

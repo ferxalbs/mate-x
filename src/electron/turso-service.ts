@@ -5,6 +5,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Conversation } from '../contracts/chat';
+import { normalizeExecutionOutcome } from '../contracts/execution';
 import type { ApiKeyStatus } from '../contracts/ipc';
 import type {
   RepoGraphEdge,
@@ -38,6 +39,7 @@ import {
 } from './workspace-trust';
 import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
 import { persistBackgroundImagePath } from './background-image-auth';
+import { resolveSqliteRuntimePolicy } from './sqlite-runtime-policy';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -94,7 +96,15 @@ export class TursoService {
 
     if (this.getLocalDatabaseFilePath()) {
       try {
-        await client.execute('PRAGMA journal_mode = WAL;');
+        const versionResult = await client.execute(
+          'SELECT sqlite_version() AS version;',
+        );
+        const runtimePolicy = resolveSqliteRuntimePolicy(
+          String(versionResult.rows[0]?.version ?? 'unknown'),
+        );
+        await client.execute(
+          `PRAGMA journal_mode = ${runtimePolicy.journalMode};`,
+        );
         // MaTE X stores evidence and control-plane state locally. FULL keeps
         // committed records durable across a power loss; WAL still allows
         // readers and writers to proceed without the old rollback-journal cost.
@@ -1676,7 +1686,31 @@ export class TursoService {
 function safeParseThreads(raw: string): Conversation[] {
   try {
     const parsed = JSON.parse(raw) as Conversation[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed)
+      ? parsed.map((thread) => ({
+          ...thread,
+          messages: thread.messages.map((message) => ({
+            ...message,
+            ...(message.executionOutcome
+              ? {
+                  executionOutcome: normalizeExecutionOutcome(
+                    message.executionOutcome,
+                  ),
+                }
+              : {}),
+            ...(message.evidencePack?.executionOutcome
+              ? {
+                  evidencePack: {
+                    ...message.evidencePack,
+                    executionOutcome: normalizeExecutionOutcome(
+                      message.evidencePack.executionOutcome,
+                    ),
+                  },
+                }
+              : {}),
+          })),
+        }))
+      : [];
   } catch {
     return [];
   }

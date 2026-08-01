@@ -92,6 +92,8 @@ const repoApi: RepoInspectorApi = {
     ipcRenderer.invoke("repo:run-assistant", prompt, history, options, runId),
   cancelAssistant: (runId) =>
     ipcRenderer.invoke("repo:cancel-assistant", runId),
+  getAssistantRunEvents: (runId, afterSeq, limit) =>
+    ipcRenderer.invoke("repo:get-assistant-run-events", runId, afterSeq, limit),
   updateAssistantBehavior: (runId, behaviorMode) =>
     ipcRenderer.invoke("repo:update-assistant-behavior", runId, behaviorMode),
   generateComplianceReport: (evidencePack) =>

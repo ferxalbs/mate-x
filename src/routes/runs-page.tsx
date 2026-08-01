@@ -172,7 +172,7 @@ function buildRuns(threads: Conversation[]) {
                 ? "blocked"
                 : message.evidencePack?.status === "failed"
                   ? "failed"
-                  : "succeeded"),
+                  : "completed"),
         events,
         message.executionOutcome ?? message.evidencePack?.executionOutcome,
       );
@@ -202,7 +202,7 @@ function reconcileExecutionState(
   outcome?: ChatMessage["executionOutcome"],
 ): ExecutionTerminalState | undefined {
   if (outcome) return state;
-  if (state !== "succeeded") return state;
+  if (state !== "completed") return state;
   const hasBlocked = events.some(
     (event) => event.status === "blocked",
   );
@@ -215,22 +215,23 @@ function reconcileExecutionState(
 
 function deriveLegacyRunState(run: ReproducibleRun): ExecutionTerminalState | undefined {
   const rawResultStatus = String(run.result?.status ?? "");
-  if (rawResultStatus === "succeeded" || rawResultStatus === "partial" || rawResultStatus === "blocked" || rawResultStatus === "failed" || rawResultStatus === "awaiting_approval") {
+  if (rawResultStatus === "succeeded") return "completed";
+  if (rawResultStatus === "awaiting_approval") return "blocked";
+  if (rawResultStatus === "completed" || rawResultStatus === "partial" || rawResultStatus === "blocked" || rawResultStatus === "failed") {
     return rawResultStatus;
   }
   const hasBlocked = run.events.some((event) => event.status === "blocked");
   if (hasBlocked) return "blocked";
   if (run.events.some((event) => event.type === "approval" && event.status === "active")) {
-    return "awaiting_approval";
+    return "blocked";
   }
   if (run.events.some((event) => event.status === "error" || event.status === "failed")) return "failed";
-  return run.status === "completed" ? "succeeded" : undefined;
+  return run.status === "completed" ? "completed" : undefined;
 }
 
 function statusBadgeTone(status: MissionRun["status"]) {
-  if (status === "succeeded") return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+  if (status === "completed") return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
   if (status === "partial") return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
-  if (status === "awaiting_approval") return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
   if (status === "blocked") return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
   if (status === "running") return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 animate-pulse";
   return "bg-destructive/10 text-destructive border-destructive/20";
@@ -238,9 +239,8 @@ function statusBadgeTone(status: MissionRun["status"]) {
 
 function formatRunStatus(status: MissionRun["status"]) {
   switch (status) {
-    case "succeeded": return "Succeeded";
+    case "completed": return "Completed";
     case "partial": return "Partially completed";
-    case "awaiting_approval": return "Awaiting approval";
     case "blocked": return "Blocked";
     case "failed": return "Failed";
     default: return "Running";
@@ -694,7 +694,7 @@ export function RunsPage() {
                             <CardContent className="p-4">
                               <div className="flex items-center justify-between gap-3">
                                 <h2 className="text-[13px] font-semibold text-foreground tracking-tight">{getSemanticEventLabel(event)}</h2>
-                                <span className={cn("px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider rounded-full border", statusBadgeTone(event.status === "error" ? "failed" : event.status === "active" ? "running" : "succeeded"))}>
+                                <span className={cn("px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider rounded-full border", statusBadgeTone(event.status === "error" ? "failed" : event.status === "active" ? "running" : "completed"))}>
                                   {event.status}
                                 </span>
                               </div>

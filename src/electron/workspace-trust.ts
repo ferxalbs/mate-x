@@ -60,9 +60,10 @@ export function createDefaultWorkspaceTrustContract(
     // packageManager unknown with package.json: empty command allowlist (deny)
   }
 
-  const allowedPaths = hasPackageJson
-    ? ["src", "package.json", "README.md", "AGENTS.md", ...INTERNAL_READ_PATHS]
-    : [".", "README.md", ...INTERNAL_READ_PATHS];
+  // The active repository is the read/search/validation boundary. Sensitive
+  // surfaces remain denied by forbiddenPaths; write authority is resolved
+  // separately by capability-resolver.
+  const allowedPaths = ["."];
 
   return {
     id: createId("trust"),
@@ -192,8 +193,14 @@ export function evaluateTrustForToolCall({
   }
 
   const pathValues = extractPathValues(args, toolName);
+  const enforceAllowedPaths = !["read", "search"].includes(requiredAction);
   for (const pathValue of pathValues) {
-    const pathError = evaluatePath(pathValue, normalizedContract, toolName);
+    const pathError = evaluatePath(
+      pathValue,
+      normalizedContract,
+      toolName,
+      enforceAllowedPaths,
+    );
     if (pathError) {
       return `Workspace policy blocks ${toolName}: ${pathError}`;
     }
@@ -336,6 +343,7 @@ function evaluatePath(
   pathValue: string,
   contract: WorkspaceTrustContract,
   toolName: string,
+  enforceAllowedPaths: boolean,
 ) {
   const candidate = normalizeWorkspaceRelativePath(pathValue);
   if (!candidate) {
@@ -347,6 +355,13 @@ function evaluatePath(
   }
 
   if (toolName === "ls" && candidate === ".") {
+    return null;
+  }
+
+  // Read/search authority covers the active repository root. allowedPaths is
+  // the narrower mutation boundary; traversal and forbidden paths remain hard
+  // denials for every capability.
+  if (!enforceAllowedPaths) {
     return null;
   }
 

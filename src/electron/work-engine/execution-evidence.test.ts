@@ -141,7 +141,7 @@ test("trust-blocked sandbox execution is blocked, never successful", () => {
   });
 
   assert.equal(result.terminalState, "blocked");
-  assert.notEqual(result.terminalState, "succeeded");
+  assert.notEqual(result.terminalState, "completed");
   assert.equal(result.evidence.blockedSteps[0]?.name, "sandbox_run");
   assert.doesNotMatch(result.content, /\b(?:succeeded|successfully)\b/i);
   assert.doesNotMatch(result.content, /Work Engine verdict|planningPhase|not_applicable_for_phase/);
@@ -203,7 +203,7 @@ test("missing final synthesis cannot be successful", () => {
   });
 
   assert.equal(result.terminalState, "failed");
-  assert.notEqual(result.terminalState, "succeeded");
+  assert.notEqual(result.terminalState, "completed");
   assert.doesNotMatch(result.content, /\b(?:success|succeeded|passed)\b/i);
 });
 
@@ -223,10 +223,10 @@ test("approval-required execution waits for approval", () => {
   });
 
   assert.equal(normalizeToolExecution(approval).outcome, "awaiting_approval");
-  assert.equal(result.terminalState, "awaiting_approval");
+  assert.equal(result.terminalState, "blocked");
   assert.equal(result.evidence.blockedSteps[0]?.name, "file_editor");
   assert.ok(result.evidence.requiredUserAction);
-  assert.match(result.summary, /Waiting for approval/);
+  assert.match(result.summary, /pending required action/i);
 });
 
 test("Review write rejection stays blocked without incomplete execution bookkeeping", () => {
@@ -269,7 +269,7 @@ test("fully successful execution is succeeded", () => {
     synthesisStatus: "valid",
   });
 
-  assert.equal(result.terminalState, "succeeded");
+  assert.equal(result.terminalState, "completed");
   assert.equal(result.evidence.validation.status, "passed");
   assert.equal(result.evidence.synthesis.status, "valid");
 });
@@ -285,5 +285,5 @@ test("model success claims cannot override failed evidence", () => {
   });
 
   assert.equal(result.terminalState, "failed");
-  assert.notEqual(result.terminalState, "succeeded");
+  assert.notEqual(result.terminalState, "completed");
 });

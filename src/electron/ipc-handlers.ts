@@ -1172,6 +1172,12 @@ export function registerIpcHandlers() {
         content: string;
         outcome?: { status?: string };
         events?: Array<{ id?: string; segmentId?: string; status?: string; detail?: string }>;
+        delta?: {
+          runId: string;
+          fromSeq: number;
+          toSeq: number;
+          events: unknown[];
+        };
         artifacts?: unknown[];
       } | null = null;
       let progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1210,6 +1216,8 @@ export function registerIpcHandlers() {
           lastEvent?.segmentId ?? "",
           lastEvent?.status ?? "",
           lastEvent?.detail ?? "",
+          progress.delta?.fromSeq ?? "",
+          progress.delta?.toSeq ?? "",
           progress.artifacts?.length ?? 0,
         ].join("\u001f");
 
@@ -1218,7 +1226,22 @@ export function registerIpcHandlers() {
         }
 
         lastProgressSignature = signature;
-        pendingProgress = progress;
+        const pendingDelta =
+          pendingProgress?.runId === progress.runId
+            ? pendingProgress.delta
+            : undefined;
+        pendingProgress = {
+          ...progress,
+          delta:
+            pendingDelta && progress.delta
+              ? {
+                  runId: progress.runId,
+                  fromSeq: pendingDelta.fromSeq,
+                  toSeq: progress.delta.toSeq,
+                  events: [...pendingDelta.events, ...progress.delta.events],
+                }
+              : progress.delta ?? pendingDelta,
+        };
 
         if (ASSISTANT_PROGRESS_TERMINAL_STATUSES.has(progress.status)) {
           flushProgress();
@@ -1280,6 +1303,28 @@ export function registerIpcHandlers() {
     activeAssistantRunControllers.delete(normalizedRunId);
     return Boolean(controller);
   });
+  handle(
+    "repo:get-assistant-run-events",
+    async (_event, runId: string, afterSeq?: number, limit?: number) => {
+      const normalizedRunId = requireBoundedString(runId, "runId", 200);
+      const normalizedAfterSeq =
+        typeof afterSeq === "number" && Number.isInteger(afterSeq) && afterSeq >= 0
+          ? afterSeq
+          : 0;
+      const normalizedLimit =
+        typeof limit === "number" && Number.isInteger(limit)
+          ? Math.max(1, Math.min(limit, 10_000))
+          : 1_000;
+      const { getRunEventDelta } = await import(
+        "./run-trace/agent-execution-session"
+      );
+      return getRunEventDelta(
+        normalizedRunId,
+        normalizedAfterSeq,
+        normalizedLimit,
+      );
+    },
+  );
   handle(
     "repo:update-assistant-behavior",
     async (_event, runId: string, behaviorMode: BehaviorMode) => {

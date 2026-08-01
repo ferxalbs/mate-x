@@ -61,7 +61,14 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   const settledTimeline = isRunning
     ? timeline
     : timeline.filter((event) => event.status !== "active" && event.status !== "queued");
-  const visible = isRunning || expanded ? settledTimeline : [];
+  const diagnosticTimeline = normalizedEvents.filter(toLocalDiagnosticEvent);
+  const visible = expanded
+    ? [...settledTimeline, ...diagnosticTimeline].sort(
+        (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
+      )
+    : isRunning
+      ? settledTimeline.slice(-4)
+      : [];
   const duration = useRunDuration(normalizedEvents, isRunning);
   const activeEvent = [...timeline].reverse().find((event) =>
     event.status === "active" || event.status === "queued",
@@ -109,10 +116,9 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     <section className="min-w-0 max-w-full space-y-3 overflow-hidden" aria-label="Agent activity">
       <button
         type="button"
-        disabled={isRunning}
         className="flex w-full items-center gap-2 border-b border-border/60 pb-2 text-left text-[12px] text-muted-foreground/75 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] enabled:hover:text-foreground disabled:cursor-default"
-        aria-expanded={isRunning ? undefined : expanded}
-        onClick={() => !isRunning && setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
       >
         <span className="min-w-0 flex-1">
           {isRunning
@@ -121,11 +127,14 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
               "Waiting for observable activity"
             : `Worked for ${formatDuration(duration)}${activitySummary ? ` · ${activitySummary}` : ""}`}
         </span>
-        {isRunning ? <HugeiconsIcon icon={Loading01Icon} className="size-3.5 animate-spin motion-reduce:animate-none" /> : expanded ? <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />}
+        {isRunning ? (
+          <HugeiconsIcon icon={Loading01Icon} className="size-3.5 animate-spin motion-reduce:animate-none" />
+        ) : null}
+        {expanded ? <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5" />}
       </button>
 
       <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
-        {isRunning && timeline.length === 0 ? (
+        {expanded && isRunning && timeline.length === 0 ? (
           <ActivityLabel label="Working · waiting for observable activity" />
         ) : null}
         {groupedEvents.map((item) =>
@@ -140,31 +149,41 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   );
 });
 
-function getActivitySummary(events: ToolEvent[]) {
+export function getActivitySummary(events: ToolEvent[]) {
   const parts: string[] = [];
   const editCount = events.filter(
-    (event) => event.type === "edit" && event.status === "done",
+    (event) =>
+      event.type === "edit" &&
+      (event.status === "done" || event.status === "completed"),
   ).length;
   if (editCount > 0) {
     parts.push(`${editCount} ${editCount === 1 ? "file edited" : "files edited"}`);
   }
-  if (events.some((event) => event.type === "search" && event.status === "done")) {
+  if (events.some((event) =>
+    event.type === "search" &&
+    (event.status === "done" || event.status === "completed")
+  )) {
     parts.push("search completed");
   }
   const validationEvents = events.filter((event) => event.type === "validation");
-  if (validationEvents.some((event) => event.status === "done")) {
-    parts.push("validation passed");
-  } else if (
-    validationEvents.some(
-      (event) => event.status === "error" || event.status === "blocked",
-    )
-  ) {
+  if (validationEvents.some(
+    (event) =>
+      event.status === "error" ||
+      event.status === "failed" ||
+      event.status === "blocked",
+  )) {
     parts.push("validation blocked or failed");
+  } else if (validationEvents.some(
+    (event) => event.status === "done" || event.status === "completed",
+  )) {
+    parts.push("validation passed");
   }
   if (parts.length > 0) return parts.join(" · ");
 
   const readCount = events.filter(
-    (event) => event.type === "read" && event.status === "done",
+    (event) =>
+      event.type === "read" &&
+      (event.status === "done" || event.status === "completed"),
   ).length;
   if (readCount > 0) {
     return `${readCount} ${readCount === 1 ? "read completed" : "reads completed"}`;
@@ -172,7 +191,22 @@ function getActivitySummary(events: ToolEvent[]) {
   return events.length > 0 ? "work recorded" : "";
 }
 
-function toPublicExecutionEvent(event: ToolEvent): ToolEvent | null {
+export function toLocalDiagnosticEvent(event: ToolEvent) {
+  return event.visibility === "technical" &&
+    event.id.startsWith("run_evt_") &&
+    event.segmentKind !== "reasoning" &&
+    event.segmentKind !== "final_response" &&
+    event.type !== "reasoning" &&
+    (
+      event.type === "edit" ||
+      event.type === "validation" ||
+      event.type === "approval" ||
+      event.type === "error" ||
+      Boolean(event.title?.includes("/"))
+    );
+}
+
+export function toPublicExecutionEvent(event: ToolEvent): ToolEvent | null {
   const isPrivateContent =
     event.segmentKind === "reasoning" ||
     event.segmentKind === "final_response" ||
@@ -182,6 +216,12 @@ function toPublicExecutionEvent(event: ToolEvent): ToolEvent | null {
   if (isPrivateContent) return null;
 
   if (event.visibility === "technical") return null;
+  if (
+    event.type === "result" &&
+    (event.title === "Run created" || event.title === "Run started")
+  ) {
+    return null;
+  }
 
   return event;
 }

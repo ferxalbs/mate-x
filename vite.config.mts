@@ -5,4 +5,4 @@
  * Re-exporting it here lets Vite-aware CLIs detect this as a Vite project
  * without creating a second renderer configuration.
  */
-export { default } from './vite.renderer.config';
+export { default } from './vite.renderer.config.mjs';

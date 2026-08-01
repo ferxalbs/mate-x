@@ -6,8 +6,14 @@ import type {
   Conversation,
   ReproducibleRun,
   RunStatus,
+  ToolEvent,
 } from "../contracts/chat";
-import type { ExecutionEvidence, ExecutionOutcome, ExecutionTerminalState } from "../contracts/execution";
+import {
+  normalizeExecutionOutcome,
+  type ExecutionEvidence,
+  type ExecutionOutcome,
+  type ExecutionTerminalState,
+} from "../contracts/execution";
 import { normalizeToolEvent } from "../contracts/chat";
 import type {
   SearchMatch,
@@ -20,6 +26,7 @@ import { createId } from "../lib/id";
 import {
   bootstrapWorkspaceState,
   cancelAssistant,
+  getAssistantRunEvents,
   onAssistantProgress,
   openWorkspacePicker,
   removeWorkspace,
@@ -92,6 +99,7 @@ type ChatStateSetter = (
 let pendingAssistantProgress: AssistantProgressPayload | null = null;
 let assistantProgressFlushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAssistantProgressSignature: string | null = null;
+const assistantRunEventCursors = new Map<string, number>();
 
 function createEmptyConversation(
   partial?: Partial<Conversation>,
@@ -270,8 +278,85 @@ function getAssistantProgressSignature(progress: AssistantProgressPayload) {
     progress.events?.length ?? 0,
     progress.events?.at(-1)?.id ?? "",
     progress.events?.at(-1)?.status ?? "",
+    progress.delta?.fromSeq ?? "",
+    progress.delta?.toSeq ?? "",
     progress.artifacts?.length ?? 0,
   ].join("\u001f");
+}
+
+export function projectRunEventToToolEvent(
+  event: NonNullable<AssistantProgressPayload["delta"]>["events"][number],
+): ToolEvent {
+  const payload = event.payload as {
+    title?: string;
+    summary?: string;
+    status?: ToolEvent["status"];
+    toolClass?: string;
+    code?: string;
+    durationMs?: number;
+    relativePath?: string;
+    verifier?: string;
+    beforeHash?: string;
+    afterHash?: string;
+  };
+  const isPublicAgentProgress =
+    event.kind === "provider.completed" && event.visibility === "public";
+  const type: ToolEvent["type"] =
+    isPublicAgentProgress
+      ? "result"
+      : event.kind.startsWith("validation.")
+      ? "validation"
+      : event.kind.startsWith("mutation.")
+        ? "edit"
+        : event.kind.startsWith("approval.")
+          ? "approval"
+          : event.kind.startsWith("provider.")
+            ? "reasoning"
+            : event.kind.startsWith("run.")
+              ? "result"
+              : "wait";
+  const status: ToolEvent["status"] =
+    payload.status ??
+    (event.kind.endsWith(".completed") || event.kind === "mutation.committed"
+      ? "completed"
+      : event.kind.endsWith(".blocked")
+        ? "blocked"
+        : event.kind.endsWith(".failed") || event.kind === "recovery.conflict"
+          ? "failed"
+          : event.kind.endsWith(".cancelled")
+            ? "cancelled"
+            : "active");
+  const diagnosticTitle = [
+    payload.toolClass,
+    payload.relativePath,
+  ].filter(Boolean).join(" · ");
+  const diagnosticDetail = [
+    payload.code ? `Code: ${payload.code}` : "",
+    typeof payload.durationMs === "number" ? `Duration: ${payload.durationMs} ms` : "",
+    payload.verifier ? `Verifier: ${payload.verifier}` : "",
+    payload.beforeHash ? `Before: ${payload.beforeHash}` : "",
+    payload.afterHash ? `After: ${payload.afterHash}` : "",
+  ].filter(Boolean).join("\n");
+  const title =
+    payload.title ??
+    (diagnosticTitle || event.kind.replaceAll(".", " "));
+  return {
+    id: event.eventId,
+    segmentId: event.eventId,
+    version: 2,
+    runId: event.runId,
+    sequence: event.seq,
+    timestamp: event.occurredAt,
+    segmentKind: isPublicAgentProgress ? "intermediate_response" : "tool",
+    type,
+    title,
+    summary: payload.summary,
+    label: title,
+    detail: payload.summary ?? diagnosticDetail,
+    status,
+    durationMs: payload.durationMs,
+    visibility: event.visibility === "public" ? "public" : "technical",
+  };
 }
 
 export function mergeTimelineSegments(
@@ -336,7 +421,14 @@ function applyAssistantProgress(
                   : {
                       ...message,
                       content: progress.content,
-                      events: mergeTimelineSegments(message.events, progress.events, progress, message.createdAt),
+                      events: mergeTimelineSegments(
+                        message.events,
+                        progress.delta
+                          ? progress.delta.events.map(projectRunEventToToolEvent)
+                          : progress.events,
+                        progress,
+                        message.createdAt,
+                      ),
                       artifacts: progress.artifacts,
                       outcome: progress.outcome,
                     },
@@ -347,7 +439,14 @@ function applyAssistantProgress(
                   : {
                       ...run,
                       status: progress.status,
-                      events: mergeTimelineSegments(run.events, progress.events, progress, run.startedAt),
+                      events: mergeTimelineSegments(
+                        run.events,
+                        progress.delta
+                          ? progress.delta.events.map(projectRunEventToToolEvent)
+                          : progress.events,
+                        progress,
+                        run.startedAt,
+                      ),
                       artifacts: progress.artifacts,
                     },
               ),
@@ -362,18 +461,103 @@ function applyAssistantProgress(
   });
 }
 
+function queueAssistantProgress(
+  progress: AssistantProgressPayload,
+  set: ChatStateSetter,
+) {
+  if (TERMINAL_RUN_STATUSES.has(progress.status)) {
+    if (assistantProgressFlushTimer) {
+      clearTimeout(assistantProgressFlushTimer);
+      assistantProgressFlushTimer = null;
+    }
+    pendingAssistantProgress = null;
+    applyAssistantProgress(progress, set);
+    return;
+  }
+
+  pendingAssistantProgress =
+    pendingAssistantProgress?.runId === progress.runId &&
+    pendingAssistantProgress.delta &&
+    progress.delta
+      ? {
+          ...progress,
+          delta: {
+            runId: progress.runId,
+            fromSeq: pendingAssistantProgress.delta.fromSeq,
+            toSeq: progress.delta.toSeq,
+            events: [
+              ...pendingAssistantProgress.delta.events,
+              ...progress.delta.events,
+            ],
+          },
+        }
+      : progress;
+  if (assistantProgressFlushTimer) {
+    return;
+  }
+
+  assistantProgressFlushTimer = setTimeout(() => {
+    assistantProgressFlushTimer = null;
+    const nextProgress = pendingAssistantProgress;
+    pendingAssistantProgress = null;
+    if (nextProgress) {
+      applyAssistantProgress(nextProgress, set);
+    }
+  }, ASSISTANT_PROGRESS_FLUSH_MS);
+}
+
+async function reconcileAssistantProgress(
+  progress: AssistantProgressPayload,
+  set: ChatStateSetter,
+) {
+  const delta = progress.delta;
+  if (!delta) {
+    queueAssistantProgress(progress, set);
+    return;
+  }
+
+  const cursor = assistantRunEventCursors.get(progress.runId) ?? 0;
+  if (delta.toSeq <= cursor) {
+    return;
+  }
+
+  if (delta.fromSeq > cursor + 1) {
+    try {
+      const replay = await getAssistantRunEvents(progress.runId, cursor, 10_000);
+      if (replay.events.length === 0 || replay.fromSeq !== cursor + 1) {
+        throw new Error("RUN_EVENT_REPLAY_GAP");
+      }
+      assistantRunEventCursors.set(progress.runId, replay.toSeq);
+      queueAssistantProgress({ ...progress, delta: replay }, set);
+    } catch {
+      // Preserve terminal/content state without projecting an incomplete trace.
+      queueAssistantProgress({ ...progress, delta: undefined, events: [] }, set);
+    }
+    return;
+  }
+
+  const unseenEvents = delta.events.filter((event) => event.seq > cursor);
+  const contiguousDelta = {
+    ...delta,
+    fromSeq: unseenEvents[0]?.seq ?? cursor + 1,
+    events: unseenEvents,
+  };
+  assistantRunEventCursors.set(progress.runId, delta.toSeq);
+  queueAssistantProgress({ ...progress, delta: contiguousDelta }, set);
+}
+
 export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
   const hasMutation = (message.evidencePack?.filesModified?.length ?? 0) > 0;
 
   const existingOutcome = message.executionOutcome ?? message.evidencePack?.executionOutcome;
-  if (existingOutcome) return existingOutcome;
+  if (existingOutcome) return normalizeExecutionOutcome(existingOutcome);
 
   const agentStatus = message.outcome?.status;
   const terminalState: ExecutionTerminalState =
     hasMutation && (agentStatus === "blocked" || agentStatus === "failed")
       ? "partial"
       : agentStatus === "needs_approval"
-        ? "awaiting_approval"
+        ? "blocked"
         : agentStatus === "blocked"
           ? "blocked"
           : agentStatus === "failed"
@@ -385,7 +569,7 @@ export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
                 : message.evidencePack?.status === "failed"
                   ? "failed"
                   : message.content.trim()
-                    ? "succeeded"
+                    ? "completed"
                     : "failed";
 
   const evidence: ExecutionEvidence = {
@@ -410,6 +594,18 @@ export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
 
   return {
     terminalState,
+    primaryCause:
+      agentStatus === "needs_approval"
+        ? {
+            code: "APPROVAL_REQUIRED",
+            summary: message.outcome?.summary ?? "Approval is required before continuing.",
+            source: "policy",
+          }
+        : null,
+    nextActions:
+      agentStatus === "needs_approval"
+        ? [{ id: "review-approval", type: "review_workspace_policy", label: "Review approval" }]
+        : [],
     evidence,
     summary:
       message.outcome?.summary ??
@@ -546,29 +742,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (!assistantProgressUnsubscribe) {
       assistantProgressUnsubscribe = onAssistantProgress((progress) => {
-        if (TERMINAL_RUN_STATUSES.has(progress.status)) {
-          if (assistantProgressFlushTimer) {
-            clearTimeout(assistantProgressFlushTimer);
-            assistantProgressFlushTimer = null;
-          }
-          pendingAssistantProgress = null;
-          applyAssistantProgress(progress, set);
-          return;
-        }
-
-        pendingAssistantProgress = progress;
-        if (assistantProgressFlushTimer) {
-          return;
-        }
-
-        assistantProgressFlushTimer = setTimeout(() => {
-          assistantProgressFlushTimer = null;
-          const nextProgress = pendingAssistantProgress;
-          pendingAssistantProgress = null;
-          if (nextProgress) {
-            applyAssistantProgress(nextProgress, set);
-          }
-        }, ASSISTANT_PROGRESS_FLUSH_MS);
+        void reconcileAssistantProgress(progress, set);
       });
     }
 

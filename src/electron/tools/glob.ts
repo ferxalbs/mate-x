@@ -1,8 +1,10 @@
 import { execFile } from 'node:child_process';
+import { lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
 import { isPathInsideRoot } from './tool-utils';
+import { createToolError, formatToolFailure, formatToolSuccess } from '../tool-result';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LIMIT = 500;
@@ -44,9 +46,23 @@ const isPathAllowed = (workspacePath: string, candidatePath: string, allowedPath
 };
 
 const normalizeScopedPaths = (workspacePath: string, requestedPaths: string[], allowedPaths: string[]) => {
-  const scopedPaths = allowedPaths.includes('.') ? requestedPaths : allowedPaths;
+  const scopedPaths = allowedPaths.includes('.')
+    ? requestedPaths
+    : requestedPaths.flatMap((requestedPath) => {
+        const resolvedRequested = resolve(workspacePath, requestedPath);
+        return allowedPaths.flatMap((allowedPath) => {
+          const resolvedAllowed = resolve(workspacePath, allowedPath);
+          if (isPathInsideRoot(resolvedAllowed, resolvedRequested)) {
+            return [requestedPath];
+          }
+          if (isPathInsideRoot(resolvedRequested, resolvedAllowed)) {
+            return [allowedPath];
+          }
+          return [];
+        });
+      });
 
-  return scopedPaths.filter((scopedPath) => {
+  return Array.from(new Set(scopedPaths)).filter((scopedPath) => {
     const resolvedPath = resolve(workspacePath, scopedPath);
     return isPathInsideRoot(workspacePath, resolvedPath) && isPathAllowed(workspacePath, scopedPath, allowedPaths);
   });
@@ -105,9 +121,59 @@ export const globTool: Tool = {
     const limit = toPositiveInteger(args.limit, DEFAULT_LIMIT, MAX_LIMIT);
     const timeoutMs = toPositiveInteger(args.timeoutMs, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
 
-    if (!pattern) return 'Glob pattern is required.';
-    if (pattern.startsWith('!')) return 'Glob pattern must include files. Use exclude for negative patterns.';
-    if (scopedPaths.length === 0) return 'No allowed paths available for glob search.';
+    if (!pattern) {
+      return formatToolFailure(
+        createToolError('INVALID_INPUT', 'Glob pattern is required.'),
+        'glob',
+      );
+    }
+    if (pattern.startsWith('!')) {
+      return formatToolFailure(
+        createToolError(
+          'INVALID_INPUT',
+          'Glob pattern must include files. Use exclude for negative patterns.',
+        ),
+        'glob',
+      );
+    }
+    if (scopedPaths.length === 0) {
+      return formatToolFailure(
+        createToolError(
+          'FORBIDDEN',
+          'Requested search scope does not intersect the workspace policy.',
+        ),
+        'glob',
+      );
+    }
+    const existingPaths: string[] = [];
+    const missingPaths: string[] = [];
+    for (const scopedPath of scopedPaths) {
+      try {
+        await lstat(resolve(workspacePath, scopedPath));
+        existingPaths.push(scopedPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          missingPaths.push(scopedPath);
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (existingPaths.length === 0) {
+      return formatToolSuccess(
+        {
+          discoveryStatus: 'not_found',
+          matches: [],
+          missingPaths,
+          searchedPaths: [],
+        },
+        {
+          textFallback: `Search scope not found: ${missingPaths.join(', ')}.`,
+          warnings: ['The requested search root does not exist.'],
+          meta: { verified: true },
+        },
+      );
+    }
 
     const commandArgs = [
       '--files',
@@ -135,7 +201,7 @@ export const globTool: Tool = {
       commandArgs.push('--glob', `!${forbiddenPath}/**`);
     }
 
-    commandArgs.push('--', ...scopedPaths);
+    commandArgs.push('--', ...existingPaths);
 
     try {
       const { stdout } = await execFileAsync('rg', commandArgs, {
@@ -145,7 +211,22 @@ export const globTool: Tool = {
       });
 
       if (!stdout.trim()) {
-        return 'No matches found.';
+        return formatToolSuccess(
+          {
+            discoveryStatus: 'no_matches',
+            matches: [],
+            missingPaths,
+            searchedPaths: existingPaths,
+          },
+          {
+            textFallback: 'No matches found.',
+            warnings:
+              missingPaths.length > 0
+                ? [`Skipped missing roots: ${missingPaths.join(', ')}`]
+                : undefined,
+            meta: { verified: true },
+          },
+        );
       }
 
       const lines = stdout
@@ -155,17 +236,56 @@ export const globTool: Tool = {
         .filter((file) => isPathAllowed(workspacePath, file, allowedPaths))
         .filter((file) => extensions.length === 0 || extensions.some((extension) => file.endsWith(`.${extension}`)));
       const visibleLines = lines.slice(0, limit);
-      const summary = `Glob matches: ${visibleLines.length}${lines.length > limit ? ` of ${lines.length}` : ''} file(s) for "${pattern}" in ${scopedPaths.join(', ')}`;
+      const summary = `Glob matches: ${visibleLines.length}${lines.length > limit ? ` of ${lines.length}` : ''} file(s) for "${pattern}" in ${existingPaths.join(', ')}`;
 
-      return lines.length > limit
+      const textFallback = lines.length > limit
         ? `${summary}\n${visibleLines.join('\n')}\n... (truncated ${lines.length - limit} more matches)`
         : `${summary}\n${visibleLines.join('\n')}`;
+      return formatToolSuccess(
+        {
+          discoveryStatus: 'completed',
+          matches: visibleLines,
+          totalMatches: lines.length,
+          truncated: lines.length > limit,
+          missingPaths,
+          searchedPaths: existingPaths,
+        },
+        {
+          textFallback,
+          warnings:
+            missingPaths.length > 0
+              ? [`Skipped missing roots: ${missingPaths.join(', ')}`]
+              : undefined,
+          meta: { verified: true, truncated: lines.length > limit },
+        },
+      );
     } catch (error) {
       const execError = error as { stdout?: string; stderr?: string; code?: number };
       if (execError.code === 1 && !execError.stdout) {
-        return 'No matches found.';
+        return formatToolSuccess(
+          {
+            discoveryStatus: 'no_matches',
+            matches: [],
+            missingPaths,
+            searchedPaths: existingPaths,
+          },
+          { textFallback: 'No matches found.', meta: { verified: true } },
+        );
       }
-      return `glob failed: ${execError.stderr?.trim() || execError.stdout?.trim() || (error as Error).message}`;
+      return formatToolFailure(
+        createToolError(
+          'EXECUTION_ERROR',
+          `glob failed: ${execError.stderr?.trim() || execError.stdout?.trim() || (error as Error).message}`,
+          {
+            details: {
+              discoveryStatus: 'io_failure',
+              searchedPaths: existingPaths,
+              missingPaths,
+            },
+          },
+        ),
+        'glob',
+      );
     }
   },
 };

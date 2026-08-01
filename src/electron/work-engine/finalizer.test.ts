@@ -108,6 +108,46 @@ test("finalizer replaces prior Work Engine verdict instead of duplicating", () =
   assert.equal(result.terminalState, "partial");
 });
 
+test("partial mutation outcome keeps execution truth instead of blocker prose", () => {
+  const changedFileExecution = {
+    toolName: "file_editor",
+    args: { path: "src/service.ts" },
+    output: "File changed.",
+    evidence: {
+      toolName: "file_editor",
+      outcome: "completed" as const,
+      summary: "Changed src/service.ts",
+      changedFiles: [
+        {
+          path: "src/service.ts",
+          operation: "modified" as const,
+          backupCreated: false,
+          impactAnalysis: "none" as const,
+        },
+      ],
+    },
+  };
+  const result = finalizeWorkRun({
+    workPlan: basePlan,
+    stages,
+    toolExecutions: [changedFileExecution],
+    content: "The edit was applied before validation was blocked.",
+    evidenceAttached: true,
+    terminalOutcome: {
+      status: "blocked",
+      summary: "Requested search path is outside policy.",
+      blocker: {
+        code: "WORKSPACE_SCOPE",
+        requestedCapability: "workspace.read",
+      },
+    },
+  });
+
+  assert.equal(result.terminalState, "partial");
+  assert.doesNotMatch(result.summary, /outside policy/);
+  assert.match(result.summary, /partially|changed|validation/i);
+});
+
 test("preparatory answer without tool evidence cannot be success", () => {
   const result = finalizeWorkRun({
     workPlan: basePlan,

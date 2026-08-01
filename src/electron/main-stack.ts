@@ -31,7 +31,20 @@ export async function initStack(): Promise<void> {
       'EngineeringRepository requires a local libSQL file path; remote-only TURSO_DATABASE_URL is not supported for v0.1.3 control-plane authority',
     );
   }
-  initDurableEngineeringRepository(dbPath);
+  const engineeringRepository = initDurableEngineeringRepository(dbPath);
+  engineeringRepository.deleteAgentRunEventsBefore(
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000).toISOString(),
+  );
+  const { reconcileMutationRecoveryVault } = await import(
+    './run-trace/mutation-recovery'
+  );
+  const recoverySummary = await reconcileMutationRecoveryVault();
+  if (recoverySummary.conflicts.length > 0 || recoverySummary.failed > 0) {
+    console.warn('Mutation recovery requires attention:', {
+      conflicts: recoverySummary.conflicts.length,
+      failed: recoverySummary.failed,
+    });
+  }
   try {
     const { initializeLinearIntegration } = await import('./linear');
     await initializeLinearIntegration();

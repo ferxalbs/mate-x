@@ -17,6 +17,10 @@ import type {
   TechnicalApproachDocument,
   ValidationRun,
 } from '../../contracts/engineering-task';
+import type {
+  AgentExecutionSessionState,
+  AgentRunEventV3,
+} from '../../contracts/agent-run-trace';
 import { sha256Hex } from './ids';
 import {
   type ApplyTransactionInput,
@@ -48,6 +52,7 @@ export class InMemoryEngineeringRepository implements EngineeringRepository {
   private readonly proofsByHandle = new Map<string, string>();
   private readonly policyPacks = new Map<string, PolicyPack>();
   private readonly appliedCommandIds = new Set<string>();
+  private readonly runEvents = new Map<string, AgentRunEventV3[]>();
   private schemaVersion = 0;
   private abortNextWrite = false;
 
@@ -57,7 +62,7 @@ export class InMemoryEngineeringRepository implements EngineeringRepository {
   }
 
   ensureSchema(): void {
-    this.schemaVersion = 1;
+    this.schemaVersion = 3;
   }
 
   getSchemaVersion(): number {
@@ -235,6 +240,53 @@ export class InMemoryEngineeringRepository implements EngineeringRepository {
   eventsIntegrityHash(engineeringTaskId: string): string {
     const events = this.getEvents(engineeringTaskId);
     return sha256Hex(JSON.stringify(events.map((e) => e.eventId + e.seq + e.type)));
+  }
+
+  appendAgentRunEvents(input: {
+    runId: string;
+    traceId: string;
+    engineeringTaskId: string | null;
+    executionId: string | null;
+    behaviorMode: AgentRunEventV3["mode"];
+    state: AgentExecutionSessionState;
+    events: AgentRunEventV3[];
+  }): void {
+    void input.traceId;
+    void input.engineeringTaskId;
+    void input.executionId;
+    void input.behaviorMode;
+    void input.state;
+    const current = this.runEvents.get(input.runId) ?? [];
+    let expectedSeq = (current.at(-1)?.seq ?? 0) + 1;
+    for (const event of input.events) {
+      if (event.seq !== expectedSeq) {
+        throw new EngineeringRepositoryError(
+          `Run event seq gap: expected ${expectedSeq}, got ${event.seq}`,
+          'ERR_EVENT_SEQ',
+        );
+      }
+      current.push(structuredClone(event));
+      expectedSeq++;
+    }
+    this.runEvents.set(input.runId, current);
+  }
+
+  getAgentRunEvents(runId: string, afterSeq = 0, limit = 1_000): AgentRunEventV3[] {
+    return (this.runEvents.get(runId) ?? [])
+      .filter((event) => event.seq > afterSeq)
+      .slice(0, limit)
+      .map((event) => structuredClone(event));
+  }
+
+  deleteAgentRunEventsBefore(cutoffIso: string): number {
+    let deleted = 0;
+    for (const [runId, events] of this.runEvents) {
+      const retained = events.filter((event) => event.occurredAt >= cutoffIso);
+      deleted += events.length - retained.length;
+      if (retained.length === 0) this.runEvents.delete(runId);
+      else this.runEvents.set(runId, retained);
+    }
+    return deleted;
   }
 }
 

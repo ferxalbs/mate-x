@@ -24,6 +24,7 @@ test("default trust contract allows reading local evidence artifacts", () => {
     }),
     null,
   );
+  assert.deepEqual(contract.allowedPaths, ["."]);
 });
 
 test("normalization adds evidence read path to existing scoped contracts", () => {

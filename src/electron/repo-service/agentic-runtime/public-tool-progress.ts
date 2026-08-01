@@ -10,7 +10,9 @@ const READ_TOOLS = /^(?:read|read_many|pwd|ls|tree|du|file_metadata)$/;
 const SEARCH_TOOLS = /^(?:rg|find|glob|ast_grep|repo_graph|git_forensics)$/;
 const EDIT_TOOLS = /(?:file_editor|auto_patch|mutation|patch|edit)/;
 const VALIDATION_TOOLS =
-  /(?:run_tests|sandbox_run|eslint_scan|semgrep_scan|audit|scan|revalidator|validation|fuzzer|prober|trace|dependency_check|cve)/;
+  /^(?:run_tests|sandbox_run|eslint_scan|semgrep_scan|audit|scan|candidate_revalidator|fuzzer|browser_prober|dependency_check|cve_scan)$/;
+const INTERNAL_TOOLS =
+  /^(?:plan_validation|verify_validation_persistence)$/;
 
 export function createPublicToolProgress(
   toolName: string,
@@ -18,6 +20,9 @@ export function createPublicToolProgress(
   phase: PublicToolProgressPhase = "active",
 ): PublicToolProgress {
   const type = classifyPublicToolType(toolName);
+  const visibility = INTERNAL_TOOLS.test(toolName.trim().toLowerCase())
+    ? "technical"
+    : "public";
   return {
     detail: publicToolDetail(type, args, phase),
     label: publicToolLabel(type, args, phase),
@@ -25,7 +30,7 @@ export function createPublicToolProgress(
     status:
       phase === "active" ? "active" : phase === "completed" ? "done" : "error",
     type,
-    visibility: "public",
+    visibility,
   };
 }
 
@@ -113,7 +118,11 @@ function countRequestedFiles(args: Record<string, unknown>): number {
 }
 
 function validationTarget(args: Record<string, unknown>): string {
-  const command = String(args.command ?? args.script ?? "").toLowerCase();
+  const command = [
+    args.command,
+    args.script,
+    ...(Array.isArray(args.args) ? args.args : []),
+  ].join(" ").toLowerCase();
   if (command.includes("typecheck") || command.includes("tsc")) return "Typecheck";
   if (command.includes("lint") || command.includes("eslint")) return "Lint";
   if (command.includes("test")) return "Tests";

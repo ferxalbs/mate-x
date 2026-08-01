@@ -36,6 +36,7 @@ import {
   sanitizeApplicationError,
   telemetryService,
 } from "./telemetry-service";
+import { AgentExecutionSession } from "./run-trace/agent-execution-session";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -73,6 +74,13 @@ export async function runAssistant(
   const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
   const effectiveRunId = progressReporter?.runId ?? `assistant-${Date.now()}`;
+  const traceSession = new AgentExecutionSession(
+    effectiveRunId,
+    resolvedOptions.behaviorMode,
+    resolvedOptions.engineeringTaskId ?? null,
+  );
+  traceSession.start();
+  let traceCursor = 0;
   const workingSet = await workingSetCompiler.compile({
     prompt,
     workspace: snapshot.workspace,
@@ -108,6 +116,9 @@ export async function runAssistant(
     }
   }
   const awaitingTaskApproval = engineeringTaskStatus === "awaiting_approval";
+  if (awaitingTaskApproval) {
+    traceSession.transition("awaiting_approval");
+  }
   const planningPhase =
     resolvedOptions.behaviorMode !== "execute" ||
     awaitingTaskApproval;
@@ -273,7 +284,10 @@ export async function runAssistant(
     });
   };
 
-  const emitProgress = (nextContent?: string) => {
+  const emitProgress = (
+    nextContent?: string,
+    status: AssistantRunProgress["status"] = "running",
+  ) => {
     if (!progressReporter) {
       return;
     }
@@ -291,12 +305,25 @@ export async function runAssistant(
       event.sequence ??= sequence;
       event.timestamp ??= emittedAt;
     });
+    traceSession.captureLegacyEvents(events);
+    const traceEvents = traceSession.getEvents(traceCursor, 10_000);
+    const delta =
+      traceEvents.length > 0
+        ? {
+            runId: effectiveRunId,
+            fromSeq: traceEvents[0].seq,
+            toSeq: traceEvents.at(-1)!.seq,
+            events: traceEvents,
+          }
+        : undefined;
+    if (delta) traceCursor = delta.toSeq;
 
     progressReporter.emit({
       runId: progressReporter.runId,
-      status: "running",
+      status,
       content,
       events: cloneEvents(events),
+      delta,
       artifacts: cloneArtifacts(artifacts),
       outcome: agentOutcome,
     });
@@ -535,6 +562,9 @@ export async function runAssistant(
     emitProgress();
   }
 
+  if (workPlan.validationPlan.required && !planningPhase) {
+    traceSession.transition("verifying");
+  }
   const validationGate = evaluateValidationGate(workPlan, toolExecutions, content, {
     planningPhase,
   });
@@ -625,18 +655,15 @@ export async function runAssistant(
     synthesisSummary,
   });
   content = evidenceFinalization.content;
-  if (agentOutcome?.status === "blocked" || agentOutcome?.status === "failed") {
-    content = agentOutcome.summary;
-  }
-  const executionOutcome = {
+  const executionOutcome = enrichExecutionOutcome({
     terminalState: evidenceFinalization.terminalState,
     evidence: evidenceFinalization.evidence,
     summary: evidenceFinalization.summary,
-  };
+  }, agentOutcome);
   evidencePack = {
     ...evidencePack,
     status:
-      evidenceFinalization.terminalState === "succeeded"
+      evidenceFinalization.terminalState === "completed"
         ? "complete"
         : evidenceFinalization.terminalState === "partial"
           ? "partial"
@@ -648,13 +675,13 @@ export async function runAssistant(
       ? {
           ...evidencePack.verifiedTaskScore,
           status:
-            evidenceFinalization.terminalState === "succeeded"
+            evidenceFinalization.terminalState === "completed"
               ? evidencePack.verifiedTaskScore.status
               : evidenceFinalization.terminalState === "partial"
                 ? "partially_verified"
                 : "failed",
           missingEvidence:
-            evidenceFinalization.terminalState === "succeeded"
+            evidenceFinalization.terminalState === "completed"
               ? evidencePack.verifiedTaskScore.missingEvidence
               : Array.from(
                   new Set([
@@ -667,13 +694,11 @@ export async function runAssistant(
     verdict: {
       ...evidencePack.verdict,
       label:
-        evidenceFinalization.terminalState === "succeeded"
+        evidenceFinalization.terminalState === "completed"
           ? "Completed"
           : evidenceFinalization.terminalState === "partial"
             ? "Completed partially"
-            : evidenceFinalization.terminalState === "awaiting_approval"
-              ? "Approval required"
-              : evidenceFinalization.terminalState === "blocked"
+            : evidenceFinalization.terminalState === "blocked"
                 ? "Blocked"
                 : "Run failed",
       summary: evidenceFinalization.summary,
@@ -681,15 +706,13 @@ export async function runAssistant(
   };
   agentOutcome ??= {
     status:
-      evidenceFinalization.terminalState === "blocked" ||
-      evidenceFinalization.terminalState === "awaiting_approval"
+      evidenceFinalization.terminalState === "blocked"
         ? "blocked"
         : evidenceFinalization.terminalState === "failed"
           ? "failed"
           : "completed",
     summary: evidenceFinalization.summary,
-    ...(evidenceFinalization.terminalState === "blocked" ||
-    evidenceFinalization.terminalState === "awaiting_approval"
+    ...(evidenceFinalization.terminalState === "blocked"
       ? {
           blocker: {
             code: "ACTION_NOT_ALLOWED" as const,
@@ -812,6 +835,8 @@ export async function runAssistant(
     ...artifacts,
     ...buildWorkspaceMemoryArtifacts(memoryProposals),
   ];
+  traceSession.complete(executionOutcome);
+  emitProgress(content, "completed");
 
   return {
     suggestedTitle: history.length === 0 ? buildThreadTitle(prompt) : undefined,
@@ -876,11 +901,12 @@ export async function runAssistant(
       synthesisStatus: "failed",
       synthesisSummary: recoveryReason,
     });
-    const recoveryOutcome = {
+    const recoveryOutcome = enrichExecutionOutcome({
       terminalState: recoveryFinalization.terminalState,
       evidence: recoveryFinalization.evidence,
       summary: recoveryFinalization.summary,
-    };
+    }, agentOutcome);
+    traceSession.complete(recoveryOutcome);
     await persistWorkEngineRunArtifactSafely({
       appDataRoot: app.getPath("userData"),
       runId: effectiveRunId,
@@ -925,6 +951,71 @@ export async function runAssistant(
   } finally {
     policyService.closeRun(effectiveRunId);
   }
+}
+
+function enrichExecutionOutcome(
+  outcome: import("../contracts/execution").ExecutionOutcome,
+  agentOutcome?: AgentOutcome,
+): import("../contracts/execution").ExecutionOutcome {
+  const changedFiles = outcome.evidence.changedFiles;
+  const validationState = outcome.evidence.validation.status;
+  const hasChanges = changedFiles.length > 0;
+  const validationPassed = validationState === "passed";
+  const worktreeHealth = hasChanges
+    ? validationPassed
+      ? "changed_verified" as const
+      : "changed_unverified" as const
+    : "unchanged" as const;
+  const primaryCause =
+    agentOutcome && agentOutcome.status !== "completed"
+      ? {
+          code:
+            agentOutcome.status === "blocked"
+              ? agentOutcome.blocker.code
+              : agentOutcome.status === "failed"
+                ? agentOutcome.diagnostic?.code ?? "AGENT_FAILED"
+                : "APPROVAL_REQUIRED",
+          summary: agentOutcome.summary,
+          source:
+            agentOutcome.status === "blocked" ||
+            agentOutcome.status === "needs_approval"
+              ? "policy" as const
+              : "runtime" as const,
+        }
+      : null;
+  const nextActions: import("../contracts/execution").CanonicalAction[] = [];
+  if (hasChanges && !validationPassed) {
+    nextActions.push({
+      id: "retry-validation",
+      type: "retry_validation",
+      label: "Retry required validation",
+    });
+    nextActions.push({
+      id: "inspect-diff",
+      type: "inspect_diff",
+      label: "Inspect workspace changes",
+    });
+  }
+  if (agentOutcome?.status === "blocked") {
+    nextActions.push({
+      id: "review-workspace-policy",
+      type: "review_workspace_policy",
+      label: "Review workspace policy",
+    });
+  }
+  return {
+    ...outcome,
+    primaryCause,
+    worktreeHealth,
+    validationState,
+    files: changedFiles.map((file) => ({
+      path: file.path,
+      operation: file.operation,
+      verification: validationPassed ? "verified" : "pending",
+    })),
+    recovery: [],
+    nextActions,
+  };
 }
 
 function scheduleProfilerWrite(

@@ -110,6 +110,14 @@ export function cancelAssistant(runId: string) {
   return getMateApi().cancelAssistant(runId);
 }
 
+export function getAssistantRunEvents(
+  runId: string,
+  afterSeq?: number,
+  limit?: number,
+) {
+  return getMateApi().getAssistantRunEvents(runId, afterSeq, limit);
+}
+
 export function updateAssistantBehavior(
   runId: string,
   behaviorMode: BehaviorMode,

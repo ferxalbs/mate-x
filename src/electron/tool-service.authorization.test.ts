@@ -154,9 +154,9 @@ describe("ToolService execution authority", () => {
         isPackaged: false,
       },
       safeStorage: {
-        decryptString: () => "",
+        decryptString: (value: Buffer) => value.toString("utf8"),
         encryptString: (value: string) => Buffer.from(value),
-        isEncryptionAvailable: () => false,
+        isEncryptionAvailable: () => true,
       },
       shell: {
         openExternal: async () => true,
@@ -219,6 +219,7 @@ describe("ToolService execution authority", () => {
             arguments: JSON.stringify({
               path: "README.md",
               operation: "append",
+              expectedContent: "base\n",
               newContent: "temporary\n",
             }),
           },

@@ -4,6 +4,7 @@ import type {
   AssistantRunProgress,
   Conversation,
 } from "./chat";
+import type { RunEventDelta } from "./agent-run-trace";
 import type { BehaviorMode } from "./behavior-mode";
 import type { GitCommit, GitDiff, GitStatus } from "./git";
 import type {
@@ -99,6 +100,11 @@ export interface RepoInspectorApi {
     runId?: string,
   ) => Promise<AssistantExecution>;
   cancelAssistant: (runId: string) => Promise<boolean>;
+  getAssistantRunEvents: (
+    runId: string,
+    afterSeq?: number,
+    limit?: number,
+  ) => Promise<RunEventDelta>;
   updateAssistantBehavior: (
     runId: string,
     behaviorMode: BehaviorMode,

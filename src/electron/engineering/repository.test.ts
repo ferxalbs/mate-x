@@ -70,7 +70,7 @@ describe('EngineeringRepository schema [NES-1.2]', () => {
     const repo = new EngineeringRepository();
     repo.ensureSchema();
     repo.ensureSchema();
-    assert.equal(repo.getSchemaVersion(), 1);
+    assert.equal(repo.getSchemaVersion(), ENGINEERING_SCHEMA_VERSION);
   });
 });
 

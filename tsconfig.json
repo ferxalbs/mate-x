@@ -20,6 +20,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "packages", "scripts", "qa", "tests", "*.ts", "*.tsx"],
+  "include": ["src", "packages", "scripts", "qa", "tests", "*.ts", "*.tsx", "*.mts"],
   "exclude": ["mate-x-app"]
 }
