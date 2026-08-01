@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
 
 import type { ToolExecutionRecord } from "../evidence-pack";
+import { resolveToolAuthorization } from "../capability-resolver";
 import { InMemoryEngineeringRepository } from "../engineering/in-memory-repository";
 import { buildExecutionEvidence } from "../work-engine/execution-evidence";
 import type { WorkPlan } from "../work-engine/types";
@@ -12,9 +13,12 @@ import {
 import { projectRunEventToToolEvent } from "../../store/chat-store";
 import {
   getActivitySummary,
+  getGroupName,
+  getRunningActivityLabel,
   toLocalDiagnosticEvent,
   toPublicExecutionEvent,
 } from "../../features/desktop-shell/components/agent-execution-trace";
+import { normalizeToolEvent } from "../../contracts/chat";
 import { createPublicToolProgress } from "../repo-service/agentic-runtime/public-tool-progress";
 import { AgentExecutionSession } from "./agent-execution-session";
 
@@ -105,6 +109,71 @@ describe("trace and terminal truth regression", () => {
       }) ?? "",
       /forbidden path/,
     );
+    assert.equal(
+      evaluateTrustForToolCall({
+        toolName: "run_tests",
+        args: {
+          scope: "specific-path",
+          specificPath:
+            "tests/checkout.test.ts tests/onboarding.test.ts tests/user.test.ts",
+        },
+        contract,
+      }),
+      null,
+    );
+  });
+
+  test("keeps package-backed validation governed and public status useful", () => {
+    const contract = createDefaultWorkspaceTrustContract("workspace", "Repo");
+    const commandError = evaluateTrustForToolCall({
+      toolName: "sandbox_run",
+      args: { command: "bunx", args: ["tsc", "--noEmit"] },
+      contract,
+    });
+
+    assert.match(commandError ?? "", /package-install/);
+    const authorization = resolveToolAuthorization({
+      toolName: "sandbox_run",
+      args: { command: "bunx", args: ["tsc", "--noEmit"] },
+      behaviorMode: "execute",
+      workspacePolicy: contract,
+    });
+    assert.equal(authorization.decision, "needs_approval");
+    if (authorization.decision === "needs_approval") {
+      assert.match(authorization.summary, /may download a missing tool/i);
+    }
+    assert.equal(
+      getRunningActivityLabel(),
+      "Preparing next repository action",
+    );
+    assert.equal(
+      getGroupName([
+        {
+          id: "read",
+          label: "Read 6 relevant files",
+          detail: "",
+          status: "completed",
+          type: "wait",
+        },
+        {
+          id: "search",
+          label: "Repository search completed",
+          detail: "",
+          status: "completed",
+          type: "wait",
+        },
+      ]),
+      "Read files, searched",
+    );
+
+    const normalized = normalizeToolEvent({
+      id: "blocked-validation",
+      label: "Typecheck blocked by policy",
+      detail: "",
+      status: "blocked",
+    });
+    assert.equal(normalized.type, "validation");
+    assert.equal(normalized.title, "Typecheck blocked by policy");
   });
 
   test("does not surface a corrected editor argument failure as terminal cause", () => {

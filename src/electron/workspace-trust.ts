@@ -193,7 +193,9 @@ export function evaluateTrustForToolCall({
   }
 
   const pathValues = extractPathValues(args, toolName);
-  const enforceAllowedPaths = !["read", "search"].includes(requiredAction);
+  // allowedPaths is mutation authority, not the repository validation/read
+  // boundary. Tests may live outside writable runtime paths.
+  const enforceAllowedPaths = requiredAction === "patch";
   for (const pathValue of pathValues) {
     const pathError = evaluatePath(
       pathValue,
@@ -263,10 +265,16 @@ function getRequiredAction(toolName: string, args: Record<string, unknown>) {
 }
 
 function isPackageManagerMutation(args: Record<string, unknown>) {
-  const command = typeof args.command === "string" ? args.command : "";
+  const command = buildCommandInvocation(args);
 
-  return /\b(bun|npm|pnpm|yarn)\s+(add|install|i|update|upgrade|remove|uninstall)\b/i.test(
-    command,
+  return (
+    /\b(bun|npm|pnpm|yarn)\s+(add|install|i|update|upgrade|remove|uninstall)\b/i.test(
+      command,
+    ) ||
+    (
+      !/\s--no-install(?:\s|$)/i.test(command) &&
+      (/\bbunx(?:\s|$)/i.test(command) || /\bbun\s+x(?:\s|$)/i.test(command))
+    )
   );
 }
 
@@ -310,10 +318,18 @@ function getBlockedAction(
 
 function extractCommand(toolName: string, args: Record<string, unknown>) {
   if (toolName === "sandbox_run" && typeof args.command === "string") {
-    return args.command.trim();
+    return buildCommandInvocation(args);
   }
 
   return null;
+}
+
+function buildCommandInvocation(args: Record<string, unknown>) {
+  const command = typeof args.command === "string" ? args.command.trim() : "";
+  const commandArgs = Array.isArray(args.args)
+    ? args.args.filter((value): value is string => typeof value === "string")
+    : [];
+  return [command, ...commandArgs].filter(Boolean).join(" ");
 }
 
 function extractPathValues(args: Record<string, unknown>, toolName: string) {

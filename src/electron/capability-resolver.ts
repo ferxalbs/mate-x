@@ -156,6 +156,23 @@ export function resolveOperationAuthorization(input: {
     contract: input.workspacePolicy,
   });
   if (workspaceError) {
+    if (
+      capability === "command.execute" &&
+      input.behaviorMode === "execute" &&
+      (
+        workspaceError.includes('action "package-install"') ||
+        workspaceError.includes("blocks command")
+      )
+    ) {
+      return {
+        decision: "needs_approval",
+        capability,
+        code: "WORKSPACE_APPROVAL_REQUIRED",
+        summary: workspaceError.includes('action "package-install"')
+          ? "Approve this package-backed validation command once. It may download a missing tool."
+          : "Approve this validation command once.",
+      };
+    }
     return blocked(
       capability,
       workspaceError.includes("command")

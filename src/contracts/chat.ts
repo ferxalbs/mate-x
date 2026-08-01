@@ -237,8 +237,8 @@ export function normalizeToolEvent(
 
 function inferToolEventType(label: string, status: ToolEventStatus): ToolEventType {
   if (status === "error" || status === "failed") return "error";
-  if (/approv|policy|permission/i.test(label)) return "approval";
   if (/valid|test|lint|typecheck|build/i.test(label)) return "validation";
+  if (/approv|policy|permission/i.test(label)) return "approval";
   if (/edit|patch|write|file.editor/i.test(label)) return "edit";
   if (/command|sandbox|shell|terminal|run/i.test(label)) return "command";
   if (/search|scan|grep|glob/i.test(label)) return "search";
@@ -252,9 +252,14 @@ function humanizeToolEventTitle(
   type: ToolEventType,
   status: ToolEventStatus,
 ) {
+  if (status === "blocked" && /\bblocked\b/i.test(label)) {
+    return label;
+  }
   const action = status === "active"
     ? { reasoning: "Thinking", search: "Searching", read: "Reading", command: "Running", edit: "Editing", validation: "Validating", approval: "Waiting for approval", wait: "Waiting", result: "Writing response", error: "Error" }[type]
-    : { reasoning: "Reasoning complete", search: "Search complete", read: "Read complete", command: "Command finished", edit: "Edit complete", validation: "Validation complete", approval: "Approval resolved", wait: "Wait complete", result: "Response complete", error: "Error" }[type];
+    : status === "blocked"
+      ? { reasoning: "Reasoning stopped", search: "Search blocked", read: "Read blocked", command: "Command blocked", edit: "Edit blocked", validation: "Validation blocked", approval: "Approval required", wait: "Wait blocked", result: "Response blocked", error: "Error" }[type]
+      : { reasoning: "Reasoning complete", search: "Search complete", read: "Read complete", command: "Command finished", edit: "Edit complete", validation: "Validation complete", approval: "Approval resolved", wait: "Wait complete", result: "Response complete", error: "Error" }[type];
   return label ? `${action}: ${label.replaceAll("_", " ")}` : action;
 }
 

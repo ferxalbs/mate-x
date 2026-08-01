@@ -73,6 +73,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   const activeEvent = [...timeline].reverse().find((event) =>
     event.status === "active" || event.status === "queued",
   );
+  const runningActivityLabel = getRunningActivityLabel(activeEvent);
   const activitySummary = getActivitySummary(settledTimeline);
 
   const groupedEvents = useMemo(() => {
@@ -122,9 +123,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
       >
         <span className="min-w-0 flex-1">
           {isRunning
-            ? activeEvent?.title ??
-              activeEvent?.label ??
-              "Waiting for observable activity"
+            ? runningActivityLabel
             : `Worked for ${formatDuration(duration)}${activitySummary ? ` · ${activitySummary}` : ""}`}
         </span>
         {isRunning ? (
@@ -135,7 +134,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
 
       <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
         {expanded && isRunning && timeline.length === 0 ? (
-          <ActivityLabel label="Working · waiting for observable activity" />
+          <ActivityLabel label={runningActivityLabel} />
         ) : null}
         {groupedEvents.map((item) =>
           "isGroup" in item ? (
@@ -148,6 +147,12 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     </section>
   );
 });
+
+export function getRunningActivityLabel(activeEvent?: ToolEvent) {
+  return activeEvent?.title ??
+    activeEvent?.label ??
+    "Preparing next repository action";
+}
 
 export function getActivitySummary(events: ToolEvent[]) {
   const parts: string[] = [];
@@ -238,14 +243,16 @@ function useRunDuration(timeline: ToolEvent[], isRunning: boolean) {
   return isRunning && startedAt !== null ? Math.max(0, now - startedAt) : completedDuration;
 }
 
-function getGroupName(items: ToolEvent[]) {
-  const types = new Set(items.map((i) => i.type));
+export function getGroupName(items: ToolEvent[]) {
+  const signals = items.map((item) =>
+    `${item.type ?? ""} ${item.title ?? ""} ${item.label ?? ""}`.toLowerCase()
+  ).join(" ");
   const parts = [];
-  if (types.has("read")) parts.push("Read files");
-  if (types.has("command")) parts.push("ran commands");
-  if (types.has("search")) parts.push("searched");
-  if (types.has("edit")) parts.push("edited files");
-  if (types.has("validation")) parts.push("validated");
+  if (/\bread\b|reading|inspect/.test(signals)) parts.push("Read files");
+  if (/\bcommand\b|running workspace action/.test(signals)) parts.push("ran commands");
+  if (/\bsearch\b|searching|repository search/.test(signals)) parts.push("searched");
+  if (/\bedit\b|editing|updated workspace file/.test(signals)) parts.push("edited files");
+  if (/\bvalidation\b|validating|tests? passed|typecheck|lint/.test(signals)) parts.push("validated");
 
   if (parts.length === 0) return "Used tools";
   const str = parts.join(", ");
