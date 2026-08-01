@@ -13,6 +13,7 @@ import { buildWorkPlanFromSnapshot } from "../work-engine/work-engine-core";
 import { finalizeWorkRun } from "../work-engine/finalizer";
 import { resolveToolExecutionPolicy } from "../repo-service/agentic-runtime/tool-requirement";
 import type { WorkPlan } from "../work-engine/types";
+import type { WorkStage } from "../work-engine/stages";
 import {
   createDefaultWorkspaceTrustContract,
   evaluateTrustForToolCall,
@@ -527,6 +528,177 @@ describe("trace and terminal truth regression", () => {
       stages: [],
       evidenceAttached: true,
     }), "partial");
+  });
+
+  test("approved fallback satisfies unresolved typecheck without stale cause", () => {
+    const workPlan = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [],
+      targetToolchain: {
+        packagePath: "/repo",
+        manager: "bun",
+        managerSource: "/repo/package.json#packageManager",
+        status: "unavailable",
+        cause: "TYPECHECK_UNAVAILABLE",
+        typecheck: { command: null, source: null, guarantee: null },
+      },
+    });
+    const approvedFallback: ToolExecutionRecord = {
+      toolName: "sandbox_run",
+      args: { command: "bun", args: ["x", "tsc", "--noEmit"] },
+      output: JSON.stringify({
+        status: "completed",
+        validationExecution: {
+          executionId: "approved-typecheck",
+          command: "bun x tsc --noEmit",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "typecheck",
+          authorization: "approved_override",
+        },
+      }),
+    };
+    const approvedStages: WorkStage[] = ([
+      "context_compiled",
+      "files_inspected",
+      "patch_attempted",
+      "validation_planned",
+      "validation_executed",
+      "failure_memory_checked",
+      "privacy_preflight_passed",
+      "evidence_attached",
+    ] as WorkStage["id"][]).map((id) => ({
+      id,
+      status: "passed",
+      source: "runtime",
+      reason: "test fixture",
+      relatedToolEventIds: [],
+    }));
+
+    const evidence = buildExecutionEvidence({
+      workPlan,
+      stages: approvedStages,
+      toolExecutions: [approvedFallback],
+      synthesisStatus: "valid",
+    });
+    const result = finalizeWorkRun({
+      workPlan,
+      stages: approvedStages,
+      toolExecutions: [approvedFallback],
+      content: "Typecheck passed.",
+      evidenceAttached: true,
+      synthesisStatus: "valid",
+    });
+
+    assert.equal(evidence.validation.status, "passed");
+    assert.equal(evidence.validation.cause, undefined);
+    assert.equal(result.terminalState, "completed");
+    assert.equal(result.evidence.validation.status, "passed");
+  });
+
+  test("unapproved fallback cannot satisfy unresolved typecheck", () => {
+    const workPlan = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [],
+      targetToolchain: {
+        packagePath: "/repo",
+        manager: "bun",
+        managerSource: "/repo/package.json#packageManager",
+        status: "unavailable",
+        cause: "TYPECHECK_UNAVAILABLE",
+        typecheck: { command: null, source: null, guarantee: null },
+      },
+    });
+    const unapprovedFallback: ToolExecutionRecord = {
+      toolName: "sandbox_run",
+      args: { command: "tsc", args: ["--noEmit"] },
+      output: JSON.stringify({
+        status: "completed",
+        validationExecution: {
+          executionId: "unapproved-typecheck",
+          command: "tsc --noEmit",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "typecheck",
+        },
+      }),
+    };
+
+    const evidence = buildExecutionEvidence({
+      workPlan,
+      stages: [],
+      toolExecutions: [unapprovedFallback],
+      synthesisStatus: "valid",
+    });
+
+    assert.equal(evidence.validation.status, "not_run");
+    assert.equal(evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
+  });
+
+  test("approved fallback clears prior unresolved command failure for same requirement", () => {
+    const workPlan = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [],
+      targetToolchain: {
+        packagePath: "/repo",
+        manager: "bun",
+        managerSource: "/repo/package.json#packageManager",
+        status: "unavailable",
+        cause: "TYPECHECK_UNAVAILABLE",
+        typecheck: { command: null, source: null, guarantee: null },
+      },
+    });
+    const unresolvedRun: ToolExecutionRecord = {
+      toolName: "run_tests",
+      args: { scope: "changed-files" },
+      output: JSON.stringify({
+        ok: false,
+        status: "failed",
+        error: {
+          code: "DEPENDENCY_UNAVAILABLE",
+          message: "No executable validation command is resolved.",
+          details: {
+            cause: "TYPECHECK_UNAVAILABLE",
+            requirementId: "typecheck",
+          },
+        },
+      }),
+    };
+    const approvedFallback: ToolExecutionRecord = {
+      toolName: "sandbox_run",
+      args: { command: "bun", args: ["x", "tsc", "--noEmit"] },
+      output: JSON.stringify({
+        status: "completed",
+        validationExecution: {
+          executionId: "approved-typecheck-retry",
+          command: "bun x tsc --noEmit",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "typecheck",
+          authorization: "approved_override",
+        },
+      }),
+    };
+
+    const evidence = buildExecutionEvidence({
+      workPlan,
+      stages: [],
+      toolExecutions: [unresolvedRun, approvedFallback],
+      synthesisStatus: "valid",
+    });
+
+    assert.equal(evidence.validation.status, "passed");
+    assert.equal(evidence.failedSteps.length, 0);
+    assert.deepEqual(evidence.validation.executionIds, ["approved-typecheck-retry"]);
   });
 
   test("keeps finalizer, ledger projection, UI outcome, and Evidence Pack in parity", async () => {

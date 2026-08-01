@@ -153,6 +153,8 @@ Renderer files conventionally use double quotes; main-process files use single q
 
 Read `AGENTS.md` for detailed repository rules, `RULES.md` for changelog/compliance requirements, and `DESIGN.md` for UI decisions. Those files are authoritative when this summary omits detail.
 
+Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
+
 New changelog headings use:
 
 ```text

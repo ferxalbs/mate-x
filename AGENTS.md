@@ -338,6 +338,10 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 
 ***
 
+Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
+
+***
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

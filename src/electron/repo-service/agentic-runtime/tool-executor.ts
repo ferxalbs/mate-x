@@ -132,6 +132,7 @@ export async function executeAgentToolCall({
         })
       : null;
   let approvedPolicyStopId: string | undefined;
+  let approvedValidationOverride = false;
 
   if (policyStop) {
     events.push({
@@ -273,6 +274,7 @@ export async function executeAgentToolCall({
     if (toolEvent) {
       Object.assign(toolEvent, createPublicToolProgress(toolName, toolArgs));
     }
+    approvedValidationOverride = toolName === "run_tests" || toolName === "sandbox_run";
     emitProgress();
   }
 
@@ -362,8 +364,21 @@ export async function executeAgentToolCall({
       rawResult,
       !outputIndicatesFailure,
       toolCall.id,
+      approvedValidationOverride,
     );
     const modelContent = truncateToolOutputForModel(toolName, rawResult);
+    const validationAuthorization = approvedValidationOverride
+      ? "approved_override" as const
+      : undefined;
+    const evidence = normalizeToolEvidence(
+      toolName,
+      toolArgs,
+      rawResult,
+      enrichedParsed ?? parsedOutput ?? undefined,
+    );
+    if (validationAuthorization) {
+      evidence.validationAuthorization = validationAuthorization;
+    }
 
     return {
       toolCallId: toolCall.id,
@@ -373,12 +388,8 @@ export async function executeAgentToolCall({
         args: toolArgs,
         output: rawResult,
         parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
-        evidence: normalizeToolEvidence(
-          toolName,
-          toolArgs,
-          rawResult,
-          enrichedParsed ?? parsedOutput ?? undefined,
-        ),
+        evidence,
+        validationAuthorization,
       } satisfies ToolExecutionRecord,
       executionPolicy,
     };
@@ -409,6 +420,8 @@ export async function executeAgentToolCall({
         args: toolArgs,
         output: `Tool ${toolName} failed: ${message}`,
         parsedOutput: { status: "error", error: message },
+        validationAuthorization:
+          approvedValidationOverride ? "approved_override" : undefined,
         evidence: normalizeToolEvidence(
           toolName,
           toolArgs,
@@ -518,7 +531,7 @@ function tryParseJsonObject(value: string) {
  * (paths actually edited, traces produced, validation results, repro status, etc.)
  * instead of only free-form text or raw args.
  *
- * We keep everything inside the existing `parsedOutput` bag (no contract change yet).
+ * We keep validation provenance in the parsed output and typed execution record.
  * The evidence-pack builder and VTS already poke into parsedOutput for exitCode,
  * summary, status, and (after our Phase A-1 changes) paths.
  */
@@ -529,6 +542,7 @@ function enrichParsedForEvidence(
   rawOutput: string,
   success: boolean,
   toolCallId: string,
+  approvedValidationOverride = false,
 ): Record<string, unknown> | null {
   const base: Record<string, unknown> = parsed ? { ...parsed } : {};
 
@@ -603,6 +617,7 @@ function enrichParsedForEvidence(
           typeof (existingExecution as Record<string, unknown>).requirementId === "string"
           ? (existingExecution as Record<string, unknown>).requirementId
           : validationRequirementForCommand(command),
+        ...(approvedValidationOverride ? { authorization: "approved_override" } : {}),
       };
     }
   }

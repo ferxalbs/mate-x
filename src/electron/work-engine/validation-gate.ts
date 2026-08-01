@@ -1,6 +1,10 @@
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
-import { normalizeToolExecution } from "./execution-evidence";
+import {
+  normalizeToolExecution,
+  reconcileToolEvidence,
+  resolveRequiredValidationStatus,
+} from "./execution-evidence";
 
 const UNSUPPORTED_DONE_RE = /\b(fixed|ready|works|no warnings|merge-ready|merge ready|done)\b/i;
 
@@ -51,9 +55,15 @@ export function evaluateValidationGate(
   const validationAttempts = toolExecutions.filter((execution) =>
     ["run_tests", "sandbox_run"].includes(execution.toolName),
   );
-  const ranValidation = validationAttempts.some(
-    (execution) => normalizeToolExecution(execution).validationStatus === "passed",
+  const normalizedValidation = reconcileToolEvidence(toolExecutions);
+  const requiredValidationStatus = resolveRequiredValidationStatus(
+    workPlan,
+    normalizedValidation,
   );
+  const ranValidation = requiredValidationStatus === "passed" ||
+    (requiredValidationStatus === null && validationAttempts.some(
+      (execution) => normalizeToolExecution(execution).validationStatus === "passed",
+    ));
   const persisted = toolExecutions.some(
     (execution) => execution.toolName === "verify_validation_persistence",
   );

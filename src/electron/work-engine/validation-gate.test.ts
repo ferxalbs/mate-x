@@ -90,4 +90,89 @@ describe('validation gate NES-5.1 [strict ledger]', () => {
     );
     assert.equal(gate.allowed, true);
   });
+
+  it('requires every planned validation requirement, not only one passing check', () => {
+    const requiredPlan = {
+      ...plan(),
+      validationPlan: {
+        required: true,
+        primaryCommand: 'bun test',
+        fallbackCommand: null,
+        requirements: [
+          { id: 'test', command: 'bun test', availability: 'resolved' },
+          {
+            id: 'typecheck',
+            command: null,
+            availability: 'unresolved',
+            unavailableCause: 'TYPECHECK_UNAVAILABLE',
+          },
+        ],
+      },
+    } as WorkPlan;
+    const gate = evaluateValidationGate(
+      requiredPlan,
+      [tool('run_tests', 'pass', {
+        status: 'success',
+        validationExecution: {
+          executionId: 'test-exec',
+          command: 'bun test',
+          processStarted: true,
+          exitCode: 0,
+          requirementId: 'test',
+        },
+      })],
+      'Tests passed',
+    );
+
+    assert.equal(gate.allowed, false);
+  });
+
+  it('allows an explicitly approved fallback for an unresolved requirement', () => {
+    const requiredPlan = {
+      ...plan(),
+      validationPlan: {
+        required: true,
+        primaryCommand: 'bun test',
+        fallbackCommand: null,
+        requirements: [
+          { id: 'test', command: 'bun test', availability: 'resolved' },
+          {
+            id: 'typecheck',
+            command: null,
+            availability: 'unresolved',
+            unavailableCause: 'TYPECHECK_UNAVAILABLE',
+          },
+        ],
+      },
+    } as WorkPlan;
+    const gate = evaluateValidationGate(
+      requiredPlan,
+      [
+        tool('run_tests', 'pass', {
+          status: 'success',
+          validationExecution: {
+            executionId: 'test-exec',
+            command: 'bun test',
+            processStarted: true,
+            exitCode: 0,
+            requirementId: 'test',
+          },
+        }),
+        tool('sandbox_run', 'pass', {
+          status: 'completed',
+          validationExecution: {
+            executionId: 'approved-typecheck-exec',
+            command: 'bun x tsc --noEmit',
+            processStarted: true,
+            exitCode: 0,
+            requirementId: 'typecheck',
+            authorization: 'approved_override',
+          },
+        }),
+      ],
+      'Tests and typecheck passed',
+    );
+
+    assert.equal(gate.allowed, true);
+  });
 });

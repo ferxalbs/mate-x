@@ -241,6 +241,33 @@ test("approval-required execution waits for approval", () => {
   assert.match(result.summary, /pending required action/i);
 });
 
+test("cancelled validation approval remains blocked", () => {
+  const cancelled = execution(
+    "sandbox_run",
+    "Approval was cancelled.",
+    { status: "cancelled" },
+  );
+  const result = finalizeWorkRun({
+    workPlan: plan,
+    stages: stages.map((item) => item.id === "validation_executed" ? stage(item.id, "blocked") : item),
+    toolExecutions: [cancelled],
+    content: "Approval was cancelled.",
+    evidenceAttached: true,
+    synthesisStatus: "valid",
+    terminalOutcome: {
+      status: "blocked",
+      summary: "Approval was cancelled.",
+      blocker: {
+        code: "APPROVAL_DENIED",
+        requestedCapability: "command.execute",
+      },
+    },
+  });
+
+  assert.equal(result.terminalState, "blocked");
+  assert.equal(result.summary, "Approval was cancelled.");
+});
+
 test("Review write rejection stays blocked without incomplete execution bookkeeping", () => {
   const outcome = resolveRunIntentOutcome({
     behaviorMode: "review",

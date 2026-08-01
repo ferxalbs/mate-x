@@ -82,6 +82,8 @@ export interface NormalizedToolEvidence {
   validationStatus?: Exclude<ExecutionValidationStatus, "not_required">;
   validationExecutionId?: string;
   validationRequirementId?: "test" | "typecheck" | "lint" | "build" | "validation";
+  /** Set only when user explicitly approved a non-planned validation command. */
+  validationAuthorization?: "approved_override";
   validationCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE" | "TOOLCHAIN_AMBIGUOUS";
   requirement?: "required" | "optional" | "fallback";
   requiredUserAction?: string;
@@ -144,5 +146,7 @@ export interface ToolExecutionRecord {
   output: string;
   parsedOutput?: Record<string, unknown>;
   evidence?: NormalizedToolEvidence;
+  /** Internal provenance for an explicitly approved validation override. */
+  validationAuthorization?: "approved_override";
   executionPolicy?: import("./agent-run-trace").ToolExecutionPolicy;
 }

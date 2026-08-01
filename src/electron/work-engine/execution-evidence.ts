@@ -66,9 +66,14 @@ export function normalizeToolEvidence(
   const validationExitCode = Number(validationExecution?.exitCode);
   const validationRequirementId = typeof validationExecution?.requirementId === "string"
     ? validationExecution.requirementId
-    : isExecutableValidationCommand(validationCommand)
-      ? validationRequirementForCommand(validationCommand)
-      : undefined;
+    : typeof errorDetails?.requirementId === "string"
+      ? errorDetails.requirementId
+      : isExecutableValidationCommand(validationCommand)
+        ? validationRequirementForCommand(validationCommand)
+        : undefined;
+  const validationAuthorization = validationExecution?.authorization === "approved_override"
+    ? "approved_override" as const
+    : undefined;
   const validationPassed =
     validationExecutionId.length > 0 &&
     isExecutableValidationCommand(validationCommand) &&
@@ -104,13 +109,10 @@ export function normalizeToolEvidence(
     validationStatus,
     validationExecutionId: validationPassed ? validationExecutionId : undefined,
     validationRequirementId:
-      validationRequirementId === "test" ||
-      validationRequirementId === "typecheck" ||
-      validationRequirementId === "lint" ||
-      validationRequirementId === "build" ||
-      validationRequirementId === "validation"
+      isValidationRequirementId(validationRequirementId)
         ? validationRequirementId
         : undefined,
+    validationAuthorization,
     validationCause:
       errorDetails?.cause === "TOOLCHAIN_AMBIGUOUS"
         ? "TOOLCHAIN_AMBIGUOUS"
@@ -144,6 +146,8 @@ export function normalizeToolExecution(
   );
   return {
     ...evidence,
+    validationAuthorization:
+      execution.validationAuthorization ?? evidence.validationAuthorization,
     requirement: execution.executionPolicy?.requirement ?? evidence.requirement,
   };
 }
@@ -179,7 +183,7 @@ export function buildExecutionEvidence(input: {
   const changedFiles = dedupeChangedFiles(normalized.flatMap((item) => item.changedFiles));
   const validationEvidence = normalized.filter((item) => item.validationStatus);
   const validationStage = input.stages.find((stage) => stage.id === "validation_executed");
-  const requiredValidation = resolveRequiredValidation(
+  const requiredValidation = resolveRequiredValidationStatus(
     input.workPlan,
     validationEvidence,
   );
@@ -210,7 +214,10 @@ export function buildExecutionEvidence(input: {
     validation: {
       status: validationStatus,
       summary: validationStage?.reason,
-      cause: validationRequirementCause(input.workPlan, validationEvidence),
+      cause:
+        validationStatus === "passed"
+          ? undefined
+          : validationRequirementCause(input.workPlan, validationEvidence),
       executionIds: [...new Set(validationEvidence
         .map((item) => item.validationExecutionId)
         .filter((id): id is string => Boolean(id)))],
@@ -223,22 +230,26 @@ export function buildExecutionEvidence(input: {
   };
 }
 
-function resolveRequiredValidation(
+export function resolveRequiredValidationStatus(
   workPlan: WorkPlan,
   evidence: NormalizedToolEvidence[],
 ): ExecutionEvidence["validation"]["status"] | null {
   const requirements = workPlan.validationPlan.requirements ?? [];
   if (!workPlan.validationPlan.required || requirements.length === 0) return null;
-  if (requirements.some((requirement) => requirement.availability === "unresolved")) {
-    return "not_run";
-  }
   for (const requirement of requirements) {
     const matches = evidence.filter((item) =>
       item.validationRequirementId === requirement.id,
     );
     if (matches.some((item) => item.validationStatus === "blocked")) return "blocked";
     if (matches.some((item) => item.validationStatus === "failed")) return "failed";
-    if (!matches.some((item) => item.validationStatus === "passed")) return "not_run";
+    const passed = matches.filter((item) => item.validationStatus === "passed");
+    if (passed.length === 0) return "not_run";
+    if (
+      requirement.availability === "unresolved" &&
+      !passed.some((item) => item.validationAuthorization === "approved_override")
+    ) {
+      return "not_run";
+    }
   }
   return "passed";
 }
@@ -259,7 +270,7 @@ function validationRequirementCause(
  * Keep every attempt in the append-only trace, but do not promote a recovered
  * transient failure into the canonical terminal outcome.
  */
-function reconcileToolEvidence(
+export function reconcileToolEvidence(
   executions: ToolExecutionRecord[],
 ): NormalizedToolEvidence[] {
   const entries = executions.map((execution) => ({
@@ -268,8 +279,28 @@ function reconcileToolEvidence(
     identity: toolExecutionIdentity(execution),
   }));
 
+  const approvedRecoveryRequirements = new Set(
+    entries
+      .filter(
+        (entry) =>
+          entry.evidence.outcome === "completed" &&
+          entry.evidence.validationStatus === "passed" &&
+          entry.evidence.validationAuthorization === "approved_override" &&
+          entry.evidence.validationRequirementId,
+      )
+      .map((entry) => entry.evidence.validationRequirementId),
+  );
+
   return entries
     .filter((entry, index) => {
+      if (
+        entry.evidence.validationStatus === "failed" &&
+        isResolutionFailure(entry.evidence.validationCause) &&
+        entry.evidence.validationRequirementId &&
+        approvedRecoveryRequirements.has(entry.evidence.validationRequirementId)
+      ) {
+        return false;
+      }
       if (entry.evidence.outcome === "completed" || !entry.identity) return true;
       return !entries.slice(index + 1).some(
         (later) =>
@@ -278,6 +309,28 @@ function reconcileToolEvidence(
       );
     })
     .map((entry) => entry.evidence);
+}
+
+function isResolutionFailure(
+  cause: NormalizedToolEvidence["validationCause"],
+) {
+  return (
+    cause === "VALIDATION_COMMAND_UNRESOLVED" ||
+    cause === "TYPECHECK_UNAVAILABLE" ||
+    cause === "TOOLCHAIN_AMBIGUOUS"
+  );
+}
+
+function isValidationRequirementId(
+  value: unknown,
+): value is NonNullable<NormalizedToolEvidence["validationRequirementId"]> {
+  return (
+    value === "test" ||
+    value === "typecheck" ||
+    value === "lint" ||
+    value === "build" ||
+    value === "validation"
+  );
 }
 
 function toolExecutionIdentity(execution: ToolExecutionRecord): string | null {
