@@ -3,6 +3,7 @@ import type {
   ValidationPlan,
   ValidationPlanCommand,
   ValidationRun,
+  ValidationRequirementId,
   WorkspaceProfile,
 } from '../contracts/workspace';
 import { createId } from '../lib/id';
@@ -20,6 +21,9 @@ export interface ValidationPlannerInput {
   detectedFramework?: string;
   previousFailures: ValidationRun[];
   profile?: WorkspaceProfile | null;
+  /** Commands resolved from the current target repository snapshot. */
+  resolvedCommands?: Partial<Record<Exclude<ValidationRequirementId, 'validation'>, string | null>>;
+  authority?: ValidationPlan['authority'];
 }
 
 const CONFIG_FILE_PATTERN =
@@ -50,6 +54,7 @@ export class ValidationPlanner {
       ? this.fallbackAfterFullSuite(input)
       : this.fullSuiteCommand(input, framework, 'Fallback covers transitive regressions if targeted validation misses an integration boundary.');
     const fallback = this.ensureDistinctFallback(input, primary, fallbackCandidate, framework);
+    const requirements = buildRequirementMetadata(input, primary, fallback, framework, changedFiles);
 
     return {
       id: createId('vplan'),
@@ -60,6 +65,8 @@ export class ValidationPlanner {
       riskLevel,
       primary,
       fallback,
+      requirements,
+      authority: input.authority,
       fallbackTrigger: buildFallbackTrigger(riskLevel, primary, fallback),
       recommendations: buildRecommendations(input, changedFiles, impactedFiles, riskLevel),
       comments: buildComments(changedFiles, impactedFiles, fullSuiteRequired),
@@ -97,7 +104,7 @@ export class ValidationPlanner {
       };
     }
 
-    const profileTestCommand = profileCommand(input.profile?.testCommand);
+    const profileTestCommand = validationCommand(input, 'test');
     const directTest = changedFiles.find((file) => TEST_FILE_PATTERN.test(file) && !isRuntimeIgnoredPath(file));
     if (directTest && profileTestCommand) {
       return {
@@ -134,7 +141,7 @@ export class ValidationPlanner {
       };
     }
 
-    const lintCommand = profileCommand(input.profile?.lintCommand) ?? scriptCommand(input, 'lint');
+    const lintCommand = validationCommand(input, 'lint');
     if (lintCommand && changedFiles.some((file) => UI_FILE_PATTERN.test(file))) {
       return {
         command: lintCommand,
@@ -146,7 +153,7 @@ export class ValidationPlanner {
       };
     }
 
-    const testCommand = profileTestCommand ?? scriptCommand(input, 'test');
+    const testCommand = profileTestCommand;
     if (testCommand) {
       return {
         command: testCommand,
@@ -175,13 +182,10 @@ export class ValidationPlanner {
     reason = 'Config, dependency, shared contract, or entrypoint changes can affect broad runtime behavior, so full validation is required.',
   ): ValidationPlanCommand {
     const command =
-      profileCommand(input.profile?.testCommand) ??
-      scriptCommand(input, 'test') ??
+      validationCommand(input, 'test') ??
       typecheckCommand(input) ??
-      profileCommand(input.profile?.buildCommand) ??
-      scriptCommand(input, 'build') ??
-      profileCommand(input.profile?.lintCommand) ??
-      scriptCommand(input, 'lint') ??
+      validationCommand(input, 'build') ??
+      validationCommand(input, 'lint') ??
       null;
 
     return {
@@ -197,11 +201,9 @@ export class ValidationPlanner {
 
   private fallbackAfterFullSuite(input: ValidationPlannerInput): ValidationPlanCommand {
     const command =
-      profileCommand(input.profile?.buildCommand) ??
-      scriptCommand(input, 'build') ??
+      validationCommand(input, 'build') ??
       typecheckCommand(input) ??
-      profileCommand(input.profile?.lintCommand) ??
-      scriptCommand(input, 'lint') ??
+      validationCommand(input, 'lint') ??
       this.fullSuiteCommand(input).command;
 
     return {
@@ -226,12 +228,12 @@ export class ValidationPlanner {
     }
 
     const alternatives = [
-      commandFromProfile(profileCommand(input.profile?.buildCommand) ?? scriptCommand(input, 'build'), {
+      commandFromProfile(validationCommand(input, 'build'), {
         reason: 'Selected build because it provides packaging and bundler/runtime integration signal distinct from the primary command.',
         estimatedCost: 'expensive',
         expectedSignal: 'Bundler, packaging, and entrypoint regressions not caught by the primary command.',
       }),
-      commandFromProfile(profileCommand(input.profile?.lintCommand) ?? scriptCommand(input, 'lint'), {
+      commandFromProfile(validationCommand(input, 'lint'), {
         reason: 'Selected lint because it provides static quality and correctness signal distinct from the primary command.',
         estimatedCost: 'cheap',
         expectedSignal: 'Import, style, React hook, and static rule violations.',
@@ -241,9 +243,9 @@ export class ValidationPlanner {
         estimatedCost: 'cheap',
         expectedSignal: 'Type, contract, and cross-module compile errors.',
       }),
-      commandFromProfile(profileCommand(input.profile?.testCommand) ?? scriptCommand(input, 'test'), {
+      commandFromProfile(validationCommand(input, 'test'), {
         reason: 'Selected full test command because it provides broader regression signal distinct from the primary command.',
-        estimatedCost: estimateCost(profileCommand(input.profile?.testCommand) ?? scriptCommand(input, 'test') ?? '', framework),
+        estimatedCost: estimateCost(validationCommand(input, 'test') ?? '', framework),
         expectedSignal: 'Automated test failures outside targeted coverage.',
       }),
     ].filter((candidate): candidate is NonNullable<typeof candidate> =>
@@ -268,7 +270,7 @@ function normalizeFiles(files: string[]) {
   return Array.from(new Set(files.map((file) => file.trim()).filter(Boolean))).sort();
 }
 
-function scriptCommand(input: ValidationPlannerInput, script: string) {
+function legacyScriptCommand(input: ValidationPlannerInput, script: string) {
   if (!['lint', 'typecheck', 'test', 'build'].includes(script)) return undefined;
   if (!input.packageScripts[script]) return undefined;
   const packageManager = normalizeNodePackageManager(input.profile?.packageManager);
@@ -334,18 +336,37 @@ function commandFromProfile(
     : undefined;
 }
 
-function profileCommand(command?: string) {
-  return command && isAllowedValidationCommand(command) ? command : undefined;
+function validationCommand(
+  input: ValidationPlannerInput,
+  requirementId: Exclude<ValidationRequirementId, 'validation'>,
+) {
+  if (input.resolvedCommands) {
+    const resolved = input.resolvedCommands[requirementId];
+    return resolved && isAllowedValidationCommand(resolved) &&
+      (requirementId !== 'typecheck' || isRepositoryScopedTypecheckCommand(resolved))
+      ? resolved
+      : undefined;
+  }
+
+  const legacy = requirementId === 'test'
+    ? input.profile?.testCommand
+    : requirementId === 'typecheck'
+      ? input.profile?.typecheckCommand
+      : requirementId === 'lint'
+        ? input.profile?.lintCommand
+        : input.profile?.buildCommand;
+  const candidate = (legacy && isAllowedValidationCommand(legacy) ? legacy : undefined) ??
+    legacyScriptCommand(input, requirementId);
+  return candidate &&
+    (requirementId !== 'typecheck' || isRepositoryScopedTypecheckCommand(candidate))
+    ? candidate
+    : undefined;
 }
 
 function typecheckCommand(input: ValidationPlannerInput) {
-  const profileTypecheck = profileCommand(input.profile?.typecheckCommand);
-  if (profileTypecheck && isRepositoryScopedTypecheckCommand(profileTypecheck)) {
-    return profileTypecheck;
-  }
-  const scriptTypecheck = scriptCommand(input, 'typecheck');
-  return scriptTypecheck && isRepositoryScopedTypecheckCommand(scriptTypecheck)
-    ? scriptTypecheck
+  const command = validationCommand(input, 'typecheck');
+  return command && isRepositoryScopedTypecheckCommand(command)
+    ? command
     : undefined;
 }
 
@@ -360,12 +381,42 @@ function isRepositoryScopedTypecheckCommand(command: string) {
 }
 
 function isCurrentValidationCommand(input: ValidationPlannerInput, command: string) {
-  if (validationRequirementForCommand(command) !== 'typecheck') return true;
-  const current = typecheckCommand(input);
+  const requirementId = validationRequirementForCommand(command);
+  if (requirementId === 'validation') return false;
+  const current = validationCommand(input, requirementId);
   return Boolean(
     current &&
     normalizeValidationCommand(current) === normalizeValidationCommand(command),
   );
+}
+
+function buildRequirementMetadata(
+  input: ValidationPlannerInput,
+  primary: ValidationPlanCommand,
+  fallback: ValidationPlanCommand,
+  framework: string | undefined,
+  changedFiles: string[],
+) {
+  const requirements = new Map<ValidationRequirementId, ValidationPlanCommand>();
+  for (const command of [primary, fallback]) {
+    requirements.set(command.requirementId, command);
+  }
+
+  if (isTypeScriptFramework(framework, changedFiles) && !validationCommand(input, 'typecheck')) {
+    requirements.set('typecheck', {
+      command: null,
+      availability: 'unresolved',
+      requirementId: 'typecheck',
+      unavailableCause: input.authority?.cause === 'TOOLCHAIN_AMBIGUOUS'
+        ? 'TOOLCHAIN_AMBIGUOUS'
+        : 'TYPECHECK_UNAVAILABLE',
+      reason: 'The target repository has no current executable typecheck command.',
+      estimatedCost: 'cheap',
+      expectedSignal: 'Compile-time contract, import, and type-safety regressions.',
+    });
+  }
+
+  return [...requirements.values()];
 }
 
 function isAllowedValidationCommand(command: string) {

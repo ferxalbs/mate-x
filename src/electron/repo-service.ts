@@ -38,6 +38,7 @@ import {
   telemetryService,
 } from "./telemetry-service";
 import { AgentExecutionSession } from "./run-trace/agent-execution-session";
+import { collectRepositoryToolchainProfile } from "./repository-toolchain";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -82,6 +83,12 @@ export async function runAssistant(
   );
   traceSession.start();
   let traceCursor = 0;
+  const targetToolchain = await collectRepositoryToolchainProfile({
+    root: snapshot.workspace.path,
+    changedFiles: snapshot.statusLines
+      .map((line) => line.replace(/^[ MADRCU?!]{2}\s+/, "").trim())
+      .filter(Boolean),
+  });
   const workingSet = await workingSetCompiler.compile({
     prompt,
     workspace: snapshot.workspace,
@@ -90,12 +97,15 @@ export async function runAssistant(
     runMode: resolvedOptions.pathKind ?? 'full',
     promptMatches: snapshot.promptMatches,
     memoryContext: snapshot.memoryContext,
+    targetToolchain,
   });
   const workPlan = await buildWorkPlan({
     prompt,
     workspace: snapshot.workspace,
     gitStatus: snapshot.statusLines,
     workingSet,
+    targetToolchain,
+    behaviorMode: resolvedOptions.behaviorMode,
   });
   // EngineeringTask is sole workflow authority when linked.
   let engineeringTaskStatus: import("../contracts/engineering-task").EngineeringTaskStatus | null =

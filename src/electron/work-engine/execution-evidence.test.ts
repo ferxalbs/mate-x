@@ -8,7 +8,7 @@ import {
 } from "../capability-resolver";
 import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 import { finalizeWorkRun } from "./finalizer";
-import { buildExecutionEvidence, normalizeToolExecution } from "./execution-evidence";
+import { buildExecutionEvidence, normalizeToolEvidence, normalizeToolExecution } from "./execution-evidence";
 import type { WorkStage } from "./stages";
 import type { WorkPlan } from "./types";
 
@@ -157,6 +157,34 @@ test("trust-blocked sandbox execution is blocked, never successful", () => {
   assert.equal(result.evidence.blockedSteps[0]?.name, "sandbox_run");
   assert.doesNotMatch(result.content, /\b(?:succeeded|successfully)\b/i);
   assert.doesNotMatch(result.content, /Work Engine verdict|planningPhase|not_applicable_for_phase/);
+});
+
+test("classifies unresolved validation as blocked with precise remediation", () => {
+  const evidence = normalizeToolEvidence(
+    "run_tests",
+    { scope: "full-suite" },
+    [
+      'Error executing tool "run_tests": [DEPENDENCY_UNAVAILABLE] No command.',
+      JSON.stringify({
+        ok: false,
+        status: "failed",
+        error: {
+          code: "DEPENDENCY_UNAVAILABLE",
+          message: "No command.",
+          recommendedNextAction: "Run plan_validation again.",
+          details: {
+            cause: "TYPECHECK_UNAVAILABLE",
+            requirementId: "typecheck",
+          },
+        },
+      }),
+    ].join("\n"),
+  );
+
+  assert.equal(evidence.outcome, "blocked");
+  assert.equal(evidence.validationStatus, "blocked");
+  assert.equal(evidence.validationCause, "TYPECHECK_UNAVAILABLE");
+  assert.equal(evidence.requiredUserAction, "Run plan_validation again.");
 });
 
 test("failed tool execution without mutation is failed", () => {

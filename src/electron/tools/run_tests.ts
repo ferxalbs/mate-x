@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { BrowserWindow } from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
-import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import {
@@ -15,8 +14,10 @@ import {
 import { failTool } from "../tool-result";
 import { createId } from "../../lib/id";
 import {
+  authorizeValidationInvocation,
+} from "../validation-authority";
+import {
   isExecutableValidationCommand,
-  normalizeValidationCommand,
   validationRequirementForCommand,
 } from "../validation-command";
 
@@ -31,24 +32,6 @@ function quoteDisplayArg(value: string) {
   return /[\s"'$`|&;<>]/.test(value)
     ? `"${value.replace(/(["\\])/g, "\\$1")}"`
     : value;
-}
-
-function parseOptionalArgs(value: string | undefined) {
-  if (!value?.trim()) {
-    return { args: [] as string[], fallback: "" };
-  }
-
-  try {
-    return {
-      args: parseDirectCommand(`matex ${value}`).cmdArgs,
-      fallback: "",
-    };
-  } catch {
-    return {
-      args: [] as string[],
-      fallback: ` ${value}`,
-    };
-  }
 }
 
 export const runTestsTool: Tool = {
@@ -77,7 +60,7 @@ export const runTestsTool: Tool = {
   },
   execute: async (
     args: { scope: string; specificPath?: string; plannedCommand?: "primary" | "fallback" },
-    context: { workspacePath: string; signal?: AbortSignal },
+    context: { workspacePath: string; signal?: AbortSignal; approvedPolicyStopId?: string },
   ) => {
     if (context.signal?.aborted) {
       return failTool("run_tests", "run_tests cancelled before start.", "CANCELLED");
@@ -90,21 +73,25 @@ export const runTestsTool: Tool = {
 
     const profile = await tursoService.getWorkspaceProfile(activeWorkspaceId);
     const validationPlan = await tursoService.getLatestValidationPlan(activeWorkspaceId);
-    if (!validationPlan && (!profile || !profile.testCommand)) {
-      return JSON.stringify({
-        error: "Validation profile, test command, or validation plan not found. Run detect_workspace_capabilities and plan_validation first."
-      });
+    if (!validationPlan) {
+      return failTool(
+        "run_tests",
+        "No current validation plan is available for this workspace.",
+        "DEPENDENCY_UNAVAILABLE",
+        {
+          retryable: false,
+          recommendedNextAction: "Run plan_validation and execute only its exact resolved command.",
+          details: { cause: "VALIDATION_COMMAND_UNRESOLVED" },
+        },
+      );
     }
 
     const selectedPlanCommand = args.plannedCommand === "fallback"
-      ? validationPlan?.fallback
-      : validationPlan?.primary;
-    const baseCommand = selectedPlanCommand?.command ?? profile?.testCommand;
+      ? validationPlan.fallback
+      : validationPlan.primary;
+    const baseCommand = selectedPlanCommand?.command;
     const plannedCommandReason = selectedPlanCommand?.reason;
-    if (
-      selectedPlanCommand?.availability === "unresolved" ||
-      !isExecutableValidationCommand(baseCommand)
-    ) {
+    if (selectedPlanCommand.availability === "unresolved") {
       const cause = selectedPlanCommand?.unavailableCause ??
         "VALIDATION_COMMAND_UNRESOLVED";
       return failTool(
@@ -122,122 +109,64 @@ export const runTestsTool: Tool = {
           details: {
             cause,
             requirementId: selectedPlanCommand?.requirementId ?? "validation",
-            planId: validationPlan?.id,
+            planId: validationPlan.id,
+          },
+        },
+      );
+    }
+    if (!isExecutableValidationCommand(baseCommand)) {
+      return failTool("run_tests", "Validation command is not executable.", "DEPENDENCY_UNAVAILABLE", {
+        retryable: false,
+        details: { cause: "VALIDATION_COMMAND_UNRESOLVED" },
+      });
+    }
+    const executableBaseCommand = baseCommand;
+
+    const validationExecutionId = createId("validation-exec");
+    const inferredRequirementId = validationRequirementForCommand(executableBaseCommand);
+    const requirementId = inferredRequirementId === "validation"
+      ? selectedPlanCommand?.requirementId ?? inferredRequirementId
+      : inferredRequirementId;
+
+    const validationAuthority = await authorizeValidationInvocation({
+      command: executableBaseCommand,
+      workspacePath: context.workspacePath,
+      validationPlan,
+      approvedPolicyStopId: context.approvedPolicyStopId,
+    });
+    if (!validationAuthority.allowed) {
+      return failTool(
+        "run_tests",
+        validationAuthority.reason ?? "Validation command is not authorized by the current target repository.",
+        "DEPENDENCY_UNAVAILABLE",
+        {
+          retryable: false,
+          recommendedNextAction: validationAuthority.recommendedNextAction,
+          details: {
+            cause: validationAuthority.cause ?? "VALIDATION_COMMAND_UNRESOLVED",
+            requirementId,
+            requestedCommand: executableBaseCommand,
+            planId: validationPlan.id,
+            planMatch: validationAuthority.planMatch,
+            targetToolchainStatus: validationAuthority.targetToolchain?.status,
           },
         },
       );
     }
 
-    const validationExecutionId = createId("validation-exec");
-    const inferredRequirementId = validationRequirementForCommand(baseCommand);
-    const requirementId = inferredRequirementId === "validation"
-      ? selectedPlanCommand?.requirementId ?? inferredRequirementId
-      : inferredRequirementId;
-
-    if (requirementId === "typecheck") {
-      const targetToolchain = await collectRepositoryToolchainProfile({
-        root: context.workspacePath,
-        changedFiles: validationPlan?.changedFiles ?? [],
-      });
-      const targetTypecheckCommand = targetToolchain.typecheck.command;
-      if (
-        targetToolchain.status !== "resolved" ||
-        !targetTypecheckCommand
-      ) {
-        const cause = targetToolchain.cause ?? "TYPECHECK_UNAVAILABLE";
-        return failTool(
-          "run_tests",
-          "The persisted typecheck command is unavailable for the current target repository.",
-          "DEPENDENCY_UNAVAILABLE",
-          {
-            retryable: false,
-            recommendedNextAction:
-              cause === "TOOLCHAIN_AMBIGUOUS"
-                ? "Resolve conflicting target-repository package manager metadata, then re-plan validation."
-                : "Run plan_validation again. If typecheck remains unresolved, request explicit approval for a sandbox fallback.",
-            details: {
-              cause,
-              requirementId,
-              requestedCommand: baseCommand,
-              targetCommand: targetTypecheckCommand,
-              planId: validationPlan?.id,
-            },
-          },
-        );
-      }
-      if (
-        normalizeValidationCommand(baseCommand) !==
-        normalizeValidationCommand(targetTypecheckCommand)
-      ) {
-        return failTool(
-          "run_tests",
-          "The persisted typecheck command is stale for the current target repository.",
-          "DEPENDENCY_UNAVAILABLE",
-          {
-            retryable: false,
-            recommendedNextAction:
-              "Run plan_validation again and execute the exact target-repository typecheck command.",
-            details: {
-              cause: "VALIDATION_COMMAND_UNRESOLVED",
-              requirementId,
-              requestedCommand: baseCommand,
-              targetCommand: targetTypecheckCommand,
-              planId: validationPlan?.id,
-            },
-          },
-        );
-      }
-    }
-
     const commandArgs: string[] = [];
-    let shellFallbackSuffix = "";
+    const shellFallbackSuffix = "";
 
     // If a validation plan exists, it is authoritative for command selection.
-    if (!validationPlan && args.scope === "specific-path" && args.specificPath) {
-      if (/[\n|&;<>`$()]/.test(args.specificPath)) {
-        return JSON.stringify({ error: "Invalid characters in specificPath. Shell operators are not allowed." });
-      }
-      commandArgs.push(args.specificPath);
-    } else if (!validationPlan && args.scope === "rerun-failed") {
-      // Get the last validation run's failing tests if available
-      const runs = await tursoService.getRecentValidationRuns(activeWorkspaceId, 1);
-      const failingTests = runs[0]?.failingTests;
-      if (failingTests && failingTests.length > 0) {
-        // Sanitize failing tests for shell injection (avoid command substitutions)
-        const sanitizedTests = failingTests.filter(test => !/[`$]/.test(test));
-        if (sanitizedTests.length > 0) {
-          if (profile?.testFramework === "vitest" || profile?.testFramework === "jest") {
-            commandArgs.push("-t", sanitizedTests.join("|"));
-          } else if (profile?.testFramework === "pytest") {
-            commandArgs.push(...sanitizedTests);
-          }
-        }
-      }
-      // If we don't know how to pass failing tests specifically, just run the command.
-    } else if (!validationPlan && args.scope === "changed-files") {
-      if (profile?.testFramework === "jest") {
-        commandArgs.push("--onlyChanged");
-      } else if (profile?.testFramework === "vitest") {
-        commandArgs.push("changed");
-      }
-    }
-
-    // Include flags
-    if (!validationPlan && profile?.flags) {
-      const parsedFlags = parseOptionalArgs(profile.flags);
-      commandArgs.push(...parsedFlags.args);
-      shellFallbackSuffix += parsedFlags.fallback;
-    }
-
     const command = [
-      baseCommand,
+      executableBaseCommand,
       ...commandArgs.map(quoteDisplayArg),
     ].join(" ") + shellFallbackSuffix;
     const processEnv = buildToolProcessEnv({ FORCE_COLOR: "0" });
     let resolvedDirectCommand: Awaited<ReturnType<typeof resolveToolCommand>> | undefined;
     if (!profile?.shell && !shellFallbackSuffix) {
       try {
-        const parsedCommand = parseDirectCommand(baseCommand);
+        const parsedCommand = parseDirectCommand(executableBaseCommand);
         resolvedDirectCommand = await resolveToolCommand({
           cmd: parsedCommand.cmd,
           args: parsedCommand.cmdArgs,
@@ -436,6 +365,9 @@ export const runTestsTool: Tool = {
             exitCode: runResult.exitCode,
             requirementId,
             planId: validationPlan?.id,
+            ...(validationAuthority.authorization === "approved_override"
+              ? { authorization: "approved_override" }
+              : {}),
           },
           validationPersistence,
           nextRequiredAction: fallbackRequired

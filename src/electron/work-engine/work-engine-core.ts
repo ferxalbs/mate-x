@@ -62,10 +62,19 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
   const runbook = resolveWorkRunbook(intent, risk);
   const validationRequired = runbookRequiresValidation(runbook, risk, changedFiles);
   const evidenceRequired = runbookRequiresEvidence(runbook, changedFiles);
-  const primaryCommand = selectScript(snapshot.scripts ?? [], ["test", "typecheck", "lint", "build"])?.command ?? null;
+  const primaryCommand = selectScript(snapshot.scripts ?? [], ["test", "typecheck", "lint", "build"])?.command ??
+    targetValidationCommand(snapshot, "test") ??
+    targetValidationCommand(snapshot, "typecheck") ??
+    targetValidationCommand(snapshot, "lint") ??
+    targetValidationCommand(snapshot, "build") ??
+    null;
   const fallbackCommand =
     risk === "high"
-      ? selectScript(snapshot.scripts ?? [], ["typecheck", "lint", "build"], primaryCommand)?.command ?? null
+      ? selectScript(snapshot.scripts ?? [], ["typecheck", "lint", "build"], primaryCommand)?.command ??
+        targetValidationCommand(snapshot, "typecheck", primaryCommand) ??
+        targetValidationCommand(snapshot, "lint", primaryCommand) ??
+        targetValidationCommand(snapshot, "build", primaryCommand) ??
+        null
       : null;
   const validationRequirements = validationRequired
     ? requiredValidationSignals(snapshot, primaryCommand)
@@ -138,7 +147,7 @@ function requiredValidationSignals(
   if (requested.size === 0) requested.add(primaryCommand ? scriptRequirement(primaryCommand) : "validation");
 
   return [...requested].map((id) => {
-    const command = (id === "typecheck" ? snapshot.targetToolchain?.typecheck.command : undefined) ??
+    const command = targetValidationCommand(snapshot, id) ??
       scripts.find((script) => script.signal === id)?.command ??
       (primaryCommand && scriptRequirement(primaryCommand) === id ? primaryCommand : null);
     return command
@@ -152,6 +161,15 @@ function requiredValidationSignals(
             : "VALIDATION_COMMAND_UNRESOLVED" as const,
         };
   });
+}
+
+function targetValidationCommand(
+  snapshot: WorkPlanInputSnapshot,
+  id: "test" | "typecheck" | "lint" | "build" | "validation",
+  exclude?: string | null,
+) {
+  const command = id === "validation" ? null : snapshot.targetToolchain?.commands[id]?.command ?? null;
+  return command && command !== exclude ? command : null;
 }
 
 function scriptRequirement(command: string) {

@@ -61,23 +61,29 @@ export const validationPlanTool: Tool = {
       ? {
           ...profile,
           packageManager: targetToolchain.manager ?? profile.packageManager,
-          typecheckCommand:
-            targetToolchain.status === "resolved"
-              ? targetToolchain.typecheck.command ?? undefined
-              : undefined,
+          testCommand: targetToolchain.commands.test.command ?? undefined,
+          lintCommand: targetToolchain.commands.lint.command ?? undefined,
+          buildCommand: targetToolchain.commands.build.command ?? undefined,
+          typecheckCommand: targetToolchain.commands.typecheck.command ?? undefined,
         }
-      : targetToolchain.status === "resolved"
+      : targetToolchain.manager
         ? {
             workspaceId: activeWorkspaceId,
             packageManager: targetToolchain.manager ?? undefined,
-            typecheckCommand: targetToolchain.typecheck.command ?? undefined,
+            testCommand: targetToolchain.commands.test.command ?? undefined,
+            lintCommand: targetToolchain.commands.lint.command ?? undefined,
+            buildCommand: targetToolchain.commands.build.command ?? undefined,
+            typecheckCommand: targetToolchain.commands.typecheck.command ?? undefined,
             updatedAt: new Date().toISOString(),
           }
         : null;
     const packageScripts = { ...(args.packageScripts ?? {}) };
-    if (targetToolchain.status !== "resolved") {
-      delete packageScripts.typecheck;
-    }
+    const resolvedCommands = {
+      test: targetToolchain.commands.test.command,
+      typecheck: targetToolchain.commands.typecheck.command,
+      lint: targetToolchain.commands.lint.command,
+      build: targetToolchain.commands.build.command,
+    };
 
     const plan = validationPlanner.createPlan({
       objective: args.objective,
@@ -89,6 +95,14 @@ export const validationPlanTool: Tool = {
       detectedFramework: args.detectedFramework,
       previousFailures,
       profile: effectiveProfile,
+      resolvedCommands,
+      authority: {
+        packagePath: targetToolchain.packagePath,
+        manager: targetToolchain.manager,
+        managerSource: targetToolchain.managerSource,
+        status: targetToolchain.status,
+        cause: targetToolchain.cause,
+      },
     });
 
     await tursoService.setLatestValidationPlan(activeWorkspaceId, plan);

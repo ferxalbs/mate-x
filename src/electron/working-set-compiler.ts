@@ -7,6 +7,8 @@ import type { WorkingSet, WorkingSetFile, WorkingSetScript } from "../contracts/
 import { createId } from "../lib/id";
 import { tursoService } from "./turso-service";
 import { buildSemanticContext } from "./working-set-semantic-context";
+import type { RepositoryToolchainProfile } from "./repository-toolchain";
+import { isObsoleteValidationCommand } from "./validation-command";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TOKEN_BUDGET = 1800;
@@ -21,6 +23,7 @@ interface WorkingSetCompilerInput {
   promptMatches: SearchMatch[];
   memoryContext?: WorkspaceMemoryBootstrapContext;
   tokenBudget?: number;
+  targetToolchain?: RepositoryToolchainProfile;
 }
 
 interface RankedFile {
@@ -115,7 +118,7 @@ export class WorkingSetCompiler {
     const scripts = nodes
       .filter((node) => node.kind === "script")
       .flatMap((node) => {
-        const script = rankScript(node.key, input.prompt, input.runMode);
+        const script = rankScript(node.key, input.prompt, input.runMode, input.targetToolchain);
         return script ? [script] : [];
       })
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
@@ -149,6 +152,7 @@ export class WorkingSetCompiler {
       gitDiffSnippets: diffSnippets,
       relatedContractsTypes: sortRanked(contracts).slice(0, 6),
       recentFailureContext: failures
+        .filter((failure) => !isObsoleteValidationCommand(failure.command))
         .filter((failure) => !isRuntimePollutionText(`${failure.command}\n${failure.outputSummary}\n${failure.failingTests?.join("\n") ?? ""}`))
         .map((failure) => ({
           command: failure.command,
@@ -221,6 +225,7 @@ function rankScript(
   scriptName: string,
   prompt: string,
   runMode: NonNullable<AssistantRunOptions["pathKind"]> | string,
+  targetToolchain?: RepositoryToolchainProfile,
 ): WorkingSetScript | null {
   if (isRuntimePollutionText(scriptName)) return null;
   const lowerPrompt = prompt.toLowerCase();
@@ -240,7 +245,22 @@ function rankScript(
     score += 15;
     reasons.push("verification scripts for engineering path");
   }
-  return score > 0 ? { name: scriptName, command: `bun run ${scriptName}`, score, reasons } : null;
+  const signal = scriptSignal(scriptName);
+  const command = signal === "test" || signal === "lint" || signal === "typecheck" || signal === "build"
+    ? targetToolchain?.commands[signal]?.command
+    : undefined;
+  return score > 0 && command
+    ? { name: scriptName, command, score, reasons }
+    : null;
+}
+
+function scriptSignal(name: string): "test" | "lint" | "typecheck" | "build" | "other" {
+  const lower = name.toLowerCase();
+  if (lower.includes("test")) return "test";
+  if (lower.includes("lint")) return "lint";
+  if (lower.includes("typecheck") || lower.includes("tsc")) return "typecheck";
+  if (lower.includes("build")) return "build";
+  return "other";
 }
 
 function isRuntimeIgnoredPath(file: string) {

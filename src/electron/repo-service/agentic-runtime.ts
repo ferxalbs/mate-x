@@ -10,7 +10,7 @@ import type { ExecutionSynthesisStatus } from "../../contracts/execution";
 import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } from "../../contracts/rainy";
 import { supportsTools } from "../../lib/rainy-model-capabilities";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../config/mate-agent";
-import { behaviorInstruction, type BehaviorMode } from "../../contracts/behavior-mode";
+import { behaviorInstruction, behaviorSystemContract, type BehaviorMode } from "../../contracts/behavior-mode";
 import type { AppSettings } from "../../contracts/settings";
 import type { RepoSnapshot } from "./workspace";
 
@@ -20,6 +20,7 @@ import { appendAttachmentContext } from "./agentic-runtime/helpers";
 import { requestRainyResponsesAgenticResponse } from "./agentic-runtime/responses-runner";
 import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
 import { createModelToolsUnavailableResult } from "./agentic-runtime/model-tools-unavailable";
+import { buildValidationAuthoritySection } from "./agentic-runtime/prompt-contract";
 
 // Re-exports for absolute backward-compatibility
 export * from "./agentic-runtime/types";
@@ -30,6 +31,7 @@ export * from "./agentic-runtime/synthesis";
 export * from "./agentic-runtime/critic";
 export * from "./agentic-runtime/chat-runner";
 export * from "./agentic-runtime/responses-runner";
+export { buildValidationAuthoritySection } from "./agentic-runtime/prompt-contract";
 
 /** Runbook-conditional playbooks keep the system prompt smaller for simple tasks. */
 function buildRunbookPlaybookSection(
@@ -103,43 +105,6 @@ function buildRunbookPlaybookSection(
   return sections.join("\n");
 }
 
-export function buildValidationAuthoritySection(workPlanJson: string) {
-  try {
-    const workPlan = JSON.parse(workPlanJson) as {
-      validationPlan?: {
-        required?: boolean;
-        requirements?: Array<{
-          id?: string;
-          command?: string | null;
-          availability?: string;
-          unavailableCause?: string;
-        }>;
-      };
-    };
-    const validationPlan = workPlan.validationPlan;
-    const requirements = validationPlan?.requirements ?? [];
-    if (!validationPlan?.required || requirements.length === 0) {
-      return "Validation authority for this run:\n- No typed required validation requirements are present in the WorkPlan.";
-    }
-
-    const lines = requirements.map((requirement) => {
-      const command = requirement.command ?? "(none)";
-      const state = requirement.availability === "resolved"
-        ? `resolved: ${command}`
-        : `unresolved: ${requirement.unavailableCause ?? "VALIDATION_COMMAND_UNRESOLVED"}`;
-      return `- ${requirement.id ?? "validation"}: ${state}`;
-    });
-    return [
-      "Validation authority for this run:",
-      "- Required requirements are independent; every line below needs its own typed proof.",
-      ...lines,
-      "- Use only the exact resolved command shown above. Never invent a substitute for an unresolved line.",
-    ].join("\n");
-  } catch {
-    return "Validation authority for this run:\n- WorkPlan validation data could not be parsed; stop and obtain a typed validation plan before executing checks.";
-  }
-}
-
 export function buildAgentSystemPrompt(input: {
   options: AssistantRunOptions;
   snapshot: RepoSnapshot;
@@ -156,6 +121,8 @@ export function buildAgentSystemPrompt(input: {
   return `${MATE_AGENT_SYSTEM_PROMPT}
 
 Behavior: ${behaviorInstruction(input.options.behaviorMode)}
+Mode contract:
+${behaviorSystemContract(input.options.behaviorMode)}
 Workspace: ${input.snapshot.workspace.name} (${input.snapshot.workspace.path})
 Branch: ${input.snapshot.workspace.branch}
 Stack: ${input.snapshot.workspace.stack.join(", ") || "unknown"}
@@ -166,7 +133,7 @@ Continue from tool results without repeating prior drafts. Stop when evidence is
 Repository writes and commands affect real workspace state. Validate changes before claiming completion.
 Privacy placeholders such as [PRIVATE_FILE_PATH] and [SECRET_*] are redactions, not repository text.
 
-${buildValidationAuthoritySection(input.workPlan)}
+${buildValidationAuthoritySection(input.workPlan, input.options.behaviorMode)}
 
 Working set:
 ${input.workingSet}

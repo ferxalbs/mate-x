@@ -81,10 +81,19 @@ export interface ValidationPlanCommand {
   command: string | null;
   availability: "resolved" | "unresolved";
   requirementId: ValidationRequirementId;
+  source?: "repository_script" | "local_toolchain" | "native" | null;
   unavailableCause?: ValidationUnavailableCause;
   reason: string;
   estimatedCost: ValidationCost;
   expectedSignal: string;
+}
+
+export interface ValidationPlanAuthority {
+  packagePath?: string;
+  manager?: string | null;
+  managerSource?: string | null;
+  status?: "resolved" | "ambiguous" | "unavailable";
+  cause?: ValidationUnavailableCause;
 }
 
 export interface ValidationPlan {
@@ -96,6 +105,8 @@ export interface ValidationPlan {
   riskLevel: "low" | "medium" | "high";
   primary: ValidationPlanCommand;
   fallback: ValidationPlanCommand;
+  requirements?: ValidationPlanCommand[];
+  authority?: ValidationPlanAuthority;
   fallbackTrigger: string;
   recommendations: string[];
   comments: string[];

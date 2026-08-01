@@ -15,6 +15,7 @@ import { createPublicToolProgress } from "./public-tool-progress";
 import { resolveToolExecutionPolicy } from "./tool-requirement";
 import type { ToolExecutionPolicy } from "../../../contracts/agent-run-trace";
 import {
+  isValidationLikeCommand,
   isValidationResolutionCause,
   validationRequirementForCommand,
 } from "../../validation-command";
@@ -321,6 +322,19 @@ export async function executeAgentToolCall({
       rawResult,
       parsedOutput ?? undefined,
     );
+    approvedValidationOverride = Boolean(
+      (policyStop &&
+        (toolName === "run_tests" || toolName === "sandbox_run") &&
+        isValidationLikeCommand(
+          [
+            toolArgs.command ?? toolArgs.script ?? toolName,
+            ...(Array.isArray(toolArgs.args) ? toolArgs.args : []),
+          ].filter((value): value is string => typeof value === "string").join(" "),
+        )) ||
+      (parsedOutput?.validationExecution &&
+        typeof parsedOutput.validationExecution === "object" &&
+        (parsedOutput.validationExecution as Record<string, unknown>).authorization === "approved_override"),
+    );
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
       Object.assign(
@@ -381,17 +395,16 @@ export async function executeAgentToolCall({
       approvedValidationOverride,
     );
     const modelContent = truncateToolOutputForModel(toolName, rawResult);
-    const validationAuthorization = approvedValidationOverride
-      ? "approved_override" as const
-      : undefined;
     const evidence = normalizeToolEvidence(
       toolName,
       toolArgs,
       rawResult,
       enrichedParsed ?? parsedOutput ?? undefined,
     );
-    if (validationAuthorization) {
-      evidence.validationAuthorization = validationAuthorization;
+    const finalValidationAuthorization = evidence.validationAuthorization ??
+      (approvedValidationOverride ? "approved_override" as const : undefined);
+    if (finalValidationAuthorization) {
+      evidence.validationAuthorization = finalValidationAuthorization;
     }
 
     return {
@@ -403,7 +416,7 @@ export async function executeAgentToolCall({
         output: rawResult,
         parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
         evidence,
-        validationAuthorization,
+        validationAuthorization: finalValidationAuthorization,
       } satisfies ToolExecutionRecord,
       executionPolicy,
     };

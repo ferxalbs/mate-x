@@ -5,7 +5,6 @@ import { dirname, join, relative } from "node:path";
 import * as electron from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
-import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import {
@@ -25,10 +24,11 @@ import {
   formatToolFailure,
 } from "../tool-result";
 import {
+  authorizeValidationInvocation,
+} from "../validation-authority";
+import {
   findValidationPlanCommand,
   isExecutableValidationCommand,
-  isValidationLikeCommand,
-  normalizeValidationCommand,
   validationRequirementForCommand,
 } from "../validation-command";
 
@@ -505,72 +505,35 @@ export const sandboxRunnerTool: Tool = {
     const validationPlan = activeWorkspaceId
       ? await tursoService.getLatestValidationPlan(activeWorkspaceId)
       : null;
-    const plannedValidationCommand = commandMatchesPlannedValidation(
+    const requirementId = validationRequirementForCommand(commandInvocation);
+    const validationAuthority = await authorizeValidationInvocation({
+      command: commandInvocation,
+      workspacePath,
+      validationPlan,
+      approvedPolicyStopId,
+    });
+    if (!validationAuthority.allowed) {
+      return failTool(
+        "sandbox_run",
+        validationAuthority.reason ?? "Validation command is not authorized by the current target repository.",
+        "DEPENDENCY_UNAVAILABLE",
+        {
+          retryable: false,
+          recommendedNextAction: validationAuthority.recommendedNextAction,
+          details: {
+            cause: validationAuthority.cause ?? "VALIDATION_COMMAND_UNRESOLVED",
+            requirementId,
+            requestedCommand: commandInvocation,
+            plannedCommand: validationAuthority.planMatch,
+            targetToolchainStatus: validationAuthority.targetToolchain?.status,
+          },
+        },
+      );
+    }
+    const plannedValidationCommand = validationAuthority.planMatch ?? commandMatchesPlannedValidation(
       commandInvocation,
       validationPlan,
     );
-    const validationLike = isValidationLikeCommand(commandInvocation);
-    const requirementId = validationRequirementForCommand(commandInvocation);
-
-    if (validationLike && !approvedPolicyStopId) {
-      let targetToolchain: Awaited<
-        ReturnType<typeof collectRepositoryToolchainProfile>
-      > | undefined;
-      if (requirementId === "typecheck") {
-        try {
-          targetToolchain = await collectRepositoryToolchainProfile({
-            root: workspacePath,
-            changedFiles: validationPlan?.changedFiles ?? [],
-          });
-        } catch {
-          targetToolchain = undefined;
-        }
-      }
-
-      const targetTypecheckCommand = targetToolchain?.typecheck.command;
-      const matchesTargetTypecheck = Boolean(
-        requirementId === "typecheck" &&
-          targetTypecheckCommand &&
-          normalizeValidationCommand(targetTypecheckCommand) ===
-            normalizeValidationCommand(commandInvocation),
-      );
-      const matchesResolvedPlan = Boolean(plannedValidationCommand);
-      const allowedByTargetEvidence =
-        requirementId === "typecheck"
-          ? matchesTargetTypecheck
-          : matchesResolvedPlan;
-
-      if (!allowedByTargetEvidence) {
-        const cause =
-          requirementId === "typecheck"
-            ? targetToolchain?.cause ?? "TYPECHECK_UNAVAILABLE"
-            : "VALIDATION_COMMAND_UNRESOLVED";
-        return failTool(
-          "sandbox_run",
-          [
-            "Validation command is not authorized by the target repository toolchain.",
-            `Requested: ${commandInvocation}`,
-            plannedValidationCommand
-              ? "The persisted plan is stale for the current target toolchain."
-              : "No current resolved validation plan matches this command.",
-            "Do not substitute bunx, npx, pnpm dlx, npm exec, or bare tsc.",
-          ].join(" "),
-          "DEPENDENCY_UNAVAILABLE",
-          {
-            retryable: false,
-            recommendedNextAction:
-              "Run plan_validation and use its exact resolved command. If the requirement is unresolved, request explicit approval for a fallback.",
-            details: {
-              cause,
-              requirementId,
-              requestedCommand: commandInvocation,
-              plannedCommand: plannedValidationCommand,
-              targetToolchainStatus: targetToolchain?.status,
-            },
-          },
-        );
-      }
-    }
 
     const timeoutSeconds = resolveAllowedNumber(
       args.timeoutSeconds,

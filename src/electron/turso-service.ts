@@ -830,21 +830,25 @@ export class TursoService {
     };
   }
 
-  async upsertWorkspaceProfile(profile: Partial<WorkspaceProfile> & { workspaceId: string }) {
+  async upsertWorkspaceProfile(
+    profile: Partial<WorkspaceProfile> & { workspaceId: string },
+    options: { replaceDetectedFields?: boolean } = {},
+  ) {
     await this.initialize();
 
     const now = new Date().toISOString();
+    const replaceDetectedFields = options.replaceDetectedFields === true;
 
     await this.getClient().execute({
       sql: `INSERT INTO workspace_profiles (workspace_id, package_manager, test_framework, test_command, lint_command, build_command, typecheck_command, shell, flags, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(workspace_id) DO UPDATE SET
-              package_manager = COALESCE(excluded.package_manager, package_manager),
-              test_framework = COALESCE(excluded.test_framework, test_framework),
-              test_command = COALESCE(excluded.test_command, test_command),
-              lint_command = COALESCE(excluded.lint_command, lint_command),
-              build_command = COALESCE(excluded.build_command, build_command),
-              typecheck_command = COALESCE(excluded.typecheck_command, typecheck_command),
+              package_manager = ${replaceDetectedFields ? 'excluded.package_manager' : 'COALESCE(excluded.package_manager, package_manager)'},
+              test_framework = ${replaceDetectedFields ? 'excluded.test_framework' : 'COALESCE(excluded.test_framework, test_framework)'},
+              test_command = ${replaceDetectedFields ? 'excluded.test_command' : 'COALESCE(excluded.test_command, test_command)'},
+              lint_command = ${replaceDetectedFields ? 'excluded.lint_command' : 'COALESCE(excluded.lint_command, lint_command)'},
+              build_command = ${replaceDetectedFields ? 'excluded.build_command' : 'COALESCE(excluded.build_command, build_command)'},
+              typecheck_command = ${replaceDetectedFields ? 'excluded.typecheck_command' : 'COALESCE(excluded.typecheck_command, typecheck_command)'},
               shell = COALESCE(excluded.shell, shell),
               flags = COALESCE(excluded.flags, flags),
               updated_at = excluded.updated_at`,

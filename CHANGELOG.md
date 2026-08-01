@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Unreleased - 2026.08.01 (1) [Repository-Grounded Validation Authority and Mode Contracts]
+
+* Replaced stale workspace-profile and failure-history validation authority with a fresh target-repository toolchain resolver that uses repository manifests, scripts, lockfiles, workspace ownership, native project evidence, and local-only toolchain capabilities.
+* Added repository-backed validation command resolution for npm, pnpm, Yarn Classic/Berry, Bun, Deno, Cargo, Go, pytest, Make, and Just without inferring commands from MaTE X, the host `PATH`, or global package-manager defaults.
+* Prevented generated or package-acquiring commands such as `bunx`, `npx`, `dlx`, and install-capable scripts from being selected as validation authority, and filtered obsolete validation failures before they can be replayed or shown as known failures.
+* Made validation profiles replace detected command fields on refresh so removed or unavailable repository scripts clear stale persisted commands instead of surviving through database merge behavior.
+* Added a shared validation-authority gate that checks the current repository contract before executable lookup or process launch, permits only exact planned commands, and records explicit approved fallbacks as one-operation overrides.
+* Propagated repository-resolved validation commands through planning, working-set compilation, Work Engine execution, sandbox execution, test execution, and repository orchestration without hardcoded `bun run` or `bunx tsc` fallbacks.
+* Converted unresolved required validation into typed blocked outcomes with exact causes and remediation, while preserving successful evidence, partial mutation results, approval recovery, and finalizer, ledger, UI, and Evidence Pack parity.
+* Added distinct system contracts for Review, Plan, and Execute: Review is evidence-only, Plan is read-only implementation design, and Execute performs authorized changes followed by repository-backed proof.
+* Added focused regression coverage for stale command replay, repository toolchain resolution, validation authorization, sandbox execution, blocked evidence, approval recovery, trace truth, and mode-specific prompt contracts.
+
 ## Unreleased - 2026.07.31 (1) [v0.1.4 Verifiable Execute Kernel and Toolchain Independence]
 
 * Introduced `AgentExecutionSession` as the typed lifecycle for Review, Plan, and Execute, with `ExecutionOutcome` as the canonical authority shared by the UI, persistence, Evidence Packs, and finalization.

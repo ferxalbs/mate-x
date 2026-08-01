@@ -4,6 +4,7 @@ import path from "node:path";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import type { WorkspaceProfile } from "../../contracts/workspace";
+import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 
 export const detectWorkspaceCapabilitiesTool: Tool = {
   name: "detect_workspace_capabilities",
@@ -54,13 +55,18 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
     };
 
     const pkgJson = await readJson("package.json");
+    const targetToolchain = await collectRepositoryToolchainProfile({
+      root: context.workspacePath,
+      changedFiles: [],
+    });
 
     // Detect package manager. packageManager field is the strongest intent;
     // lockfiles are the fallback runtime signal.
     const packageManagerField = typeof pkgJson?.packageManager === "string"
       ? pkgJson.packageManager.split("@")[0]
       : undefined;
-    if (isNodePackageManager(packageManagerField)) detected.packageManager = packageManagerField;
+    if (targetToolchain.manager) detected.packageManager = targetToolchain.manager;
+    else if (isNodePackageManager(packageManagerField)) detected.packageManager = packageManagerField;
     else if (await hasFile("bun.lock")) detected.packageManager = "bun";
     else if (await hasFile("pnpm-lock.yaml")) detected.packageManager = "pnpm";
     else if (await hasFile("yarn.lock")) detected.packageManager = "yarn";
@@ -71,10 +77,10 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
 
     // Detect node commands
     if (pkgJson?.scripts) {
-      if (pkgJson.scripts.test) detected.testCommand = buildNodeScriptCommand(detected.packageManager, "test");
-      if (pkgJson.scripts.lint) detected.lintCommand = buildNodeScriptCommand(detected.packageManager, "lint");
-      if (pkgJson.scripts.build) detected.buildCommand = buildNodeScriptCommand(detected.packageManager, "build");
-      if (pkgJson.scripts.typecheck) detected.typecheckCommand = buildNodeScriptCommand(detected.packageManager, "typecheck");
+      detected.testCommand = targetToolchain.commands.test.command ?? undefined;
+      detected.lintCommand = targetToolchain.commands.lint.command ?? undefined;
+      detected.buildCommand = targetToolchain.commands.build.command ?? undefined;
+      detected.typecheckCommand = targetToolchain.commands.typecheck.command ?? undefined;
 
       // Attempt framework detection from dependencies
       const deps = { ...pkgJson.dependencies, ...pkgJson.devDependencies };
@@ -116,11 +122,23 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
       if (makefile?.includes("build:")) detected.buildCommand = "make build";
     }
 
-    // 3. Merge: existing profile values (user overrides) take precedence
-    const merged: Partial<WorkspaceProfile> = mergeWorkspaceProfile(existingProfile, detected, activeWorkspaceId);
+    // 3. Keep user-selected shell/flags, but replace every auto-detected command
+    // with the current repository snapshot. Missing commands intentionally clear
+    // stale generated values from prior runs.
+    const merged: Partial<WorkspaceProfile> = {
+      ...detected,
+      workspaceId: activeWorkspaceId,
+      testFramework: detected.testFramework ?? existingProfile?.testFramework,
+      shell: existingProfile?.shell,
+      flags: existingProfile?.flags,
+      updatedAt: new Date().toISOString(),
+    };
 
     // 4. Upsert the merged profile
-    await tursoService.upsertWorkspaceProfile(merged as any);
+    await tursoService.upsertWorkspaceProfile(
+      { ...merged, workspaceId: activeWorkspaceId },
+      { replaceDetectedFields: true },
+    );
 
     return JSON.stringify(merged, null, 2);
   },
@@ -130,54 +148,6 @@ function isNodePackageManager(value: unknown): value is "bun" | "pnpm" | "yarn" 
   return value === "bun" || value === "pnpm" || value === "yarn" || value === "npm";
 }
 
-function buildNodeScriptCommand(packageManager: string | undefined, script: string) {
-  const manager = isNodePackageManager(packageManager) ? packageManager : "npm";
-  return `${manager} run ${script}`;
-}
-
-function isGeneratedNodeScriptCommand(command: string | undefined, script: string) {
-  if (command?.match(new RegExp(`^(bun|npm|pnpm|yarn) run ${script}$`))) {
-    return true;
-  }
-  if (script !== "typecheck" || !command) {
-    return false;
-  }
-  return /^(?:bunx|npx)\s+(?:tsc|typescript)\b|^(?:pnpm|yarn)\s+dlx(?:\s+--\S+)*\s+(?:tsc|typescript)\b|^(?:npm\s+(?:exec|x)|bun\s+x)(?:\s+--\S+)*\s+(?:tsc|typescript)\b/i.test(command);
-}
-
-function mergeCommand(
-  existingCommand: string | undefined,
-  detectedCommand: string | undefined,
-  script: string,
-) {
-  if (!detectedCommand) {
-    return existingCommand && isGeneratedNodeScriptCommand(existingCommand, script)
-      ? undefined
-      : existingCommand;
-  }
-  if (!existingCommand || isGeneratedNodeScriptCommand(existingCommand, script)) {
-    return detectedCommand;
-  }
-  return existingCommand;
-}
-
-function mergeWorkspaceProfile(
-  existingProfile: WorkspaceProfile | null,
-  detected: Partial<WorkspaceProfile>,
-  workspaceId: string,
-): Partial<WorkspaceProfile> {
-  return {
-    ...detected,
-    ...(existingProfile || {}),
-    workspaceId,
-    packageManager: detected.packageManager ?? existingProfile?.packageManager,
-    testFramework: detected.testFramework ?? existingProfile?.testFramework,
-    testCommand: mergeCommand(existingProfile?.testCommand, detected.testCommand, "test"),
-    lintCommand: mergeCommand(existingProfile?.lintCommand, detected.lintCommand, "lint"),
-    buildCommand: mergeCommand(existingProfile?.buildCommand, detected.buildCommand, "build"),
-    typecheckCommand: mergeCommand(existingProfile?.typecheckCommand, detected.typecheckCommand, "typecheck"),
-  };
-}
 
 export function impactAwarePatchSmokeTest(): { ok: boolean; message: string; exports: string[] } {
   return {

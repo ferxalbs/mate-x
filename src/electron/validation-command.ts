@@ -39,8 +39,11 @@ export function findValidationPlanCommand(
   if (!validationPlan) return undefined;
 
   const normalizedCommand = normalizeValidationCommand(command);
-  for (const slot of ["primary", "fallback"] as const) {
-    const candidate = validationPlan[slot];
+  const candidates = [
+    ...(["primary", "fallback"] as const).map((slot) => ({ slot, candidate: validationPlan[slot] })),
+    ...(validationPlan.requirements ?? []).map((candidate) => ({ slot: `requirement:${candidate.requirementId}`, candidate })),
+  ];
+  for (const { slot, candidate } of candidates) {
     if (
       candidate.availability !== "unresolved" &&
       candidate.command &&
@@ -60,6 +63,16 @@ export function findValidationPlanCommand(
 /** True for commands that claim to produce validation proof, not diagnostics. */
 export function isValidationLikeCommand(command: string) {
   return VALIDATION_COMMAND_RE.test(normalizeValidationCommand(command));
+}
+
+/** Historical/generated validation commands are never current repository authority. */
+export function isObsoleteValidationCommand(command: string) {
+  const normalized = normalizeValidationCommand(command).toLowerCase();
+  return /^(?:bunx|npx)\b/.test(normalized) ||
+    /^(?:pnpm|yarn)\s+dlx\b/.test(normalized) ||
+    /^(?:npm\s+(?:exec|x)|bun\s+x)\b/.test(normalized) &&
+      !/\b--no-install\b|\b--offline\b/.test(normalized) ||
+    /^(?:tsc|typescript)\b/.test(normalized);
 }
 
 export function isValidationResolutionCause(

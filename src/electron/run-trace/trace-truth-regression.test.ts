@@ -475,6 +475,12 @@ describe("trace and terminal truth regression", () => {
         managerSource: "/repo",
         status: "ambiguous",
         cause: "TOOLCHAIN_AMBIGUOUS",
+        commands: {
+          test: { command: null, source: null, guarantee: null },
+          typecheck: { command: null, source: null, guarantee: null },
+          lint: { command: null, source: null, guarantee: null },
+          build: { command: null, source: null, guarantee: null },
+        },
         typecheck: { command: null, source: null, guarantee: null },
       },
     });
@@ -494,6 +500,16 @@ describe("trace and terminal truth regression", () => {
         manager: "npm",
         managerSource: "/repo/package-lock.json",
         status: "resolved",
+        commands: {
+          test: { command: null, source: null, guarantee: null },
+          typecheck: {
+            command: "npm exec --offline --no -- tsc --noEmit",
+            source: "local_toolchain",
+            guarantee: "local_only_no_install",
+          },
+          lint: { command: null, source: null, guarantee: null },
+          build: { command: null, source: null, guarantee: null },
+        },
         typecheck: {
           command: "npm exec --offline --no -- tsc --noEmit",
           source: "local_toolchain",
@@ -566,6 +582,12 @@ describe("trace and terminal truth regression", () => {
         managerSource: "/repo/package.json#packageManager",
         status: "unavailable",
         cause: "TYPECHECK_UNAVAILABLE",
+        commands: {
+          test: { command: null, source: null, guarantee: null },
+          typecheck: { command: null, source: null, guarantee: null },
+          lint: { command: null, source: null, guarantee: null },
+          build: { command: null, source: null, guarantee: null },
+        },
         typecheck: { command: null, source: null, guarantee: null },
       },
     });
@@ -637,6 +659,12 @@ describe("trace and terminal truth regression", () => {
         managerSource: "/repo/package.json#packageManager",
         status: "unavailable",
         cause: "TYPECHECK_UNAVAILABLE",
+        commands: {
+          test: { command: null, source: null, guarantee: null },
+          typecheck: { command: null, source: null, guarantee: null },
+          lint: { command: null, source: null, guarantee: null },
+          build: { command: null, source: null, guarantee: null },
+        },
         typecheck: { command: null, source: null, guarantee: null },
       },
     });
@@ -711,6 +739,12 @@ describe("trace and terminal truth regression", () => {
         managerSource: "/repo/package.json#packageManager",
         status: "unavailable",
         cause: "TYPECHECK_UNAVAILABLE",
+        commands: {
+          test: { command: null, source: null, guarantee: null },
+          typecheck: { command: null, source: null, guarantee: null },
+          lint: { command: null, source: null, guarantee: null },
+          build: { command: null, source: null, guarantee: null },
+        },
         typecheck: { command: null, source: null, guarantee: null },
       },
     });

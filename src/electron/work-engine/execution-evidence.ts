@@ -10,6 +10,7 @@ import type { WorkPlan } from "./types";
 import type { WorkStage } from "./stages";
 import {
   isExecutableValidationCommand,
+  isValidationResolutionCause,
   validationRequirementForCommand,
   type ValidationRequirementId,
 } from "../validation-command";
@@ -37,9 +38,16 @@ export function normalizeToolEvidence(
     code === "ERR_APPROVAL_REQUIRED" ||
     status === "awaiting_approval" ||
     /approval required|requires approval|needs approval|policy stop .*pending|awaiting approval/i.test(output);
+  const validationCause = isValidationResolutionCause(errorDetails?.cause)
+    ? errorDetails.cause
+    : undefined;
+  const resolutionBlocked = VALIDATION_TOOL_RE.test(toolName) &&
+    code === "DEPENDENCY_UNAVAILABLE" &&
+    Boolean(validationCause);
   const trustBlocked =
     !approvalRequired &&
-    (code === "FORBIDDEN" ||
+    (resolutionBlocked ||
+      code === "FORBIDDEN" ||
       status === "blocked" ||
       /workspace trust contract blocks|provider domain blocked|path must remain|policy stop .*declined|policy .*rejected/i.test(output));
   const failed =
@@ -114,14 +122,7 @@ export function normalizeToolEvidence(
         ? validationRequirementId
         : undefined,
     validationAuthorization,
-    validationCause:
-      errorDetails?.cause === "TOOLCHAIN_AMBIGUOUS"
-        ? "TOOLCHAIN_AMBIGUOUS"
-        : errorDetails?.cause === "TYPECHECK_UNAVAILABLE"
-        ? "TYPECHECK_UNAVAILABLE"
-        : errorDetails?.cause === "VALIDATION_COMMAND_UNRESOLVED"
-          ? "VALIDATION_COMMAND_UNRESOLVED"
-          : undefined,
+    validationCause,
     requiredUserAction:
       trustBlocked || approvalRequired
         ? typeof error?.recommendedNextAction === "string"
@@ -394,7 +395,8 @@ function reconcileToolEntries(executions: ToolExecutionRecord[]) {
   return entries
     .filter((entry, index) => {
       if (
-        entry.evidence.validationStatus === "failed" &&
+        (entry.evidence.validationStatus === "failed" ||
+          entry.evidence.validationStatus === "blocked") &&
         isResolutionFailure(entry.evidence.validationCause) &&
         entry.evidence.validationRequirementId &&
         approvedRecoveryRequirements.has(entry.evidence.validationRequirementId)

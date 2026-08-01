@@ -1,5 +1,6 @@
 import type { WorkspaceSummary } from "../../contracts/workspace";
 import type { WorkingSet } from "../../contracts/working-set";
+import type { BehaviorMode } from "../../contracts/behavior-mode";
 import { repoGraphService } from "../repo-graph-service";
 import {
   buildWorkPlanFromSnapshot,
@@ -8,7 +9,7 @@ import {
   type WorkPlanInputSnapshot,
 } from "./work-engine-core";
 import type { WorkPlan } from "./types";
-import { collectRepositoryToolchainProfile } from "../repository-toolchain";
+import { collectRepositoryToolchainProfile, type RepositoryToolchainProfile } from "../repository-toolchain";
 
 export { buildWorkPlanFromSnapshot, buildWorkPlanMetadata, renderWorkPlanForPrompt };
 export type { WorkPlanInputSnapshot };
@@ -18,6 +19,8 @@ interface BuildWorkPlanInput {
   workspace: WorkspaceSummary;
   gitStatus: string[];
   workingSet: WorkingSet;
+  targetToolchain?: RepositoryToolchainProfile;
+  behaviorMode?: BehaviorMode;
 }
 
 export async function buildWorkPlan(input: BuildWorkPlanInput): Promise<WorkPlan> {
@@ -28,20 +31,24 @@ async function collectWorkPlanSnapshotFromElectronServices(
   input: BuildWorkPlanInput,
 ): Promise<WorkPlanInputSnapshot> {
   const changedFiles = normalizeChangedFiles(input.gitStatus);
-  const [entrypoints, ipcSurface, envUsage, dependencySurface, impactedFiles, targetToolchain] = await Promise.all([
+  const [entrypoints, ipcSurface, envUsage, dependencySurface, impactedFiles] = await Promise.all([
     repoGraphService.getEntrypoints(input.workspace).catch(() => []),
     repoGraphService.getIpcSurface(input.workspace).catch(() => []),
     repoGraphService.getEnvUsage(input.workspace).catch(() => []),
     repoGraphService.getDependencySurface(input.workspace).catch(() => []),
     collectImpactedFiles(input.workspace, input.workingSet).catch(() => []),
-    collectRepositoryToolchainProfile({
-      root: input.workspace.path,
-      changedFiles,
-    }),
   ]);
+  const targetToolchain = input.targetToolchain ?? await collectRepositoryToolchainProfile({
+    root: input.workspace.path,
+    changedFiles,
+  });
   return {
     prompt: input.prompt,
-    mode: "execute",
+    mode: input.behaviorMode === "review"
+      ? "analyze"
+      : input.behaviorMode === "plan"
+        ? "quality"
+        : "execute",
     workspace: {
       root: input.workspace.path,
       name: input.workspace.name,

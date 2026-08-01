@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { FailureMemory } from '../contracts/workspace';
 import { ToolRateLimiter } from './tools/tool-rate-limiter';
 import { tursoService } from './turso-service';
+import { isObsoleteValidationCommand } from './validation-command';
 
 export interface FailureMemoryInput {
   workspaceId: string;
@@ -125,6 +126,7 @@ export class FailureMemoryEngine {
     );
 
     return failures
+      .filter((failure) => !isObsoleteValidationCommand(failure.command))
       .map((failure) => scoreFailure(failure, {
         ...query,
         errorSignature: signature,

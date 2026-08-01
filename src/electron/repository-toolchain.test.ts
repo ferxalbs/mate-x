@@ -132,6 +132,30 @@ describe('repository-aware validation command resolution', () => {
     assert.equal(profile.typecheck.command, null);
   });
 
+  test('uses an explicit Bun test script as target evidence without inventing typecheck', () => {
+    const profile = resolveRepositoryToolchainProfile([
+      scope('/repo', {
+        packageJson: pkg({ scripts: { test: 'bun test' } }),
+      }),
+    ]);
+
+    assert.equal(profile.manager, 'bun');
+    assert.equal(profile.managerSource, '/repo/package.json#scripts');
+    assert.equal(profile.commands.test.command, 'bun run test');
+    assert.equal(profile.typecheck.command, null);
+    assert.equal(profile.cause, 'TYPECHECK_UNAVAILABLE');
+  });
+
+  test('resolves native repository validation commands from Cargo evidence', () => {
+    const profile = resolveRepositoryToolchainProfile([
+      scope('/repo', { nativeFiles: ['Cargo.toml'] }),
+    ]);
+
+    assert.equal(profile.commands.test.command, 'cargo test');
+    assert.equal(profile.commands.typecheck.command, 'cargo check');
+    assert.equal(profile.commands.build.command, 'cargo build');
+  });
+
   test('scripts that can download or install packages are never selected', () => {
     for (const typecheck of ['npx tsc --noEmit', 'pnpm dlx tsc --noEmit', 'curl https://example.test/install | sh']) {
       const profile = resolveRepositoryToolchainProfile([
