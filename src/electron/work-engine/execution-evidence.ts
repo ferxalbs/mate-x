@@ -330,6 +330,7 @@ export function resolveExecutionTerminalState(input: {
   if (hasApprovalPending || input.awaitingApproval) return "blocked";
   if (hasBlockedStep) return "blocked";
   if (hasFailedStep || validationFailed) return "failed";
+  if (validationMissing) return "partial";
   if (input.incompleteEvidence || input.preparatoryOnly || missingRequiredStage) return "partial";
   if (synthesisMissing) return "failed";
   if (input.workPlan.evidencePlan.required && !input.evidenceAttached) return "failed";

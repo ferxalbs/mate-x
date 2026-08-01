@@ -11,7 +11,22 @@ MaTE X is an Electron desktop application that verifies AI-written repository ch
 
 Primary platform is macOS (Intel and Apple Silicon). Windows 10+ remains architecturally supported but is qualified separately. Linux is out of scope.
 
-Use Bun only. Do not use npm, pnpm, yarn, or npx for installs, scripts, package execution, dependency changes, or lockfile updates.
+Use Bun only for developing, testing, building, packaging, and changing dependencies in this MaTE X repository. Do not use npm, pnpm, yarn, or npx for MaTE X installs, scripts, package execution, dependency changes, or lockfile updates. This contributor rule MUST NOT be reused as product logic for repositories opened by MaTE X.
+
+## Universal target-repository toolchain rule (mandatory)
+
+MaTE X is OSS and must operate consistently across machines and arbitrary repositories. Keep `HostDevelopmentToolchain` and `TargetRepositoryToolchain` strictly separate.
+
+- MaTE X development uses Bun. An opened repository uses only the toolchain proven by repository-scoped evidence for the owning package/workspace.
+- Resolve from manifests, `packageManager`, scripts, engines, declared dependencies, lockfiles, workspace metadata, TypeScript/Deno configuration, and framework evidence. Never select from global `PATH`, home caches, shell aliases, MaTE X dependencies, or the executable that launched the app.
+- Never use Bun as a generic TypeScript fallback. `bun`, `bunx`, or `bun x --no-install` is valid only when repository evidence selects Bun and the Bun adapter guarantees local, no-install execution.
+- Treat npm, pnpm, Yarn Classic/Berry, Bun, Deno, package-manager-neutral TypeScript, and mixed monorepos as first-class environments behind typed, extensible adapters.
+- Resolution order: explicit repository validation script; locally declared and available toolchain for the owning package; compatible repository-level toolchain; typed unavailable outcome.
+- Conflicting lockfiles, contradictory metadata, unresolved workspace ownership, or incompatible versions produce `TOOLCHAIN_AMBIGUOUS`/equivalent. Never silently choose Bun or whichever global binary exists.
+- Never download/install packages, mutate manifests or lockfiles, enable Corepack, or use network-backed package execution without explicit approval. Declared but unavailable tooling produces a typed unavailable/approval outcome.
+- Target commands using npm, pnpm, Yarn, Bun, or Deno are allowed only through the resolved target adapter, capability policy, workspace boundary, no-install guarantee, and evidence pipeline. This does not relax Bun-only contributor tooling for MaTE X itself.
+- Validation passes only when the resolved target command actually ran, has a concrete execution ID, satisfies the required validation capability, and exits successfully. Placeholder commands and host probes never count.
+- Every toolchain resolver change requires a regression matrix covering all supported managers, missing tools, ambiguous metadata, mixed workspaces, offline/no-install behavior, and proof that host-global tools cannot affect selection.
 
 ## Commands
 
@@ -97,6 +112,8 @@ Work Engine creates deterministic plans before model execution, tracks execution
 Production agent runtime is a custom multi-pass main-process tool loop against Rainy's OpenAI-compatible API. It does not use Vercel AI SDK agent loops in production. Chat and Responses runners must retain behavior parity unless a provider limitation is documented. Tool guidance may prefer starting tools, but product safety gates—not hard runbook allowlists—control execution.
 
 MaTE X analyzes arbitrary third-party repositories. Do not hardcode MaTE-specific paths, filenames, fixtures, or scanner assumptions into general analysis logic. Classify repository evidence semantically by framework, runtime surface, trust boundary, data flow, environment, source role, and confidence.
+
+Repository classification includes toolchain ownership. Never derive a target repository's package manager, compiler, validation command, or runtime from MaTE X's Bun-based development environment or from globally installed user tools.
 
 ## Security and compliance
 

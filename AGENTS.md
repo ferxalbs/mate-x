@@ -80,7 +80,22 @@ Do not glob-read these paths. Access a specific file only when the task explicit
 
 ## Build, Verification & Release Commands (Reference Only — Do Not Run Unless Asked)
 
-**Runtime rule:** Use Bun only. Do not use `npm`, `pnpm`, `yarn`, or `npx` for installs, scripts, package execution, dependency changes, or lockfile updates. If `bun` is not on `PATH`, use the local Bun binary (for example `~/.bun/bin/bun`).
+**MaTE X contributor-tooling rule:** Use Bun only when developing, testing, building, packaging, or changing dependencies in this MaTE X repository. Do not use `npm`, `pnpm`, `yarn`, or `npx` for MaTE X installs, scripts, package execution, dependency changes, or lockfile updates. If `bun` is not on `PATH`, use the local Bun binary (for example `~/.bun/bin/bun`). This rule governs the MaTE X source repository only; it MUST NOT influence toolchain selection for repositories opened by the product.
+
+### Universal Target-Repository Toolchain Policy (MANDATORY)
+
+MaTE X is OSS and analyzes arbitrary repositories. Product runtime MUST remain independent from the developer's machine, MaTE X's Bun-based build, and whichever executables happen to exist globally on the user's system.
+
+1. **Separate host from target**: `HostDevelopmentToolchain` is Bun for this repository. `TargetRepositoryToolchain` is discovered independently for each opened repository and, in a monorepo, for the owning workspace/package. Never copy defaults, commands, executable paths, or package-manager assumptions from the host into the target profile.
+2. **Repository evidence is authoritative**: Resolve the target toolchain only from repository-scoped evidence such as manifest fields (`packageManager`, scripts, engines, declared dependencies), lockfiles, workspace configuration, TypeScript/Deno configuration, framework metadata, and the package owning the affected files.
+3. **Never infer from the user's machine**: Global `PATH`, globally installed binaries, shell aliases, home-directory caches, MaTE X dependencies, and the package manager used to launch MaTE X are non-authoritative and MUST NOT select or upgrade a target toolchain.
+4. **No universal Bun fallback**: Never translate “TypeScript exists” into `bun`, `bunx`, or `bun x`. Never use `bun x --no-install tsc --noEmit` unless repository evidence specifically selects Bun for the relevant package and the Bun adapter proves local, no-install execution.
+5. **Multiple TypeScript environments are first-class**: Architecture and tests MUST cover npm, pnpm, Yarn Classic/Berry, Bun, Deno, package-manager-neutral projects, and monorepos whose packages may require different commands. Use an extensible typed adapter boundary; do not spread package-manager conditionals through tools or finalizers.
+6. **Deterministic resolution order**: Prefer an explicit repository validation script; then a locally declared and available toolchain for the owning package; then a compatible repository-level toolchain; otherwise return a typed unavailable outcome. Never invent a command merely to make validation appear runnable.
+7. **Ambiguity must stay visible**: Conflicting lockfiles, contradictory `packageManager` metadata, unresolved workspace ownership, or incompatible toolchain versions MUST produce a typed `TOOLCHAIN_AMBIGUOUS`/equivalent result. Never silently choose Bun or the first executable found.
+8. **No implicit acquisition or mutation**: Validation MUST NOT download packages, install dependencies, modify manifests/lockfiles, enable Corepack, or use network-backed package execution without explicit user approval. A declared-but-unavailable compiler returns a typed unavailable/approval outcome, not a host fallback.
+9. **Commands are typed capabilities**: Product support for target commands such as `npm`, `pnpm`, `yarn`, `bun`, or `deno` does not violate the MaTE X contributor-tooling rule. These commands may run only through the target repository's resolved adapter, capability policy, workspace boundary, no-install guarantee, and evidence pipeline.
+10. **Validation truth is toolchain-aware**: A TypeScript validation may be marked passed only when the resolved target command actually started, was tied to a concrete execution ID, satisfied the required validation capability, and exited successfully. Placeholder commands, host-tool probes, and unrelated successful commands are never validation evidence.
 
 ### Primary Verification Workflows
 
@@ -301,6 +316,7 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 - **Repository Boundary**: Every tool authorization must enforce the active workspace boundary and repository trust state. Writes outside the active workspace require explicit approval.
 - **Git Authorization**: Git writes, including commit and push, always require explicit user authorization in every behavior mode.
 - **Validation Autonomy**: Safe repository-local lint, typecheck, test, and build commands may run automatically when policy and trust permit them.
+- **Toolchain Independence**: Validation and execution MUST use the repository-scoped `TargetRepositoryToolchain` defined above. No product path may assume Bun because MaTE X itself uses Bun, or select tools from the user's global environment.
 - **Policy Consistency**: Behavior mode and repository trust must never conflict silently. A required approval must produce a concise reason and resume the same EngineeringTask and run context.
 - **Evidence Before Questions**: Inspect repository evidence first. Ask only for material ambiguity, risk, credentials, destructive action, or required approval. Internal specification and planning are never mandatory UI ceremony.
 - **Conversational Projection**: Project workflow state through compact status, inline activity, optional task details, and concise results. Large persistent workflow cards are prohibited in primary conversation.

@@ -4,7 +4,10 @@ import { describe, test } from "bun:test";
 import { buildEvidencePack, type ToolExecutionRecord } from "../evidence-pack";
 import { resolveToolAuthorization } from "../capability-resolver";
 import { InMemoryEngineeringRepository } from "../engineering/in-memory-repository";
-import { buildExecutionEvidence } from "../work-engine/execution-evidence";
+import {
+  buildExecutionEvidence,
+  resolveExecutionTerminalState,
+} from "../work-engine/execution-evidence";
 import { validationPlanner } from "../validation-planner";
 import { buildWorkPlanFromSnapshot } from "../work-engine/work-engine-core";
 import { finalizeWorkRun } from "../work-engine/finalizer";
@@ -495,6 +498,12 @@ describe("trace and terminal truth regression", () => {
     });
     assert.equal(evidence.validation.status, "not_run");
     assert.equal(evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
+    assert.equal(resolveExecutionTerminalState({
+      workPlan,
+      evidence,
+      stages: [],
+      evidenceAttached: true,
+    }), "partial");
   });
 
   test("keeps finalizer, ledger projection, UI outcome, and Evidence Pack in parity", async () => {

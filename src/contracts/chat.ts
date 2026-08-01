@@ -284,6 +284,7 @@ export interface EvidencePackFileChange {
 
 export interface EvidencePackCommand {
   command: string;
+  executionId?: string;
   exitCode?: number;
   summary?: string;
 }
@@ -295,6 +296,7 @@ export interface EvidencePackToolUsage {
 
 export interface EvidencePackTestRun {
   name: string;
+  executionId?: string;
   status: "passed" | "failed" | "skipped" | "unknown";
   summary?: string;
 }
