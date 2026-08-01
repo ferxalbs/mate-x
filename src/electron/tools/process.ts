@@ -1,10 +1,14 @@
 import { execFile, spawn, type ExecFileOptions } from "node:child_process";
+import { access, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
 const SAFE_TOOL_ENV_KEYS = [
   'APPDATA',
+  'BUN_INSTALL',
   'HOME',
   'LOCALAPPDATA',
   'PATH',
@@ -26,13 +30,209 @@ export function buildToolProcessEnv(
   for (const key of SAFE_TOOL_ENV_KEYS) {
     const value = process.env[key];
     if (value) {
-      env[key] = value;
+      env[key] = key === 'PATH' || key === 'Path'
+        ? sanitizeToolPath(value)
+        : value;
     }
   }
 
-  return {
+  const resolvedEnv = {
     ...env,
     ...overrides,
+  };
+  if (resolvedEnv.PATH) {
+    resolvedEnv.PATH = sanitizeToolPath(resolvedEnv.PATH);
+  }
+  if (resolvedEnv.Path) {
+    resolvedEnv.Path = sanitizeToolPath(resolvedEnv.Path);
+  }
+  return resolvedEnv;
+}
+
+export type ToolPackageManager = 'bun' | 'npm' | 'pnpm' | 'yarn';
+
+export interface ResolvedToolCommand {
+  executable: string;
+  args: string[];
+  packageManager?: ToolPackageManager;
+}
+
+function isNodeModulesBinEntry(entry: string) {
+  const normalized = entry.replace(/[\\/]+$/, '');
+  return normalized.split(/[\\/]/).slice(-2).join('/') === 'node_modules/.bin';
+}
+
+function sanitizeToolPath(value: string) {
+  const delimiter = process.platform === 'win32' ? ';' : ':';
+  return value
+    .split(delimiter)
+    .filter((entry) => entry && !isNodeModulesBinEntry(entry))
+    .join(delimiter);
+}
+
+function pathEnvEntries(env: NodeJS.ProcessEnv) {
+  return (env.PATH ?? env.Path ?? '')
+    .split(process.platform === 'win32' ? ';' : ':')
+    .filter(Boolean);
+}
+
+function executableNames(command: string) {
+  if (process.platform !== 'win32') {
+    return [command];
+  }
+
+  if (/\.(exe|cmd|bat)$/i.test(command)) {
+    return [command];
+  }
+
+  const extensions = (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM')
+    .split(';')
+    .filter(Boolean);
+  return [command, ...extensions.map((extension) => `${command}${extension.toLowerCase()}`)];
+}
+
+async function isExecutableFile(path: string) {
+  try {
+    await access(path, constants.X_OK);
+    const pathStat = await stat(path);
+    return pathStat.isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function lookupExecutableOnPath(
+  command: string,
+  env: NodeJS.ProcessEnv,
+  skipNodeModulesBin = false,
+) {
+  if (command.includes('/') || command.includes('\\')) {
+    return await isExecutableFile(command) ? command : undefined;
+  }
+
+  for (const entry of pathEnvEntries(env)) {
+    if (skipNodeModulesBin && isNodeModulesBinEntry(entry)) {
+      continue;
+    }
+
+    for (const executableName of executableNames(command)) {
+      const candidate = join(entry, executableName);
+      if (await isExecutableFile(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function lookupBunExecutableOnPath(env: NodeJS.ProcessEnv) {
+  for (const entry of pathEnvEntries(env)) {
+    if (isNodeModulesBinEntry(entry)) {
+      continue;
+    }
+
+    const candidate = join(
+      entry,
+      process.platform === 'win32' ? 'bun.exe' : 'bun',
+    );
+    if (await isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function packageManagerForCommand(command: string): ToolPackageManager | undefined {
+  const name = basename(command).replace(/\.(cmd|exe|bat)$/i, '').toLowerCase();
+  if (name === 'bun' || name === 'bunx') return 'bun';
+  if (name === 'npm') return 'npm';
+  if (name === 'pnpm') return 'pnpm';
+  if (name === 'yarn') return 'yarn';
+  return undefined;
+}
+
+function isBunProcessPath(path: string | undefined) {
+  return path ? basename(path).toLowerCase().startsWith('bun') : false;
+}
+
+export function normalizePackageManagerInvocation(input: {
+  cmd: string;
+  args: readonly string[];
+}) {
+  const name = basename(input.cmd).replace(/\.(cmd|exe|bat)$/i, '').toLowerCase();
+  if (name === 'bunx') {
+    return {
+      cmd: 'bun',
+      args: ['x', ...input.args],
+    };
+  }
+
+  return {
+    cmd: input.cmd,
+    args: [...input.args],
+  };
+}
+
+export async function resolveToolCommand(input: {
+  cmd: string;
+  args: readonly string[];
+  env?: NodeJS.ProcessEnv;
+}): Promise<ResolvedToolCommand> {
+  const env = input.env ?? process.env;
+  const normalized = normalizePackageManagerInvocation(input);
+  const packageManager = packageManagerForCommand(normalized.cmd);
+
+  if (packageManager === 'bun') {
+    const bunInstallCandidate = env.BUN_INSTALL
+      ? join(
+          env.BUN_INSTALL,
+          'bin',
+          process.platform === 'win32' ? 'bun.exe' : 'bun',
+        )
+      : undefined;
+    if (bunInstallCandidate && await isExecutableFile(bunInstallCandidate)) {
+      return { executable: bunInstallCandidate, args: normalized.args, packageManager };
+    }
+
+    const pathCandidate = await lookupBunExecutableOnPath(env);
+    if (pathCandidate) {
+      return { executable: pathCandidate, args: normalized.args, packageManager };
+    }
+
+    if (isBunProcessPath(process.execPath) && await isExecutableFile(process.execPath)) {
+      return { executable: process.execPath, args: normalized.args, packageManager };
+    }
+  }
+
+  const lookupCommand = packageManager && (normalized.cmd.includes('/') || normalized.cmd.includes('\\'))
+    ? packageManager
+    : normalized.cmd;
+  const executable = await lookupExecutableOnPath(
+    lookupCommand,
+    env,
+    Boolean(packageManager),
+  );
+  return {
+    executable: executable ?? lookupCommand,
+    args: normalized.args,
+    packageManager,
+  };
+}
+
+export async function resolveToolExecutable(input: {
+  cmd: string;
+  env?: NodeJS.ProcessEnv;
+}) {
+  const resolved = await resolveToolCommand({
+    cmd: input.cmd,
+    args: [],
+    env: input.env,
+  });
+  return {
+    executable: resolved.executable,
+    packageManager: resolved.packageManager,
   };
 }
 

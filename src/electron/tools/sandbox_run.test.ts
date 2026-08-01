@@ -55,6 +55,7 @@ const {
   resolveSandboxExecutionMode,
   sandboxRunnerTool,
 } = await import("./sandbox_run");
+const { normalizePackageManagerInvocation } = await import("./process");
 
 describe("sandbox_run command parsing", () => {
   test("parses a direct command with quoted args", () => {
@@ -84,6 +85,19 @@ describe("sandbox_run command parsing", () => {
 });
 
 describe("sandbox_run executable resolution", () => {
+  test("normalizes bunx to the real Bun package runner", () => {
+    assert.deepEqual(
+      normalizePackageManagerInvocation({
+        cmd: "bunx",
+        args: ["tsc", "--noEmit"],
+      }),
+      {
+        cmd: "bun",
+        args: ["x", "tsc", "--noEmit"],
+      },
+    );
+  });
+
   test("prefers a real bun binary over a local node_modules shim", async () => {
     // PATH delimiter + executable extension semantics differ on Windows;
     // this resolution contract is validated on POSIX CI hosts.
@@ -112,6 +126,39 @@ describe("sandbox_run executable resolution", () => {
 
     assert.equal(resolved.executable, realBun);
     assert.equal(resolved.packageManager, "bun");
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+
+  test("does not resolve bunx or npm from a node_modules shim", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const workspacePath = join(tmpdir(), `mate-x-package-manager-resolve-${Date.now()}`);
+    const localBin = join(workspacePath, "node_modules", ".bin");
+    const realBin = join(workspacePath, "real-bin");
+    await mkdir(localBin, { recursive: true });
+    await mkdir(realBin, { recursive: true });
+
+    for (const name of ["bunx", "npm"]) {
+      const localShim = join(localBin, name);
+      const realExecutable = join(realBin, name === "bunx" ? "bun" : name);
+      await writeFile(localShim, "not a native executable");
+      await writeFile(realExecutable, "#!/bin/sh\nexit 0\n");
+      await chmod(localShim, 0o755);
+      await chmod(realExecutable, 0o755);
+
+      const resolved = await resolveSandboxExecutable({
+        cmd: name,
+        env: {
+          PATH: `${localBin}:${realBin}`,
+        },
+      });
+
+      assert.equal(resolved.executable, realExecutable);
+      assert.equal(resolved.packageManager, name === "bunx" ? "bun" : "npm");
+    }
+
     await rm(workspacePath, { force: true, recursive: true });
   });
 });

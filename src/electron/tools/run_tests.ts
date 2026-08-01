@@ -8,6 +8,7 @@ import {
   buildToolProcessEnv,
   killProcessTree,
   parseDirectCommand,
+  resolveToolCommand,
   spawnAbortable,
 } from "./process";
 import { failTool } from "../tool-result";
@@ -173,6 +174,24 @@ export const runTestsTool: Tool = {
       baseCommand,
       ...commandArgs.map(quoteDisplayArg),
     ].join(" ") + shellFallbackSuffix;
+    const processEnv = buildToolProcessEnv({ FORCE_COLOR: "0" });
+    let resolvedDirectCommand: Awaited<ReturnType<typeof resolveToolCommand>> | undefined;
+    if (!profile?.shell && !shellFallbackSuffix) {
+      try {
+        const parsedCommand = parseDirectCommand(baseCommand);
+        resolvedDirectCommand = await resolveToolCommand({
+          cmd: parsedCommand.cmd,
+          args: parsedCommand.cmdArgs,
+          env: processEnv,
+        });
+      } catch (error) {
+        return failTool(
+          "run_tests",
+          error instanceof Error ? error.message : "Validation command could not be resolved.",
+          "EXECUTION_ERROR",
+        );
+      }
+    }
 
     // Attempt to broadcast stream chunk to UI
     const broadcastStream = (chunk: string) => {
@@ -219,15 +238,17 @@ export const runTestsTool: Tool = {
           child = spawn(command, {
             cwd: context.workspacePath,
             shell: profile?.shell || (isWindows ? "cmd.exe" : "/bin/sh"),
-            env: buildToolProcessEnv({ FORCE_COLOR: "0" }),
+            env: processEnv,
             detached: !isWindows,
             windowsHide: true,
           });
         } else {
-          const parsedCommand = parseDirectCommand(baseCommand);
-          child = spawnAbortable(parsedCommand.cmd, [...parsedCommand.cmdArgs, ...commandArgs], {
+          if (!resolvedDirectCommand) {
+            throw new Error("Validation command resolution is missing.");
+          }
+          child = spawnAbortable(resolvedDirectCommand.executable, [...resolvedDirectCommand.args, ...commandArgs], {
             cwd: context.workspacePath,
-            env: buildToolProcessEnv({ FORCE_COLOR: "0" }),
+            env: processEnv,
             signal: context.signal,
             detached: !isWindows,
             windowsHide: true,

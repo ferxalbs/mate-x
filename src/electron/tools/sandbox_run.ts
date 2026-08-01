@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
-import { access, copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
-import { constants } from "node:fs";
+import { copyFile, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import * as electron from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
@@ -11,8 +10,12 @@ import type { Tool } from "../tool-service";
 import {
   buildToolProcessEnv,
   killProcessTree,
+  normalizePackageManagerInvocation,
   parseDirectCommand,
+  resolveToolCommand,
+  resolveToolExecutable,
   spawnAbortable,
+  type ToolPackageManager,
 } from "./process";
 import {
   createToolError,
@@ -45,7 +48,7 @@ const sandboxRunQueues = new Map<string, Promise<void>>();
 const powerSaveBlocker = electron.powerSaveBlocker;
 type PowerSaveBlockerType = "prevent-app-suspension" | "prevent-display-sleep";
 type SandboxExecutionMode = "direct" | "isolated-copy";
-type PackageManagerName = "bun" | "npm" | "pnpm" | "yarn";
+type PackageManagerName = ToolPackageManager;
 type SandboxStatus =
   | "PASSED"
   | "FAILED"
@@ -57,111 +60,11 @@ export function parseSandboxCommand(command: string) {
   return parseDirectCommand(command);
 }
 
-async function isExecutableFile(path: string) {
-  try {
-    await access(path, constants.X_OK);
-    const pathStat = await stat(path);
-    return pathStat.isFile();
-  } catch {
-    return false;
-  }
-}
-
-function pathEnvEntries(env: NodeJS.ProcessEnv) {
-  return (env.PATH ?? env.Path ?? "")
-    .split(process.platform === "win32" ? ";" : ":")
-    .filter(Boolean);
-}
-
-function executableNames(command: string) {
-  if (process.platform !== "win32") {
-    return [command];
-  }
-
-  if (/\.(exe|cmd|bat)$/i.test(command)) {
-    return [command];
-  }
-
-  const extensions = (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM")
-    .split(";")
-    .filter(Boolean);
-  return [command, ...extensions.map((extension) => `${command}${extension.toLowerCase()}`)];
-}
-
-async function lookupExecutableOnPath(command: string, env: NodeJS.ProcessEnv) {
-  if (command.includes("/") || command.includes("\\")) {
-    return await isExecutableFile(command) ? command : undefined;
-  }
-
-  for (const entry of pathEnvEntries(env)) {
-    for (const executableName of executableNames(command)) {
-      const candidate = join(entry, executableName);
-      if (await isExecutableFile(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  return undefined;
-}
-
-async function lookupBunExecutableOnPath(env: NodeJS.ProcessEnv) {
-  for (const entry of pathEnvEntries(env)) {
-    if (entry.split(/[\\/]/).slice(-2).join("/") === "node_modules/.bin") {
-      continue;
-    }
-
-    const candidate = join(entry, process.platform === "win32" ? "bun.exe" : "bun");
-    if (await isExecutableFile(candidate)) {
-      return candidate;
-    }
-  }
-
-  return undefined;
-}
-
-function packageManagerForCommand(command: string): PackageManagerName | undefined {
-  const name = basename(command).replace(/\.(cmd|exe|bat)$/i, "");
-  return name === "bun" || name === "npm" || name === "pnpm" || name === "yarn"
-    ? name
-    : undefined;
-}
-
-function isBunProcessPath(path: string | undefined) {
-  return path ? basename(path).toLowerCase().startsWith("bun") : false;
-}
-
 export async function resolveSandboxExecutable(input: {
   cmd: string;
   env?: NodeJS.ProcessEnv;
 }) {
-  const env = input.env ?? process.env;
-  const packageManager = packageManagerForCommand(input.cmd);
-
-  if (packageManager === "bun") {
-    const bunInstall = env.BUN_INSTALL;
-    const bunInstallCandidate = bunInstall
-      ? join(bunInstall, "bin", process.platform === "win32" ? "bun.exe" : "bun")
-      : undefined;
-    if (bunInstallCandidate && await isExecutableFile(bunInstallCandidate)) {
-      return { executable: bunInstallCandidate, packageManager };
-    }
-
-    const pathCandidate = await lookupBunExecutableOnPath(env);
-    if (pathCandidate) {
-      return { executable: pathCandidate, packageManager };
-    }
-
-    if (isBunProcessPath(process.execPath) && await isExecutableFile(process.execPath)) {
-      return { executable: process.execPath, packageManager };
-    }
-  }
-
-  const executable = await lookupExecutableOnPath(input.cmd, env);
-  return {
-    executable: executable ?? input.cmd,
-    packageManager,
-  };
+  return resolveToolExecutable(input);
 }
 
 function resolveSandboxCommand(input: { command: unknown; args: unknown }) {
@@ -630,10 +533,18 @@ export const sandboxRunnerTool: Tool = {
       args.powerSaveBlockerType,
     );
     const childEnv = buildToolProcessEnv({ PORT: port, NODE_ENV: nodeEnv });
-    const resolvedCommand = await resolveSandboxExecutable({
+    const normalizedCommand = normalizePackageManagerInvocation({
       cmd,
+      args: cmdArgs,
+    });
+    cmd = normalizedCommand.cmd;
+    cmdArgs = normalizedCommand.args;
+    const resolvedCommand = await resolveToolCommand({
+      cmd,
+      args: cmdArgs,
       env: childEnv,
     });
+    cmdArgs = resolvedCommand.args;
 
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     const profile = activeWorkspaceId
@@ -643,13 +554,13 @@ export const sandboxRunnerTool: Tool = {
       ? await tursoService.getLatestValidationPlan(activeWorkspaceId)
       : null;
     const plannedValidationCommand = commandMatchesPlannedValidation(
-      command,
+      commandInvocation,
       validationPlan,
     );
     const priorMatches = activeWorkspaceId
       ? await failureMemoryEngine.findSimilarFailures({
           workspaceId: activeWorkspaceId,
-          command,
+          command: commandInvocation,
           framework: validationPlan?.detectedFramework ?? profile?.testFramework,
           limit: 1,
         })
@@ -738,7 +649,7 @@ export const sandboxRunnerTool: Tool = {
           if (plannedValidationCommand) {
             await tursoService.addValidationRun({
               workspaceId: activeWorkspaceId,
-              command: command.trim(),
+              command: commandInvocation,
               scope: `sandbox_run:${plannedValidationCommand}`,
               exitCode,
               status: exitCode === 0 ? "success" : "failed",
@@ -750,7 +661,7 @@ export const sandboxRunnerTool: Tool = {
 
           persistSandboxOutcomeSoon({
               workspaceId: activeWorkspaceId,
-              command,
+              command: commandInvocation,
               exitCode,
               framework: validationPlan?.detectedFramework ?? profile?.testFramework,
               output,
@@ -769,7 +680,7 @@ export const sandboxRunnerTool: Tool = {
       };
 
       const finishStartFailure = (error: Error, pid?: number) => {
-        const failure = formatStartFailure(error, command);
+        const failure = formatStartFailure(error, commandInvocation);
         const spawnErrorCode = (error as NodeJS.ErrnoException).code;
         output = appendOutput(output, `\n[ERROR] ${failure}`, maxOutputChars);
         void finish(
