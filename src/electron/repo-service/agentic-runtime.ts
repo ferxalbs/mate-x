@@ -77,6 +77,9 @@ function buildRunbookPlaybookSection(
   ) {
     sections.push(`Execute validation:
 - Create a validation plan with plan_validation, run the relevant advertised checks, and verify persistence before claiming success.
+- Treat the plan's resolved command and requirement ID as an exact allow-list. Do not edit, paraphrase, or replace a command because a host executable happens to exist.
+- An unresolved requirement is a hard stop: do not call bunx, npx, pnpm dlx, yarn dlx, npm exec, bun x, bare tsc, or an invented fallback without the explicit approval path.
+- A successful diagnostic or one passing requirement never satisfies another required requirement.
 - Report the exact typed result: passed, failed, or blocked by policy. Never infer validation from prose.`);
   }
 
@@ -98,6 +101,43 @@ function buildRunbookPlaybookSection(
   }
 
   return sections.join("\n");
+}
+
+export function buildValidationAuthoritySection(workPlanJson: string) {
+  try {
+    const workPlan = JSON.parse(workPlanJson) as {
+      validationPlan?: {
+        required?: boolean;
+        requirements?: Array<{
+          id?: string;
+          command?: string | null;
+          availability?: string;
+          unavailableCause?: string;
+        }>;
+      };
+    };
+    const validationPlan = workPlan.validationPlan;
+    const requirements = validationPlan?.requirements ?? [];
+    if (!validationPlan?.required || requirements.length === 0) {
+      return "Validation authority for this run:\n- No typed required validation requirements are present in the WorkPlan.";
+    }
+
+    const lines = requirements.map((requirement) => {
+      const command = requirement.command ?? "(none)";
+      const state = requirement.availability === "resolved"
+        ? `resolved: ${command}`
+        : `unresolved: ${requirement.unavailableCause ?? "VALIDATION_COMMAND_UNRESOLVED"}`;
+      return `- ${requirement.id ?? "validation"}: ${state}`;
+    });
+    return [
+      "Validation authority for this run:",
+      "- Required requirements are independent; every line below needs its own typed proof.",
+      ...lines,
+      "- Use only the exact resolved command shown above. Never invent a substitute for an unresolved line.",
+    ].join("\n");
+  } catch {
+    return "Validation authority for this run:\n- WorkPlan validation data could not be parsed; stop and obtain a typed validation plan before executing checks.";
+  }
 }
 
 export function buildAgentSystemPrompt(input: {
@@ -125,6 +165,8 @@ Use only advertised tools. Authorization failures are application states; never 
 Continue from tool results without repeating prior drafts. Stop when evidence is sufficient.
 Repository writes and commands affect real workspace state. Validate changes before claiming completion.
 Privacy placeholders such as [PRIVATE_FILE_PATH] and [SECRET_*] are redactions, not repository text.
+
+${buildValidationAuthoritySection(input.workPlan)}
 
 Working set:
 ${input.workingSet}

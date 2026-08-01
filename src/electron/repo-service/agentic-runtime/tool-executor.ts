@@ -14,7 +14,10 @@ import type { BehaviorMode } from "../../../contracts/behavior-mode";
 import { createPublicToolProgress } from "./public-tool-progress";
 import { resolveToolExecutionPolicy } from "./tool-requirement";
 import type { ToolExecutionPolicy } from "../../../contracts/agent-run-trace";
-import { validationRequirementForCommand } from "../../validation-command";
+import {
+  isValidationResolutionCause,
+  validationRequirementForCommand,
+} from "../../validation-command";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -312,6 +315,12 @@ export async function executeAgentToolCall({
     const rawResult = String(result ?? "");
     const parsedOutput = tryParseJsonObject(rawResult);
     const outputIndicatesFailure = isToolFailureOutput(rawResult);
+    const preliminaryEvidence = normalizeToolEvidence(
+      toolName,
+      toolArgs,
+      rawResult,
+      parsedOutput ?? undefined,
+    );
     const toolEvent = events.find((event) => event.id === eventId);
     if (toolEvent) {
       Object.assign(
@@ -331,7 +340,11 @@ export async function executeAgentToolCall({
         policyService.markStopCompleted(policyStop.id);
       }
     }
-    if (outputIndicatesFailure && (toolName === "run_tests" || toolName === "sandbox_run")) {
+    if (
+      outputIndicatesFailure &&
+      (toolName === "run_tests" || toolName === "sandbox_run") &&
+      !isValidationResolutionCause(preliminaryEvidence.validationCause)
+    ) {
       const { failureMemoryEngine } = await import("../../failure-memory-engine");
       await failureMemoryEngine.recordFailure({
         workspaceId: snapshot.workspace.id,

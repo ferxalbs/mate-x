@@ -34,6 +34,8 @@ export interface ToolExecutionContext {
   signal?: AbortSignal;
   /** Optional run id for correlation / metrics. */
   runId?: string;
+  /** Set only after the canonical approval flow approves this exact operation. */
+  approvedPolicyStopId?: string;
 }
 
 export type ToolLoader = () => Promise<Tool>;

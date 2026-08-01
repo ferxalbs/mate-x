@@ -8,6 +8,7 @@ import type {
 import { createId } from '../lib/id';
 import {
   isExecutableValidationCommand,
+  normalizeValidationCommand,
   validationRequirementForCommand,
 } from './validation-command';
 
@@ -80,7 +81,10 @@ export class ValidationPlanner {
     framework?: string,
   ): ValidationPlanCommand {
     const previousFailureCommand = input.previousFailures.find((run) =>
-      run.status === 'failed' && run.command && isAllowedValidationCommand(run.command),
+      run.status === 'failed' &&
+      run.command &&
+      isAllowedValidationCommand(run.command) &&
+      isCurrentValidationCommand(input, run.command),
     )?.command;
     if (previousFailureCommand) {
       return {
@@ -118,7 +122,7 @@ export class ValidationPlanner {
       };
     }
 
-    const checkCommand = profileCommand(input.profile?.typecheckCommand) ?? scriptCommand(input, 'typecheck');
+    const checkCommand = typecheckCommand(input);
     if (checkCommand && isTypeScriptFramework(framework, changedFiles)) {
       return {
         command: checkCommand,
@@ -173,8 +177,7 @@ export class ValidationPlanner {
     const command =
       profileCommand(input.profile?.testCommand) ??
       scriptCommand(input, 'test') ??
-      profileCommand(input.profile?.typecheckCommand) ??
-      scriptCommand(input, 'typecheck') ??
+      typecheckCommand(input) ??
       profileCommand(input.profile?.buildCommand) ??
       scriptCommand(input, 'build') ??
       profileCommand(input.profile?.lintCommand) ??
@@ -196,8 +199,7 @@ export class ValidationPlanner {
     const command =
       profileCommand(input.profile?.buildCommand) ??
       scriptCommand(input, 'build') ??
-      profileCommand(input.profile?.typecheckCommand) ??
-      scriptCommand(input, 'typecheck') ??
+      typecheckCommand(input) ??
       profileCommand(input.profile?.lintCommand) ??
       scriptCommand(input, 'lint') ??
       this.fullSuiteCommand(input).command;
@@ -234,7 +236,7 @@ export class ValidationPlanner {
         estimatedCost: 'cheap',
         expectedSignal: 'Import, style, React hook, and static rule violations.',
       }),
-      commandFromProfile(profileCommand(input.profile?.typecheckCommand) ?? scriptCommand(input, 'typecheck'), {
+      commandFromProfile(typecheckCommand(input), {
         reason: 'Selected typecheck because it provides contract and cross-module compile signal distinct from the primary command.',
         estimatedCost: 'cheap',
         expectedSignal: 'Type, contract, and cross-module compile errors.',
@@ -334,6 +336,36 @@ function commandFromProfile(
 
 function profileCommand(command?: string) {
   return command && isAllowedValidationCommand(command) ? command : undefined;
+}
+
+function typecheckCommand(input: ValidationPlannerInput) {
+  const profileTypecheck = profileCommand(input.profile?.typecheckCommand);
+  if (profileTypecheck && isRepositoryScopedTypecheckCommand(profileTypecheck)) {
+    return profileTypecheck;
+  }
+  const scriptTypecheck = scriptCommand(input, 'typecheck');
+  return scriptTypecheck && isRepositoryScopedTypecheckCommand(scriptTypecheck)
+    ? scriptTypecheck
+    : undefined;
+}
+
+function isRepositoryScopedTypecheckCommand(command: string) {
+  const normalized = normalizeValidationCommand(command).toLowerCase();
+  if (/^(?:tsc|typescript)\b/.test(normalized)) return false;
+  if (/^(?:bunx|npx)\b/.test(normalized)) return false;
+  if (/\bpnpm\s+dlx\b|\byarn\s+dlx\b/.test(normalized)) return false;
+  if (/\bbun\s+x\b/.test(normalized) && !/\s--no-install(?:\s|$)/.test(normalized)) return false;
+  if (/\bnpm\s+(?:exec|x)\b/.test(normalized) && !/\s--offline(?:\s|$)/.test(normalized)) return false;
+  return true;
+}
+
+function isCurrentValidationCommand(input: ValidationPlannerInput, command: string) {
+  if (validationRequirementForCommand(command) !== 'typecheck') return true;
+  const current = typecheckCommand(input);
+  return Boolean(
+    current &&
+    normalizeValidationCommand(current) === normalizeValidationCommand(command),
+  );
 }
 
 function isAllowedValidationCommand(command: string) {

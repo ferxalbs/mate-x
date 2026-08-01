@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { BrowserWindow } from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
+import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import {
@@ -15,6 +16,7 @@ import { failTool } from "../tool-result";
 import { createId } from "../../lib/id";
 import {
   isExecutableValidationCommand,
+  normalizeValidationCommand,
   validationRequirementForCommand,
 } from "../validation-command";
 
@@ -127,8 +129,65 @@ export const runTestsTool: Tool = {
     }
 
     const validationExecutionId = createId("validation-exec");
-    const requirementId = selectedPlanCommand?.requirementId ??
-      validationRequirementForCommand(baseCommand);
+    const inferredRequirementId = validationRequirementForCommand(baseCommand);
+    const requirementId = inferredRequirementId === "validation"
+      ? selectedPlanCommand?.requirementId ?? inferredRequirementId
+      : inferredRequirementId;
+
+    if (requirementId === "typecheck") {
+      const targetToolchain = await collectRepositoryToolchainProfile({
+        root: context.workspacePath,
+        changedFiles: validationPlan?.changedFiles ?? [],
+      });
+      const targetTypecheckCommand = targetToolchain.typecheck.command;
+      if (
+        targetToolchain.status !== "resolved" ||
+        !targetTypecheckCommand
+      ) {
+        const cause = targetToolchain.cause ?? "TYPECHECK_UNAVAILABLE";
+        return failTool(
+          "run_tests",
+          "The persisted typecheck command is unavailable for the current target repository.",
+          "DEPENDENCY_UNAVAILABLE",
+          {
+            retryable: false,
+            recommendedNextAction:
+              cause === "TOOLCHAIN_AMBIGUOUS"
+                ? "Resolve conflicting target-repository package manager metadata, then re-plan validation."
+                : "Run plan_validation again. If typecheck remains unresolved, request explicit approval for a sandbox fallback.",
+            details: {
+              cause,
+              requirementId,
+              requestedCommand: baseCommand,
+              targetCommand: targetTypecheckCommand,
+              planId: validationPlan?.id,
+            },
+          },
+        );
+      }
+      if (
+        normalizeValidationCommand(baseCommand) !==
+        normalizeValidationCommand(targetTypecheckCommand)
+      ) {
+        return failTool(
+          "run_tests",
+          "The persisted typecheck command is stale for the current target repository.",
+          "DEPENDENCY_UNAVAILABLE",
+          {
+            retryable: false,
+            recommendedNextAction:
+              "Run plan_validation again and execute the exact target-repository typecheck command.",
+            details: {
+              cause: "VALIDATION_COMMAND_UNRESOLVED",
+              requirementId,
+              requestedCommand: baseCommand,
+              targetCommand: targetTypecheckCommand,
+              planId: validationPlan?.id,
+            },
+          },
+        );
+      }
+    }
 
     const commandArgs: string[] = [];
     let shellFallbackSuffix = "";

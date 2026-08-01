@@ -1,3 +1,4 @@
+import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import { validationPlanner } from "../validation-planner";
@@ -41,16 +42,42 @@ export const validationPlanTool: Tool = {
     impactedFiles?: string[];
     packageScripts?: Record<string, string>;
     detectedFramework?: string;
-  }) => {
+  }, context: { workspacePath: string }) => {
     const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
     if (!activeWorkspaceId) {
       return JSON.stringify({ error: "No active workspace ID found." });
     }
 
-    const [profile, previousFailures] = await Promise.all([
+    const [profile, previousFailures, targetToolchain] = await Promise.all([
       tursoService.getWorkspaceProfile(activeWorkspaceId),
       tursoService.getRecentValidationRuns(activeWorkspaceId, 5),
+      collectRepositoryToolchainProfile({
+        root: context.workspacePath,
+        changedFiles: Array.isArray(args.changedFiles) ? args.changedFiles : [],
+      }),
     ]);
+
+    const effectiveProfile = profile
+      ? {
+          ...profile,
+          packageManager: targetToolchain.manager ?? profile.packageManager,
+          typecheckCommand:
+            targetToolchain.status === "resolved"
+              ? targetToolchain.typecheck.command ?? undefined
+              : undefined,
+        }
+      : targetToolchain.status === "resolved"
+        ? {
+            workspaceId: activeWorkspaceId,
+            packageManager: targetToolchain.manager ?? undefined,
+            typecheckCommand: targetToolchain.typecheck.command ?? undefined,
+            updatedAt: new Date().toISOString(),
+          }
+        : null;
+    const packageScripts = { ...(args.packageScripts ?? {}) };
+    if (targetToolchain.status !== "resolved") {
+      delete packageScripts.typecheck;
+    }
 
     const plan = validationPlanner.createPlan({
       objective: args.objective,
@@ -58,10 +85,10 @@ export const validationPlanTool: Tool = {
       impactedFiles: Array.isArray(args.impactedFiles)
         ? args.impactedFiles
         : [],
-      packageScripts: args.packageScripts ?? {},
+      packageScripts,
       detectedFramework: args.detectedFramework,
       previousFailures,
-      profile,
+      profile: effectiveProfile,
     });
 
     await tursoService.setLatestValidationPlan(activeWorkspaceId, plan);

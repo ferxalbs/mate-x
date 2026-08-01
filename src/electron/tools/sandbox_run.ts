@@ -5,6 +5,7 @@ import { dirname, join, relative } from "node:path";
 import * as electron from "electron";
 
 import { failureMemoryEngine } from "../failure-memory-engine";
+import { collectRepositoryToolchainProfile } from "../repository-toolchain";
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import {
@@ -23,7 +24,13 @@ import {
   failTool,
   formatToolFailure,
 } from "../tool-result";
-import { isExecutableValidationCommand } from "../validation-command";
+import {
+  findValidationPlanCommand,
+  isExecutableValidationCommand,
+  isValidationLikeCommand,
+  normalizeValidationCommand,
+  validationRequirementForCommand,
+} from "../validation-command";
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
@@ -295,28 +302,7 @@ function commandMatchesPlannedValidation(
   command: string,
   validationPlan: Awaited<ReturnType<typeof tursoService.getLatestValidationPlan>>,
 ) {
-  const normalizedCommand = command.trim();
-  if (!validationPlan) {
-    return undefined;
-  }
-
-  if (
-    validationPlan.primary.availability !== "unresolved" &&
-    validationPlan.primary.command &&
-    normalizedCommand === validationPlan.primary.command.trim()
-  ) {
-    return "primary" as const;
-  }
-
-  if (
-    validationPlan.fallback.availability !== "unresolved" &&
-    validationPlan.fallback.command &&
-    normalizedCommand === validationPlan.fallback.command.trim()
-  ) {
-    return "fallback" as const;
-  }
-
-  return undefined;
+  return findValidationPlanCommand(command, validationPlan)?.slot;
 }
 
 export async function prepareSandboxWorkspace(input: {
@@ -413,7 +399,7 @@ export async function prepareSandboxWorkspace(input: {
 export const sandboxRunnerTool: Tool = {
   name: "sandbox_run",
   description:
-    "Runs a configurable, time-bounded child process for validation or diagnostics. Defaults to executionMode isolated-copy, which runs in a temporary workspace copy and removes it afterward. executionMode direct runs in the real workspace and requires policy approval because file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project.",
+    "Runs a configurable, time-bounded child process for diagnostics or an explicitly authorized validation command. Validation commands must exactly match the current target-repository validation plan; this tool never selects host tooling or invents fallbacks. Defaults to executionMode isolated-copy, which runs in a temporary workspace copy and removes it afterward. executionMode direct runs in the real workspace and requires policy approval because file writes, package-manager mutations, lockfile updates, and generated artifacts can affect the real project.",
   parameters: {
     type: "object",
     properties: {
@@ -470,7 +456,7 @@ export const sandboxRunnerTool: Tool = {
     },
     required: ["command"],
   },
-  async execute(args, { workspacePath, signal }) {
+  async execute(args, { workspacePath, signal, approvedPolicyStopId }) {
     const { command } = args;
 
     if (signal?.aborted) {
@@ -512,6 +498,80 @@ export const sandboxRunnerTool: Tool = {
       );
     }
 
+    const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
+    const profile = activeWorkspaceId
+      ? await tursoService.getWorkspaceProfile(activeWorkspaceId)
+      : null;
+    const validationPlan = activeWorkspaceId
+      ? await tursoService.getLatestValidationPlan(activeWorkspaceId)
+      : null;
+    const plannedValidationCommand = commandMatchesPlannedValidation(
+      commandInvocation,
+      validationPlan,
+    );
+    const validationLike = isValidationLikeCommand(commandInvocation);
+    const requirementId = validationRequirementForCommand(commandInvocation);
+
+    if (validationLike && !approvedPolicyStopId) {
+      let targetToolchain: Awaited<
+        ReturnType<typeof collectRepositoryToolchainProfile>
+      > | undefined;
+      if (requirementId === "typecheck") {
+        try {
+          targetToolchain = await collectRepositoryToolchainProfile({
+            root: workspacePath,
+            changedFiles: validationPlan?.changedFiles ?? [],
+          });
+        } catch {
+          targetToolchain = undefined;
+        }
+      }
+
+      const targetTypecheckCommand = targetToolchain?.typecheck.command;
+      const matchesTargetTypecheck = Boolean(
+        requirementId === "typecheck" &&
+          targetTypecheckCommand &&
+          normalizeValidationCommand(targetTypecheckCommand) ===
+            normalizeValidationCommand(commandInvocation),
+      );
+      const matchesResolvedPlan = Boolean(plannedValidationCommand);
+      const allowedByTargetEvidence =
+        requirementId === "typecheck"
+          ? matchesTargetTypecheck
+          : matchesResolvedPlan;
+
+      if (!allowedByTargetEvidence) {
+        const cause =
+          requirementId === "typecheck"
+            ? targetToolchain?.cause ?? "TYPECHECK_UNAVAILABLE"
+            : "VALIDATION_COMMAND_UNRESOLVED";
+        return failTool(
+          "sandbox_run",
+          [
+            "Validation command is not authorized by the target repository toolchain.",
+            `Requested: ${commandInvocation}`,
+            plannedValidationCommand
+              ? "The persisted plan is stale for the current target toolchain."
+              : "No current resolved validation plan matches this command.",
+            "Do not substitute bunx, npx, pnpm dlx, npm exec, or bare tsc.",
+          ].join(" "),
+          "DEPENDENCY_UNAVAILABLE",
+          {
+            retryable: false,
+            recommendedNextAction:
+              "Run plan_validation and use its exact resolved command. If the requirement is unresolved, request explicit approval for a fallback.",
+            details: {
+              cause,
+              requirementId,
+              requestedCommand: commandInvocation,
+              plannedCommand: plannedValidationCommand,
+              targetToolchainStatus: targetToolchain?.status,
+            },
+          },
+        );
+      }
+    }
+
     const timeoutSeconds = resolveAllowedNumber(
       args.timeoutSeconds,
       ALLOWED_TIMEOUT_SECONDS,
@@ -546,17 +606,6 @@ export const sandboxRunnerTool: Tool = {
     });
     cmdArgs = resolvedCommand.args;
 
-    const activeWorkspaceId = await tursoService.getActiveWorkspaceId();
-    const profile = activeWorkspaceId
-      ? await tursoService.getWorkspaceProfile(activeWorkspaceId)
-      : null;
-    const validationPlan = activeWorkspaceId
-      ? await tursoService.getLatestValidationPlan(activeWorkspaceId)
-      : null;
-    const plannedValidationCommand = commandMatchesPlannedValidation(
-      commandInvocation,
-      validationPlan,
-    );
     const priorMatches = activeWorkspaceId
       ? await failureMemoryEngine.findSimilarFailures({
           workspaceId: activeWorkspaceId,

@@ -136,7 +136,13 @@ function buildNodeScriptCommand(packageManager: string | undefined, script: stri
 }
 
 function isGeneratedNodeScriptCommand(command: string | undefined, script: string) {
-  return Boolean(command?.match(new RegExp(`^(bun|npm|pnpm|yarn) run ${script}$`)));
+  if (command?.match(new RegExp(`^(bun|npm|pnpm|yarn) run ${script}$`))) {
+    return true;
+  }
+  if (script !== "typecheck" || !command) {
+    return false;
+  }
+  return /^(?:bunx|npx)\s+(?:tsc|typescript)\b|^(?:pnpm|yarn)\s+dlx(?:\s+--\S+)*\s+(?:tsc|typescript)\b|^(?:npm\s+(?:exec|x)|bun\s+x)(?:\s+--\S+)*\s+(?:tsc|typescript)\b/i.test(command);
 }
 
 function mergeCommand(
@@ -145,7 +151,9 @@ function mergeCommand(
   script: string,
 ) {
   if (!detectedCommand) {
-    return existingCommand;
+    return existingCommand && isGeneratedNodeScriptCommand(existingCommand, script)
+      ? undefined
+      : existingCommand;
   }
   if (!existingCommand || isGeneratedNodeScriptCommand(existingCommand, script)) {
     return detectedCommand;

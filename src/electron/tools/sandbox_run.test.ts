@@ -295,6 +295,25 @@ describe("sandbox_run execution failures", () => {
     await rm(workspacePath, { force: true, recursive: true });
   });
 
+  test("rejects an unplanned validation command before host executable resolution", async () => {
+    const workspacePath = join(tmpdir(), `mate-x-unplanned-validation-${Date.now()}`);
+    await mkdir(workspacePath, { recursive: true });
+    activeWorkspaceId = "workspace-test";
+    latestValidationPlan = null;
+
+    const result = await sandboxRunnerTool.execute(
+      { command: "bunx tsc --noEmit", timeoutSeconds: 30 },
+      { workspacePath } as any,
+    );
+
+    assert.match(result, /DEPENDENCY_UNAVAILABLE/);
+    assert.match(result, /TYPECHECK_UNAVAILABLE|VALIDATION_COMMAND_UNRESOLVED/);
+    assert.doesNotMatch(result, /Status:/);
+    activeWorkspaceId = null;
+    latestValidationPlan = null;
+    await rm(workspacePath, { force: true, recursive: true });
+  });
+
   test("persists planned sandbox validation runs", async () => {
     const workspacePath = join(tmpdir(), `mate-x-sandbox-persist-${Date.now()}`);
     await mkdir(workspacePath, { recursive: true });
