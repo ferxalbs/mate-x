@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## Unreleased - 2026.07.31 (1) [v0.1.4 Verifiable Execute Kernel and Toolchain Independence]
+
+* Introduced `AgentExecutionSession` as the typed lifecycle for Review, Plan, and Execute, with `ExecutionOutcome` as the canonical authority shared by the UI, persistence, Evidence Packs, and finalization.
+* Added the append-only `AgentRunEventV3` ledger with central contiguous sequencing, W3C-compatible trace/span identities, integrity-hash chaining, separate public and local-diagnostic payload storage, retention controls, and replayable cursor-based event deltas.
+* Added truthful high-frequency trace projection with compact public activity, local technical diagnostics, semantic read/search/edit/validation grouping, live phase and duration state, sequence-gap replay, bounded renderer memory, and useful active labels instead of empty orchestration placeholders.
+* Added verified mutation sessions with repository-bound realpath authorization, exclusive file leases, durable encrypted before-images, compare-and-swap writes, re-read hashes, bounded diffs, TypeScript/JavaScript and JSON structural checks, safe rollback, conflict preservation, and startup recovery for interrupted mutations.
+* Added SQLite runtime qualification and serialized local write coordination so ledger, EngineeringTask, and application persistence do not create competing writers or unsafe WAL checkpoints on unqualified embedded SQLite builds.
+* Hardened workspace policy so validation can inspect the active repository without inheriting mutation-only path limits, requested glob scope is intersected instead of replaced, symlink and traversal escapes remain blocked, and missing, forbidden, empty, and I/O-failed roots remain distinct outcomes.
+* Added typed tool requirements and failure dispositions so required, optional, and fallback operations cannot be decided by model prose; optional discovery failures continue safely, while required blocked validation after mutation produces a recoverable partial result.
+* Made command authorization classify the complete executable-plus-argv invocation, route unallowlisted or package-backed validation through a resumable one-operation approval, and warn when an approved package-backed command could acquire missing tooling.
+* Made tool-incompatible provider responses fail with typed outcomes instead of exposing prose-only drafts, while preserving task/run identity and closing active provider spans for accurate diagnostics.
+* Prevented validation placeholders such as `echo "No validation command detected"` from becoming executable commands, successful checks, persisted evidence, or `validation.completed` events.
+* Required every passing validation to carry one real execution ID, an allowed non-placeholder command, proof that the process started, exit code `0`, and a matching Runbook requirement.
+* Kept approved validation attached to the same tool call and run across approval resume, while ensuring later optional discovery failures cannot invalidate verified required checks.
+* Made unresolved required validation prevent completion and produce truthful `partial` and `changed_unverified` outcomes after run changes instead of contradictory `blocked` plus `passed` results.
+* Added repository-aware typecheck resolution through a target toolchain profile and local-only package-manager adapters for npm, pnpm, Yarn Classic/Berry, Bun, and Deno, including owning-package resolution in monorepos.
+* Prohibited implicit package downloads and host-toolchain inference; conflicting package-manager metadata now reports `TOOLCHAIN_AMBIGUOUS`, while missing verified typecheck tooling reports `TYPECHECK_UNAVAILABLE`.
+* Formalized the same universal toolchain boundary in `AGENTS.md` and `CLAUDE.md`: MaTE X contributor tooling remains Bun-only, but target repositories are resolved independently from repository evidence and never from MaTE X dependencies, global `PATH`, home caches, or host defaults.
+* Preserved pre-existing workspace changes as `preexisting_changes` and kept the ledger, Evidence Pack, finalizer, canonical outcome, and conversation UI aligned on the same execution truth.
+* Added regression coverage for mutation rollback and recovery, trace integrity and replay, workspace scope and glob behavior, provider tool rejection, placeholder validation, strict execution evidence, approval identity, optional fallback, unavailable and ambiguous toolchains, mandatory requirements, monorepo package managers, and cross-surface outcome parity.
+
 ## MaTE X v0.1.3 — Execution Integrity and Product Hardening
 
 MaTE X v0.1.3 makes repository execution safer, more truthful, and more dependable while refining the primary workspace, onboarding, integrations, tool loop, and performance for daily macOS use.
@@ -427,7 +448,7 @@ MaTE X v0.1.2 introduces a major redesign of the engineering workflow, focused o
 
 This release establishes **EngineeringTask** as the canonical workflow authority and replaces fragmented internal flows with one unified system for intent, execution, validation, evidence, and Git safety.
 
-### Highlights
+### Highlightss
 
 #### Native engineering workflow
 
