@@ -11,6 +11,11 @@ import {
   spawnAbortable,
 } from "./process";
 import { failTool } from "../tool-result";
+import { createId } from "../../lib/id";
+import {
+  isExecutableValidationCommand,
+  validationRequirementForCommand,
+} from "../validation-command";
 
 const TEST_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_SUMMARY_CHARS = 120_000;
@@ -93,9 +98,34 @@ export const runTestsTool: Tool = {
       : validationPlan?.primary;
     const baseCommand = selectedPlanCommand?.command ?? profile?.testCommand;
     const plannedCommandReason = selectedPlanCommand?.reason;
-    if (!baseCommand) {
-      return JSON.stringify({ error: "No validation command available." });
+    if (
+      selectedPlanCommand?.availability === "unresolved" ||
+      !isExecutableValidationCommand(baseCommand)
+    ) {
+      const cause = selectedPlanCommand?.unavailableCause ??
+        "VALIDATION_COMMAND_UNRESOLVED";
+      return failTool(
+        "run_tests",
+        "No executable validation command is resolved for this requirement.",
+        "DEPENDENCY_UNAVAILABLE",
+        {
+          retryable: false,
+          recommendedNextAction:
+            cause === "TYPECHECK_UNAVAILABLE"
+              ? "Add a repository typecheck script or dependency, then re-plan validation."
+              : "Detect workspace validation capabilities and create a new validation plan.",
+          details: {
+            cause,
+            requirementId: selectedPlanCommand?.requirementId ?? "validation",
+            planId: validationPlan?.id,
+          },
+        },
+      );
     }
+
+    const validationExecutionId = createId("validation-exec");
+    const requirementId = selectedPlanCommand?.requirementId ??
+      validationRequirementForCommand(baseCommand);
 
     const commandArgs: string[] = [];
     let shellFallbackSuffix = "";
@@ -115,9 +145,9 @@ export const runTestsTool: Tool = {
         const sanitizedTests = failingTests.filter(test => !/[`$]/.test(test));
         if (sanitizedTests.length > 0) {
           if (profile?.testFramework === "vitest" || profile?.testFramework === "jest") {
-              commandArgs.push("-t", sanitizedTests.join("|"));
+            commandArgs.push("-t", sanitizedTests.join("|"));
           } else if (profile?.testFramework === "pytest") {
-              commandArgs.push(...sanitizedTests);
+            commandArgs.push(...sanitizedTests);
           }
         }
       }
@@ -147,9 +177,9 @@ export const runTestsTool: Tool = {
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
           win.webContents.send("test-stream-chunk", {
-             workspaceId: activeWorkspaceId,
-             timestamp: Date.now(),
-             chunk,
+            workspaceId: activeWorkspaceId,
+            timestamp: Date.now(),
+            chunk,
           });
         }
       });
@@ -176,6 +206,7 @@ export const runTestsTool: Tool = {
       let outputSummary = "";
       let timedOut = false;
       let finished = false;
+      let processStarted = false;
 
       const isWindows = process.platform === "win32";
       let child;
@@ -200,6 +231,7 @@ export const runTestsTool: Tool = {
             windowsHide: true,
           });
         }
+        processStarted = true;
       } catch (error) {
         if ((error as Error)?.name === "AbortError" || context.signal?.aborted) {
           resolve(failTool("run_tests", "run_tests cancelled before process start.", "CANCELLED"));
@@ -252,9 +284,9 @@ export const runTestsTool: Tool = {
         if (code !== 0) {
           const lines = outputSummary.split('\n');
           for (const line of lines) {
-             if (line.includes("FAIL") || line.includes("FAILED")) {
-               failingTests.push(line.trim());
-             }
+            if (line.includes("FAIL") || line.includes("FAILED")) {
+              failingTests.push(line.trim());
+            }
           }
         }
 
@@ -272,21 +304,21 @@ export const runTestsTool: Tool = {
         const savedRun = await tursoService.addValidationRun(runResult);
         const failureMemory = code !== 0
           ? await failureMemoryEngine.recordFailure({
-              workspaceId: activeWorkspaceId,
-              command,
-              exitCode: code ?? undefined,
-              framework: validationPlan?.detectedFramework ?? profile?.testFramework,
-              failingTests: runResult.failingTests,
-              output: outputSummary,
-              affectedFiles: validationPlan?.changedFiles,
-            })
+            workspaceId: activeWorkspaceId,
+            command,
+            exitCode: code ?? undefined,
+            framework: validationPlan?.detectedFramework ?? profile?.testFramework,
+            failingTests: runResult.failingTests,
+            output: outputSummary,
+            affectedFiles: validationPlan?.changedFiles,
+          })
           : priorMatches[0]
             ? await failureMemoryEngine.recordResolution({
-                workspaceId: activeWorkspaceId,
-                failureId: priorMatches[0].failure.id,
-                retryFixed: true,
-                attemptedFix: "Validation retry exited 0.",
-              })
+              workspaceId: activeWorkspaceId,
+              failureId: priorMatches[0].failure.id,
+              retryFixed: true,
+              attemptedFix: "Validation retry exited 0.",
+            })
             : undefined;
         const persistedRun = await tursoService.getValidationRun(savedRun.id);
         const plannedCommand = validationPlan ? args.plannedCommand ?? "primary" : undefined;
@@ -309,17 +341,30 @@ export const runTestsTool: Tool = {
         resolve(JSON.stringify({
           status: runResult.status,
           exitCode: runResult.exitCode,
+          command,
+          processStarted,
+          executionId: validationExecutionId,
+          requirementId,
           validationRunId: savedRun.id,
+          validationExecution: {
+            executionId: validationExecutionId,
+            validationRunId: savedRun.id,
+            command,
+            processStarted,
+            exitCode: runResult.exitCode,
+            requirementId,
+            planId: validationPlan?.id,
+          },
           validationPersistence,
           nextRequiredAction: fallbackRequired
             ? {
-                tool: "run_tests",
-                arguments: {
-                  scope: args.scope,
-                  plannedCommand: "fallback",
-                },
-                reason: validationPlan?.fallbackTrigger,
-              }
+              tool: "run_tests",
+              arguments: {
+                scope: args.scope,
+                plannedCommand: "fallback",
+              },
+              reason: validationPlan?.fallbackTrigger,
+            }
             : undefined,
           summary: timedOut
             ? `Test run timed out after ${TEST_RUN_TIMEOUT_MS / 1000} seconds. Saved to run ID ${savedRun.id}.`

@@ -48,8 +48,11 @@ export function evaluateValidationGate(
 
   const strictNoTextWaive = options?.strictNoTextWaive ?? true;
 
-  const ranValidation = toolExecutions.some((execution) =>
+  const validationAttempts = toolExecutions.filter((execution) =>
     ["run_tests", "sandbox_run"].includes(execution.toolName),
+  );
+  const ranValidation = validationAttempts.some(
+    (execution) => normalizeToolExecution(execution).validationStatus === "passed",
   );
   const persisted = toolExecutions.some(
     (execution) => execution.toolName === "verify_validation_persistence",
@@ -76,7 +79,9 @@ export function evaluateValidationGate(
     hardBlockers.push(
       mutated
         ? "Validation required: mutation ledger shows repository changes; model prose cannot waive validation."
-        : "Validation required by WorkPlan but no validation tool result exists.",
+        : validationAttempts.length > 0
+          ? "Validation required by WorkPlan but no valid typed execution proof exists."
+          : "Validation required by WorkPlan but no validation tool result exists.",
     );
   }
   if (!ranFallback) hardBlockers.push("High-risk WorkPlan requires fallback validation evidence.");

@@ -127,7 +127,20 @@ test("validation and proof evidence satisfy Preventive Guard warning stage", () 
     },
   });
   const toolExecutions = [
-    { toolName: "run_tests", output: "ok" },
+    {
+      toolName: "run_tests",
+      output: "ok",
+      parsedOutput: {
+        status: "success",
+        validationExecution: {
+          executionId: "validation-exec",
+          command: "bun test",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "test",
+        },
+      },
+    },
     { toolName: "security_path_trace", output: "trace ok" },
   ] as ToolExecutionRecord[];
 

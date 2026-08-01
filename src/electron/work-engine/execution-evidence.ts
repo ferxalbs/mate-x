@@ -8,6 +8,10 @@ import type {
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
 import type { WorkStage } from "./stages";
+import {
+  isExecutableValidationCommand,
+  validationRequirementForCommand,
+} from "../validation-command";
 
 const PATCH_TOOL_RE = /edit|patch|write|replace|mutation/i;
 const VALIDATION_TOOL_RE = /^(run_tests|sandbox_run)$/i;
@@ -20,6 +24,7 @@ export function normalizeToolEvidence(
 ): NormalizedToolEvidence {
   const structured = parseTrailingObject(output) ?? parsedOutput ?? {};
   const error = asRecord(structured.error);
+  const errorDetails = asRecord(error?.details);
   const code = String(error?.code ?? structured.code ?? "").toUpperCase();
   const status = String(structured.status ?? structured.outcome ?? "").toLowerCase();
   const sandboxStatus = output.match(/\bStatus:\s*(PASSED|READY|FAILED|TIMED_OUT|START_FAILED|TERMINATED)\b/i)?.[1]?.toLowerCase();
@@ -53,14 +58,23 @@ export function normalizeToolEvidence(
         ? "failed"
         : "completed";
 
+  const validationExecution = asRecord(structured.validationExecution);
+  const validationExecutionId = typeof validationExecution?.executionId === "string"
+    ? validationExecution.executionId.trim()
+    : "";
+  const validationCommand = validationExecution?.command;
+  const validationExitCode = Number(validationExecution?.exitCode);
+  const validationRequirementId = typeof validationExecution?.requirementId === "string"
+    ? validationExecution.requirementId
+    : isExecutableValidationCommand(validationCommand)
+      ? validationRequirementForCommand(validationCommand)
+      : undefined;
   const validationPassed =
-    status === "success" ||
-    status === "completed" ||
-    sandboxStatus === "passed" ||
-    sandboxStatus === "ready" ||
-    Number(structured.exitCode) === 0 ||
-    sandboxExitCode === 0 ||
-    /\b(?:all\s+)?(?:tests?|checks?|validation)\s+(?:have\s+)?passed\b|\bexit(?:ed)?\s+(?:successfully|with\s+code\s+0)\b/i.test(output);
+    validationExecutionId.length > 0 &&
+    isExecutableValidationCommand(validationCommand) &&
+    validationExecution?.processStarted === true &&
+    Number.isFinite(validationExitCode) &&
+    validationExitCode === 0;
   const validationStatus = VALIDATION_TOOL_RE.test(toolName)
     ? outcome === "blocked" || outcome === "awaiting_approval"
       ? "blocked"
@@ -88,6 +102,21 @@ export function normalizeToolEvidence(
         ? extractChangedFiles(args, structured, output)
         : [],
     validationStatus,
+    validationExecutionId: validationPassed ? validationExecutionId : undefined,
+    validationRequirementId:
+      validationRequirementId === "test" ||
+      validationRequirementId === "typecheck" ||
+      validationRequirementId === "lint" ||
+      validationRequirementId === "build" ||
+      validationRequirementId === "validation"
+        ? validationRequirementId
+        : undefined,
+    validationCause:
+      errorDetails?.cause === "TYPECHECK_UNAVAILABLE"
+        ? "TYPECHECK_UNAVAILABLE"
+        : errorDetails?.cause === "VALIDATION_COMMAND_UNRESOLVED"
+          ? "VALIDATION_COMMAND_UNRESOLVED"
+          : undefined,
     requiredUserAction:
       trustBlocked || approvalRequired
         ? typeof error?.recommendedNextAction === "string"
@@ -102,7 +131,7 @@ export function normalizeToolEvidence(
 export function normalizeToolExecution(
   execution: ToolExecutionRecord,
 ): NormalizedToolEvidence {
-  return (
+  const evidence = (
     execution.evidence ??
     normalizeToolEvidence(
       execution.toolName,
@@ -111,6 +140,10 @@ export function normalizeToolExecution(
       execution.parsedOutput,
     )
   );
+  return {
+    ...evidence,
+    requirement: execution.executionPolicy?.requirement ?? evidence.requirement,
+  };
 }
 
 export function buildExecutionEvidence(input: {
@@ -132,7 +165,10 @@ export function buildExecutionEvidence(input: {
     }));
   const blockedSteps = normalized
     .filter(
-      (item) => item.outcome === "blocked" || item.outcome === "awaiting_approval",
+      (item) =>
+        (item.outcome === "blocked" || item.outcome === "awaiting_approval") &&
+        item.requirement !== "optional" &&
+        item.requirement !== "fallback",
     )
     .map((item) => ({
       name: item.toolName,
@@ -141,7 +177,11 @@ export function buildExecutionEvidence(input: {
   const changedFiles = dedupeChangedFiles(normalized.flatMap((item) => item.changedFiles));
   const validationEvidence = normalized.filter((item) => item.validationStatus);
   const validationStage = input.stages.find((stage) => stage.id === "validation_executed");
-  const validationStatus =
+  const requiredValidation = resolveRequiredValidation(
+    input.workPlan,
+    validationEvidence,
+  );
+  const validationStatus = requiredValidation ?? (
     validationEvidence.some((item) => item.validationStatus === "blocked") ||
     validationStage?.status === "blocked"
       ? "blocked"
@@ -157,7 +197,7 @@ export function buildExecutionEvidence(input: {
               ? "passed"
               : input.workPlan.validationPlan.required
                 ? "not_run"
-                : "not_required";
+                : "not_required");
   const requiredUserAction = normalized.find((item) => item.requiredUserAction)?.requiredUserAction;
 
   return {
@@ -168,6 +208,10 @@ export function buildExecutionEvidence(input: {
     validation: {
       status: validationStatus,
       summary: validationStage?.reason,
+      cause: validationRequirementCause(input.workPlan, validationEvidence),
+      executionIds: [...new Set(validationEvidence
+        .map((item) => item.validationExecutionId)
+        .filter((id): id is string => Boolean(id)))],
     },
     synthesis: {
       status: input.synthesisStatus,
@@ -175,6 +219,37 @@ export function buildExecutionEvidence(input: {
     },
     requiredUserAction,
   };
+}
+
+function resolveRequiredValidation(
+  workPlan: WorkPlan,
+  evidence: NormalizedToolEvidence[],
+): ExecutionEvidence["validation"]["status"] | null {
+  const requirements = workPlan.validationPlan.requirements ?? [];
+  if (!workPlan.validationPlan.required || requirements.length === 0) return null;
+  if (requirements.some((requirement) => requirement.availability === "unresolved")) {
+    return "not_run";
+  }
+  for (const requirement of requirements) {
+    const matches = evidence.filter((item) =>
+      item.validationRequirementId === requirement.id,
+    );
+    if (matches.some((item) => item.validationStatus === "blocked")) return "blocked";
+    if (matches.some((item) => item.validationStatus === "failed")) return "failed";
+    if (!matches.some((item) => item.validationStatus === "passed")) return "not_run";
+  }
+  return "passed";
+}
+
+function validationRequirementCause(
+  workPlan: WorkPlan,
+  evidence: NormalizedToolEvidence[],
+) {
+  const unresolved = workPlan.validationPlan.requirements?.find(
+    (requirement) => requirement.availability === "unresolved",
+  );
+  return unresolved?.unavailableCause ??
+    evidence.find((item) => item.validationCause)?.validationCause;
 }
 
 /**

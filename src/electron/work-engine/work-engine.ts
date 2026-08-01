@@ -51,6 +51,7 @@ async function collectWorkPlanSnapshotFromElectronServices(
       entrypoints: entrypoints.map((entrypoint) => entrypoint.file),
       impactedFiles,
       relatedTests: input.workingSet.relatedTests.map((file) => file.path),
+      dependencies: dependencySurface.map((surface) => surface.dependency),
       sensitiveSurfaces: [
         ...envUsage.map((usage) => ({
           kind: "env",

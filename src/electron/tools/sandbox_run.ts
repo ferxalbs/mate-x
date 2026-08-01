@@ -20,6 +20,7 @@ import {
   failTool,
   formatToolFailure,
 } from "../tool-result";
+import { isExecutableValidationCommand } from "../validation-command";
 
 const ALLOWED_TIMEOUT_SECONDS = [30, 45, 60, 120, 240] as const;
 const ALLOWED_OUTPUT_CHARS = [1000, 4000, 8000, 16000] as const;
@@ -396,11 +397,19 @@ function commandMatchesPlannedValidation(
     return undefined;
   }
 
-  if (normalizedCommand === validationPlan.primary.command.trim()) {
+  if (
+    validationPlan.primary.availability !== "unresolved" &&
+    validationPlan.primary.command &&
+    normalizedCommand === validationPlan.primary.command.trim()
+  ) {
     return "primary" as const;
   }
 
-  if (normalizedCommand === validationPlan.fallback.command.trim()) {
+  if (
+    validationPlan.fallback.availability !== "unresolved" &&
+    validationPlan.fallback.command &&
+    normalizedCommand === validationPlan.fallback.command.trim()
+  ) {
     return "fallback" as const;
   }
 
@@ -570,6 +579,18 @@ export const sandboxRunnerTool: Tool = {
 
     if (!command) {
       return failTool("sandbox_run", "Command is required.", "INVALID_INPUT");
+    }
+    const commandInvocation = [command, ...(args.args ?? [])].join(" ").trim();
+    if (!isExecutableValidationCommand(commandInvocation)) {
+      return failTool(
+        "sandbox_run",
+        "Placeholder validation commands are not executable validation.",
+        "DEPENDENCY_UNAVAILABLE",
+        {
+          retryable: false,
+          details: { cause: "VALIDATION_COMMAND_UNRESOLVED" },
+        },
+      );
     }
 
     let cmd: string;

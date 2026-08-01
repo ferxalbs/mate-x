@@ -65,8 +65,22 @@ export interface WorkspaceProfile {
 
 export type ValidationCost = "cheap" | "medium" | "expensive";
 
+export type ValidationRequirementId =
+  | "test"
+  | "typecheck"
+  | "lint"
+  | "build"
+  | "validation";
+
+export type ValidationUnavailableCause =
+  | "VALIDATION_COMMAND_UNRESOLVED"
+  | "TYPECHECK_UNAVAILABLE";
+
 export interface ValidationPlanCommand {
-  command: string;
+  command: string | null;
+  availability: "resolved" | "unresolved";
+  requirementId: ValidationRequirementId;
+  unavailableCause?: ValidationUnavailableCause;
   reason: string;
   estimatedCost: ValidationCost;
   expectedSignal: string;

@@ -54,7 +54,7 @@ export function Composer({ isRunning, onSubmit }: ComposerProps) {
 
         <div className="flex items-end justify-end">
           <Button className="w-full lg:w-auto" disabled={isRunning} onClick={handleSubmit}>
-            {isRunning ? <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin" /> : null}
+            {isRunning ? <HugeiconsIcon icon={Loading02Icon} className="size-4 animate-spin motion-reduce:animate-none" /> : null}
             {isRunning ? 'Running audit' : 'Run prompt'}
             <HugeiconsIcon icon={ArrowUpRight01Icon} className="size-4" />
           </Button>

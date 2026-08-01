@@ -102,7 +102,7 @@ export function AgentProfilerSettings({
         headerAction={
           loading ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <HugeiconsIcon icon={Loading01Icon} className="size-3 animate-spin" />
+              <HugeiconsIcon icon={Loading01Icon} className="size-3 animate-spin motion-reduce:animate-none" />
               Loading
             </span>
           ) : null
@@ -149,7 +149,7 @@ export function AgentProfilerSettings({
                 onClick={() => void handleRecommend()}
               >
                 {recommending ? (
-                  <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin" />
+                  <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
                 ) : (
                   <HugeiconsIcon icon={RouteIcon} className="size-4" />
                 )}

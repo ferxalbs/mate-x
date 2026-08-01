@@ -28,6 +28,7 @@ export type WorkPlanInputSnapshot = {
     entrypoints: string[];
     impactedFiles: string[];
     relatedTests: string[];
+    dependencies?: string[];
     sensitiveSurfaces: Array<{
       kind: string;
       files: string[];
@@ -65,6 +66,9 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
     risk === "high"
       ? selectScript(snapshot.scripts ?? [], ["typecheck", "lint", "build"], primaryCommand)?.command ?? null
       : null;
+  const validationRequirements = validationRequired
+    ? requiredValidationSignals(snapshot, primaryCommand)
+    : [];
 
   return {
     id: createPureWorkPlanId(snapshot),
@@ -97,6 +101,7 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
       required: validationRequired,
       primaryCommand: validationRequired ? primaryCommand : null,
       fallbackCommand,
+      requirements: validationRequirements,
       reason: validationRequired
         ? `${runbook} requires runtime validation before final confidence claims.`
         : null,
@@ -116,6 +121,47 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
     },
     stopConditions: runbookStopConditions(runbook),
   };
+}
+
+function requiredValidationSignals(
+  snapshot: WorkPlanInputSnapshot,
+  primaryCommand: string | null,
+): NonNullable<WorkPlan["validationPlan"]["requirements"]> {
+  const prompt = snapshot.prompt;
+  const scripts = snapshot.scripts ?? [];
+  const requested = new Set<"test" | "typecheck" | "lint" | "build" | "validation">();
+  if (/\btests?\b|\btest suite\b/i.test(prompt)) requested.add("test");
+  if (/\btypecheck\b|\btype[ -]?check\b|\btsc\b/i.test(prompt)) requested.add("typecheck");
+  if (/\blint\b|\beslint\b/i.test(prompt)) requested.add("lint");
+  if (/\bbuild\b|\bpackage\b/i.test(prompt)) requested.add("build");
+  if (requested.size === 0) requested.add(primaryCommand ? scriptRequirement(primaryCommand) : "validation");
+
+  return [...requested].map((id) => {
+    const command = scripts.find((script) => script.signal === id)?.command ??
+      (id === "typecheck" && snapshot.repoGraph?.dependencies?.includes("typescript")
+        ? "bun x --no-install tsc --noEmit"
+        : null) ??
+      (primaryCommand && scriptRequirement(primaryCommand) === id ? primaryCommand : null);
+    return command
+      ? { id, command, availability: "resolved" as const }
+      : {
+          id,
+          command: null,
+          availability: "unresolved" as const,
+          unavailableCause: id === "typecheck"
+            ? "TYPECHECK_UNAVAILABLE" as const
+            : "VALIDATION_COMMAND_UNRESOLVED" as const,
+        };
+  });
+}
+
+function scriptRequirement(command: string) {
+  const normalized = command.toLowerCase();
+  if (/\btypecheck\b|\btsc\b/.test(normalized)) return "typecheck" as const;
+  if (/\blint\b|\beslint\b/.test(normalized)) return "lint" as const;
+  if (/\bbuild\b|\bpackage\b/.test(normalized)) return "build" as const;
+  if (/\btest\b|\bvitest\b|\bjest\b/.test(normalized)) return "test" as const;
+  return "validation" as const;
 }
 
 function buildPreventivePlan(

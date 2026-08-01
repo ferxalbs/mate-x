@@ -461,7 +461,10 @@ export async function requestRainyChatAgenticResponse({
     );
 
     totalToolCalls += toolResults.length;
-    toolExecutions.push(...toolResults.map((result: any) => result.toolExecution));
+    toolExecutions.push(...toolResults.map((result: any) => ({
+      ...result.toolExecution,
+      executionPolicy: result.executionPolicy,
+    })));
     const terminalOutcome = toolResults.find(
       (result: {
         outcome?: AgentOutcome;

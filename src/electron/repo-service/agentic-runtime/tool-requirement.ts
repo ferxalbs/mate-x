@@ -5,6 +5,7 @@ import type { BehaviorMode } from "../../../contracts/behavior-mode";
 
 const FALLBACK_DISCOVERY_TOOLS = new Set([
   "glob",
+  "find",
   "rg",
   "grep",
   "ls",
@@ -52,4 +53,3 @@ export function resolveToolExecutionPolicy(
     failureDisposition: "stop_phase",
   };
 }
-

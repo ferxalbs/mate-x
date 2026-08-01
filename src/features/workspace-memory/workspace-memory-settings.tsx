@@ -193,7 +193,7 @@ export function WorkspaceMemorySettings() {
 
           {isLoading ? (
             <div className="flex min-h-[340px] items-center justify-center text-sm text-muted-foreground">
-              <HugeiconsIcon icon={Loading01Icon} className="mr-2 size-4 animate-spin" />
+              <HugeiconsIcon icon={Loading01Icon} className="mr-2 size-4 animate-spin motion-reduce:animate-none" />
               Loading workspace memory
             </div>
           ) : (
@@ -247,7 +247,7 @@ export function WorkspaceMemorySettings() {
               disabled={isBusy || !hasDraft}
             >
               {saveState === 'saving' ? (
-                <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin" />
+                <HugeiconsIcon icon={Loading01Icon} className="size-4 animate-spin motion-reduce:animate-none" />
               ) : saveState === 'saved' ? (
                 <HugeiconsIcon icon={Tick01Icon} className="size-4" />
               ) : (

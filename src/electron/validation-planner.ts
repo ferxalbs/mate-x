@@ -6,6 +6,10 @@ import type {
   WorkspaceProfile,
 } from '../contracts/workspace';
 import { createId } from '../lib/id';
+import {
+  isExecutableValidationCommand,
+  validationRequirementForCommand,
+} from './validation-command';
 
 export interface ValidationPlannerInput {
   objective: string;
@@ -81,6 +85,8 @@ export class ValidationPlanner {
     if (previousFailureCommand) {
       return {
         command: previousFailureCommand,
+        availability: 'resolved',
+        requirementId: validationRequirementForCommand(previousFailureCommand),
         reason: 'Previous validation failed; rerunning that exact command gives the fastest confirmation that the reported failure is fixed.',
         estimatedCost: 'cheap',
         expectedSignal: 'Reproduces or clears the most recent known failing validation.',
@@ -92,6 +98,8 @@ export class ValidationPlanner {
     if (directTest && profileTestCommand) {
       return {
         command: `${profileTestCommand} ${quotePath(directTest)}`,
+        availability: 'resolved',
+        requirementId: 'test',
         reason: 'A changed test file is available, so the narrowest useful check is that test path.',
         estimatedCost: 'cheap',
         expectedSignal: 'Direct unit or integration coverage for the edited behavior.',
@@ -102,6 +110,8 @@ export class ValidationPlanner {
     if (colocatedTest && profileTestCommand) {
       return {
         command: `${profileTestCommand} ${quotePath(colocatedTest)}`,
+        availability: 'resolved',
+        requirementId: 'test',
         reason: 'RepoGraph impact is limited and a likely colocated test exists for the touched code.',
         estimatedCost: 'cheap',
         expectedSignal: 'Focused regression coverage near the changed module.',
@@ -112,6 +122,8 @@ export class ValidationPlanner {
     if (checkCommand && isTypeScriptFramework(framework, changedFiles)) {
       return {
         command: checkCommand,
+        availability: 'resolved',
+        requirementId: 'typecheck',
         reason: 'No precise test target was identified, but TypeScript changes can be validated cheaply with type checking.',
         estimatedCost: 'medium',
         expectedSignal: 'Compile-time contract, import, and type-safety regressions.',
@@ -122,6 +134,8 @@ export class ValidationPlanner {
     if (lintCommand && changedFiles.some((file) => UI_FILE_PATTERN.test(file))) {
       return {
         command: lintCommand,
+        availability: 'resolved',
+        requirementId: 'lint',
         reason: 'UI changes have no precise test target; lint is the cheapest useful check for React and accessibility mistakes before broader fallback.',
         estimatedCost: 'cheap',
         expectedSignal: 'Fast static signal for component, hook, import, and JSX issues.',
@@ -132,6 +146,8 @@ export class ValidationPlanner {
     if (testCommand) {
       return {
         command: testCommand,
+        availability: 'resolved',
+        requirementId: 'test',
         reason: 'No narrower test target was available, so the workspace test script is the smallest reliable validation.',
         estimatedCost: estimateCost(testCommand),
         expectedSignal: 'General automated regression signal from the project test runner.',
@@ -139,8 +155,11 @@ export class ValidationPlanner {
     }
 
     return {
-      command: scriptCommand(input, 'lint') ?? input.profile?.lintCommand ?? 'echo "No validation command detected"',
-      reason: 'No test command was detected; using the cheapest available static validation.',
+      command: null,
+      availability: 'unresolved',
+      requirementId: 'validation',
+      unavailableCause: 'VALIDATION_COMMAND_UNRESOLVED',
+      reason: 'No executable test, typecheck, build, or lint command was detected.',
       estimatedCost: 'cheap',
       expectedSignal: 'Basic syntax or lint signal when tests are unavailable.',
     };
@@ -160,10 +179,13 @@ export class ValidationPlanner {
       scriptCommand(input, 'build') ??
       profileCommand(input.profile?.lintCommand) ??
       scriptCommand(input, 'lint') ??
-      'echo "No validation command detected"';
+      null;
 
     return {
       command,
+      availability: command ? 'resolved' : 'unresolved',
+      requirementId: command ? validationRequirementForCommand(command) : 'validation',
+      unavailableCause: command ? undefined : 'VALIDATION_COMMAND_UNRESOLVED',
       reason,
       estimatedCost: estimateCost(command, framework),
       expectedSignal: 'Broad regression signal across the changed dependency, configuration, or shared runtime surface.',
@@ -182,6 +204,9 @@ export class ValidationPlanner {
 
     return {
       command,
+      availability: command ? 'resolved' : 'unresolved',
+      requirementId: command ? validationRequirementForCommand(command) : 'validation',
+      unavailableCause: command ? undefined : 'VALIDATION_COMMAND_UNRESOLVED',
       reason: 'Fallback checks packaging or static correctness after the full test command is unavailable or inconclusive.',
       estimatedCost: estimateCost(command),
       expectedSignal: 'Build, type, or lint failures that a test runner may not expose.',
@@ -194,11 +219,11 @@ export class ValidationPlanner {
     fallback: ValidationPlanCommand,
     framework?: string,
   ): ValidationPlanCommand {
-    if (primary.command !== fallback.command) {
+    if (primary.command !== fallback.command || primary.availability !== fallback.availability) {
       return fallback;
     }
 
-    const alternatives: ValidationPlanCommand[] = [
+    const alternatives = [
       commandFromProfile(profileCommand(input.profile?.buildCommand) ?? scriptCommand(input, 'build'), {
         reason: 'Selected build because it provides packaging and bundler/runtime integration signal distinct from the primary command.',
         estimatedCost: 'expensive',
@@ -219,12 +244,15 @@ export class ValidationPlanner {
         estimatedCost: estimateCost(profileCommand(input.profile?.testCommand) ?? scriptCommand(input, 'test') ?? '', framework),
         expectedSignal: 'Automated test failures outside targeted coverage.',
       }),
-    ].filter((candidate): candidate is ValidationPlanCommand =>
+    ].filter((candidate): candidate is NonNullable<typeof candidate> =>
       Boolean(candidate && candidate.command !== primary.command),
     );
 
     return alternatives[0] ?? {
       command: fallback.command,
+      availability: fallback.availability,
+      requirementId: fallback.requirementId,
+      unavailableCause: fallback.unavailableCause,
       reason: `${fallback.reason} No distinct fallback command was detected from available workspace scripts.`,
       estimatedCost: fallback.estimatedCost,
       expectedSignal: `${fallback.expectedSignal} Warning: duplicate command, no additional signal.`,
@@ -279,7 +307,8 @@ function isTypeScriptFramework(framework: string | undefined, files: string[]) {
     files.some((file) => file.endsWith('.ts') || file.endsWith('.tsx'));
 }
 
-function estimateCost(command: string, framework?: string): ValidationCost {
+function estimateCost(command: string | null, framework?: string): ValidationCost {
+  if (!command) return 'cheap';
   if (/lint|typecheck|--onlyChanged|\.test\.|\.spec\./.test(command)) return 'cheap';
   if (/build|playwright|e2e|make|cargo test|go test \.\/\.\./.test(command) || framework === 'playwright') return 'expensive';
   return 'medium';
@@ -291,9 +320,16 @@ function quotePath(file: string) {
 
 function commandFromProfile(
   command: string | undefined,
-  metadata: Omit<ValidationPlanCommand, 'command'>,
+  metadata: Omit<ValidationPlanCommand, 'command' | 'availability' | 'requirementId' | 'unavailableCause'>,
 ) {
-  return command && isAllowedValidationCommand(command) ? { command, ...metadata } : undefined;
+  return command && isAllowedValidationCommand(command)
+    ? {
+        command,
+        availability: 'resolved' as const,
+        requirementId: validationRequirementForCommand(command),
+        ...metadata,
+      }
+    : undefined;
 }
 
 function profileCommand(command?: string) {
@@ -301,7 +337,8 @@ function profileCommand(command?: string) {
 }
 
 function isAllowedValidationCommand(command: string) {
-  return !/(?:^|\s)test:[^\s]*work[^\s]*engine\b|work-engine\/bench|bench[^\s]*\/fixtures|fixture-repo|enforcement-advers|self.?smoke/i.test(command);
+  return isExecutableValidationCommand(command) &&
+    !/(?:^|\s)test:[^\s]*work[^\s]*engine\b|work-engine\/bench|bench[^\s]*\/fixtures|fixture-repo|enforcement-advers|self.?smoke/i.test(command);
 }
 
 function isRuntimeIgnoredPath(file: string) {

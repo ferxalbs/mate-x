@@ -22,6 +22,7 @@ export type ExecutionValidationStatus =
 
 export type WorktreeHealth =
   | "unchanged"
+  | "preexisting_changes"
   | "changed_unverified"
   | "changed_verified"
   | "invalid_edit_reverted"
@@ -79,6 +80,10 @@ export interface NormalizedToolEvidence {
   reason?: string;
   changedFiles: ExecutionChangedFile[];
   validationStatus?: Exclude<ExecutionValidationStatus, "not_required">;
+  validationExecutionId?: string;
+  validationRequirementId?: "test" | "typecheck" | "lint" | "build" | "validation";
+  validationCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE";
+  requirement?: "required" | "optional" | "fallback";
   requiredUserAction?: string;
 }
 
@@ -90,6 +95,8 @@ export interface ExecutionEvidence {
   validation: {
     status: ExecutionValidationStatus;
     summary?: string;
+    cause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE";
+    executionIds?: string[];
   };
   synthesis: {
     status: ExecutionSynthesisStatus;
@@ -129,4 +136,13 @@ export function normalizeExecutionOutcome(
     };
   }
   return outcome;
+}
+
+export interface ToolExecutionRecord {
+  toolName: string;
+  args: Record<string, unknown>;
+  output: string;
+  parsedOutput?: Record<string, unknown>;
+  evidence?: NormalizedToolEvidence;
+  executionPolicy?: import("./agent-run-trace").ToolExecutionPolicy;
 }

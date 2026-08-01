@@ -25,10 +25,12 @@ function plan(required = true): WorkPlan {
 function tool(
   toolName: string,
   output = '',
+  parsedOutput?: Record<string, unknown>,
 ): ToolExecutionRecord {
   return {
     toolName,
     output,
+    parsedOutput,
   } as ToolExecutionRecord;
 }
 
@@ -71,7 +73,19 @@ describe('validation gate NES-5.1 [strict ledger]', () => {
   it('allows when validation tools ran after mutation', () => {
     const gate = evaluateValidationGate(
       plan(),
-      [tool('auto_patch', 'patched src/foo.ts'), tool('run_tests', 'pass')],
+      [
+        tool('auto_patch', 'patched src/foo.ts'),
+        tool('run_tests', 'pass', {
+          status: 'success',
+          validationExecution: {
+            executionId: 'validation-exec',
+            command: 'bun test',
+            processStarted: true,
+            exitCode: 0,
+            requirementId: 'test',
+          },
+        }),
+      ],
       'All tests passed',
     );
     assert.equal(gate.allowed, true);

@@ -14,6 +14,7 @@ import type { BehaviorMode } from "../../../contracts/behavior-mode";
 import { createPublicToolProgress } from "./public-tool-progress";
 import { resolveToolExecutionPolicy } from "./tool-requirement";
 import type { ToolExecutionPolicy } from "../../../contracts/agent-run-trace";
+import { validationRequirementForCommand } from "../../validation-command";
 
 export async function executeAgentToolCall({
   toolCall,
@@ -351,7 +352,14 @@ export async function executeAgentToolCall({
     // into buildEvidencePack, VTS, filesModified rescue, commandsExecuted, and the on-disk
     // attestation / compliance ZIP. This is the primary mechanism that makes packs "real"
     // instead of model-narrative only.
-    const enrichedParsed = enrichParsedForEvidence(toolName, parsedOutput, toolArgs, rawResult, !outputIndicatesFailure);
+    const enrichedParsed = enrichParsedForEvidence(
+      toolName,
+      parsedOutput,
+      toolArgs,
+      rawResult,
+      !outputIndicatesFailure,
+      toolCall.id,
+    );
     const modelContent = truncateToolOutputForModel(toolName, rawResult);
 
     return {
@@ -515,6 +523,7 @@ function enrichParsedForEvidence(
   args: Record<string, unknown>,
   rawOutput: string,
   success: boolean,
+  toolCallId: string,
 ): Record<string, unknown> | null {
   const base: Record<string, unknown> = parsed ? { ...parsed } : {};
 
@@ -555,6 +564,31 @@ function enrichParsedForEvidence(
     // We just make sure exitCode is top-level for the pack builder's commandsExecuted.
     if (typeof base.exitCode === "undefined" && typeof (base as any).exit === "number") {
       base.exitCode = (base as any).exit;
+    }
+    const reportExitCode = Number(rawOutput.match(/\bExit code:\s*(-?\d+)\b/i)?.[1]);
+    const exitCode = typeof base.exitCode === "number"
+      ? base.exitCode
+      : Number.isFinite(reportExitCode)
+        ? reportExitCode
+        : undefined;
+    const command = typeof base.command === "string"
+      ? base.command
+      : [args.command, ...(Array.isArray(args.args) ? args.args : [])]
+          .filter((value): value is string => typeof value === "string")
+          .join(" ")
+          .trim();
+    const existingExecution = base.validationExecution;
+    if (!existingExecution && command) {
+      base.validationExecution = {
+        executionId: toolCallId,
+        command,
+        processStarted:
+          success &&
+          !/\bStatus:\s*START_FAILED\b/i.test(rawOutput) &&
+          typeof exitCode === "number",
+        exitCode,
+        requirementId: validationRequirementForCommand(command),
+      };
     }
   }
 

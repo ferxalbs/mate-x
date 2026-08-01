@@ -89,7 +89,19 @@ function execution(
 
 const passedValidation = execution(
   "sandbox_run",
-  JSON.stringify({ ok: true, status: "completed", exitCode: 0, summary: "Tests passed." }),
+  JSON.stringify({
+    ok: true,
+    status: "completed",
+    exitCode: 0,
+    summary: "Tests passed.",
+    validationExecution: {
+      executionId: "validation-exec-test",
+      command: "bun test",
+      processStarted: true,
+      exitCode: 0,
+      requirementId: "test",
+    },
+  }),
 );
 
 const authorizationCases = [

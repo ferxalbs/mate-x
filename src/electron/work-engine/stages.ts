@@ -100,7 +100,11 @@ export function deriveWorkStages(input: {
   }));
   const completedToolNames = new Set(
     normalizedExecutions
-      .filter((item) => item.evidence.outcome === "completed")
+      .filter((item) =>
+        item.evidence.outcome === "completed" &&
+        (!VALIDATION_EXEC_TOOLS.has(item.execution.toolName) ||
+          item.evidence.validationStatus === "passed")
+      )
       .map((item) => item.execution.toolName),
   );
   const eventIdsByTool = buildEventIdsByTool(input.events);
@@ -155,8 +159,15 @@ export function deriveWorkStages(input: {
   }
 
   if (validationExecutions.length > 0) {
-    const blocked = validationExecutions.some((item) => item.evidence.outcome === "blocked" || item.evidence.outcome === "awaiting_approval");
-    const failed = validationExecutions.some((item) => item.evidence.outcome === "failed");
+    const blocked = validationExecutions.some((item) =>
+      item.evidence.outcome === "blocked" ||
+      item.evidence.outcome === "awaiting_approval" ||
+      item.evidence.validationStatus === "blocked"
+    );
+    const failed = validationExecutions.some((item) =>
+      item.evidence.outcome === "failed" ||
+      item.evidence.validationStatus === "failed"
+    );
     set(stages, "validation_executed", blocked ? "blocked" : failed ? "failed" : "passed", "runtime", blocked ? "Validation requires approval or access." : failed ? "Validation command failed." : "Validation command ran.", idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS));
   } else if (!input.workPlan.validationPlan.required) {
     skip(stages, "validation_executed", "deterministic", "Validation not required for this WorkPlan.");

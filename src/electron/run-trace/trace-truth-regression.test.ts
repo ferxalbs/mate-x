@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
 
-import type { ToolExecutionRecord } from "../evidence-pack";
+import { buildEvidencePack, type ToolExecutionRecord } from "../evidence-pack";
 import { resolveToolAuthorization } from "../capability-resolver";
 import { InMemoryEngineeringRepository } from "../engineering/in-memory-repository";
 import { buildExecutionEvidence } from "../work-engine/execution-evidence";
+import { validationPlanner } from "../validation-planner";
+import { buildWorkPlanFromSnapshot } from "../work-engine/work-engine-core";
+import { finalizeWorkRun } from "../work-engine/finalizer";
+import { resolveToolExecutionPolicy } from "../repo-service/agentic-runtime/tool-requirement";
 import type { WorkPlan } from "../work-engine/types";
 import {
   createDefaultWorkspaceTrustContract,
@@ -311,5 +315,242 @@ describe("trace and terminal truth regression", () => {
       }, "failed").label,
       "Typecheck failed",
     );
+  });
+
+  test("never promotes a placeholder or bare exit code zero to validation proof", () => {
+    const plan = validationPlanner.createPlan({
+      objective: "Validate a TypeScript change.",
+      changedFiles: ["src/service.ts"],
+      impactedFiles: [],
+      packageScripts: {},
+      detectedFramework: "typescript",
+      previousFailures: [],
+    });
+    assert.equal(plan.primary.command, null);
+    assert.equal(plan.primary.availability, "unresolved");
+    assert.equal(plan.primary.unavailableCause, "VALIDATION_COMMAND_UNRESOLVED");
+
+    const evidence = buildExecutionEvidence({
+      workPlan: { validationPlan: { required: true } } as WorkPlan,
+      stages: [],
+      toolExecutions: [{
+        toolName: "run_tests",
+        args: { scope: "changed-files" },
+        output: JSON.stringify({
+          status: "success",
+          exitCode: 0,
+          validationExecution: {
+            executionId: "placeholder-exec",
+            command: 'echo "No validation command detected"',
+            processStarted: true,
+            exitCode: 0,
+            requirementId: "validation",
+          },
+        }),
+      }],
+      synthesisStatus: "valid",
+    });
+    assert.equal(evidence.validation.status, "failed");
+    assert.deepEqual(evidence.validation.executionIds, []);
+
+    const bareExit = buildExecutionEvidence({
+      workPlan: { validationPlan: { required: true } } as WorkPlan,
+      stages: [],
+      toolExecutions: [{
+        toolName: "run_tests",
+        args: { scope: "changed-files" },
+        output: JSON.stringify({ status: "success", exitCode: 0 }),
+      }],
+      synthesisStatus: "valid",
+    });
+    assert.equal(bareExit.validation.status, "failed");
+    assert.deepEqual(bareExit.validation.executionIds, []);
+  });
+
+  test("ties one approved real test to one execution ID", () => {
+    const execution: ToolExecutionRecord = {
+      toolName: "sandbox_run",
+      args: { command: "bun", args: ["test"] },
+      output: JSON.stringify({
+        status: "completed",
+        validationExecution: {
+          executionId: "call-approved-bun-test",
+          command: "bun test",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "test",
+        },
+      }),
+      executionPolicy: { requirement: "required", failureDisposition: "stop_phase" },
+    };
+    const evidence = buildExecutionEvidence({
+      workPlan: {
+        validationPlan: {
+          required: true,
+          requirements: [{ id: "test", command: "bun run test", availability: "resolved" }],
+        },
+      } as WorkPlan,
+      stages: [],
+      toolExecutions: [execution],
+      synthesisStatus: "valid",
+    });
+    assert.equal(evidence.validation.status, "passed");
+    assert.deepEqual(evidence.validation.executionIds, ["call-approved-bun-test"]);
+  });
+
+  test("optional toolchain discovery cannot block passed required validation", () => {
+    assert.deepEqual(resolveToolExecutionPolicy("find", "execute"), {
+      requirement: "fallback",
+      failureDisposition: "continue",
+    });
+    const workPlan = {
+      id: "optional-discovery",
+      intent: "validate",
+      risk: "low",
+      objective: "Run tests.",
+      runbook: "validate_only",
+      workingSet: { primaryFiles: [], relatedFiles: [], relatedTests: [], changedFiles: [], impactedFiles: [], entrypoints: [], sensitiveSurfaces: [], relevantScripts: [], knownFailures: [] },
+      validationPlan: { required: true, primaryCommand: "bun test", fallbackCommand: null, reason: "required", requirements: [{ id: "test", command: "bun test", availability: "resolved" }] },
+      privacyPlan: { requireSanitization: false, blockIfP0Unsanitized: false, includeRepoContext: true, includeToolOutput: true, reason: "test" },
+      preventivePlan: { enabled: false, riskAreas: [], recommendedControls: [], requiredChecks: [], strictness: "warn", reason: "test" },
+      evidencePlan: { required: false, expectedArtifacts: [], requiredClaims: [] },
+      stopConditions: [],
+    } as WorkPlan;
+    const requiredTest: ToolExecutionRecord = {
+      toolName: "sandbox_run",
+      args: { command: "bun", args: ["test"] },
+      output: JSON.stringify({ status: "completed", validationExecution: { executionId: "test-exec", command: "bun test", processStarted: true, exitCode: 0, requirementId: "test" } }),
+      executionPolicy: { requirement: "required", failureDisposition: "stop_phase" },
+    };
+    const optionalFind: ToolExecutionRecord = {
+      toolName: "find",
+      args: { name: "tsc", path: "node_modules/.bin" },
+      output: JSON.stringify({ status: "blocked", error: { code: "FORBIDDEN", message: "node_modules excluded" } }),
+      executionPolicy: { requirement: "fallback", failureDisposition: "continue" },
+    };
+    const result = finalizeWorkRun({
+      workPlan,
+      stages: [
+        { id: "context_compiled", status: "passed", source: "deterministic", reason: "", relatedToolEventIds: [] },
+        { id: "validation_planned", status: "passed", source: "runtime", reason: "", relatedToolEventIds: [] },
+        { id: "validation_executed", status: "passed", source: "runtime", reason: "", relatedToolEventIds: [] },
+        { id: "failure_memory_checked", status: "passed", source: "runtime", reason: "", relatedToolEventIds: [] },
+        { id: "privacy_preflight_passed", status: "passed", source: "deterministic", reason: "", relatedToolEventIds: [] },
+      ],
+      toolExecutions: [requiredTest, optionalFind],
+      content: "Tests passed.",
+      evidenceAttached: true,
+      synthesisStatus: "valid",
+    });
+    assert.equal(result.terminalState, "completed");
+    assert.equal(result.evidence.validation.status, "passed");
+    assert.equal(result.evidence.blockedSteps.length, 0);
+  });
+
+  test("reports unavailable required typecheck and prevents completion", () => {
+    const workPlan = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run tests and typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [{ name: "test", command: "bun test", signal: "test" }],
+    });
+    const typecheck = workPlan.validationPlan.requirements?.find((item) => item.id === "typecheck");
+    assert.equal(typecheck?.availability, "unresolved");
+    assert.equal(typecheck?.unavailableCause, "TYPECHECK_UNAVAILABLE");
+
+    const dependencyFallback = buildWorkPlanFromSnapshot({
+      prompt: "Patch service, run typecheck.",
+      mode: "execute",
+      workspace: { root: "/repo", name: "repo" },
+      git: { changedFiles: ["src/service.ts"], stagedFiles: [], untrackedFiles: [] },
+      scripts: [],
+      repoGraph: {
+        status: "ready",
+        entrypoints: [],
+        impactedFiles: [],
+        relatedTests: [],
+        dependencies: ["typescript"],
+        sensitiveSurfaces: [],
+      },
+    });
+    assert.deepEqual(
+      dependencyFallback.validationPlan.requirements?.find((item) => item.id === "typecheck"),
+      {
+        id: "typecheck",
+        command: "bun x --no-install tsc --noEmit",
+        availability: "resolved",
+      },
+    );
+
+    const evidence = buildExecutionEvidence({
+      workPlan,
+      stages: [],
+      toolExecutions: [{
+        toolName: "sandbox_run",
+        args: { command: "bun", args: ["test"] },
+        output: JSON.stringify({ status: "completed", validationExecution: { executionId: "test-only", command: "bun test", processStarted: true, exitCode: 0, requirementId: "test" } }),
+      }],
+      synthesisStatus: "valid",
+    });
+    assert.equal(evidence.validation.status, "not_run");
+    assert.equal(evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
+  });
+
+  test("keeps finalizer, ledger projection, UI outcome, and Evidence Pack in parity", async () => {
+    const execution: ToolExecutionRecord = {
+      toolName: "sandbox_run",
+      args: { command: "bun", args: ["test"] },
+      output: "Status: PASSED\nExit code: 0",
+      parsedOutput: {
+        status: "completed",
+        summary: "Tests passed.",
+        validationExecution: {
+          executionId: "parity-validation-exec",
+          command: "bun test",
+          processStarted: true,
+          exitCode: 0,
+          requirementId: "test",
+        },
+      },
+    };
+    const pack = await buildEvidencePack({
+      workspacePath: process.cwd(),
+      events: [{ id: "response", label: "Response complete", detail: "", status: "completed" }],
+      content: "Tests passed.",
+      toolExecutions: [execution],
+    });
+    assert.equal(pack.status, "complete");
+    assert.equal(pack.testsRun?.length, 1);
+    assert.equal(pack.testsRun?.[0]?.executionId, "parity-validation-exec");
+    assert.equal(pack.testsRun?.[0]?.status, "passed");
+
+    const repository = new InMemoryEngineeringRepository();
+    repository.ensureSchema();
+    const session = new AgentExecutionSession(
+      "run-parity",
+      "execute",
+      null,
+      "parity-validation-exec",
+      repository,
+    );
+    session.complete({
+      terminalState: "completed",
+      validationState: "passed",
+      worktreeHealth: "changed_verified",
+      evidence: {
+        completedSteps: ["sandbox_run"],
+        failedSteps: [],
+        blockedSteps: [],
+        changedFiles: [],
+        validation: { status: "passed", executionIds: ["parity-validation-exec"] },
+        synthesis: { status: "valid" },
+      },
+      summary: "Completed successfully.",
+    });
+    const terminal = session.getEvents().at(-1)!;
+    assert.equal(terminal.executionId, "parity-validation-exec");
+    assert.equal('validationState' in terminal.payload ? terminal.payload.validationState : undefined, "passed");
+    assert.equal(projectRunEventToToolEvent(terminal).status, "completed");
   });
 });

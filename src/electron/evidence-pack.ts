@@ -5,16 +5,13 @@ import { policyService } from "./policy-service";
 
 import type { EvidencePack, EvidencePackReproduction, ToolEvent } from "../contracts/chat";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
-import type { NormalizedToolEvidence } from "../contracts/execution";
-import { normalizeToolEvidence } from "./work-engine/execution-evidence";
+import type { ToolExecutionRecord } from "../contracts/execution";
+import {
+  normalizeToolEvidence,
+  normalizeToolExecution,
+} from "./work-engine/execution-evidence";
 
-export interface ToolExecutionRecord {
-  toolName: string;
-  args: Record<string, unknown>;
-  output: string;
-  parsedOutput?: Record<string, unknown>;
-  evidence?: NormalizedToolEvidence;
-}
+export type { ToolExecutionRecord };
 
 function summarizeToolOutput(content: string) {
   const normalized = content.replace(/\s+/g, " ").trim();
@@ -31,7 +28,10 @@ function summarizeToolOutput(content: string) {
  * Evidence status from claims + validation/tool ledger — not "Response complete".
  * NES-5.4
  */
-function classifyEvidenceStatus(events: ToolEvent[]): EvidencePack["status"] {
+function classifyEvidenceStatus(
+  events: ToolEvent[],
+  toolExecutions: ToolExecutionRecord[],
+): EvidencePack["status"] {
   const hasBlockingStep = events.some(
     (event) =>
       event.id === "step-rainy-missing" ||
@@ -47,10 +47,8 @@ function classifyEvidenceStatus(events: ToolEvent[]): EvidencePack["status"] {
     return "partial";
   }
 
-  const ranValidation = events.some(
-    (event) =>
-      /run_tests|sandbox_run|validation/i.test(event.label ?? "") ||
-      /run_tests|sandbox_run|validation/i.test(event.id ?? ""),
+  const ranValidation = toolExecutions.some(
+    (execution) => normalizeToolExecution(execution).validationStatus === "passed",
   );
   const responseFinished = events.some(
     (event) => event.label === "Response complete",
@@ -147,7 +145,7 @@ export async function buildEvidencePack(params: {
     runbookId,
     initialStatusLines,
   } = params;
-  const status = classifyEvidenceStatus(events);
+  const status = classifyEvidenceStatus(events, toolExecutions);
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
   const runtimeWarnings = deriveWarnings(events);
@@ -163,40 +161,53 @@ export async function buildEvidencePack(params: {
     );
   }
 
-  const commandsExecuted = toolExecutions.map((execution) => ({
-    command: `${execution.toolName} ${JSON.stringify(execution.args)}`,
-    exitCode:
-      typeof execution.parsedOutput?.exitCode === "number"
-        ? execution.parsedOutput.exitCode
-        : undefined,
-    summary:
-      typeof execution.parsedOutput?.summary === "string"
-        ? execution.parsedOutput.summary
-        : summarizeToolOutput(execution.output),
-  }));
+  const commandsExecuted = toolExecutions.map((execution) => {
+    const normalized = normalizeToolExecution(execution);
+    return {
+      command: `${execution.toolName} ${JSON.stringify(execution.args)}`,
+      executionId: normalized.validationExecutionId,
+      exitCode:
+        typeof execution.parsedOutput?.exitCode === "number"
+          ? execution.parsedOutput.exitCode
+          : undefined,
+      summary:
+        typeof execution.parsedOutput?.summary === "string"
+          ? execution.parsedOutput.summary
+          : summarizeToolOutput(execution.output),
+    };
+  });
 
+  const seenValidationExecutions = new Set<string>();
   const testsRun = toolExecutions
-    .filter((execution) => execution.toolName === "run_tests")
+    .filter((execution) =>
+      execution.toolName === "run_tests" || execution.toolName === "sandbox_run"
+    )
     .map((execution) => {
-      const parsedStatus = execution.evidence?.validationStatus ?? execution.parsedOutput?.status;
-      const statusValue =
-        parsedStatus === "success"
-          ? "passed"
-          : parsedStatus === "failed"
-            ? "failed"
-            : "unknown";
+      const normalized = normalizeToolExecution(execution);
+      const statusValue = normalized.validationStatus === "passed"
+        ? "passed"
+        : normalized.validationStatus === "failed"
+          ? "failed"
+          : "unknown";
 
       return {
+        executionId: normalized.validationExecutionId,
         name:
           typeof execution.args.scope === "string"
             ? `run_tests (${execution.args.scope})`
-            : "run_tests",
+            : execution.toolName,
         status: statusValue as "passed" | "failed" | "unknown",
         summary:
           typeof execution.parsedOutput?.summary === "string"
             ? execution.parsedOutput.summary
             : summarizeToolOutput(execution.output),
       };
+    })
+    .filter((run) => {
+      if (!run.executionId) return true;
+      if (seenValidationExecutions.has(run.executionId)) return false;
+      seenValidationExecutions.add(run.executionId);
+      return true;
     });
 
   const gitStatus = await new GitService(workspacePath).getStatusSafe();
@@ -461,7 +472,9 @@ function deriveRuntimeChecks(
   const validations = toolExecutions.filter((e) => e.toolName === "run_tests" || e.toolName === "sandbox_run");
   for (const v of validations.slice(0, 4)) {
     const po = (v.parsedOutput ?? {}) as any;
-    const st = po.status === "success" || (typeof po.exitCode === "number" && po.exitCode === 0) ? "passed" : "failed";
+    const st = normalizeToolExecution(v).validationStatus === "passed"
+      ? "passed"
+      : "failed";
     checks.push({
       name: typeof v.args.scope === "string" ? `validation:${v.args.scope}` : v.toolName,
       status: st,

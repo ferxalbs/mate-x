@@ -721,13 +721,13 @@ export function SettingsPage() {
 
         <div className="flex-1 overflow-y-auto bg-transparent p-6">
           <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={section}
-                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 6 }}
+                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -6 }}
-                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -4 }}
+                transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
                 className="flex flex-col gap-6"
               >
                 {section === 'general' ? (

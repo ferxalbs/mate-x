@@ -17,6 +17,7 @@ import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-r
 import { resolveRainyApiBaseUrl } from "../config/rainy";
 import type { AgentOutcome, AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../contracts/execution";
+import type { WorkPlan } from "./work-engine/types";
 import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
 import { resolveAssistantRunOptions, resolveRunbookDefinition, toAssistantRunbookId } from "./assistant-runbooks";
 import { canQueryDomain } from "./workspace-trust";
@@ -659,7 +660,7 @@ export async function runAssistant(
     terminalState: evidenceFinalization.terminalState,
     evidence: evidenceFinalization.evidence,
     summary: evidenceFinalization.summary,
-  }, agentOutcome);
+  }, agentOutcome, workPlan);
   evidencePack = {
     ...evidencePack,
     status:
@@ -905,7 +906,7 @@ export async function runAssistant(
       terminalState: recoveryFinalization.terminalState,
       evidence: recoveryFinalization.evidence,
       summary: recoveryFinalization.summary,
-    }, agentOutcome);
+    }, agentOutcome, workPlan);
     traceSession.complete(recoveryOutcome);
     await persistWorkEngineRunArtifactSafely({
       appDataRoot: app.getPath("userData"),
@@ -956,6 +957,7 @@ export async function runAssistant(
 function enrichExecutionOutcome(
   outcome: import("../contracts/execution").ExecutionOutcome,
   agentOutcome?: AgentOutcome,
+  workPlan?: WorkPlan,
 ): import("../contracts/execution").ExecutionOutcome {
   const changedFiles = outcome.evidence.changedFiles;
   const validationState = outcome.evidence.validation.status;
@@ -965,7 +967,9 @@ function enrichExecutionOutcome(
     ? validationPassed
       ? "changed_verified" as const
       : "changed_unverified" as const
-    : "unchanged" as const;
+    : (workPlan?.workingSet.changedFiles.length ?? 0) > 0
+      ? "preexisting_changes" as const
+      : "unchanged" as const;
   const primaryCause =
     agentOutcome && agentOutcome.status !== "completed"
       ? {
@@ -982,7 +986,16 @@ function enrichExecutionOutcome(
               ? "policy" as const
               : "runtime" as const,
         }
-      : null;
+      : outcome.evidence.validation.cause
+        ? {
+            code: outcome.evidence.validation.cause,
+            summary:
+              outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE"
+                ? "Required typecheck is unavailable in this repository."
+                : "Required validation command is unresolved.",
+            source: "validation" as const,
+          }
+        : null;
   const nextActions: import("../contracts/execution").CanonicalAction[] = [];
   if (hasChanges && !validationPassed) {
     nextActions.push({

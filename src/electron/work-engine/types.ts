@@ -81,6 +81,12 @@ export interface WorkPlan {
     primaryCommand: string | null;
     fallbackCommand: string | null;
     reason: string | null;
+    requirements?: Array<{
+      id: "test" | "typecheck" | "lint" | "build" | "validation";
+      command: string | null;
+      availability: "resolved" | "unresolved";
+      unavailableCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE";
+    }>;
   };
   privacyPlan: {
     requireSanitization: boolean;
