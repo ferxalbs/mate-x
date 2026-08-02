@@ -9,6 +9,7 @@ import { describe, test } from "bun:test";
 import type { NormalizedToolEvidence, ToolExecutionRecord } from "../../contracts/execution";
 import type { RepositoryToolchainProfile } from "../repository-toolchain";
 import { buildWorkPlanFromSnapshot } from "./work-engine-core";
+import { createModelToolsUnavailableResult } from "../repo-service/agentic-runtime/model-tools-unavailable";
 import { deriveWorkStages } from "./stages";
 import { finalizeWorkRun } from "./finalizer";
 import { scheduleObjectiveVerification, verifyRepositoryObjective } from "./objective-verifier";
@@ -160,6 +161,55 @@ describe("deterministic repository objective verifier", () => {
         changedFiles: [],
       });
       assert.deepEqual(workPlan.objectiveContract?.actualDelta.preexistingFiles, ["README.md"]);
+    });
+  });
+
+  test("verified preexisting state is not failed by a provider without repository tools", async () => {
+    await withRepository("satisfied", async (workspacePath) => {
+      const workPlan = plan(workspacePath, ["README.md"]);
+      workPlan.objectiveVerification = await verify(workPlan, workspacePath, "provider-tools-unavailable");
+      const providerFailure = createModelToolsUnavailableResult([]);
+      const stages = deriveWorkStages({
+        workPlan,
+        events: [],
+        toolExecutions: providerFailure.toolExecutions,
+        privacyBlocked: false,
+        evidenceAttached: true,
+        noPatchNeeded: false,
+      });
+      const result = finalizeWorkRun({
+        workPlan,
+        stages,
+        toolExecutions: providerFailure.toolExecutions,
+        content: providerFailure.content,
+        evidenceAttached: true,
+        terminalOutcome: providerFailure.outcome,
+        synthesisStatus: providerFailure.synthesisStatus,
+        synthesisSummary: providerFailure.synthesisSummary,
+      });
+
+      assert.deepEqual({
+        terminalState: result.terminalState,
+        completionKind: result.completionKind,
+        workspaceProvenance: result.evidence.workspaceProvenance,
+        objectiveVerification: {
+          status: result.evidence.objective?.verification?.status,
+          coverage: result.evidence.objective?.verification?.coverage,
+        },
+        validation: result.evidence.validation.status,
+        changedFiles: result.evidence.changedFiles.map((file) => file.path),
+      }, {
+        terminalState: "completed",
+        completionKind: "already_satisfied",
+        workspaceProvenance: "preexisting_changes",
+        objectiveVerification: {
+          status: "satisfied",
+          coverage: "complete",
+        },
+        validation: "not_required",
+        changedFiles: [],
+      });
+      assert.doesNotMatch(result.warnings.join("\n"), /cannot be marked successful/i);
     });
   });
 

@@ -582,7 +582,7 @@ export function resolveExecutionTerminalState(input: {
   if (hasBlockedStep) return "blocked";
   if (validationBlocked && !objectiveSatisfiedNoOp) return "blocked";
   if (hasFailedStep || validationFailed) return "failed";
-  if (synthesisMissing) return "failed";
+  if (synthesisMissing && !objectiveSatisfiedNoOp) return "failed";
   if (objectiveUnprovenNoMutation) return "blocked";
   if (objectiveUnprovenAfterMutation) return "partial";
   if (validationMissing && !objectiveSatisfiedNoOp) return hasMutation ? "partial" : "blocked";

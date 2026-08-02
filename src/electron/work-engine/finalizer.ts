@@ -122,6 +122,10 @@ export function finalizeWorkRun(input: {
     synthesisStatus,
     synthesisSummary: input.synthesisSummary,
   });
+  const objectiveSatisfiedNoOp =
+    evidence.changedFiles.length === 0 &&
+    evidence.objective?.state === "satisfied" &&
+    !(input.workPlan.objectiveContract?.validationIsPrimaryObjective ?? false);
   const rawMissingRequired = requiredStages(input.workPlan, input.stages, evidence.validation.contract)
     .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
   const missingRequired = rawMissingRequired.filter(
@@ -188,7 +192,7 @@ export function finalizeWorkRun(input: {
     warnings.push("Confirmed security claim wording was downgraded because no matching proof ledger entry referenced the claimed file/path.");
   }
 
-  if (synthesisStatus !== "valid") {
+  if (synthesisStatus !== "valid" && !objectiveSatisfiedNoOp) {
     warnings.push("Final synthesis was missing or unavailable; the run cannot be marked successful.");
   }
   const evidenceTerminalState = resolveExecutionTerminalState({
