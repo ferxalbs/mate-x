@@ -142,7 +142,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     return groups;
   }, [visible]);
 
-  if (timeline.length === 0 && !isRunning) return null;
+  if (timeline.length === 0 && !isRunning && !activitySummary) return null;
 
   return (
     <section className="min-w-0 max-w-full space-y-3 overflow-hidden" aria-label="Agent activity">

@@ -1,4 +1,5 @@
 import type { ExecutionOutcome } from "../../../contracts/execution";
+import type { ObjectiveAssertionResult } from "../../../contracts/work-objective";
 
 interface VerifiedScopePresentation {
   count: number | null;
@@ -15,6 +16,16 @@ export function getTerminalAssistantResponse(outcome: ExecutionOutcome) {
 
   switch (outcome.completionKind) {
     case "already_satisfied":
+      if (objective.isMigration) {
+        return [
+          "The migration was already complete.",
+          objective.migrationVerificationSentence,
+          objective.migrationAllowedMatchSentence,
+          checksSentence
+            ? `${checksSentence.replace(/\.$/, "")}, so no files were changed.`
+            : "No files were changed.",
+        ].filter(Boolean).join(" ");
+      }
       return [
         "The requested state was already present.",
         objective.verificationSentence,
@@ -112,12 +123,48 @@ function getObjectivePresentation(outcome: ExecutionOutcome) {
       ? `The remaining legacy reference is confined to an allowed declaration or compatibility stub.`
       : `The remaining legacy references are confined to allowed declarations or compatibility stubs.`
     : "";
+  const isMigration = Boolean(
+    verified &&
+    forbiddenPassed &&
+    requiredAssertionUsesRuntimeServiceScope(verification?.assertions) &&
+    verification?.assertions.some(
+      (assertion) =>
+        assertion.kind === "required_pattern_present" &&
+        assertion.status === "passed",
+    ),
+  );
+  const migrationVerificationSentence = isMigration
+    ? `I verified all ${scope.naturalSubject.replace(/^the /, "")} and confirmed no obsolete runtime calls remain.`
+    : "";
+  const allowedMatchesAreSdkDeclarations = Boolean(
+    allowed?.matches.length &&
+    allowed.matches.every((match) => /(?:^|[/._-])sdk(?:[/._-]|$)/i.test(match.path)),
+  );
+  const migrationAllowedMatchSentence = allowed
+    ? allowedMatchesAreSdkDeclarations
+      ? "The only legacy references are the allowed SDK declarations."
+      : "The only legacy references are the allowed declarations or compatibility stubs."
+    : "";
 
   return {
     allowedMatchSentence,
     followUpSentence,
+    isMigration,
+    migrationAllowedMatchSentence,
+    migrationVerificationSentence,
     verificationSentence,
   };
+}
+
+function requiredAssertionUsesRuntimeServiceScope(
+  assertions: ObjectiveAssertionResult[] | undefined,
+) {
+  return assertions?.some(
+    (assertion) =>
+      assertion.kind === "required_pattern_present" &&
+      assertion.status === "passed" &&
+      assertion.scope.includes("semantic:runtime_service"),
+  ) ?? false;
 }
 
 function getVerifiedScope(outcome: ExecutionOutcome): VerifiedScopePresentation {

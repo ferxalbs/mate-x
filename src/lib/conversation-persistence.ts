@@ -20,21 +20,21 @@ function truncate(value: string, maxLength = MAX_PERSISTED_STRING_LENGTH) {
   return `${value.slice(0, maxLength)}\n… [truncated for local session storage]`;
 }
 
-function compactValue(value: unknown, depth = 0): unknown {
+function compactValue(value: unknown, depth = 0, maxDepth = 5): unknown {
   if (typeof value === "string") return truncate(value);
   if (value === null || typeof value !== "object") return value;
-  if (depth >= 5) return "[omitted from local session storage]";
+  if (depth >= maxDepth) return "[omitted from local session storage]";
 
   if (Array.isArray(value)) {
     return value
       .slice(-MAX_PERSISTED_EVENT_COUNT)
-      .map((item) => compactValue(item, depth + 1));
+      .map((item) => compactValue(item, depth + 1, maxDepth));
   }
 
   return Object.fromEntries(
     Object.entries(value).map(([key, child]) => [
       key,
-      compactValue(child, depth + 1),
+      compactValue(child, depth + 1, maxDepth),
     ]),
   );
 }
@@ -81,7 +81,10 @@ function compactMessage(message: ChatMessage): ChatMessage {
       : {}),
     ...(message.executionOutcome
       ? {
-          executionOutcome: compactValue(message.executionOutcome) as NonNullable<
+          // Terminal presentation needs assertion matches and per-check evidence
+          // after hydration. ExecutionOutcome contains no raw tool output, so it
+          // is safe to retain these bounded typed records more deeply.
+          executionOutcome: compactValue(message.executionOutcome, 0, 8) as NonNullable<
             ChatMessage["executionOutcome"]
           >,
         }

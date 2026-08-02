@@ -526,7 +526,9 @@ function ExecutionOutcomeCard({
       <details className="mt-2.5 border-t border-border/70 pt-2 text-[11px] text-muted-foreground">
         <summary className="cursor-pointer font-medium text-foreground/80">Details</summary>
         {changedFiles.length > 0 ? <ul className="mt-2 space-y-1">{changedFiles.map((file) => <li className="flex gap-3" key={`${file.path}:${file.operation}`}><span className="min-w-0 flex-1 break-all">{file.path}</span><span>{fileOperationLabel(file.operation)}</span></li>)}</ul> : null}
-        <p className="mt-2">Checks: {presentation.checksDetail}</p>
+        {!presentation.hasPassedChecks ? (
+          <p className="mt-2">Checks: {presentation.checksDetail}</p>
+        ) : null}
         {presentation.validationCause ? <p className="mt-1">Unavailable: {presentation.validationCause}</p> : null}
       </details>
       <details className="mt-2 text-[11px] text-muted-foreground">
@@ -574,6 +576,7 @@ export function getExecutionOutcomePresentation(outcome: ExecutionOutcome) {
     title,
     summary: buildPrimaryOutcomeSummary(outcome, changedCount, passedChecks.length > 0),
     statusRow,
+    hasPassedChecks: passedChecks.length > 0,
     checksDetail: passedChecks.length > 0 ? passedChecks.map((item) => `${item.signal} passed`).join(", ") : outcome.evidence.validation.status.replaceAll("_", " "),
     validationCause: unavailableTypecheck ? "This repository does not define a typecheck command." : outcome.evidence.validation.summary,
     canConfigureTypecheck: unavailableTypecheck,

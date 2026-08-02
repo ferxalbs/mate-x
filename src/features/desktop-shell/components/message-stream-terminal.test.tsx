@@ -16,7 +16,10 @@ import type { ExecutionOutcome } from "../../../contracts/execution";
 import { MessageScrollerProvider } from "../../../components/ui/message-scroller";
 import { compactConversationSnapshotForPersistence } from "../../../lib/conversation-persistence";
 import { MessageStream } from "./message-stream";
-import { getTerminalAssistantResponse } from "./terminal-outcome-presentation";
+import {
+  getOutcomeEvidenceRow,
+  getTerminalAssistantResponse,
+} from "./terminal-outcome-presentation";
 
 if (!globalThis.document) {
   GlobalRegistrator.register();
@@ -67,6 +70,7 @@ function makeOutcome(
     changedFiles?: string[];
     validationStatus?: ExecutionOutcome["evidence"]["validation"]["status"];
     validationCause?: ExecutionOutcome["evidence"]["validation"]["cause"];
+    testEvidenceStatus?: "passed" | "failed" | "not_run";
     objectiveStatus?: "satisfied" | "unsatisfied" | "indeterminate";
     coverage?: "complete" | "partial";
   } = {},
@@ -172,7 +176,10 @@ function makeOutcome(
             availability: "resolved",
             command: "bun test focused.test.ts",
             commandSource: "repository_script",
-            evidence: { status: "passed", executionId: "focused-tests" },
+            evidence: {
+              status: options.testEvidenceStatus ?? "passed",
+              executionId: "focused-tests",
+            },
             reason: "Requested focused tests.",
           }],
         },
@@ -238,7 +245,7 @@ describe("terminal message composition", () => {
     const response = view.container.querySelector('[data-slot="assistant-final-response"]');
     const card = view.container.querySelector('[data-slot="agent-outcome-card"]');
 
-    assert.ok(response?.textContent?.includes("The requested state was already present."));
+    assert.ok(response?.textContent?.includes("The migration was already complete."));
     assert.ok(card?.textContent?.includes("No changes needed"));
     assert.equal(card?.contains(response ?? null), false);
     assert.equal(response?.contains(card ?? null), false);
@@ -272,6 +279,17 @@ describe("terminal message composition", () => {
     fireEvent.click(view.getByRole("button", { name: /Read files.*validated/ }));
     assert.ok(view.getByRole("button", { name: /Inspected runtime services/ }));
     assert.ok(view.getByRole("button", { name: /Focused tests passed/ }));
+  });
+
+  it("keeps a terminal evidence summary visible when hydrated activity events are unavailable", async () => {
+    const message = makeMessage(makeOutcome("already_satisfied"));
+    message.events = [];
+    const view = await renderStream(message);
+
+    const toggle = view.getByRole("button", {
+      name: /Repository verified · No changes required · Tests passed/,
+    });
+    assert.equal(toggle.getAttribute("aria-expanded"), "false");
   });
 
   it("preserves manual expansion after completion across terminal hydration updates", async () => {
@@ -320,6 +338,7 @@ describe("terminal message composition", () => {
     const card = view.container.querySelector('[data-slot="agent-outcome-card"]');
     assert.ok(card?.textContent?.includes("No changes needed"));
     assert.ok(card?.textContent?.includes("0 files changed · 3 services verified · Tests passed"));
+    assert.equal(card?.textContent?.match(/test(?:s)? passed/gi)?.length, 1);
     assert.equal(card?.textContent?.includes("The requested state was already present."), false);
     assert.equal(card?.querySelector("details")?.hasAttribute("open"), false);
   });
@@ -334,20 +353,25 @@ describe("terminal message composition", () => {
     }], "thread-1");
     const view = await renderStream(persisted[0].messages[0]);
 
-    assert.equal(view.getAllByText(/The requested state was already present\./).length, 1);
+    assert.equal(view.getAllByText(/Focused tests passed, so no files were changed\./).length, 1);
     assert.equal(view.getAllByText("No changes needed").length, 1);
-    assert.equal(view.getByRole("button", { name: /Worked for/ }).getAttribute("aria-expanded"), "false");
+    assert.equal(view.getAllByText(/0 files changed · 3 services verified · Tests passed/).length, 1);
+    const toggle = view.getByRole("button", { name: /Worked for.*Tests passed/ });
+    assert.equal(toggle.getAttribute("aria-expanded"), "false");
+    fireEvent.click(toggle);
+    fireEvent.click(view.getByRole("button", { name: /Read files.*validated/ }));
+    assert.ok(view.getByRole("button", { name: /Inspected runtime services/ }));
+    assert.ok(view.getByRole("button", { name: /Focused tests passed/ }));
   });
 });
 
 describe("terminal assistant response projection", () => {
   it("uses natural no-change wording for already-satisfied work", () => {
     const response = getTerminalAssistantResponse(makeOutcome("already_satisfied"));
-    assert.match(response, /requested state was already present/i);
-    assert.match(response, /verified the 3 runtime services/i);
-    assert.match(response, /no prohibited runtime calls remain/i);
-    assert.match(response, /Focused tests passed\./);
-    assert.match(response, /No files were changed\./);
+    assert.equal(
+      response,
+      "The migration was already complete. I verified all 3 runtime services and confirmed no obsolete runtime calls remain. The only legacy references are the allowed SDK declarations. Focused tests passed, so no files were changed.",
+    );
   });
 
   it("explains verified changes and passed checks", () => {
@@ -372,6 +396,14 @@ describe("terminal assistant response projection", () => {
     }));
     assert.match(response, /does not define a typecheck command/i);
     assert.match(response, /Review the diff before shipping\./);
+  });
+
+  it("never presents missing or failed focused tests as passed", () => {
+    for (const testEvidenceStatus of ["not_run", "failed"] as const) {
+      const outcome = makeOutcome("already_satisfied", { testEvidenceStatus });
+      assert.doesNotMatch(getTerminalAssistantResponse(outcome), /tests passed/i);
+      assert.doesNotMatch(getOutcomeEvidenceRow(outcome), /tests passed/i);
+    }
   });
 
   it("never exposes internal enums, diagnostics, or provider progress prose", async () => {
