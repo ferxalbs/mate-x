@@ -15,6 +15,10 @@ import { finalizeWorkRun } from "./work-engine/finalizer";
 import { normalizeToolEvidence } from "./work-engine/execution-evidence";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
 import { scheduleObjectiveVerification } from "./work-engine/objective-verifier";
+import {
+  scheduledValidationPlanMatches,
+  selectSupplementalNoOpTest,
+} from "./work-engine/supplemental-validation";
 import { resolveRainyApiBaseUrl } from "../config/rainy";
 import type { AgentOutcome, AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../contracts/execution";
@@ -613,6 +617,67 @@ export async function runAssistant(
       segmentKind: "tool",
       visibility: "technical",
     });
+  }
+
+  const supplementalNoOpTest = planningPhase
+    ? null
+    : selectSupplementalNoOpTest(workPlan, toolExecutions);
+  if (supplementalNoOpTest) {
+    const packageScripts = Object.fromEntries(
+      workPlan.workingSet.relevantScripts.map((script) => [script.name, script.command]),
+    );
+    const planResult = await executeAgentToolCall({
+      toolCall: {
+        id: `scheduled-validation-plan-${effectiveRunId}`,
+        name: "plan_validation",
+        arguments: JSON.stringify({
+          objective: workPlan.objectiveContract?.primaryObjective ?? prompt,
+          changedFiles: [],
+          impactedFiles: workPlan.workingSet.impactedFiles,
+          packageScripts,
+        }),
+      },
+      toolIndex: toolExecutions.length,
+      iteration: 10_000,
+      snapshot,
+      events,
+      emitProgress,
+      appSettings,
+      runId: effectiveRunId,
+      engineeringTaskStatus,
+      behaviorMode: resolvedOptions.behaviorMode,
+      workStrategy,
+      signal: progressReporter?.signal,
+    });
+    toolExecutions.push(planResult.toolExecution);
+
+    if (scheduledValidationPlanMatches(
+      planResult.toolExecution.parsedOutput,
+      supplementalNoOpTest.command,
+    )) {
+      const testResult = await executeAgentToolCall({
+        toolCall: {
+          id: `scheduled-validation-test-${effectiveRunId}`,
+          name: "run_tests",
+          arguments: JSON.stringify({
+            scope: supplementalNoOpTest.scope,
+            plannedCommand: supplementalNoOpTest.plannedCommand,
+          }),
+        },
+        toolIndex: toolExecutions.length,
+        iteration: 10_001,
+        snapshot,
+        events,
+        emitProgress,
+        appSettings,
+        runId: effectiveRunId,
+        engineeringTaskStatus,
+        behaviorMode: resolvedOptions.behaviorMode,
+        workStrategy,
+        signal: progressReporter?.signal,
+      });
+      toolExecutions.push(testResult.toolExecution);
+    }
   }
 
   const finalValidationEvidence = toolExecutions.map((execution) =>
