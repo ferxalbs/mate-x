@@ -1,4 +1,5 @@
 import type {
+  ObjectiveVerificationEvidence,
   ValidationContract,
   WorkObjectiveContract,
 } from "../../contracts/work-objective";
@@ -64,6 +65,8 @@ export interface WorkPlan {
   lifecyclePhase?: string | null;
   /** Canonical user intent and repository-state contract. */
   objectiveContract?: WorkObjectiveContract;
+  /** Latest deterministic repository-state proof for the objective contract. */
+  objectiveVerification?: ObjectiveVerificationEvidence;
   /** Initial repository inspection evidence used to prove a no-op target state. */
   objectiveInspectionMatches?: SearchMatch[];
   /** Canonical validation obligations; validationPlan remains a compatibility projection. */

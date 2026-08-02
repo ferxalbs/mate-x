@@ -146,6 +146,17 @@ export function exportSanitizedWorkEngineRunArtifact(
                 ? sanitizeText(artifact.executionOutcome.evidence.validation.summary)
                 : undefined,
             },
+            objective: artifact.executionOutcome.evidence.objective
+              ? {
+                  ...artifact.executionOutcome.evidence.objective,
+                  verification: artifact.executionOutcome.evidence.objective.verification
+                    ? sanitizeObjectiveVerification(artifact.executionOutcome.evidence.objective.verification)
+                    : undefined,
+                  summary: artifact.executionOutcome.evidence.objective.summary
+                    ? sanitizeText(artifact.executionOutcome.evidence.objective.summary)
+                    : undefined,
+                }
+              : undefined,
             synthesis: {
               ...artifact.executionOutcome.evidence.synthesis,
               summary: artifact.executionOutcome.evidence.synthesis.summary
@@ -232,6 +243,9 @@ function sanitizeWorkPlan(workPlan: WorkPlan): WorkPlan {
   return {
     ...workPlan,
     objective: sanitizeText(workPlan.objective),
+    objectiveVerification: workPlan.objectiveVerification
+      ? sanitizeObjectiveVerification(workPlan.objectiveVerification)
+      : undefined,
     workingSet: {
       ...workPlan.workingSet,
       sensitiveSurfaces: workPlan.workingSet.sensitiveSurfaces.map((surface) => ({
@@ -254,6 +268,24 @@ function sanitizeWorkPlan(workPlan: WorkPlan): WorkPlan {
       requiredChecks: sanitizeStringList(workPlan.preventivePlan.requiredChecks),
       reason: sanitizeText(workPlan.preventivePlan.reason),
     },
+  };
+}
+
+function sanitizeObjectiveVerification(
+  verification: NonNullable<WorkPlan["objectiveVerification"]>,
+) {
+  return {
+    ...verification,
+    inspectedFiles: verification.inspectedFiles.map(sanitizeText),
+    assertions: verification.assertions.map((assertion) => ({
+      ...assertion,
+      reason: sanitizeText(assertion.reason),
+      matches: assertion.matches.map((match) => ({
+        ...match,
+        path: sanitizeText(match.path),
+        symbol: match.symbol ? sanitizeText(match.symbol) : undefined,
+      })),
+    })),
   };
 }
 

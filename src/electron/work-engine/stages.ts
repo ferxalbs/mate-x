@@ -8,7 +8,7 @@ import {
   resolveRequiredValidation,
   type RequiredValidationResolution,
 } from "./execution-evidence";
-import { resolveObjectiveEvidence } from "./objective-compiler";
+import { objectiveStateFromVerification } from "./objective-verifier";
 import { activeContractForWorkPlan, hasHighRiskChange, requiredApplicableItems } from "../validation-contract";
 
 export type WorkStageId =
@@ -107,21 +107,7 @@ export function deriveWorkStages(input: {
     evidence: normalizeToolExecution(execution),
   }));
   const reconciledValidationEvidence = reconcileToolEvidence(input.toolExecutions);
-  const objectiveResolution = input.workPlan.objectiveContract
-    ? resolveObjectiveEvidence(
-        input.workPlan.objectiveContract,
-        input.toolExecutions.map((execution) => ({
-          toolName: execution.toolName,
-          args: execution.args ?? {},
-          output: execution.output,
-          parsedOutput: execution.parsedOutput,
-        })),
-        { matches: input.workPlan.objectiveInspectionMatches ?? [] },
-      )
-    : { state: "unknown" as const, evidenceIds: [], summary: "Historical WorkPlan has no objective contract." };
-  const objectiveState = objectiveResolution.state === "unknown" && input.workPlan.objectiveContract?.objectiveAlreadySatisfied
-    ? "satisfied" as const
-    : objectiveResolution.state;
+  const objectiveState = objectiveStateFromVerification(input.workPlan.objectiveVerification);
   const actualMutation = normalizedExecutions.some((item) => item.evidence.changedFiles.length > 0);
   const activeValidationContract = activeContractForWorkPlan(input.workPlan, {
     phase: "final",

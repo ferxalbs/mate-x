@@ -14,6 +14,7 @@ import { deriveWorkStages, preventiveWarningDetail, shouldEmitPreventiveWarning 
 import { finalizeWorkRun } from "./work-engine/finalizer";
 import { normalizeToolEvidence } from "./work-engine/execution-evidence";
 import { persistWorkEngineRunArtifactSafely } from "./work-engine/run-artifact-runtime";
+import { scheduleObjectiveVerification } from "./work-engine/objective-verifier";
 import { resolveRainyApiBaseUrl } from "../config/rainy";
 import type { AgentOutcome, AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../contracts/execution";
@@ -113,6 +114,12 @@ export async function runAssistant(
     workspacePolicy: snapshot.trustContract,
     initialInspection: { matches: snapshot.promptMatches },
     behaviorMode: resolvedOptions.behaviorMode,
+  });
+  await scheduleObjectiveVerification({
+    workPlan,
+    workspacePath: snapshot.workspace.path,
+    workspaceId: snapshot.workspace.id,
+    runId: effectiveRunId,
   });
   const workStrategy = workPlan.objectiveContract?.strategy ?? "work";
   // EngineeringTask is sole workflow authority when linked.
@@ -586,6 +593,26 @@ export async function runAssistant(
       status: "error",
     });
     emitProgress();
+  }
+
+  if ((workPlan.objectiveContract?.repositoryAssertions?.length ?? 0) > 0) {
+    await scheduleObjectiveVerification({
+      workPlan,
+      workspacePath: snapshot.workspace.path,
+      workspaceId: snapshot.workspace.id,
+      runId: effectiveRunId,
+    });
+    const verificationState = workPlan.objectiveContract!.actualDelta.targetState;
+    events.push({
+      id: `step-${workPlan.objectiveVerification!.id}`,
+      label: verificationState === "satisfied"
+        ? "Requested repository state verified"
+        : "Requested repository state unproven",
+      detail: workPlan.objectiveVerification!.assertions.map((assertion) => assertion.reason).join(" "),
+      status: verificationState === "satisfied" ? "done" : "error",
+      segmentKind: "tool",
+      visibility: "technical",
+    });
   }
 
   const finalValidationEvidence = toolExecutions.map((execution) =>

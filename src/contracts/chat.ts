@@ -2,6 +2,7 @@ import type { RainyServiceTier } from "./rainy";
 import type { WorkingSet, WorkingSetMetadata } from "./working-set";
 import type { BehaviorMode } from "./behavior-mode";
 import type { ExecutionOutcome, ExecutionTerminalState } from "./execution";
+import type { ObjectiveVerificationEvidence } from "./work-objective";
 import type { RunEventDelta } from "./agent-run-trace";
 
 export type MessageRole = "user" | "assistant";
@@ -412,6 +413,7 @@ export interface EvidencePackPolicyStop {
 export interface EvidencePack {
   status: EvidencePackStatus;
   executionOutcome?: ExecutionOutcome;
+  objectiveVerification?: ObjectiveVerificationEvidence;
   governanceMode?: "governed" | "unrestricted";
   verdict: EvidencePackVerdict;
   verifiedTaskScore?: VerifiedTaskScore;

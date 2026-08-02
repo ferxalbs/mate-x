@@ -3,6 +3,7 @@ import type {
   ConditionalAcceptanceCriterion,
   MutationPermission,
   ObjectiveState,
+  RepositoryObjectiveAssertion,
   ObjectiveStateAssertion,
   WorkObjectiveContract,
   WorkStrategy,
@@ -10,7 +11,6 @@ import type {
   ValidationSignal,
   ValidationTrigger,
 } from "../../contracts/work-objective";
-import type { RepositoryEvidenceMatch, RepositoryObjectiveEvidence } from "../../contracts/execution";
 import type { WorkIntent } from "./types";
 
 export interface ObjectiveCompilerInput {
@@ -25,22 +25,6 @@ export interface ObjectiveCompilerInput {
     evidenceIds?: string[];
   };
   objectiveProposal?: unknown;
-}
-
-export interface ObjectiveEvidenceExecution {
-  toolName: string;
-  args: Record<string, unknown>;
-  output: string;
-  parsedOutput?: Record<string, unknown>;
-  changedFiles?: string[];
-  objectiveEvidence?: RepositoryObjectiveEvidence;
-}
-
-export interface ResolvedObjectiveEvidence {
-  state: ObjectiveState;
-  evidenceIds: string[];
-  summary: string;
-  repositoryEvidence: RepositoryObjectiveEvidence[];
 }
 
 const SIGNAL_PATTERNS: Array<[ValidationSignal, RegExp]> = [
@@ -61,6 +45,7 @@ export function compileObjectiveContract(input: ObjectiveCompilerInput): WorkObj
     (!MUTATION_WORDS.test(input.prompt) && containsValidationSignal(input.prompt));
   const strategy = strategyFor(input.mode, input.intent, validationIsPrimaryObjective, input.prompt);
   const stateAssertions = parseStateAssertions(input.prompt);
+  const repositoryAssertions = compileRepositoryAssertions(input.prompt, stateAssertions);
   const conditionalAcceptanceCriteria = parseValidationCriteria(
     input.prompt,
     validationIsPrimaryObjective,
@@ -92,6 +77,7 @@ export function compileObjectiveContract(input: ObjectiveCompilerInput): WorkObj
       ...(validationIsPrimaryObjective ? ["The requested validation must produce execution evidence."] : []),
     ],
     stateAssertions,
+    repositoryAssertions,
     mutationPermission: mutationPermissionFor(input.workspacePolicy, input.mode, input.prompt),
     validationIsPrimaryObjective,
     objectiveAlreadySatisfied: initialState === "satisfied",
@@ -105,172 +91,6 @@ export function compileObjectiveContract(input: ObjectiveCompilerInput): WorkObj
     strategy,
     source: "deterministic_fallback",
   };
-}
-
-export function resolveObjectiveEvidence(
-  objective: WorkObjectiveContract,
-  executions: ObjectiveEvidenceExecution[],
-  initialInspection?: { matches?: SearchMatch[] },
-  expectedRepositoryRoot?: string,
-): ResolvedObjectiveEvidence {
-  const evidenceIds: string[] = [];
-  let explicitSatisfied = false;
-  let explicitUnsatisfied = false;
-
-  const repositoryEvidence = normalizeRepositoryObjectiveEvidence(
-    objective,
-    executions,
-    expectedRepositoryRoot,
-  );
-  const repositoryEvidenceById = new Map(
-    repositoryEvidence.map((evidence) => [evidence.executionId, evidence]),
-  );
-  const normalizedExecutions = executions.map((execution) => ({
-    ...execution,
-    objectiveEvidence: execution.objectiveEvidence
-      ? repositoryEvidenceById.get(execution.objectiveEvidence.executionId)
-      : undefined,
-  }));
-
-  for (const execution of executions) {
-    const objectiveEvidence = recordOf(execution.parsedOutput?.objectiveEvidence);
-    if (!objectiveEvidence) continue;
-    const state = objectiveEvidence.state;
-    const targetStateSatisfied = objectiveEvidence.targetStateSatisfied;
-    const prohibitedStateAbsent = objectiveEvidence.prohibitedStateAbsent;
-    if (
-      state === "satisfied" &&
-      targetStateSatisfied !== false &&
-      prohibitedStateAbsent !== false
-    ) {
-      explicitSatisfied = true;
-      evidenceIds.push(executionId(execution));
-    } else if (state === "unsatisfied") {
-      explicitUnsatisfied = true;
-      evidenceIds.push(executionId(execution));
-    }
-  }
-
-  const assertionResults = objective.stateAssertions.map((assertion) => ({
-    assertion,
-    proven: assertionProven(assertion, normalizedExecutions, initialInspection?.matches ?? []),
-  }));
-  const allAssertionsProven = assertionResults.length > 0 && assertionResults.every((result) => result.proven);
-  const anyAssertionDisproved = assertionResults.some((result) => result.proven === false);
-  const assertionEvidenceIds = assertionResults
-    .filter((result) => result.proven !== undefined)
-    .map((result) => `assertion:${result.assertion.id}`);
-  evidenceIds.push(...assertionEvidenceIds);
-  evidenceIds.push(
-    ...repositoryEvidence
-      .filter((evidence) =>
-        evidence.freshness === "current_run" &&
-        evidence.completedSuccessfully &&
-        evidence.coverage === "complete",
-      )
-      .map((evidence) => evidence.executionId),
-  );
-
-  if (explicitSatisfied || allAssertionsProven) {
-    return {
-      state: "satisfied",
-      evidenceIds: unique(evidenceIds),
-      summary: "Repository evidence proves the requested target state is already satisfied.",
-      repositoryEvidence,
-    };
-  }
-  if (explicitUnsatisfied || anyAssertionDisproved) {
-    return {
-      state: "unsatisfied",
-      evidenceIds: unique(evidenceIds),
-      summary: "Repository evidence shows that at least one requested state assertion is not satisfied.",
-      repositoryEvidence,
-    };
-  }
-  return {
-    state: "unknown",
-    evidenceIds: unique(evidenceIds),
-    summary: "Repository evidence is insufficient to classify the requested target state.",
-    repositoryEvidence,
-  };
-}
-
-export function normalizeLiveRepositoryEvidence(input: {
-  toolName: string;
-  args: Record<string, unknown>;
-  output: string;
-  executionId: string;
-  repositoryRoot: string;
-  runIdentity: string;
-  completedSuccessfully: boolean;
-}): RepositoryObjectiveEvidence | undefined {
-  const toolName = input.toolName.trim().toLowerCase();
-  const operation = isSearchTool(toolName)
-    ? "search" as const
-    : isReadTool(toolName)
-      ? "read" as const
-      : null;
-  if (!operation) return undefined;
-
-  const searchedScopes = operation === "search"
-    ? stringValues(input.args.paths ?? input.args.path, ".")
-    : [];
-  const filesRead = operation === "read"
-    ? stringValues(input.args.path ?? input.args.file)
-    : [];
-  const truncated = /\.\.\. \(truncated|Tip: narrow path|output truncated/i.test(input.output);
-  const missingScope = /search paths do not exist/i.test(input.output);
-  const coverage = !input.completedSuccessfully || truncated
-    ? "partial" as const
-    : missingScope
-      ? "ambiguous" as const
-      : "complete" as const;
-
-  return {
-    executionId: input.executionId,
-    operation,
-    ...(operation === "search" && typeof input.args.query === "string"
-      ? { searchedPattern: input.args.query }
-      : {}),
-    searchedScopes,
-    completedSuccessfully: input.completedSuccessfully && !missingScope,
-    matchedLocations: operation === "search" ? parseSearchMatches(input.output) : [],
-    filesRead,
-    allowedRemainingMatches: [],
-    prohibitedRemainingMatches: [],
-    repositoryRoot: input.repositoryRoot,
-    runIdentity: input.runIdentity,
-    freshness: "current_run",
-    coverage,
-  };
-}
-
-function normalizeRepositoryObjectiveEvidence(
-  objective: WorkObjectiveContract,
-  executions: ObjectiveEvidenceExecution[],
-  expectedRepositoryRoot?: string,
-) {
-  return executions.flatMap((execution) => {
-    const evidence = execution.objectiveEvidence;
-    if (!evidence) return [];
-    const current = !expectedRepositoryRoot || evidence.repositoryRoot === expectedRepositoryRoot;
-    const prohibitedAssertions = objective.stateAssertions.filter((assertion) => assertion.kind === "must_not_exist");
-    const prohibitedRemainingMatches = evidence.matchedLocations.filter((match) =>
-      prohibitedAssertions.some((assertion) =>
-        containsExpression(match.text, assertion.expression) && scopeMatches(assertion.scope, match.file),
-      ),
-    );
-    const allowedRemainingMatches = evidence.matchedLocations.filter((match) =>
-      !prohibitedRemainingMatches.includes(match),
-    );
-    return [{
-      ...evidence,
-      freshness: current ? evidence.freshness : "stale" as const,
-      coverage: current ? evidence.coverage : "ambiguous" as const,
-      allowedRemainingMatches,
-      prohibitedRemainingMatches,
-    }];
-  });
 }
 
 export function updateObjectiveDelta(
@@ -302,6 +122,11 @@ function normalizeStructuredProposal(
         .map(normalizeAssertion)
         .filter((assertion): assertion is ObjectiveStateAssertion => assertion !== null)
     : [];
+  const repositoryAssertions = Array.isArray(value.repositoryAssertions)
+    ? value.repositoryAssertions
+        .map(normalizeRepositoryAssertion)
+        .filter((assertion): assertion is RepositoryObjectiveAssertion => assertion !== null)
+    : compileRepositoryAssertions(input.prompt, assertions);
   const requestedRepositoryState = stringArray(value.requestedRepositoryState);
   const acceptanceCriteria = stringArray(value.acceptanceCriteria);
   const explicitConstraints = stringArray(value.explicitConstraints);
@@ -328,6 +153,7 @@ function normalizeStructuredProposal(
     conditionalAcceptanceCriteria: criteria,
     evidenceRequirements,
     stateAssertions: assertions,
+    repositoryAssertions,
     mutationPermission,
     validationIsPrimaryObjective,
     objectiveAlreadySatisfied: targetState === "satisfied",
@@ -417,6 +243,83 @@ function parseStateAssertions(prompt: string): ObjectiveStateAssertion[] {
   ];
 }
 
+function compileRepositoryAssertions(
+  prompt: string,
+  legacyAssertions: ObjectiveStateAssertion[],
+): RepositoryObjectiveAssertion[] {
+  const required = legacyAssertions.find((assertion) => assertion.kind === "must_exist");
+  const forbidden = legacyAssertions.find((assertion) => assertion.kind === "must_not_exist");
+  if (!required || !forbidden) return [];
+
+  const semanticScope = compileScope(forbidden.scope ?? required.scope);
+  const oldPattern = callTarget(forbidden.expression);
+  const replacementPattern = callTarget(required.expression);
+  if (!oldPattern || !replacementPattern) return [];
+
+  return [
+    {
+      id: "forbidden-runtime-call-absent",
+      kind: "forbidden_pattern_absent",
+      pattern: oldPattern,
+      matcher: "call_expression",
+      scope: semanticScope,
+      exclusions: defaultRepositoryExclusions(),
+      reason: `Runtime scope must not contain calls to ${oldPattern}.`,
+    },
+    {
+      id: "replacement-runtime-call-present",
+      kind: "required_pattern_present",
+      pattern: replacementPattern,
+      matcher: "call_expression",
+      scope: semanticScope,
+      exclusions: defaultRepositoryExclusions(),
+      reason: `Runtime scope must contain the replacement call ${replacementPattern}.`,
+    },
+    {
+      id: "legacy-match-allowed-only",
+      kind: "allowed_match_only",
+      pattern: oldPattern.split(".").at(-1),
+      matcher: "symbol",
+      scope: ["semantic:repository_source"],
+      exclusions: [...semanticScope, ...defaultRepositoryExclusions()],
+      allowedContexts: ["declaration", "stub"],
+      reason: `Remaining ${oldPattern} matches are allowed only in declarations or compatibility stubs outside runtime scope.`,
+    },
+    {
+      id: "runtime-scope-covered",
+      kind: "file_state",
+      scope: semanticScope,
+      exclusions: defaultRepositoryExclusions(),
+      reason: "Every runtime file in the requested scope must be inspected.",
+    },
+  ];
+}
+
+function compileScope(scope: string | null | undefined) {
+  const normalized = scope?.trim().toLowerCase() ?? "";
+  if (/runtime\s+service/.test(normalized)) return ["semantic:runtime_service"];
+  if (/runtime/.test(normalized)) return ["semantic:runtime_source"];
+  if (scope?.trim()) return [scope.trim()];
+  return ["semantic:repository_source"];
+}
+
+function defaultRepositoryExclusions() {
+  return [
+    "semantic:test",
+    "semantic:documentation",
+    "semantic:generated",
+  ];
+}
+
+function callTarget(expression: string) {
+  const value = expression.trim().replace(/[`'"]/g, "");
+  const openingParen = value.indexOf("(");
+  const target = (openingParen >= 0 ? value.slice(0, openingParen) : value).trim();
+  return /^[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)+$/.test(target)
+    ? target.replace(/\s+/g, "")
+    : null;
+}
+
 function parseRequestedState(prompt: string, assertions: ObjectiveStateAssertion[]) {
   const firstMeaningful = prompt
     .split(/\r?\n/)
@@ -430,80 +333,6 @@ function parseRequestedState(prompt: string, assertions: ObjectiveStateAssertion
     );
   }
   return firstMeaningful ? [firstMeaningful] : ["Complete the requested repository work."];
-}
-
-function assertionProven(
-  assertion: ObjectiveStateAssertion,
-  executions: ObjectiveEvidenceExecution[],
-  initialMatches: SearchMatch[],
-): boolean | undefined {
-  if (assertion.kind === "must_exist") {
-    const initialMatch = initialMatches.some((match) =>
-      containsExpression(match.text, assertion.expression) && scopeMatches(assertion.scope, match.file),
-    );
-    const executionMatch = executions.some((execution) => {
-      const repositoryEvidence = execution.objectiveEvidence;
-      if (repositoryEvidence) {
-        return repositoryEvidence.operation === "read" &&
-          repositoryEvidence.completedSuccessfully &&
-          repositoryEvidence.coverage === "complete" &&
-          repositoryEvidence.freshness === "current_run" &&
-          repositoryEvidence.filesRead.some((file) => scopeMatches(assertion.scope, file)) &&
-          containsExpression(execution.output, assertion.expression);
-      }
-      if (isNegativeSearchResult(execution)) return false;
-      return containsExpression(execution.output, assertion.expression) &&
-        scopeMatches(assertion.scope, stringValue(execution.args.path));
-    });
-    return initialMatch || executionMatch ? true : undefined;
-  }
-
-  const negativeSearch = executions.some((execution) => {
-    const repositoryEvidence = execution.objectiveEvidence;
-    if (repositoryEvidence) {
-      return repositoryEvidence.operation === "search" &&
-        repositoryEvidence.completedSuccessfully &&
-        repositoryEvidence.coverage === "complete" &&
-        repositoryEvidence.freshness === "current_run" &&
-        typeof repositoryEvidence.searchedPattern === "string" &&
-        containsExpression(assertion.expression, repositoryEvidence.searchedPattern) &&
-        repositoryEvidence.searchedScopes.some((scope) => scopeMatches(assertion.scope, scope)) &&
-        repositoryEvidence.prohibitedRemainingMatches.length === 0;
-    }
-    const query = stringValue(execution.args.query);
-    const searchedScope = stringValue(execution.args.path);
-    return (
-      isSearchTool(execution.toolName) &&
-      typeof query === "string" &&
-      containsExpression(assertion.expression, query) &&
-      scopeMatches(assertion.scope, searchedScope) &&
-      isNegativeSearchResult(execution)
-    );
-  });
-  return negativeSearch ? true : undefined;
-}
-
-function isNegativeSearchResult(execution: ObjectiveEvidenceExecution) {
-  const discovery = recordOf(execution.parsedOutput);
-  if (discovery?.discoveryStatus === "no_matches" && Array.isArray(discovery.matches) && discovery.matches.length === 0) {
-    return true;
-  }
-  return /no matches found|no matching files/i.test(execution.output);
-}
-
-function scopeMatches(scope: string | null | undefined, searchedPath: string | undefined) {
-  if (!scope) return true;
-  if (!searchedPath) return true;
-  const tokens = scope.toLowerCase().match(/[a-z0-9_-]{4,}/g) ?? [];
-  if (tokens.length === 0) return true;
-  const normalizedPath = searchedPath.toLowerCase();
-  return tokens.some((token) => normalizedPath.includes(token));
-}
-
-function containsExpression(value: string | undefined, expression: string) {
-  if (!value) return false;
-  const compact = (text: string) => text.replace(/\s+/g, "").toLowerCase();
-  return compact(value).includes(compact(expression));
 }
 
 function inferSectionTrigger(label: string): ValidationTrigger | null {
@@ -604,6 +433,37 @@ function normalizeAssertion(value: unknown): ObjectiveStateAssertion | null {
   };
 }
 
+function normalizeRepositoryAssertion(value: unknown): RepositoryObjectiveAssertion | null {
+  const record = recordOf(value);
+  if (!record || typeof record.id !== "string" || typeof record.reason !== "string") return null;
+  if (![
+    "forbidden_pattern_absent",
+    "required_pattern_present",
+    "allowed_match_only",
+    "file_state",
+  ].includes(String(record.kind))) return null;
+  const pattern = typeof record.pattern === "string" && record.pattern.trim()
+    ? record.pattern.trim()
+    : undefined;
+  if (record.kind !== "file_state" && !pattern) return null;
+  const matcher = record.matcher === "literal" || record.matcher === "symbol" || record.matcher === "call_expression"
+    ? record.matcher
+    : undefined;
+  return {
+    id: record.id,
+    kind: record.kind as RepositoryObjectiveAssertion["kind"],
+    pattern,
+    matcher,
+    scope: stringArray(record.scope),
+    exclusions: stringArray(record.exclusions),
+    allowedContexts: Array.isArray(record.allowedContexts)
+      ? record.allowedContexts.filter((context): context is "declaration" | "stub" =>
+          context === "declaration" || context === "stub")
+      : undefined,
+    reason: record.reason,
+  };
+}
+
 function normalizeTrigger(value: unknown): ValidationTrigger | null {
   return [
     "always",
@@ -651,48 +511,4 @@ function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
     : [];
-}
-
-function stringValue(value: unknown) {
-  return typeof value === "string" ? value : undefined;
-}
-
-function isSearchTool(toolName: string) {
-  return ["rg", "search_repository", "grep_search", "file_search", "ast_grep", "glob", "find"].includes(toolName.trim().toLowerCase());
-}
-
-function isReadTool(toolName: string) {
-  return ["read", "read_file", "read_many"].includes(toolName.trim().toLowerCase());
-}
-
-function stringValues(value: unknown, fallback?: string) {
-  const values = Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : typeof value === "string" && value.trim().length > 0
-      ? [value]
-      : [];
-  return values.length > 0 ? values : fallback ? [fallback] : [];
-}
-
-function parseSearchMatches(output: string): RepositoryEvidenceMatch[] {
-  if (/^no matches found\.?/i.test(output.trim())) return [];
-  return output.split(/\r?\n/).flatMap((line) => {
-    const match = line.match(/^(.+?):(\d+):(\d+):(.*)$/);
-    if (!match) return [];
-    return [{
-      file: match[1],
-      line: Number(match[2]),
-      column: Number(match[3]),
-      text: match[4],
-    }];
-  });
-}
-
-function executionId(execution: ObjectiveEvidenceExecution) {
-  const value = execution.parsedOutput?.executionId;
-  return typeof value === "string" ? value : `tool:${execution.toolName}`;
-}
-
-function unique(values: string[]) {
-  return [...new Set(values)];
 }

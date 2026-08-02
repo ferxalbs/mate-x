@@ -22,6 +22,7 @@ import { deriveWorkStages } from "./stages";
 import { finalizeWorkRun } from "./finalizer";
 import { evaluateValidationGate } from "./validation-gate";
 import { buildEvidencePack } from "../evidence-pack";
+import { verifyRepositoryObjective } from "./objective-verifier";
 
 const MIGRATION_PROMPT = `Migrate every legacy SDK v2 record API.
 
@@ -301,18 +302,17 @@ describe("canonical Work objective and validation contract", () => {
         workspacePath,
         prompt: MIGRATION_PROMPT,
         targetToolchain: toolchain(workspacePath),
-        initialMatches: [{
-          file: "src/services/record-a.ts",
-          line: 2,
-          text: "return client.records.create({ email });",
-        }],
+      });
+      workPlan.objectiveVerification = await verifyRepositoryObjective({
+        objective: workPlan.objectiveContract!,
+        workspacePath,
+        workspaceId: "synthetic-workspace",
+        runId: "already-satisfied-runtime",
       });
       const { stages, result } = finish(workPlan, [
-        search("createLegacyRecord", "No matches found."),
         validation("test"),
       ], "Search completed. Focused tests passed. No files required changes.");
       const gate = evaluateValidationGate(workPlan, [
-        search("createLegacyRecord", "No matches found."),
         validation("test"),
       ], "No files required changes.");
 
@@ -341,14 +341,14 @@ describe("canonical Work objective and validation contract", () => {
         workspacePath,
         prompt: MIGRATION_PROMPT,
         targetToolchain: toolchain(workspacePath),
-        initialMatches: [{
-          file: "src/services/record-a.ts",
-          line: 2,
-          text: "return client.records.create({ email });",
-        }],
+      });
+      workPlan.objectiveVerification = await verifyRepositoryObjective({
+        objective: workPlan.objectiveContract!,
+        workspacePath,
+        workspaceId: "synthetic-workspace",
+        runId: "already-satisfied-pack",
       });
       const toolExecutions = [
-        search("createLegacyRecord", "No matches found."),
         validation("test"),
       ];
       const events: ToolEvent[] = [
@@ -380,6 +380,7 @@ describe("canonical Work objective and validation contract", () => {
 
       assert.equal(evidencePack.status, "complete");
       assert.equal(evidencePack.filesModified?.length ?? 0, 0);
+      assert.equal(evidencePack.objectiveVerification?.id, workPlan.objectiveVerification.id);
     }, { initializeGit: true });
   });
 

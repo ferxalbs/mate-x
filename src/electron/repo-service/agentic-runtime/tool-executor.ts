@@ -9,7 +9,6 @@ import { isToolFailureOutput, parseToolArguments, truncateToolOutputForModel, wi
 import { resolveToolExecutionTimeoutMs } from "./config";
 import type { EngineeringTaskStatus } from "../../../contracts/engineering-task";
 import { normalizeToolEvidence } from "../../work-engine/execution-evidence";
-import { normalizeLiveRepositoryEvidence } from "../../work-engine/objective-compiler";
 import { resolveToolAuthorization } from "../../capability-resolver";
 import type { BehaviorMode } from "../../../contracts/behavior-mode";
 import type { WorkStrategy } from "../../../contracts/work-objective";
@@ -412,16 +411,6 @@ export async function executeAgentToolCall({
     if (finalValidationAuthorization) {
       evidence.validationAuthorization = finalValidationAuthorization;
     }
-    const objectiveEvidence = normalizeLiveRepositoryEvidence({
-      toolName,
-      args: toolArgs,
-      output: rawResult,
-      executionId: toolCall.id,
-      repositoryRoot: snapshot.workspace.path,
-      runIdentity: runId,
-      completedSuccessfully: !outputIndicatesFailure,
-    });
-
     return {
       toolCallId: toolCall.id,
       content: modelContent,
@@ -431,7 +420,6 @@ export async function executeAgentToolCall({
         output: rawResult,
         parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
         evidence,
-        objectiveEvidence,
         validationAuthorization: finalValidationAuthorization,
       } satisfies ToolExecutionRecord,
       executionPolicy,

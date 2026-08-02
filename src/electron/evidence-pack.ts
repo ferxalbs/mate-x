@@ -14,7 +14,7 @@ import {
   reconcileToolExecutions,
   resolveRequiredValidation,
 } from "./work-engine/execution-evidence";
-import { resolveObjectiveEvidence } from "./work-engine/objective-compiler";
+import { objectiveStateFromVerification } from "./work-engine/objective-verifier";
 
 export type { ToolExecutionRecord };
 
@@ -185,19 +185,7 @@ export async function buildEvidencePack(params: {
       )?.status ?? null
     : null;
   const reconciledToolExecutions = reconcileToolExecutions(toolExecutions);
-  const objectiveResolution = params.workPlan?.objectiveContract
-    ? resolveObjectiveEvidence(
-        params.workPlan.objectiveContract,
-        reconciledToolExecutions.map((execution) => ({
-          toolName: execution.toolName,
-          args: execution.args,
-          output: execution.output,
-          parsedOutput: execution.parsedOutput,
-          objectiveEvidence: execution.objectiveEvidence,
-        })),
-        { matches: params.workPlan.objectiveInspectionMatches ?? [] },
-      )
-    : null;
+  const objectiveVerification = params.workPlan?.objectiveVerification;
   const effectiveEvents = canonicalValidationStatus === "passed"
     ? events.filter((event) => !(event.type === "validation" && event.status === "error"))
     : events;
@@ -205,7 +193,7 @@ export async function buildEvidencePack(params: {
     events,
     toolExecutions,
     canonicalValidationStatus,
-    objectiveResolution?.state === "satisfied",
+    objectiveStateFromVerification(objectiveVerification) === "satisfied",
   );
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
@@ -340,6 +328,7 @@ export async function buildEvidencePack(params: {
 
   return {
     status,
+    objectiveVerification,
     governanceMode: "governed",
     verdict,
     verifiedTaskScore,

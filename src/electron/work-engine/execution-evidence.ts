@@ -10,7 +10,8 @@ import type { ValidationContract } from "../../contracts/work-objective";
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
 import type { WorkStage } from "./stages";
-import { resolveObjectiveEvidence, updateObjectiveDelta } from "./objective-compiler";
+import { updateObjectiveDelta } from "./objective-compiler";
+import { objectiveStateFromVerification } from "./objective-verifier";
 import {
   activeContractForWorkPlan,
   contractForWorkPlan,
@@ -194,28 +195,12 @@ export function buildExecutionEvidence(input: {
   const changedFiles = dedupeChangedFiles(normalized.flatMap((item) => item.changedFiles));
   const validationEvidence = normalized.filter((item) => item.validationStatus);
   const validationStage = input.stages.find((stage) => stage.id === "validation_executed");
-  const objectiveResolution = input.workPlan.objectiveContract
-    ? resolveObjectiveEvidence(
-        input.workPlan.objectiveContract,
-        input.toolExecutions.map((execution) => ({
-          toolName: execution.toolName,
-          args: execution.args ?? {},
-          output: execution.output,
-          parsedOutput: execution.parsedOutput,
-          changedFiles: normalizeToolExecution(execution).changedFiles.map((file) => file.path),
-          objectiveEvidence: execution.objectiveEvidence,
-        })),
-        { matches: input.workPlan.objectiveInspectionMatches ?? [] },
-      )
-    : {
-        state: "unknown" as const,
-      evidenceIds: [],
-      summary: "No canonical objective contract was persisted for this historical run.",
-      repositoryEvidence: [],
-      };
-  const objectiveState = objectiveResolution.state === "unknown" && input.workPlan.objectiveContract?.objectiveAlreadySatisfied
-    ? "satisfied" as const
-    : objectiveResolution.state;
+  const objectiveVerification = input.workPlan.objectiveVerification;
+  const objectiveState = objectiveStateFromVerification(objectiveVerification);
+  const objectiveEvidenceIds = objectiveVerification?.evidenceExecutionIds ?? [];
+  const objectiveSummary = objectiveVerification
+    ? objectiveVerification.assertions.map((assertion) => assertion.reason).join(" ")
+    : "No deterministic objective verification evidence was produced for this run.";
   const activeContract = activeContractForWorkPlan(input.workPlan, {
     phase: "final",
     actualMutation: changedFiles.length > 0,
@@ -263,12 +248,17 @@ export function buildExecutionEvidence(input: {
         mutationOccurred: changedFiles.length > 0,
         changedFiles: changedFiles.map((file) => file.path),
         targetState: objectiveState,
-        evidenceIds: objectiveResolution.evidenceIds,
+        evidenceIds: objectiveEvidenceIds,
       },
     );
   }
 
   return {
+    workspaceProvenance: changedFiles.length > 0
+      ? "runtime_changes"
+      : (input.workPlan.objectiveContract?.actualDelta.preexistingFiles.length ?? 0) > 0
+        ? "preexisting_changes"
+        : "unchanged",
     completedSteps,
     failedSteps,
     blockedSteps,
@@ -295,9 +285,9 @@ export function buildExecutionEvidence(input: {
     objective: {
       state: objectiveState,
       mutationOccurred: changedFiles.length > 0,
-      evidenceIds: objectiveResolution.evidenceIds,
-      repositoryEvidence: objectiveResolution.repositoryEvidence,
-      summary: objectiveResolution.summary,
+      evidenceIds: objectiveEvidenceIds,
+      verification: objectiveVerification,
+      summary: objectiveSummary,
     },
     synthesis: {
       status: input.synthesisStatus,
@@ -546,6 +536,12 @@ export function resolveExecutionTerminalState(input: {
     input.workPlan.intent === "patch" &&
     !objectiveSatisfiedNoOp &&
     !(input.workPlan.objectiveContract?.validationIsPrimaryObjective ?? false);
+  const objectiveVerificationRequired =
+    (input.workPlan.objectiveContract?.repositoryAssertions?.length ?? 0) > 0;
+  const objectiveUnprovenAfterMutation =
+    hasMutation &&
+    objectiveVerificationRequired &&
+    input.evidence.objective?.state !== "satisfied";
   const planningStrategy = input.workPlan.objectiveContract?.strategy === "planning";
   const activeContract = input.evidence.validation.contract ?? contractForWorkPlan(input.workPlan);
   const requiredItems = requiredApplicableItems(activeContract);
@@ -588,6 +584,7 @@ export function resolveExecutionTerminalState(input: {
   if (hasFailedStep || validationFailed) return "failed";
   if (synthesisMissing) return "failed";
   if (objectiveUnprovenNoMutation) return "blocked";
+  if (objectiveUnprovenAfterMutation) return "partial";
   if (validationMissing && !objectiveSatisfiedNoOp) return hasMutation ? "partial" : "blocked";
   if (input.incompleteEvidence || ((!planningStrategy) && input.preparatoryOnly) || (missingRequiredStage && !objectiveSatisfiedNoOp && !planningStrategy)) return "partial";
   if (input.workPlan.evidencePlan.required && !input.evidenceAttached) return "failed";
@@ -666,6 +663,10 @@ export function buildUserFacingExecutionSummary(
       lines.push(`Stopped pending required action: ${evidence.requiredUserAction}`);
     } else if (evidence.objective?.state === "unknown" && evidence.changedFiles.length === 0) {
       lines.push("Stopped because repository evidence did not prove the requested objective state.");
+      const coverageReason = evidence.objective.verification?.assertions.find(
+        (assertion) => assertion.status === "indeterminate",
+      )?.reason;
+      if (coverageReason) lines.push(`Missing coverage: ${sanitizeUserReason(coverageReason)}.`);
     } else if (evidence.validation.status === "not_run") {
       lines.push(
         `Stopped because ${validationCauseDescription(evidence.validation.cause) ?? "required validation did not run"}.`,

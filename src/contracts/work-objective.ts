@@ -48,6 +48,63 @@ export type ValidationCommandAuthoritySource =
 
 export type ObjectiveState = "satisfied" | "unsatisfied" | "unknown";
 
+export type ObjectiveVerificationStatus =
+  | "satisfied"
+  | "unsatisfied"
+  | "indeterminate";
+
+export type ObjectiveAssertionKind =
+  | "forbidden_pattern_absent"
+  | "required_pattern_present"
+  | "allowed_match_only"
+  | "file_state";
+
+export type ObjectivePatternMatcher = "literal" | "symbol" | "call_expression";
+
+export interface RepositoryObjectiveAssertion {
+  id: string;
+  kind: ObjectiveAssertionKind;
+  pattern?: string;
+  matcher?: ObjectivePatternMatcher;
+  scope: string[];
+  exclusions: string[];
+  allowedContexts?: Array<"declaration" | "stub">;
+  reason: string;
+}
+
+export interface ObjectiveAssertionMatch {
+  path: string;
+  line?: number;
+  symbol?: string;
+}
+
+export interface ObjectiveAssertionResult {
+  id: string;
+  kind: ObjectiveAssertionKind;
+  scope: string[];
+  exclusions: string[];
+  status: "passed" | "failed" | "indeterminate";
+  matches: ObjectiveAssertionMatch[];
+  reason: string;
+}
+
+export interface ObjectiveVerificationEvidence {
+  id: string;
+  objectiveId: string;
+  objectiveContractHash: string;
+  requiredScopeHash: string;
+  runId: string;
+  workspaceId: string;
+  repositorySnapshotId: string;
+  repositoryHead: string;
+  status: ObjectiveVerificationStatus;
+  coverage: "complete" | "partial";
+  assertions: ObjectiveAssertionResult[];
+  inspectedFiles: string[];
+  evidenceExecutionIds: string[];
+  createdAt: string;
+}
+
 export interface ObjectiveStateAssertion {
   id: string;
   kind: "must_exist" | "must_not_exist";
@@ -80,6 +137,8 @@ export interface WorkObjectiveContract {
   conditionalAcceptanceCriteria: ConditionalAcceptanceCriterion[];
   evidenceRequirements: string[];
   stateAssertions: ObjectiveStateAssertion[];
+  /** Deterministic repository assertions. Natural-language output is never evidence. */
+  repositoryAssertions?: RepositoryObjectiveAssertion[];
   mutationPermission: MutationPermission;
   validationIsPrimaryObjective: boolean;
   objectiveAlreadySatisfied: boolean;

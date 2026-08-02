@@ -5,7 +5,7 @@ import {
   reconcileToolEvidence,
   resolveRequiredValidationStatus,
 } from "./execution-evidence";
-import { resolveObjectiveEvidence } from "./objective-compiler";
+import { objectiveStateFromVerification } from "./objective-verifier";
 import { activeContractForWorkPlan, hasHighRiskChange, requiredApplicableItems } from "../validation-contract";
 
 const UNSUPPORTED_DONE_RE = /\b(fixed|ready|works|no warnings|merge-ready|merge ready|done)\b/i;
@@ -48,21 +48,7 @@ export function evaluateValidationGate(
     ["run_tests", "sandbox_run"].includes(execution.toolName),
   );
   const normalizedValidation = reconcileToolEvidence(toolExecutions);
-  const objectiveResolution = workPlan.objectiveContract
-    ? resolveObjectiveEvidence(
-        workPlan.objectiveContract,
-        toolExecutions.map((execution) => ({
-          toolName: execution.toolName,
-          args: execution.args ?? {},
-          output: execution.output,
-          parsedOutput: execution.parsedOutput,
-        })),
-        { matches: workPlan.objectiveInspectionMatches ?? [] },
-      )
-    : { state: "unknown" as const, evidenceIds: [], summary: "Historical WorkPlan has no objective evidence contract." };
-  const objectiveState = objectiveResolution.state === "unknown" && workPlan.objectiveContract?.objectiveAlreadySatisfied
-    ? "satisfied" as const
-    : objectiveResolution.state;
+  const objectiveState = objectiveStateFromVerification(workPlan.objectiveVerification);
   const mutated = mutationOccurredInLedger(toolExecutions);
   const activeContract = activeContractForWorkPlan(workPlan, {
     phase: "final",
