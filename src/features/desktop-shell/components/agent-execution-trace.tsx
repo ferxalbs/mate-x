@@ -12,7 +12,7 @@ import {
   Tick01Icon,
   LockKeyIcon,
 } from "@hugeicons/core-free-icons";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { normalizeToolEvent, type ToolEvent, type ToolEventType } from "../../../contracts/chat";
 import type {
@@ -51,13 +51,31 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   isRunning,
   validationState,
   completionKind,
+  requiresInteraction = false,
+  terminalEvidence,
 }: {
   events: ToolEvent[];
   isRunning: boolean;
   validationState?: ExecutionValidationStatus;
   completionKind?: CompletionKind;
+  requiresInteraction?: boolean;
+  terminalEvidence?: {
+    repositoryVerified: boolean;
+    passedChecksLabel: string | null;
+  };
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const interactive = isRunning || requiresInteraction;
+  const [expanded, setExpanded] = useState(interactive);
+  const wasInteractiveRef = useRef(interactive);
+  useEffect(() => {
+    const wasInteractive = wasInteractiveRef.current;
+    wasInteractiveRef.current = interactive;
+    if (interactive) {
+      setExpanded(true);
+    } else if (wasInteractive) {
+      setExpanded(false);
+    }
+  }, [interactive]);
   const normalizedEvents = useMemo(() => {
     return events
       .map((event, sequence) => normalizeToolEvent(event, { sequence }))
@@ -82,7 +100,12 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     event.status === "active" || event.status === "queued",
   );
   const runningActivityLabel = getRunningActivityLabel(activeEvent);
-  const activitySummary = getActivitySummary(settledTimeline, validationState, completionKind);
+  const activitySummary = getActivitySummary(
+    settledTimeline,
+    validationState,
+    completionKind,
+    terminalEvidence,
+  );
 
   const groupedEvents = useMemo(() => {
     const groups: (ToolEvent | { isGroup: true; id: string; items: ToolEvent[] })[] = [];
@@ -127,6 +150,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
         type="button"
         className="flex w-full items-center gap-2 border-b border-border/60 pb-2 text-left text-[12px] text-muted-foreground/75 transition-colors duration-[var(--motion-press)] ease-[var(--ease-out)] enabled:hover:text-foreground disabled:cursor-default"
         aria-expanded={expanded}
+        disabled={interactive}
         onClick={() => setExpanded((value) => !value)}
       >
         <span className="min-w-0 flex-1">
@@ -166,11 +190,17 @@ export function getActivitySummary(
   events: ToolEvent[],
   validationState?: ExecutionValidationStatus,
   completionKind?: CompletionKind,
+  terminalEvidence?: {
+    repositoryVerified: boolean;
+    passedChecksLabel: string | null;
+  },
 ) {
   const parts: string[] = [];
+  if (terminalEvidence?.repositoryVerified) {
+    parts.push("Repository verified");
+  }
   if (completionKind === "already_satisfied") {
-    parts.push("objective already satisfied");
-    parts.push("no changes required");
+    parts.push("No changes required");
   }
   const editCount = events.filter(
     (event) =>
@@ -180,14 +210,16 @@ export function getActivitySummary(
   if (editCount > 0) {
     parts.push(`${editCount} ${editCount === 1 ? "file edited" : "files edited"}`);
   }
-  if (events.some((event) =>
+  if (!terminalEvidence?.repositoryVerified && events.some((event) =>
     event.type === "search" &&
     (event.status === "done" || event.status === "completed")
   )) {
-    parts.push("search completed");
+    parts.push("Search completed");
   }
   const validationEvents = events.filter((event) => event.type === "validation");
-  if (validationState === "failed" || validationState === "blocked") {
+  if (terminalEvidence?.passedChecksLabel) {
+    parts.push(terminalEvidence.passedChecksLabel);
+  } else if (validationState === "failed" || validationState === "blocked") {
     parts.push("validation blocked or failed");
   } else if (validationState === "passed") {
     parts.push("validation passed");

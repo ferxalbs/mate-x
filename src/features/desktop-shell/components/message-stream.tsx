@@ -41,6 +41,11 @@ import {
   type AmbientSafetyAction,
 } from "./ambient-safety-actions";
 import { AgentExecutionTrace } from "./agent-execution-trace";
+import {
+  getOutcomeEvidenceRow,
+  getTerminalActivityEvidence,
+  getTerminalAssistantResponse,
+} from "./terminal-outcome-presentation";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -150,6 +155,9 @@ const MessageEntry = memo(function MessageEntry({
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
   const hasTimeline = events.length > 0;
+  const finalizedAssistantResponse = message.executionOutcome
+    ? getTerminalAssistantResponse(message.executionOutcome)
+    : stripTraceTransportMarkers(message.content);
   const [copied, setCopied] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<TelemetryFeedbackRating | null>(null);
@@ -170,7 +178,7 @@ const MessageEntry = memo(function MessageEntry({
   async function handleCopy() {
     try {
       await window.mate.ui.copyToClipboard(
-        isUser ? message.content : stripTraceTransportMarkers(message.content),
+        isUser ? message.content : finalizedAssistantResponse,
       );
       setCopied(true);
       if (copyResetTimerRef.current) {
@@ -271,7 +279,9 @@ const MessageEntry = memo(function MessageEntry({
     );
   }
 
-  const normalizedContent = deferredContent.trim();
+  const normalizedContent = message.executionOutcome
+    ? finalizedAssistantResponse.trim()
+    : deferredContent.trim();
   const showAmbientActions = normalizedContent.includes(
     "Repo note: changes need a safety check before commit.",
   );
@@ -303,6 +313,10 @@ const MessageEntry = memo(function MessageEntry({
         <AgentExecutionTrace
           events={events}
           isRunning={isStreaming}
+          requiresInteraction={
+            message.outcome?.status === "needs_approval" ||
+            message.executionOutcome?.completionKind === "awaiting_approval"
+          }
           validationState={
             message.executionOutcome?.validationState ??
             message.executionOutcome?.evidence.validation.status ??
@@ -310,7 +324,18 @@ const MessageEntry = memo(function MessageEntry({
             message.evidencePack?.executionOutcome?.validationState
           }
           completionKind={message.executionOutcome?.completionKind ?? message.evidencePack?.executionOutcome?.completionKind}
+          terminalEvidence={message.executionOutcome
+            ? getTerminalActivityEvidence(message.executionOutcome)
+            : undefined}
         />
+        {message.executionOutcome && !isStreaming ? (
+          <div data-slot="assistant-final-response">
+            <ChatMarkdown
+              content={finalizedAssistantResponse}
+              isStreaming={false}
+            />
+          </div>
+        ) : null}
         {message.executionOutcome ? (
           <ExecutionOutcomeCard
             onConfigureTypecheck={() => onSelectPrompt("Configure a repository-local typecheck command for this workspace.")}
@@ -483,14 +508,14 @@ function ExecutionOutcomeCard({
   }));
 
   return (
-    <section className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none">
+    <section
+      className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none"
+      data-slot="agent-outcome-card"
+    >
       <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
         <HugeiconsIcon icon={presentation.icon} className={cn("size-4", presentation.iconClassName)} />
         {presentation.title}
       </div>
-      <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-        {presentation.summary}
-      </p>
       <p className="mt-2 text-[11px] text-muted-foreground">{presentation.statusRow}</p>
       <div className="mt-2.5 flex flex-wrap gap-2">
         {changedFiles.length > 0 ? <span className="rounded-xl border border-border/70 px-3 py-1.5 text-[11px] font-medium">Review changes</span> : null}
@@ -544,12 +569,7 @@ export function getExecutionOutcomePresentation(outcome: ExecutionOutcome) {
   const passedChecks = outcome.evidence.validation.contract?.items.filter(
     (item) => item.evidence?.status === "passed",
   ) ?? [];
-  const unavailableCount = outcome.evidence.validation.status === "not_run" ? 1 : 0;
-  const statusRow = [
-    changedCount > 0 ? `${changedCount} ${changedCount === 1 ? "file" : "files"} modified` : null,
-    passedChecks.length > 0 || outcome.evidence.validation.status === "passed" ? "Tests passed" : null,
-    unavailableCount > 0 ? `${unavailableCount} check unavailable` : null,
-  ].filter(Boolean).join(" · ");
+  const statusRow = getOutcomeEvidenceRow(outcome);
   return {
     title,
     summary: buildPrimaryOutcomeSummary(outcome, changedCount, passedChecks.length > 0),

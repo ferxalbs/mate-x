@@ -46,7 +46,7 @@ describe("execution outcome presentation", () => {
     });
 
     assert.equal(presentation.title, "Changes applied");
-    assert.equal(presentation.statusRow, "1 check unavailable");
+    assert.equal(presentation.statusRow, "0 files changed · 1 check unavailable");
   });
 
   it("presents unavailable typecheck as applied changes with one unavailable check", () => {
@@ -65,7 +65,7 @@ describe("execution outcome presentation", () => {
     });
 
     assert.equal(presentation.title, "Changes applied");
-    assert.equal(presentation.statusRow, "1 file modified · 1 check unavailable");
+    assert.equal(presentation.statusRow, "1 file changed · 1 check unavailable");
     assert.equal(presentation.canConfigureTypecheck, true);
     assert.doesNotMatch(`${presentation.title} ${presentation.summary}`, /changed_unverified|completed partially|backup|impact analysis|pending/i);
   });
