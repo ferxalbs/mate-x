@@ -203,13 +203,15 @@ export function buildExecutionEvidence(input: {
           output: execution.output,
           parsedOutput: execution.parsedOutput,
           changedFiles: normalizeToolExecution(execution).changedFiles.map((file) => file.path),
+          objectiveEvidence: execution.objectiveEvidence,
         })),
         { matches: input.workPlan.objectiveInspectionMatches ?? [] },
       )
     : {
         state: "unknown" as const,
-        evidenceIds: [],
-        summary: "No canonical objective contract was persisted for this historical run.",
+      evidenceIds: [],
+      summary: "No canonical objective contract was persisted for this historical run.",
+      repositoryEvidence: [],
       };
   const objectiveState = objectiveResolution.state === "unknown" && input.workPlan.objectiveContract?.objectiveAlreadySatisfied
     ? "satisfied" as const
@@ -294,6 +296,7 @@ export function buildExecutionEvidence(input: {
       state: objectiveState,
       mutationOccurred: changedFiles.length > 0,
       evidenceIds: objectiveResolution.evidenceIds,
+      repositoryEvidence: objectiveResolution.repositoryEvidence,
       summary: objectiveResolution.summary,
     },
     synthesis: {

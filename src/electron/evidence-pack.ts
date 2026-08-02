@@ -193,6 +193,7 @@ export async function buildEvidencePack(params: {
           args: execution.args,
           output: execution.output,
           parsedOutput: execution.parsedOutput,
+          objectiveEvidence: execution.objectiveEvidence,
         })),
         { matches: params.workPlan.objectiveInspectionMatches ?? [] },
       )

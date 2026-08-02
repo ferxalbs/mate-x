@@ -88,6 +88,29 @@ export interface ExecutionStepFailure {
   reason: string;
 }
 
+export interface RepositoryEvidenceMatch {
+  file: string;
+  line?: number;
+  column?: number;
+  text: string;
+}
+
+export interface RepositoryObjectiveEvidence {
+  executionId: string;
+  operation: "search" | "read";
+  searchedPattern?: string;
+  searchedScopes: string[];
+  completedSuccessfully: boolean;
+  matchedLocations: RepositoryEvidenceMatch[];
+  filesRead: string[];
+  allowedRemainingMatches: RepositoryEvidenceMatch[];
+  prohibitedRemainingMatches: RepositoryEvidenceMatch[];
+  repositoryRoot: string;
+  runIdentity: string;
+  freshness: "current_run" | "stale";
+  coverage: "complete" | "partial" | "ambiguous";
+}
+
 export interface NormalizedToolEvidence {
   toolName: string;
   outcome: ToolExecutionOutcome;
@@ -122,6 +145,7 @@ export interface ExecutionEvidence {
     state: ObjectiveState;
     mutationOccurred: boolean;
     evidenceIds: string[];
+    repositoryEvidence?: RepositoryObjectiveEvidence[];
     summary?: string;
   };
   synthesis: {
@@ -183,6 +207,7 @@ export interface ToolExecutionRecord {
   output: string;
   parsedOutput?: Record<string, unknown>;
   evidence?: NormalizedToolEvidence;
+  objectiveEvidence?: RepositoryObjectiveEvidence;
   /** Internal provenance for an explicitly approved validation override. */
   validationAuthorization?: "approved_override";
   executionPolicy?: import("./agent-run-trace").ToolExecutionPolicy;
