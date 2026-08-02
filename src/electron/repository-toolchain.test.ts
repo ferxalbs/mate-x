@@ -141,6 +141,7 @@ describe('repository-aware validation command resolution', () => {
 
     assert.equal(profile.manager, 'bun');
     assert.equal(profile.managerSource, '/repo/package.json#scripts');
+    assert.equal(profile.status, 'resolved');
     assert.equal(profile.commands.test.command, 'bun run test');
     assert.equal(profile.typecheck.command, null);
     assert.equal(profile.cause, 'TYPECHECK_UNAVAILABLE');

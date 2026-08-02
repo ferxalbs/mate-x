@@ -3,7 +3,6 @@ import { TerminalIcon } from "@hugeicons/core-free-icons";
 
 
 import type { EvidencePack } from "../../../contracts/chat";
-import { Card, CardContent } from "../../../components/ui/card";
 import { Metric, PanelTitle, SkeletonStack } from "./enhancement-panel-primitives";
 
 export function ValidationSection({

@@ -40,13 +40,14 @@ describe('validation gate NES-5.1 [strict ledger]', () => {
     assert.equal(gate.allowed, false);
   });
 
-  it('allows text waive only when mutation ledger empty', () => {
+  it('does not treat no-change prose as a validation exemption', () => {
     const gate = evaluateValidationGate(
       plan(),
       [tool('read', 'file contents')],
       'No changes detected; read-only review.',
     );
-    assert.equal(gate.allowed, true);
+    assert.equal(gate.allowed, false);
+    assert.ok(gate.warnings.some((warning) => /validation required/i.test(warning)));
   });
 
   it('mutation + no-changes prose still blocks (adversarial)', () => {

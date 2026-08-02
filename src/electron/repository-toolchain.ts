@@ -141,13 +141,22 @@ export function resolveRepositoryToolchainProfile(
     );
   }
 
-  return unavailable(
-    packageScope.path,
-    'TYPECHECK_UNAVAILABLE',
-    manager,
-    managerResolution.source,
-    commands,
-  );
+  const hasAnyCapability = Object.values(commands).some((command) => Boolean(command.command));
+  return hasAnyCapability
+    ? resolvedProfile(
+        packageScope.path,
+        manager,
+        managerResolution.source,
+        commands,
+        'TYPECHECK_UNAVAILABLE',
+      )
+    : unavailable(
+        packageScope.path,
+        'TYPECHECK_UNAVAILABLE',
+        manager,
+        managerResolution.source,
+        commands,
+      );
 }
 
 function resolveManager(scopes: RepositoryToolchainScope[]): {
@@ -445,15 +454,18 @@ function nativeProfile(
   managerSource: string,
   commands: Record<Exclude<ValidationRequirementId, 'validation'>, RepositoryValidationCommand>,
 ): RepositoryToolchainProfile {
-  return {
-    packagePath,
-    manager: null,
-    managerSource: `${managerSource}/native-validation`,
-    status: commands.typecheck.command ? 'resolved' : 'unavailable',
-    cause: commands.typecheck.command ? undefined : 'TYPECHECK_UNAVAILABLE',
-    commands,
-    typecheck: commands.typecheck,
-  };
+  const hasAnyCapability = Object.values(commands).some((command) => Boolean(command.command));
+  return hasAnyCapability
+    ? {
+        packagePath,
+        manager: null,
+        managerSource: `${managerSource}/native-validation`,
+        status: 'resolved',
+        cause: commands.typecheck.command ? undefined : 'TYPECHECK_UNAVAILABLE',
+        commands,
+        typecheck: commands.typecheck,
+      }
+    : unavailable(packagePath, 'TYPECHECK_UNAVAILABLE', null, `${managerSource}/native-validation`, commands);
 }
 
 function packagePathForCommand(
@@ -471,12 +483,14 @@ function resolvedProfile(
   manager: TargetPackageManager,
   managerSource: string | null,
   commands: Record<Exclude<ValidationRequirementId, 'validation'>, RepositoryValidationCommand>,
+  cause?: ToolchainResolutionCause,
 ): RepositoryToolchainProfile {
   return {
     packagePath,
     manager,
     managerSource,
     status: 'resolved',
+    cause,
     commands,
     typecheck: commands.typecheck,
   };

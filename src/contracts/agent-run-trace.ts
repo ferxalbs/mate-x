@@ -49,16 +49,20 @@ export type RunEventKind =
   | "validation.completed"
   | "validation.failed"
   | "validation.blocked"
+  | "objective.already_satisfied"
+  | "mutation.not_required"
+  | "validation.not_applicable"
   | "approval.requested"
   | "approval.resolved";
 
 export type PublicRunPayload = {
   title: string;
   summary?: string;
-  status?: "active" | "completed" | "failed" | "blocked" | "cancelled";
+  status?: "active" | "completed" | "partial" | "failed" | "blocked" | "cancelled";
   count?: number;
   validationState?: string;
   worktreeHealth?: string;
+  completionKind?: string;
 };
 
 export type LocalDiagnosticPayload = {
@@ -112,4 +116,3 @@ export interface ToolExecutionPolicy {
   requirement: ToolRequirement;
   failureDisposition: FailureDisposition;
 }
-

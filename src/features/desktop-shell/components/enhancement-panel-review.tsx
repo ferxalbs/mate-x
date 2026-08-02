@@ -4,7 +4,6 @@ import { Search01Icon } from "@hugeicons/core-free-icons";
 
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";
 import type { ImpactSummary, TrustGateState } from "./enhancement-panel-utils";
-import { Card, CardContent } from "../../../components/ui/card";
 import { Metric, PanelTitle, RiskPill } from "./enhancement-panel-primitives";
 
 interface BaseSectionProps {

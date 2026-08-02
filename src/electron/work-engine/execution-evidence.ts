@@ -1,13 +1,22 @@
 import type {
+  CompletionKind,
   ExecutionChangedFile,
   ExecutionEvidence,
   ExecutionSynthesisStatus,
   ExecutionTerminalState,
   NormalizedToolEvidence,
 } from "../../contracts/execution";
+import type { ValidationContract } from "../../contracts/work-objective";
 import type { ToolExecutionRecord } from "../evidence-pack";
 import type { WorkPlan } from "./types";
 import type { WorkStage } from "./stages";
+import { resolveObjectiveEvidence, updateObjectiveDelta } from "./objective-compiler";
+import {
+  activeContractForWorkPlan,
+  contractForWorkPlan,
+  hasHighRiskChange,
+  requiredApplicableItems,
+} from "../validation-contract";
 import {
   isExecutableValidationCommand,
   isValidationResolutionCause,
@@ -185,28 +194,77 @@ export function buildExecutionEvidence(input: {
   const changedFiles = dedupeChangedFiles(normalized.flatMap((item) => item.changedFiles));
   const validationEvidence = normalized.filter((item) => item.validationStatus);
   const validationStage = input.stages.find((stage) => stage.id === "validation_executed");
+  const objectiveResolution = input.workPlan.objectiveContract
+    ? resolveObjectiveEvidence(
+        input.workPlan.objectiveContract,
+        input.toolExecutions.map((execution) => ({
+          toolName: execution.toolName,
+          args: execution.args ?? {},
+          output: execution.output,
+          parsedOutput: execution.parsedOutput,
+          changedFiles: normalizeToolExecution(execution).changedFiles.map((file) => file.path),
+        })),
+        { matches: input.workPlan.objectiveInspectionMatches ?? [] },
+      )
+    : {
+        state: "unknown" as const,
+        evidenceIds: [],
+        summary: "No canonical objective contract was persisted for this historical run.",
+      };
+  const objectiveState = objectiveResolution.state === "unknown" && input.workPlan.objectiveContract?.objectiveAlreadySatisfied
+    ? "satisfied" as const
+    : objectiveResolution.state;
+  const activeContract = activeContractForWorkPlan(input.workPlan, {
+    phase: "final",
+    actualMutation: changedFiles.length > 0,
+    objectiveAlreadySatisfied: objectiveState === "satisfied" && changedFiles.length === 0,
+    validationIsPrimaryObjective: input.workPlan.objectiveContract?.validationIsPrimaryObjective ?? false,
+    highRiskChange: changedFiles.length > 0 && (input.workPlan.risk === "high" || hasHighRiskChange(changedFiles.map((file) => file.path))),
+    primaryStatus: primaryValidationStatus(validationEvidence),
+    evidence: validationEvidence,
+  });
+  // Canonical Work plans carry the mutable objective state that the runtime
+  // persists with the final evidence. Legacy plans remain read-only adapters:
+  // mutating their compatibility projection here could make a reused
+  // historical object disagree with its current validation requirements.
+  if (input.workPlan.objectiveContract) {
+    input.workPlan.validationContract = activeContract;
+    input.workPlan.validationPlan.contract = activeContract;
+  }
   const requiredValidation = resolveRequiredValidation(
     input.workPlan,
     validationEvidence,
+    activeContract,
   );
   const validationStatus = requiredValidation?.status ?? (
-    validationEvidence.some((item) => item.validationStatus === "blocked") ||
-    validationStage?.status === "blocked"
-      ? "blocked"
-      : validationEvidence.some((item) => item.validationStatus === "failed") ||
-          validationStage?.status === "failed"
-        ? "failed"
-        : validationEvidence.some((item) => item.validationStatus === "running")
-          ? "running"
-          : validationEvidence.some((item) => item.validationStatus === "pending")
-            ? "pending"
-            : validationEvidence.some((item) => item.validationStatus === "passed") ||
-                validationStage?.status === "passed"
-              ? "passed"
-              : input.workPlan.validationPlan.required
-                ? "not_run"
-                : "not_required");
+    requiredApplicableItems(activeContract).length === 0
+      ? "not_required"
+      : validationEvidence.some((item) => item.validationStatus === "blocked") ||
+          validationStage?.status === "blocked"
+        ? "blocked"
+        : validationEvidence.some((item) => item.validationStatus === "failed") ||
+            validationStage?.status === "failed"
+          ? "failed"
+          : validationEvidence.some((item) => item.validationStatus === "running")
+            ? "running"
+            : validationEvidence.some((item) => item.validationStatus === "pending")
+              ? "pending"
+              : validationEvidence.some((item) => item.validationStatus === "passed") ||
+                  validationStage?.status === "passed"
+                ? "passed"
+                : "not_run");
   const requiredUserAction = normalized.find((item) => item.requiredUserAction)?.requiredUserAction;
+  if (input.workPlan.objectiveContract) {
+    input.workPlan.objectiveContract = updateObjectiveDelta(
+      input.workPlan.objectiveContract,
+      {
+        mutationOccurred: changedFiles.length > 0,
+        changedFiles: changedFiles.map((file) => file.path),
+        targetState: objectiveState,
+        evidenceIds: objectiveResolution.evidenceIds,
+      },
+    );
+  }
 
   return {
     completedSteps,
@@ -219,7 +277,7 @@ export function buildExecutionEvidence(input: {
       cause:
         validationStatus === "passed"
           ? undefined
-          : validationRequirementCause(input.workPlan, validationEvidence, requiredValidation),
+          : validationRequirementCause(activeContract, validationEvidence, requiredValidation),
       executionIds: [...new Set(validationEvidence
         .map((item) => item.validationExecutionId)
         .filter((id): id is string => Boolean(id)))],
@@ -230,6 +288,13 @@ export function buildExecutionEvidence(input: {
       )
         ? "approved_override"
         : undefined,
+      contract: activeContract,
+    },
+    objective: {
+      state: objectiveState,
+      mutationOccurred: changedFiles.length > 0,
+      evidenceIds: objectiveResolution.evidenceIds,
+      summary: objectiveResolution.summary,
     },
     synthesis: {
       status: input.synthesisStatus,
@@ -242,22 +307,33 @@ export function buildExecutionEvidence(input: {
 export function resolveRequiredValidationStatus(
   workPlan: WorkPlan,
   evidence: NormalizedToolEvidence[],
+  contract?: ValidationContract,
 ): ExecutionEvidence["validation"]["status"] | null {
-  return resolveRequiredValidation(workPlan, evidence)?.status ?? null;
+  return resolveRequiredValidation(workPlan, evidence, contract)?.status ?? null;
 }
 
 export interface RequiredValidationResolution {
   status: ExecutionEvidence["validation"]["status"];
   missingRequirementIds: ValidationRequirementId[];
   unavailableRequirementIds: ValidationRequirementId[];
+  contract: ValidationContract;
 }
 
 export function resolveRequiredValidation(
   workPlan: WorkPlan,
   evidence: NormalizedToolEvidence[],
+  contract?: ValidationContract,
 ): RequiredValidationResolution | null {
-  const requirements = workPlan.validationPlan.requirements ?? [];
-  if (!workPlan.validationPlan.required || requirements.length === 0) return null;
+  const activeContract = contract ?? activeContractForWorkPlan(workPlan, {
+    phase: "final",
+    actualMutation: evidence.some((item) => item.changedFiles.length > 0),
+    objectiveAlreadySatisfied: false,
+    validationIsPrimaryObjective: workPlan.objectiveContract?.validationIsPrimaryObjective ?? false,
+    highRiskChange: workPlan.risk === "high" && evidence.some((item) => item.changedFiles.length > 0),
+    evidence,
+  });
+  const requirements = requiredApplicableItems(activeContract);
+  if (requirements.length === 0) return null;
 
   let blocked = false;
   let failed = false;
@@ -266,24 +342,22 @@ export function resolveRequiredValidation(
 
   for (const requirement of requirements) {
     const matches = evidence.filter((item) =>
-      item.validationRequirementId === requirement.id,
+      item.validationRequirementId === requirement.signal ||
+      (requirement.signal === "custom" && item.validationRequirementId === "validation") ||
+      ((requirement.signal === "custom" || requirement.signal === "validation") && !item.validationRequirementId && Boolean(item.validationStatus)),
     );
-    if (matches.some((item) => item.validationStatus === "blocked")) blocked = true;
+    if (matches.some((item) => item.validationStatus === "blocked") || requirement.availability === "ambiguous") blocked = true;
     if (matches.some((item) => item.validationStatus === "failed")) failed = true;
-    const passed = matches.filter((item) => item.validationStatus === "passed");
+    const passed = matches.filter((item) =>
+      item.validationStatus === "passed" &&
+      (requirement.availability === "resolved" || item.validationAuthorization === "approved_override"),
+    );
     if (passed.length === 0) {
-      missingRequirementIds.push(requirement.id);
-      if (requirement.availability === "unresolved") {
-        unavailableRequirementIds.push(requirement.id);
+      missingRequirementIds.push(legacyRequirementId(requirement.signal));
+      if (requirement.availability !== "resolved") {
+        unavailableRequirementIds.push(legacyRequirementId(requirement.signal));
       }
       continue;
-    }
-    if (
-      requirement.availability === "unresolved" &&
-      !passed.some((item) => item.validationAuthorization === "approved_override")
-    ) {
-      missingRequirementIds.push(requirement.id);
-      unavailableRequirementIds.push(requirement.id);
     }
   }
 
@@ -297,6 +371,7 @@ export function resolveRequiredValidation(
           : "passed",
     missingRequirementIds,
     unavailableRequirementIds,
+    contract: activeContract,
   };
 }
 
@@ -341,13 +416,13 @@ export function describeRequiredValidationGap(
 }
 
 function validationRequirementCause(
-  workPlan: WorkPlan,
+  contract: ValidationContract,
   evidence: NormalizedToolEvidence[],
   resolution: RequiredValidationResolution | null,
 ) {
   if (resolution?.status === "not_run") {
-    const unavailable = workPlan.validationPlan.requirements?.find(
-      (requirement) => resolution.unavailableRequirementIds.includes(requirement.id),
+    const unavailable = contract.items.find(
+      (requirement) => resolution.unavailableRequirementIds.includes(legacyRequirementId(requirement.signal)),
     );
     if (unavailable?.unavailableCause) return unavailable.unavailableCause;
   }
@@ -459,6 +534,18 @@ export function resolveExecutionTerminalState(input: {
   preparatoryOnly?: boolean;
 }): ExecutionTerminalState {
   const hasMutation = input.evidence.changedFiles.length > 0;
+  const objectiveSatisfiedNoOp =
+    !hasMutation &&
+    input.evidence.objective?.state === "satisfied" &&
+    !(input.workPlan.objectiveContract?.validationIsPrimaryObjective ?? false);
+  const objectiveUnprovenNoMutation =
+    !hasMutation &&
+    input.workPlan.intent === "patch" &&
+    !objectiveSatisfiedNoOp &&
+    !(input.workPlan.objectiveContract?.validationIsPrimaryObjective ?? false);
+  const planningStrategy = input.workPlan.objectiveContract?.strategy === "planning";
+  const activeContract = input.evidence.validation.contract ?? contractForWorkPlan(input.workPlan);
+  const requiredItems = requiredApplicableItems(activeContract);
   const hasApprovalPending = input.evidence.blockedSteps.some((step) =>
     /approval|policy/i.test(step.reason),
   );
@@ -470,14 +557,22 @@ export function resolveExecutionTerminalState(input: {
   const validationFailed = input.evidence.validation.status === "failed";
   const validationBlocked = input.evidence.validation.status === "blocked";
   const validationMissing =
-    input.workPlan.validationPlan.required &&
-    input.evidence.validation.status === "not_run";
+    requiredItems.length > 0 &&
+    requiredItems.some((item) =>
+      (item.availability !== "resolved" && item.evidence.approvalProvenance !== "approved_override") ||
+      ["not_run", "running", "inconclusive"].includes(item.evidence.status),
+    );
   const synthesisMissing = input.evidence.synthesis.status !== "valid";
+  const requiredStageIds = requiredStageIdsForReduction(
+    input.workPlan,
+    requiredItems,
+    objectiveSatisfiedNoOp,
+    planningStrategy,
+  );
   const missingRequiredStage = input.stages.some(
     (stage) =>
-      stage.status === "pending" ||
-      stage.status === "failed" ||
-      stage.status === "blocked",
+      requiredStageIds.has(stage.id) &&
+      ["pending", "failed", "blocked"].includes(stage.status),
   );
 
   if (hasMutation && (validationFailed || validationBlocked || validationMissing || synthesisMissing || hasFailedStep || hasBlockedStep)) {
@@ -486,27 +581,66 @@ export function resolveExecutionTerminalState(input: {
   if (hasTrustBlock) return "blocked";
   if (hasApprovalPending || input.awaitingApproval) return "blocked";
   if (hasBlockedStep) return "blocked";
-  if (validationBlocked) return "blocked";
+  if (validationBlocked && !objectiveSatisfiedNoOp) return "blocked";
   if (hasFailedStep || validationFailed) return "failed";
-  if (validationMissing) return "blocked";
-  if (input.incompleteEvidence || input.preparatoryOnly || missingRequiredStage) return "partial";
   if (synthesisMissing) return "failed";
+  if (objectiveUnprovenNoMutation) return "blocked";
+  if (validationMissing && !objectiveSatisfiedNoOp) return hasMutation ? "partial" : "blocked";
+  if (input.incompleteEvidence || ((!planningStrategy) && input.preparatoryOnly) || (missingRequiredStage && !objectiveSatisfiedNoOp && !planningStrategy)) return "partial";
   if (input.workPlan.evidencePlan.required && !input.evidenceAttached) return "failed";
   return "completed";
+}
+
+function requiredStageIdsForReduction(
+  workPlan: WorkPlan,
+  requiredItems: ReturnType<typeof requiredApplicableItems>,
+  objectiveSatisfiedNoOp: boolean,
+  planningStrategy: boolean,
+): Set<WorkStage["id"]> {
+  const ids = new Set<WorkStage["id"]>([
+    "context_compiled",
+    "privacy_preflight_passed",
+  ]);
+  if (workPlan.evidencePlan.required) ids.add("evidence_attached");
+  if (planningStrategy || workPlan.objectiveContract?.strategy === "inspection") {
+    ids.add("files_inspected");
+  }
+  if (objectiveSatisfiedNoOp || planningStrategy) return ids;
+  if (workPlan.intent === "patch") ids.add("patch_attempted");
+  if (requiredItems.length > 0) {
+    ids.add("validation_planned");
+    ids.add("validation_executed");
+  }
+  if (workPlan.runbook === "audit_reproduce_remediate" || workPlan.runbook === "trace_source_to_sink") {
+    ids.add("security_proof_checked");
+  }
+  if (workPlan.workingSet.knownFailures.length > 0) ids.add("failure_memory_checked");
+  return ids;
 }
 
 export function buildUserFacingExecutionSummary(
   outcome: ExecutionTerminalState,
   evidence: ExecutionEvidence,
+  completionKind?: CompletionKind,
 ): string {
   const lines: string[] = [];
   if (outcome === "completed") {
-    lines.push("Completed successfully.");
+    if (completionKind === "already_satisfied") {
+      lines.push("Already satisfied; no files required changes.");
+    } else if (completionKind === "validation_completed") {
+      lines.push("Validation completed successfully.");
+    } else if (completionKind === "inspection_completed") {
+      lines.push("Inspection completed successfully.");
+    } else {
+      lines.push("Completed successfully.");
+    }
   } else if (outcome === "partial") {
     lines.push("Completed partially; review the remaining work before relying on the result.");
   } else if (outcome === "blocked") {
     if (evidence.requiredUserAction) {
       lines.push(`Stopped pending required action: ${evidence.requiredUserAction}`);
+    } else if (evidence.objective?.state === "unknown" && evidence.changedFiles.length === 0) {
+      lines.push("Stopped because repository evidence did not prove the requested objective state.");
     } else if (evidence.validation.status === "not_run") {
       lines.push(
         `Stopped because ${validationCauseDescription(evidence.validation.cause) ?? "required validation did not run"}.`,
@@ -516,6 +650,10 @@ export function buildUserFacingExecutionSummary(
     }
   } else {
     lines.push("The run could not complete.");
+  }
+
+  if (completionKind === "already_satisfied") {
+    lines.push("Post-mutation validation was not applicable because no mutation was required.");
   }
 
   if (evidence.changedFiles.length > 0) {
@@ -535,10 +673,54 @@ export function buildUserFacingExecutionSummary(
     evidence.synthesis.status !== "valid" ? "final synthesis" : "",
   ].filter(Boolean);
   if (notRun.length > 0) lines.push(`Not run or incomplete: ${notRun.join(" and ")}.`);
+  if (outcome === "partial" && evidence.validation.status === "not_run") {
+    lines.push(
+      `Verification gap: ${validationCauseDescription(evidence.validation.cause) ?? "required validation did not complete"}.`,
+    );
+  }
   const reason = evidence.failedSteps[0]?.reason ?? evidence.blockedSteps[0]?.reason;
   if (reason) lines.push(`Why it stopped: ${sanitizeUserReason(reason)}.`);
   if (evidence.requiredUserAction) lines.push(`Next action: ${sanitizeUserReason(evidence.requiredUserAction)}.`);
   return lines.join("\n");
+}
+
+export function deriveCompletionKind(input: {
+  terminalState: ExecutionTerminalState;
+  workPlan: WorkPlan;
+  evidence: ExecutionEvidence;
+}): CompletionKind {
+  if (input.terminalState === "blocked") {
+    return input.evidence.requiredUserAction ? "awaiting_approval" : "blocked";
+  }
+  if (input.terminalState === "failed") return "failed";
+  if (input.terminalState === "partial") {
+    return input.evidence.changedFiles.length > 0 ? "changed_unverified" : "blocked";
+  }
+  if (input.evidence.objective?.state === "satisfied" && input.evidence.changedFiles.length === 0) {
+    return "already_satisfied";
+  }
+  if (input.workPlan.objectiveContract?.validationIsPrimaryObjective) {
+    return "validation_completed";
+  }
+  if (input.evidence.changedFiles.length === 0) return "inspection_completed";
+  return "changed_verified";
+}
+
+function primaryValidationStatus(
+  evidence: NormalizedToolEvidence[],
+): "passed" | "failed" | "inconclusive" | undefined {
+  if (evidence.some((item) => item.validationStatus === "failed" || item.validationStatus === "blocked")) {
+    return "failed";
+  }
+  if (evidence.some((item) => item.validationStatus === "passed")) return "passed";
+  if (evidence.some((item) => item.validationStatus === "pending" || item.validationStatus === "running")) {
+    return "inconclusive";
+  }
+  return undefined;
+}
+
+function legacyRequirementId(signal: ValidationContract["items"][number]["signal"]): ValidationRequirementId {
+  return signal === "custom" ? "validation" : signal;
 }
 
 function validationNotRunLabel(

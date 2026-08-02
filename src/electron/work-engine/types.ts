@@ -1,3 +1,9 @@
+import type {
+  ValidationContract,
+  WorkObjectiveContract,
+} from "../../contracts/work-objective";
+import type { SearchMatch } from "../../contracts/workspace";
+
 export type WorkIntent =
   | "answer"
   | "inspect"
@@ -56,6 +62,12 @@ export interface WorkPlan {
   specificationVersion?: number | null;
   taskIds?: string[];
   lifecyclePhase?: string | null;
+  /** Canonical user intent and repository-state contract. */
+  objectiveContract?: WorkObjectiveContract;
+  /** Initial repository inspection evidence used to prove a no-op target state. */
+  objectiveInspectionMatches?: SearchMatch[];
+  /** Canonical validation obligations; validationPlan remains a compatibility projection. */
+  validationContract?: ValidationContract;
   workingSet: {
     primaryFiles: string[];
     relatedFiles: string[];
@@ -87,6 +99,7 @@ export interface WorkPlan {
       availability: "resolved" | "unresolved";
       unavailableCause?: "VALIDATION_COMMAND_UNRESOLVED" | "TYPECHECK_UNAVAILABLE" | "TOOLCHAIN_AMBIGUOUS";
     }>;
+    contract?: ValidationContract;
   };
   privacyPlan: {
     requireSanitization: boolean;

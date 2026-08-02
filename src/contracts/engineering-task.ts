@@ -19,6 +19,8 @@
  * EngineeringUnit is a research synonym only — not implemented.
  */
 
+import type { ValidationContract } from "./work-objective";
+
 // ── Primitives ──────────────────────────────────────────────────────────────
 
 export type Ulid = string;
@@ -901,6 +903,8 @@ export interface ShipProof {
     validationRunIds: string[];
   }>;
   outcomeMap?: OutcomeMap;
+  /** Canonical Work validation snapshot; omitted by legacy proof producers. */
+  validationContract?: ValidationContract;
 }
 
 export interface PolicyRule {

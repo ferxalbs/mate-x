@@ -8,6 +8,8 @@ import {
   resolveRequiredValidation,
   type RequiredValidationResolution,
 } from "./execution-evidence";
+import { resolveObjectiveEvidence } from "./objective-compiler";
+import { activeContractForWorkPlan, hasHighRiskChange, requiredApplicableItems } from "../validation-contract";
 
 export type WorkStageId =
   | "context_compiled"
@@ -105,9 +107,35 @@ export function deriveWorkStages(input: {
     evidence: normalizeToolExecution(execution),
   }));
   const reconciledValidationEvidence = reconcileToolEvidence(input.toolExecutions);
+  const objectiveResolution = input.workPlan.objectiveContract
+    ? resolveObjectiveEvidence(
+        input.workPlan.objectiveContract,
+        input.toolExecutions.map((execution) => ({
+          toolName: execution.toolName,
+          args: execution.args ?? {},
+          output: execution.output,
+          parsedOutput: execution.parsedOutput,
+        })),
+        { matches: input.workPlan.objectiveInspectionMatches ?? [] },
+      )
+    : { state: "unknown" as const, evidenceIds: [], summary: "Historical WorkPlan has no objective contract." };
+  const objectiveState = objectiveResolution.state === "unknown" && input.workPlan.objectiveContract?.objectiveAlreadySatisfied
+    ? "satisfied" as const
+    : objectiveResolution.state;
+  const actualMutation = normalizedExecutions.some((item) => item.evidence.changedFiles.length > 0);
+  const activeValidationContract = activeContractForWorkPlan(input.workPlan, {
+    phase: "final",
+    actualMutation,
+    objectiveAlreadySatisfied: objectiveState === "satisfied" && !actualMutation,
+    validationIsPrimaryObjective: input.workPlan.objectiveContract?.validationIsPrimaryObjective ?? false,
+    highRiskChange: actualMutation && (input.workPlan.risk === "high" || hasHighRiskChange(normalizedExecutions.flatMap((item) => item.evidence.changedFiles.map((file) => file.path)))),
+    primaryStatus: primaryValidationStatus(reconciledValidationEvidence),
+    evidence: reconciledValidationEvidence,
+  });
   const requiredValidation = resolveRequiredValidation(
     input.workPlan,
     reconciledValidationEvidence,
+    activeValidationContract,
   );
   const completedToolNames = new Set(
     normalizedExecutions
@@ -157,8 +185,15 @@ export function deriveWorkStages(input: {
     set(stages, "patch_attempted", "blocked", "runtime", "Patch/edit tool requires approval before execution.", idsFor(eventIdsByTool, PATCH_TOOLS));
   } else if (patchExecutions.length > 0) {
     set(stages, "patch_attempted", "failed", "runtime", "Patch/edit tool did not complete.", idsFor(eventIdsByTool, PATCH_TOOLS));
-  } else if (input.noPatchNeeded) {
-    skip(stages, "patch_attempted", "deterministic", "Run explicitly concluded no patch was needed.");
+  } else if (input.noPatchNeeded || (objectiveState === "satisfied" && !actualMutation)) {
+    skip(
+      stages,
+      "patch_attempted",
+      "deterministic",
+      objectiveState === "satisfied"
+        ? "No patch was needed; repository evidence proves the objective was already satisfied."
+        : "Run explicitly concluded no patch was needed.",
+    );
   }
 
   const validationExecutions = normalizedExecutions.filter((item) => VALIDATION_EXEC_TOOLS.has(item.execution.toolName));
@@ -166,11 +201,15 @@ export function deriveWorkStages(input: {
   if (!planningPhase || validationExecutions.length > 0) {
     if (hasAny(completedToolNames, VALIDATION_PLAN_TOOLS)) {
       pass(stages, "validation_planned", "runtime", "Validation plan tool ran.", idsFor(eventIdsByTool, VALIDATION_PLAN_TOOLS));
-    } else if (!input.workPlan.validationPlan.required) {
-      skip(stages, "validation_planned", "deterministic", "Validation not required for this WorkPlan.");
+    } else if (requiredApplicableItems(activeValidationContract).length === 0) {
+      skip(stages, "validation_planned", "deterministic", "No validation requirement is applicable to the confirmed delta.");
+    } else {
+      pass(stages, "validation_planned", "deterministic", "Canonical validation contract compiled for the active requirements.");
     }
 
-    if (validationEvidence.length > 0) {
+    if (requiredApplicableItems(activeValidationContract).length === 0) {
+      skip(stages, "validation_executed", "deterministic", "Validation is not applicable because no required trigger activated.");
+    } else if (validationEvidence.length > 0) {
       const blocked = validationEvidence.some((item) =>
         item.outcome === "blocked" ||
         item.outcome === "awaiting_approval" ||
@@ -201,11 +240,9 @@ export function deriveWorkStages(input: {
                   input.workPlan,
                   reconciledValidationEvidence,
                 ) ?? "Required validation has not completed."
-              : "All required validation requirements passed.",
+              : "All required validation requirements passed; every applicable requirement has proof.",
         idsFor(eventIdsByTool, VALIDATION_EXEC_TOOLS),
       );
-    } else if (!input.workPlan.validationPlan.required) {
-      skip(stages, "validation_executed", "deterministic", "Validation not required for this WorkPlan.");
     } else if (input.privacyBlocked) {
       block(stages, "validation_executed", "deterministic", "Cloud context was blocked before validation orchestration.");
     } else if (requiredValidation?.status === "blocked") {
@@ -352,6 +389,15 @@ function skip(stages: WorkStage[], id: WorkStageId, source: WorkStageSource, rea
 
 function block(stages: WorkStage[], id: WorkStageId, source: WorkStageSource, reason: string) {
   set(stages, id, "blocked", source, reason);
+}
+
+function primaryValidationStatus(
+  evidence: ReturnType<typeof reconcileToolEvidence>,
+): "passed" | "failed" | "inconclusive" | undefined {
+  if (evidence.some((item) => item.validationStatus === "failed" || item.validationStatus === "blocked")) return "failed";
+  if (evidence.some((item) => item.validationStatus === "passed")) return "passed";
+  if (evidence.some((item) => item.validationStatus === "pending" || item.validationStatus === "running")) return "inconclusive";
+  return undefined;
 }
 
 function hasAny(toolNames: Set<string>, expected: Set<string>) {

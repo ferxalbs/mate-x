@@ -14,6 +14,7 @@ import {
   reconcileToolExecutions,
   resolveRequiredValidation,
 } from "./work-engine/execution-evidence";
+import { resolveObjectiveEvidence } from "./work-engine/objective-compiler";
 
 export type { ToolExecutionRecord };
 
@@ -36,6 +37,7 @@ function classifyEvidenceStatus(
   events: ToolEvent[],
   toolExecutions: ToolExecutionRecord[],
   canonicalValidationStatus?: ExecutionValidationStatus | null,
+  canonicalNoOpSatisfied = false,
 ): EvidencePack["status"] {
   const hasMutation = toolExecutions.some((execution) =>
     normalizeToolExecution(execution).changedFiles.length > 0,
@@ -64,6 +66,10 @@ function classifyEvidenceStatus(
   );
   if (hasErrors) {
     return "partial";
+  }
+
+  if (canonicalNoOpSatisfied && !hasMutation) {
+    return "complete";
   }
 
   const ranValidation = toolExecutions.some(
@@ -179,10 +185,27 @@ export async function buildEvidencePack(params: {
       )?.status ?? null
     : null;
   const reconciledToolExecutions = reconcileToolExecutions(toolExecutions);
+  const objectiveResolution = params.workPlan?.objectiveContract
+    ? resolveObjectiveEvidence(
+        params.workPlan.objectiveContract,
+        reconciledToolExecutions.map((execution) => ({
+          toolName: execution.toolName,
+          args: execution.args,
+          output: execution.output,
+          parsedOutput: execution.parsedOutput,
+        })),
+        { matches: params.workPlan.objectiveInspectionMatches ?? [] },
+      )
+    : null;
   const effectiveEvents = canonicalValidationStatus === "passed"
     ? events.filter((event) => !(event.type === "validation" && event.status === "error"))
     : events;
-  const status = classifyEvidenceStatus(events, toolExecutions, canonicalValidationStatus);
+  const status = classifyEvidenceStatus(
+    events,
+    toolExecutions,
+    canonicalValidationStatus,
+    objectiveResolution?.state === "satisfied",
+  );
   const finalization = extractEvidenceFinalization(content);
   const verdict = buildVerdict(status, content, finalization);
   const runtimeWarnings = deriveWarnings(events, canonicalValidationStatus);

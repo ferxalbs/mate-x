@@ -6,14 +6,23 @@ import type { ExecutionSynthesisStatus, ExecutionTerminalState } from "../../con
 import {
   buildExecutionEvidence,
   buildUserFacingExecutionSummary,
+  deriveCompletionKind,
+  reconcileToolEvidence,
   resolveExecutionTerminalState,
 } from "./execution-evidence";
+import {
+  activeContractForWorkPlan,
+  contractForWorkPlan,
+  hasHighRiskChange,
+  requiredApplicableItems,
+} from "../validation-contract";
 
 export type FinalRunVerdict = ExecutionTerminalState;
 
 export interface WorkEngineFinalization {
   verdict: FinalRunVerdict;
   terminalState: ExecutionTerminalState;
+  completionKind: import("../../contracts/execution").CompletionKind;
   evidence: ReturnType<typeof buildExecutionEvidence>;
   summary: string;
   content: string;
@@ -100,18 +109,6 @@ export function finalizeWorkRun(input: {
   const unmatchedSecurityClaims = confirmedSecurityClaims.filter(
     (claim) => !claimMatchesSecurityProofLedger(claim, securityProofLedger),
   );
-  const rawMissingRequired = requiredStages(input.workPlan, input.stages)
-    .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
-  const missingRequired = rawMissingRequired.filter(
-    (stageId) => stageId !== "security_proof_checked" || unmatchedSecurityClaims.length > 0,
-  );
-  const failedValidation = stageStatus(input.stages, "validation_executed") === "failed";
-  const failedValidationHardBlocker = shouldFailedValidationBlock({
-    workPlan: input.workPlan,
-    stages: input.stages,
-    failedValidation,
-  });
-  const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
   const preparatoryOnly = isPreparatoryOnly(input.content);
   const missingRuntimeEvidence =
     requiresRuntimeEvidence(input.workPlan) &&
@@ -125,6 +122,20 @@ export function finalizeWorkRun(input: {
     synthesisStatus,
     synthesisSummary: input.synthesisSummary,
   });
+  const rawMissingRequired = requiredStages(input.workPlan, input.stages, evidence.validation.contract)
+    .filter((stageId) => !stagePassedOrSkipped(input.stages, stageId));
+  const missingRequired = rawMissingRequired.filter(
+    (stageId) => stageId !== "security_proof_checked" || unmatchedSecurityClaims.length > 0,
+  );
+  const failedValidation = evidence.validation.status === "failed" ||
+    stageStatus(input.stages, "validation_executed") === "failed";
+  const failedValidationHardBlocker = shouldFailedValidationBlock({
+    workPlan: input.workPlan,
+    stages: input.stages,
+    failedValidation,
+    validationContract: evidence.validation.contract,
+  });
+  const fallbackMissing = fallbackRequiredButMissing(input.workPlan, input.toolExecutions);
 
   if (missingRequired.includes("validation_executed")) {
     warnings.push("Validation evidence missing or blocked; final confidence downgraded.");
@@ -134,6 +145,13 @@ export function finalizeWorkRun(input: {
   }
   if (fallbackMissing) {
     warnings.push("High-risk fallback validation is required but missing.");
+  }
+  for (const item of evidence.validation.contract?.items ?? []) {
+    if (item.obligation === "recommended" && item.applicability === "applicable" && item.availability !== "resolved") {
+      warnings.push(
+        `Recommended ${item.signal} validation is unavailable; required evidence remains independently evaluated.`,
+      );
+    }
   }
   if (input.workPlan.runbook === "evidence_only" && !input.evidenceAttached) {
     warnings.push("Evidence-only run has no runtime Evidence Pack to package.");
@@ -186,36 +204,44 @@ export function finalizeWorkRun(input: {
       unmatchedSecurityClaims.length > 0,
     preparatoryOnly,
   });
-  const terminalState =
-    evidence.changedFiles.length === 0 && input.terminalOutcome?.status === "blocked"
-      ? "blocked"
-      : evidence.changedFiles.length === 0 &&
-          input.terminalOutcome?.status === "needs_approval"
-        ? "blocked"
-        : evidence.changedFiles.length === 0 &&
-            input.terminalOutcome?.status === "failed"
-          ? "failed"
-          : evidenceTerminalState;
+  const policyOutcome = !evidence.objective?.state || evidence.objective.state !== "satisfied"
+    ? input.terminalOutcome &&
+      evidence.changedFiles.length === 0 &&
+      (input.terminalOutcome.status === "needs_approval" ||
+        (input.terminalOutcome.status === "blocked" &&
+          /approval|policy|mode|trust|forbidden/i.test(input.terminalOutcome.blocker.code)))
+    : false;
+  const terminalState = policyOutcome ? "blocked" : evidenceTerminalState;
+  const completionKind = deriveCompletionKind({
+    terminalState,
+    workPlan: input.workPlan,
+    evidence,
+  });
   const rewrittenContent = rewriteTerminalClaims(
-    rewriteUnsupportedClaims(input.content, input.stages, warnings, unmatchedSecurityClaims.length > 0),
+    rewriteUnsupportedClaims(
+      input.content,
+      input.stages,
+      warnings,
+      unmatchedSecurityClaims.length > 0,
+      evidence.validation.executionIds?.length ? evidence.validation.executionIds.length > 0 : false,
+    ),
     terminalState,
   );
-  const typedTerminalSummary =
-    evidence.changedFiles.length === 0 &&
+  const useLegacyTypedSummary =
+    !input.workPlan.objectiveContract &&
     input.terminalOutcome &&
-    input.terminalOutcome.status !== "completed"
-      ? input.terminalOutcome.summary
-      : undefined;
-  const summary =
-    typedTerminalSummary ??
-    buildUserFacingExecutionSummary(terminalState, evidence);
-  const content = typedTerminalSummary
-    ? typedTerminalSummary
+    ((input.terminalOutcome.status === "failed" && terminalState === "failed") || policyOutcome);
+  const summary = useLegacyTypedSummary
+    ? input.terminalOutcome!.summary
+    : buildUserFacingExecutionSummary(terminalState, evidence, completionKind);
+  const content = useLegacyTypedSummary
+    ? input.terminalOutcome!.summary
     : appendExecutionSummary(rewrittenContent, summary);
 
   return {
     verdict: terminalState,
     terminalState,
+    completionKind,
     evidence,
     summary,
     content,
@@ -227,13 +253,14 @@ function shouldFailedValidationBlock(input: {
   workPlan: WorkPlan;
   stages: WorkStage[];
   failedValidation: boolean;
+  validationContract?: import("../../contracts/work-objective").ValidationContract;
 }) {
   if (!input.failedValidation) return false;
   if (isReadOnlyNoChangeReview(input.workPlan, input.stages)) return false;
-  if (input.workPlan.validationPlan.required) return true;
+  if (requiredApplicableItems(input.validationContract ?? contractForWorkPlan(input.workPlan)).length > 0) return true;
   if (input.workPlan.intent === "validate") return true;
-  if (input.workPlan.runbook === "patch_test_verify") return true;
-  if (stageStatus(input.stages, "patch_attempted") === "passed") return true;
+  if (!input.validationContract && input.workPlan.runbook === "patch_test_verify") return true;
+  if (!input.validationContract && stageStatus(input.stages, "patch_attempted") === "passed") return true;
   if (securityProofRequired(input.workPlan)) return true;
   return false;
 }
@@ -366,7 +393,11 @@ function misusesPrivacySentinelPlaceholder(content: string) {
   return PRIVACY_PLACEHOLDER_MISUSE_RE.test(content);
 }
 
-function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] {
+function requiredStages(
+  workPlan: WorkPlan,
+  stages: WorkStage[],
+  validationContract?: import("../../contracts/work-objective").ValidationContract,
+): WorkStageId[] {
   const noPatchNeeded =
     stageStatus(stages, "patch_attempted") === "skipped" &&
     stages.find((stage) => stage.id === "patch_attempted")?.source !== "model_claim" &&
@@ -377,8 +408,16 @@ function requiredStages(workPlan: WorkPlan, stages: WorkStage[]): WorkStageId[] 
         "context_compiled",
         "files_inspected",
         "patch_attempted",
-        workPlan.validationPlan.required && !noPatchNeeded ? "validation_planned" : null,
-        workPlan.validationPlan.required && !noPatchNeeded ? "validation_executed" : null,
+        (validationContract
+          ? requiredApplicableItems(validationContract).length > 0
+          : workPlan.validationPlan.required) && !noPatchNeeded
+          ? "validation_planned"
+          : null,
+        (validationContract
+          ? requiredApplicableItems(validationContract).length > 0
+          : workPlan.validationPlan.required) && !noPatchNeeded
+          ? "validation_executed"
+          : null,
         "failure_memory_checked",
         "privacy_preflight_passed",
         "evidence_attached",
@@ -426,17 +465,38 @@ function hardRuntimeStages() {
 }
 
 function fallbackRequiredButMissing(workPlan: WorkPlan, toolExecutions: ToolExecutionRecord[]) {
-  if (workPlan.risk !== "high" || !workPlan.validationPlan.fallbackCommand) {
-    return false;
-  }
-  return !toolExecutions.some((execution) => {
-    const haystack = `${JSON.stringify(execution.args)}\n${execution.output}`;
-    return haystack.includes(workPlan.validationPlan.fallbackCommand ?? "\u0000");
+  const normalized = reconcileToolEvidence(toolExecutions);
+  const actualMutation = normalized.some((item) => item.changedFiles.length > 0);
+  if (!actualMutation) return false;
+  const primaryStatus = normalized.some((item) => item.validationStatus === "failed" || item.validationStatus === "blocked")
+    ? "failed" as const
+    : normalized.some((item) => item.validationStatus === "passed")
+      ? "passed" as const
+      : "inconclusive" as const;
+  const contract = activeContractForWorkPlan(workPlan, {
+    phase: "final",
+    actualMutation,
+    objectiveAlreadySatisfied: false,
+    validationIsPrimaryObjective: workPlan.objectiveContract?.validationIsPrimaryObjective ?? false,
+    highRiskChange: workPlan.risk === "high" || hasHighRiskChange(normalized.flatMap((item) => item.changedFiles.map((file) => file.path))),
+    primaryStatus,
+    evidence: normalized,
   });
+  return contract.items.some((item) =>
+    item.obligation === "fallback" &&
+    item.applicability === "applicable" &&
+    (item.evidence.status !== "passed" || item.availability !== "resolved"),
+  );
 }
 
-function rewriteUnsupportedClaims(content: string, stages: WorkStage[], warnings: string[], forceProofDowngrade = false) {
-  const validationOk = stageStatus(stages, "validation_executed") === "passed";
+function rewriteUnsupportedClaims(
+  content: string,
+  stages: WorkStage[],
+  warnings: string[],
+  forceProofDowngrade = false,
+  validationEvidenceAvailable = false,
+) {
+  const validationOk = stageStatus(stages, "validation_executed") === "passed" || validationEvidenceAvailable;
   const proofOk = stageStatus(stages, "security_proof_checked") === "passed" && !forceProofDowngrade;
   let next = content;
 

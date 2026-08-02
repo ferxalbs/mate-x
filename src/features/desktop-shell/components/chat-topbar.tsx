@@ -70,7 +70,6 @@ export function ChatTopbar({
   const { state } = useSidebar();
   const settings = useChatStore((state) => state.settings);
   const vibrancyMode = settings?.vibrancyMode ?? "solid";
-  const isSpecialMode = vibrancyMode === "special";
   // Solid panel fills for chrome controls; glass is reserved for floating surfaces.
   const liquidGlassEnabled = vibrancyMode === "solid" || vibrancyMode === "sidebar";
 

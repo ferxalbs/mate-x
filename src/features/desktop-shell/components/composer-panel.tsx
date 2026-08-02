@@ -10,7 +10,6 @@ import {
   type DragEvent,
 } from "react";
 
-import type { BehaviorPreference } from "../../../contracts/behavior-mode";
 import type {
   AssistantAttachment,
   AssistantRunOptions,
@@ -77,8 +76,6 @@ interface ComposerPanelProps {
   trustContract: WorkspaceTrustContract | null;
   prompt?: string;
   onPromptChange?: (prompt: string) => void;
-  behavior: BehaviorPreference;
-  onBehaviorChange: (value: BehaviorPreference) => void;
   onTrustChange: (value: WorkspaceWriteAccess) => Promise<void>;
 }
 
@@ -91,8 +88,6 @@ export function ComposerPanel({
   trustContract,
   prompt: externalPrompt,
   onPromptChange,
-  behavior,
-  onBehaviorChange,
   onTrustChange,
 }: ComposerPanelProps) {
   const [prompt, setPrompt] = useState(externalPrompt ?? "");
@@ -457,7 +452,6 @@ export function ComposerPanel({
               <HugeiconsIcon icon={Attachment01Icon} className="size-4" />
             </button>
             <ComposerRunSettings
-              behavior={behavior}
               catalog={catalog}
               effortOptions={effortOptions}
               isModelDisabled={
@@ -466,7 +460,6 @@ export function ComposerPanel({
               isTrustDisabled={!trustContract || isRunning || isTrustSaving}
               modelLabel={modelLabel}
               modelValue={modelValue}
-              onBehaviorChange={onBehaviorChange}
               onModelChange={(value) => void handleModelChange(value)}
               onReasoningChange={setReasoningValue}
               onServiceTierChange={setServiceTier}

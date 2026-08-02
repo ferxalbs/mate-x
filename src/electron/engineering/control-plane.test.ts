@@ -16,6 +16,7 @@ import { compileTechnicalApproach } from './plan-compiler';
 import { compileTaskGraph } from './task-graph-compiler';
 import { validateValidationCommand } from './validation-engine';
 import { nowIso, sha256Hex } from './ids';
+import type { ValidationContract } from '../../contracts/work-objective';
 
 function setup() {
   const repo = new EngineeringRepository();
@@ -404,6 +405,100 @@ describe('Control plane vertical slice [NES-2..6]', () => {
     });
     assert.equal(stalePol.allowed, false);
     assert.equal(stalePol.code, ERR_CODES.ERR_PROOF_STALE_POLICY);
+  });
+
+  it('ShipProof consumes canonical validation applicability and evidence', () => {
+    const { repo, bus } = setup();
+    const cap = bus.dispatch({
+      type: 'CaptureTask',
+      workspaceId: 'ws',
+      objectiveSeed: 'Verify an already satisfied objective',
+    });
+    assert.equal(cap.ok, true);
+    if (!cap.ok) return;
+    const task = repo.getTask((cap.data as any).engineeringTaskId)!;
+    const coverage = {
+      reportId: 'cvg_canonical',
+      engineeringTaskId: task.engineeringTaskId,
+      generatedAt: nowIso(),
+      gaps: [],
+      actionableGapCount: 0,
+      inputsHash: 'canonical',
+    };
+    repo.applyTransaction({
+      task: { ...task, status: 'ready', readiness: 'Ready' },
+      events: [],
+      coverage,
+    });
+    const anchors = {
+      workspaceId: 'ws',
+      repositorySnapshotHash: sha256Hex('canonical-snapshot'),
+      baseSha: null,
+      headSha: 'canonical-head',
+      diffHash: 'canonical-diff',
+      policyHash: 'canonical-policy',
+      specificationVersion: 1,
+      planVersion: 1,
+      taskGraphVersion: 1,
+      generatedAt: nowIso(),
+    };
+    const baseContract: ValidationContract = {
+      schemaVersion: 1,
+      items: [
+        {
+          id: 'after_mutation:typecheck',
+          signal: 'typecheck',
+          obligation: 'required',
+          trigger: 'after_mutation',
+          applicability: 'not_applicable',
+          availability: 'unavailable',
+          command: null,
+          commandSource: null,
+          unavailableCause: 'TYPECHECK_UNAVAILABLE',
+          evidence: { status: 'not_run' },
+          reason: 'Post-mutation validation is not activated for an unchanged objective.',
+        },
+      ],
+      actualMutation: false,
+      objectiveAlreadySatisfied: true,
+      validationIsPrimaryObjective: false,
+      compiledAt: nowIso(),
+      source: 'canonical_compiler',
+    };
+    const noOpProof = issueShipProof({
+      repo,
+      task: { ...task, status: 'ready', readiness: 'Ready' },
+      anchors,
+      validationRuns: [],
+      coverage,
+      readiness: 'Ready',
+      validationContract: baseContract,
+    });
+    assert.equal(noOpProof.ok, true);
+    if (!noOpProof.ok) return;
+    assert.deepEqual(noOpProof.proof.validationContract, baseContract);
+
+    const changedContract: ValidationContract = {
+      ...baseContract,
+      actualMutation: true,
+      objectiveAlreadySatisfied: false,
+      items: baseContract.items.map((item) => ({
+        ...item,
+        applicability: 'applicable',
+      })),
+    };
+    const blockedProof = issueShipProof({
+      repo,
+      task: { ...task, status: 'ready', readiness: 'Ready' },
+      anchors,
+      validationRuns: [],
+      coverage,
+      readiness: 'Ready',
+      validationContract: changedContract,
+    });
+    assert.equal(blockedProof.ok, false);
+    if (blockedProof.ok) return;
+    assert.equal(blockedProof.code, ERR_CODES.ERR_VALIDATION_REQUIRED_MISSING);
   });
 
   it('consistency is deterministic for same inputs', () => {

@@ -71,6 +71,44 @@ describe("capability resolution", () => {
     assert.ok(!resolveAdvertisedToolNames("plan").includes("file_editor"));
   });
 
+  test("canonical Work strategy enforces read-only and validation boundaries", () => {
+    const inspectionEdit = resolveToolAuthorization({
+      toolName: "file_editor",
+      args: { path: "README.md" },
+      behaviorMode: "execute",
+      workStrategy: "inspection",
+      workspacePolicy: workspace("workspace"),
+    });
+    const inspectionCommand = resolveToolAuthorization({
+      toolName: "sandbox_run",
+      args: { command: "git diff" },
+      behaviorMode: "execute",
+      workStrategy: "inspection",
+      workspacePolicy: workspace("workspace"),
+    });
+    const validationCommand = resolveToolAuthorization({
+      toolName: "sandbox_run",
+      args: { command: "bun test" },
+      behaviorMode: "execute",
+      workStrategy: "validation",
+      workspacePolicy: workspace("workspace"),
+    });
+    const validationEdit = resolveToolAuthorization({
+      toolName: "file_editor",
+      args: { path: "README.md" },
+      behaviorMode: "execute",
+      workStrategy: "validation",
+      workspacePolicy: workspace("workspace"),
+    });
+
+    assert.equal(inspectionEdit.decision, "blocked");
+    assert.equal(inspectionCommand.decision, "blocked");
+    assert.equal(validationCommand.decision, "allowed");
+    assert.equal(validationEdit.decision, "blocked");
+    assert.ok(!resolveAdvertisedToolNames("execute", "inspection").includes("sandbox_run"));
+    assert.ok(resolveAdvertisedToolNames("execute", "validation").includes("sandbox_run"));
+  });
+
   test("Execute can edit an authorized workspace", () => {
     const decision = resolveToolAuthorization({
       toolName: "file_editor",

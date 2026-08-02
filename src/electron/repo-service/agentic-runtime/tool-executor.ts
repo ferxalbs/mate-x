@@ -11,6 +11,7 @@ import type { EngineeringTaskStatus } from "../../../contracts/engineering-task"
 import { normalizeToolEvidence } from "../../work-engine/execution-evidence";
 import { resolveToolAuthorization } from "../../capability-resolver";
 import type { BehaviorMode } from "../../../contracts/behavior-mode";
+import type { WorkStrategy } from "../../../contracts/work-objective";
 import { createPublicToolProgress } from "./public-tool-progress";
 import { resolveToolExecutionPolicy } from "./tool-requirement";
 import type { ToolExecutionPolicy } from "../../../contracts/agent-run-trace";
@@ -31,6 +32,7 @@ export async function executeAgentToolCall({
   runId,
   engineeringTaskStatus,
   behaviorMode,
+  workStrategy,
   signal,
 }: {
   toolCall: AgentToolCall;
@@ -44,6 +46,7 @@ export async function executeAgentToolCall({
   /** Control-plane status authority for pre-approval tool restrictions. */
   engineeringTaskStatus?: EngineeringTaskStatus | null;
   behaviorMode: BehaviorMode;
+  workStrategy?: WorkStrategy;
   signal?: AbortSignal;
 }): Promise<{
   toolCallId: string;
@@ -95,6 +98,7 @@ export async function executeAgentToolCall({
     toolName,
     args: toolArgs,
     behaviorMode,
+    workStrategy,
     workspacePolicy: snapshot.trustContract,
     engineeringTaskStatus,
   });
@@ -303,6 +307,7 @@ export async function executeAgentToolCall({
         runId,
         authority: {
           behaviorMode,
+          workStrategy,
           workspacePolicy: snapshot.trustContract,
           engineeringTaskStatus,
         },

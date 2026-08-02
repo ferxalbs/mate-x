@@ -39,6 +39,11 @@ import {
 } from "./telemetry-service";
 import { AgentExecutionSession } from "./run-trace/agent-execution-session";
 import { collectRepositoryToolchainProfile } from "./repository-toolchain";
+import {
+  activeContractForWorkPlan,
+  hasHighRiskChange,
+  requiredApplicableItems,
+} from "./validation-contract";
 
 export { bootstrapWorkspaceState, getWorkspaceEntries, setActiveWorkspace, addWorkspace, removeWorkspace, saveWorkspaceSession, getWorkspaceSummary, getWorkspaceTrustContract, updateWorkspaceTrustContract, listFiles, searchInFiles, collectRepoSnapshot } from "./repo-service/workspace";
 export type { RepoSnapshot } from "./repo-service/workspace";
@@ -105,8 +110,11 @@ export async function runAssistant(
     gitStatus: snapshot.statusLines,
     workingSet,
     targetToolchain,
+    workspacePolicy: snapshot.trustContract,
+    initialInspection: { matches: snapshot.promptMatches },
     behaviorMode: resolvedOptions.behaviorMode,
   });
+  const workStrategy = workPlan.objectiveContract?.strategy ?? "work";
   // EngineeringTask is sole workflow authority when linked.
   let engineeringTaskStatus: import("../contracts/engineering-task").EngineeringTaskStatus | null =
     null;
@@ -132,12 +140,15 @@ export async function runAssistant(
   }
   const planningPhase =
     resolvedOptions.behaviorMode !== "execute" ||
+    workStrategy === "inspection" ||
+    workStrategy === "planning" ||
     awaitingTaskApproval;
   policyService.registerRunContext({
     runId: effectiveRunId,
     workspaceId: snapshot.workspace.id,
     workspacePath: snapshot.workspace.path,
     behaviorMode: resolvedOptions.behaviorMode,
+    workStrategy,
     resolvePolicy: async () => {
       let currentTaskStatus = engineeringTaskStatus;
       if (resolvedOptions.engineeringTaskId) {
@@ -382,6 +393,7 @@ export async function runAssistant(
       runId: effectiveRunId,
       engineeringTaskStatus,
       behaviorMode: resolvedOptions.behaviorMode,
+      workStrategy,
     });
 
     content = result.content;
@@ -415,6 +427,7 @@ export async function runAssistant(
       runId: effectiveRunId,
       engineeringTaskStatus,
       behaviorMode: resolvedOptions.behaviorMode,
+      workStrategy,
     });
 
     content = result.content;
@@ -442,6 +455,7 @@ export async function runAssistant(
       },
       authority: {
         behaviorMode: resolvedOptions.behaviorMode,
+        workStrategy,
         workspacePolicy: snapshot.trustContract,
         engineeringTaskStatus,
       },
@@ -514,6 +528,7 @@ export async function runAssistant(
           runId: effectiveRunId,
           signal: progressReporter?.signal,
           engineeringTaskStatus,
+          workStrategy,
           planningPhase,
         }),
         {
@@ -573,7 +588,38 @@ export async function runAssistant(
     emitProgress();
   }
 
-  if (workPlan.validationPlan.required && !planningPhase) {
+  const finalValidationEvidence = toolExecutions.map((execution) =>
+    execution.evidence ??
+    normalizeToolEvidence(
+      execution.toolName,
+      execution.args,
+      execution.output,
+      execution.parsedOutput,
+    ),
+  );
+  const actualMutationForValidation = finalValidationEvidence.some(
+    (evidence) => evidence.changedFiles.length > 0,
+  );
+  const primaryValidationEvidence = finalValidationEvidence.find(
+    (evidence) => evidence.validationStatus && evidence.validationRequirementId === "test",
+  );
+  const primaryStatus = primaryValidationEvidence?.validationStatus === "passed"
+    ? "passed"
+    : primaryValidationEvidence?.validationStatus === "failed"
+      ? "failed"
+      : undefined;
+  const activeValidationContract = activeContractForWorkPlan(workPlan, {
+    phase: "final",
+    actualMutation: actualMutationForValidation,
+    objectiveAlreadySatisfied: false,
+    validationIsPrimaryObjective: workPlan.objectiveContract?.validationIsPrimaryObjective ?? false,
+    highRiskChange: actualMutationForValidation && hasHighRiskChange(
+      finalValidationEvidence.flatMap((evidence) => evidence.changedFiles.map((file) => file.path)),
+    ),
+    primaryStatus,
+    evidence: finalValidationEvidence,
+  });
+  if (requiredApplicableItems(activeValidationContract).length > 0 && !planningPhase) {
     traceSession.transition("verifying");
   }
   const validationGate = evaluateValidationGate(workPlan, toolExecutions, content, {
@@ -669,11 +715,16 @@ export async function runAssistant(
   content = evidenceFinalization.content;
   const executionOutcome = enrichExecutionOutcome({
     terminalState: evidenceFinalization.terminalState,
+    completionKind: evidenceFinalization.completionKind,
     evidence: evidenceFinalization.evidence,
     summary: evidenceFinalization.summary,
   }, agentOutcome, workPlan);
   const requiredValidationIncomplete =
-    workPlan.validationPlan.required &&
+    (evidenceFinalization.evidence.validation.contract?.items.some(
+      (item) =>
+        (item.obligation === "required" || item.obligation === "fallback") &&
+        item.applicability === "applicable",
+    ) ?? false) &&
     evidenceFinalization.evidence.validation.status !== "passed";
   evidencePack = {
     ...evidencePack,
@@ -930,6 +981,7 @@ export async function runAssistant(
     });
     const recoveryOutcome = enrichExecutionOutcome({
       terminalState: recoveryFinalization.terminalState,
+      completionKind: recoveryFinalization.completionKind,
       evidence: recoveryFinalization.evidence,
       summary: recoveryFinalization.summary,
     }, agentOutcome, workPlan);
@@ -997,7 +1049,7 @@ function enrichExecutionOutcome(
       ? "preexisting_changes" as const
       : "unchanged" as const;
   const primaryCause =
-    agentOutcome && agentOutcome.status !== "completed"
+    outcome.terminalState !== "completed" && agentOutcome && agentOutcome.status !== "completed"
       ? {
           code:
             agentOutcome.status === "blocked"

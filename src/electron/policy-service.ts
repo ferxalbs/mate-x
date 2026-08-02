@@ -9,6 +9,7 @@ import type {
   ResolvePolicyStopRequest,
 } from "../contracts/policy";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type { WorkStrategy } from "../contracts/work-objective";
 import type {
   AgentCapability,
   ExecutionAuthorityContext,
@@ -37,6 +38,7 @@ type RunExecutionContext = {
   workspaceId: string;
   workspacePath: string;
   behaviorMode: BehaviorMode;
+  workStrategy?: WorkStrategy;
   resolvePolicy: () => Promise<{
     workspacePolicy: WorkspaceTrustContract;
     engineeringTaskStatus?: ExecutionAuthorityContext["engineeringTaskStatus"];
@@ -79,6 +81,7 @@ class PolicyService {
     workspaceId: string;
     workspacePath: string;
     behaviorMode: BehaviorMode;
+    workStrategy?: WorkStrategy;
     resolvePolicy: RunExecutionContext["resolvePolicy"];
   }) {
     const existing = this.runContexts.get(input.runId);
@@ -94,6 +97,7 @@ class PolicyService {
       workspacePath: input.workspacePath,
       behaviorMode:
         existing ? existing.behaviorMode : input.behaviorMode,
+      workStrategy: existing ? existing.workStrategy : input.workStrategy,
       resolvePolicy: input.resolvePolicy,
       cancelled: existing?.cancelled ?? false,
     });
@@ -126,6 +130,7 @@ class PolicyService {
     }
     return {
       behaviorMode: context.behaviorMode,
+      workStrategy: context.workStrategy,
       workspacePolicy: current.workspacePolicy,
       engineeringTaskStatus: current.engineeringTaskStatus,
     };

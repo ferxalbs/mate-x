@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.08.01 (2) [Canonical Work Outcomes and Validation Contracts]
+
+* Added one schema-validated Work objective compiler and canonical per-signal `ValidationContract`, with explicit obligations, triggers, applicability, availability, command authority, and evidence provenance.
+* Added first-class `already_satisfied`, changed verification, inspection, planning, and validation-only completion semantics; mutation-triggered checks no longer block a proven no-op objective.
+* Recompiled validation after inspection, mutation, and approval boundaries while preserving repository-scoped toolchain authority and stale-plan invalidation.
+* Kept target toolchain availability per signal so a resolved test command remains usable when typecheck, lint, or build are absent.
+* Added a compatibility bridge so Ship Proof records and gates on the same canonical validation applicability and evidence when a Work contract is supplied; legacy proof inputs remain readable.
+* Enforced canonical Work strategies at the capability boundary and reduced the primary composer to one Work experience while retaining Review/Plan/Execute compatibility adapters.
+* Added fixture-backed regression coverage for no-op completion, changed-but-unverified work, validation-only blocking, fallbacks, high-risk checks, toolchain capabilities, stale persistence, provider independence, authorization, trace projection, and Evidence Pack parity.
+
 ## Unreleased - 2026.08.01 (1) [Repository-Grounded Validation Authority and Mode Contracts]
 
 * Replaced stale workspace-profile and failure-history validation authority with a fresh target-repository toolchain resolver that uses repository manifests, scripts, lockfiles, workspace ownership, native project evidence, and local-only toolchain capabilities.

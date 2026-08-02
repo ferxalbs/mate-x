@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 
 
-import { Card, CardContent } from "../../../components/ui/card";
 import { ScrollArea } from "../../../components/ui/scroll-area";
 import type { Conversation, RunStatus } from "../../../contracts/chat";
 import type { RepoGraphImpactedFile } from "../../../contracts/repo-graph";

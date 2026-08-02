@@ -134,11 +134,11 @@ function applyWorkspaceSnapshot(
     snapshot.threads.length > 0
       ? snapshot.threads
       : [
-          createEmptyConversation({
-            id: createId(`thread-${nextWorkspaceId}`),
-            title: "New thread",
-          }),
-        ];
+        createEmptyConversation({
+          id: createId(`thread-${nextWorkspaceId}`),
+          title: "New thread",
+        }),
+      ];
   const nextActiveThreadId = snapshot.activeThreadId || snapshotThreads[0].id;
 
   return {
@@ -305,16 +305,16 @@ export function projectRunEventToToolEvent(
     isPublicAgentProgress
       ? "result"
       : event.kind.startsWith("validation.")
-      ? "validation"
-      : event.kind.startsWith("mutation.")
-        ? "edit"
-        : event.kind.startsWith("approval.")
-          ? "approval"
-          : event.kind.startsWith("provider.")
-            ? "reasoning"
-            : event.kind.startsWith("run.")
-              ? "result"
-              : "wait";
+        ? "validation"
+        : event.kind.startsWith("mutation.")
+          ? "edit"
+          : event.kind.startsWith("approval.")
+            ? "approval"
+            : event.kind.startsWith("provider.")
+              ? "reasoning"
+              : event.kind.startsWith("run.")
+                ? "result"
+                : "wait";
   const status: ToolEvent["status"] =
     payload.status ??
     (event.kind.endsWith(".completed") || event.kind === "mutation.committed"
@@ -411,46 +411,46 @@ function applyAssistantProgress(
         thread.id !== activeRun.threadId
           ? thread
           : {
-              ...thread,
-              lastUpdatedAt: TERMINAL_RUN_STATUSES.has(progress.status)
-                ? new Date().toISOString()
-                : thread.lastUpdatedAt,
-              messages: thread.messages.map((message) =>
-                message.id !== activeRun.messageId
-                  ? message
-                  : {
-                      ...message,
-                      content: progress.content,
-                      events: mergeTimelineSegments(
-                        message.events,
-                        progress.delta
-                          ? progress.delta.events.map(projectRunEventToToolEvent)
-                          : progress.events,
-                        progress,
-                        message.createdAt,
-                      ),
-                      artifacts: progress.artifacts,
-                      outcome: progress.outcome,
-                    },
-              ),
-              runs: (thread.runs ?? []).map((run) =>
-                run.id !== activeRun.reproducibleRunId
-                  ? run
-                  : {
-                      ...run,
-                      status: progress.status,
-                      events: mergeTimelineSegments(
-                        run.events,
-                        progress.delta
-                          ? progress.delta.events.map(projectRunEventToToolEvent)
-                          : progress.events,
-                        progress,
-                        run.startedAt,
-                      ),
-                      artifacts: progress.artifacts,
-                    },
-              ),
-            },
+            ...thread,
+            lastUpdatedAt: TERMINAL_RUN_STATUSES.has(progress.status)
+              ? new Date().toISOString()
+              : thread.lastUpdatedAt,
+            messages: thread.messages.map((message) =>
+              message.id !== activeRun.messageId
+                ? message
+                : {
+                  ...message,
+                  content: progress.content,
+                  events: mergeTimelineSegments(
+                    message.events,
+                    progress.delta
+                      ? progress.delta.events.map(projectRunEventToToolEvent)
+                      : progress.events,
+                    progress,
+                    message.createdAt,
+                  ),
+                  artifacts: progress.artifacts,
+                  outcome: progress.outcome,
+                },
+            ),
+            runs: (thread.runs ?? []).map((run) =>
+              run.id !== activeRun.reproducibleRunId
+                ? run
+                : {
+                  ...run,
+                  status: progress.status,
+                  events: mergeTimelineSegments(
+                    run.events,
+                    progress.delta
+                      ? progress.delta.events.map(projectRunEventToToolEvent)
+                      : progress.events,
+                    progress,
+                    run.startedAt,
+                  ),
+                  artifacts: progress.artifacts,
+                },
+            ),
+          },
       ),
     };
 
@@ -477,20 +477,20 @@ function queueAssistantProgress(
 
   pendingAssistantProgress =
     pendingAssistantProgress?.runId === progress.runId &&
-    pendingAssistantProgress.delta &&
-    progress.delta
+      pendingAssistantProgress.delta &&
+      progress.delta
       ? {
-          ...progress,
-          delta: {
-            runId: progress.runId,
-            fromSeq: pendingAssistantProgress.delta.fromSeq,
-            toSeq: progress.delta.toSeq,
-            events: [
-              ...pendingAssistantProgress.delta.events,
-              ...progress.delta.events,
-            ],
-          },
-        }
+        ...progress,
+        delta: {
+          runId: progress.runId,
+          fromSeq: pendingAssistantProgress.delta.fromSeq,
+          toSeq: progress.delta.toSeq,
+          events: [
+            ...pendingAssistantProgress.delta.events,
+            ...progress.delta.events,
+          ],
+        },
+      }
       : progress;
   if (assistantProgressFlushTimer) {
     return;
@@ -594,13 +594,23 @@ export function deriveExecutionOutcome(message: ChatMessage): ExecutionOutcome {
 
   return {
     terminalState,
+    completionKind:
+      terminalState === "partial"
+        ? hasMutation ? "changed_unverified" : "blocked"
+        : terminalState === "blocked"
+          ? agentStatus === "needs_approval" ? "awaiting_approval" : "blocked"
+          : terminalState === "failed"
+            ? "failed"
+            : hasMutation
+              ? "changed_verified"
+              : "inspection_completed",
     primaryCause:
       agentStatus === "needs_approval"
         ? {
-            code: "APPROVAL_REQUIRED",
-            summary: message.outcome?.summary ?? "Approval is required before continuing.",
-            source: "policy",
-          }
+          code: "APPROVAL_REQUIRED",
+          summary: message.outcome?.summary ?? "Approval is required before continuing.",
+          source: "policy",
+        }
         : null,
     nextActions:
       agentStatus === "needs_approval"
@@ -635,9 +645,9 @@ function redactRun(run: ReproducibleRun): ReproducibleRun {
     })),
     result: run.result
       ? {
-          ...run.result,
-          summary: redactSensitiveText(run.result.summary),
-        }
+        ...run.result,
+        summary: redactSensitiveText(run.result.summary),
+      }
       : undefined,
   };
 }
@@ -1049,10 +1059,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       isConversationalPrompt(displayedPrompt);
     const runOptions = conversational
       ? {
-          ...normalizedOptions,
-          pathKind: "chat_help" as const,
-          runbookId: "review_classify_summarize" as const,
-        }
+        ...normalizedOptions,
+        pathKind: "chat_help" as const,
+        runbookId: "review_classify_summarize" as const,
+      }
       : normalizedOptions;
     const workspaceId = get().activeWorkspaceId;
 
@@ -1166,20 +1176,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
             thread.id !== state.activeThreadIds[workspaceId]
               ? thread
               : {
-                  ...thread,
-                  title:
-                    thread.messages.length === 0 ||
+                ...thread,
+                title:
+                  thread.messages.length === 0 ||
                     thread.title === "New thread"
-                      ? buildThreadTitle(displayedPrompt)
-                      : thread.title,
-                  lastUpdatedAt: assistantPlaceholder.createdAt,
-                  messages: [
-                    ...thread.messages,
-                    userMessage,
-                    assistantPlaceholder,
-                  ],
-                  runs: replaceRunById(thread.runs, reproducibleRun),
-                },
+                    ? buildThreadTitle(displayedPrompt)
+                    : thread.title,
+                lastUpdatedAt: assistantPlaceholder.createdAt,
+                messages: [
+                  ...thread.messages,
+                  userMessage,
+                  assistantPlaceholder,
+                ],
+                runs: replaceRunById(thread.runs, reproducibleRun),
+              },
         ),
       };
 
@@ -1190,15 +1200,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
 
       return {
-          activeRun: {
-            runId,
-            workspaceId,
-            threadId: activeThreadId,
-            messageId: assistantPlaceholder.id,
-            reproducibleRunId: reproducibleRun.id,
-          },
-          runStatus: "running",
-          threadsByWorkspace: nextThreadsByWorkspace,
+        activeRun: {
+          runId,
+          workspaceId,
+          threadId: activeThreadId,
+          messageId: assistantPlaceholder.id,
+          reproducibleRunId: reproducibleRun.id,
+        },
+        runStatus: "running",
+        threadsByWorkspace: nextThreadsByWorkspace,
       };
     });
 
@@ -1281,22 +1291,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? [])
             .map((thread) =>
               thread.id !==
-              (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
+                (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
                 ? thread
                 : {
-                    ...thread,
-                    title: execution.suggestedTitle ?? thread.title,
-                    lastUpdatedAt: finalMessage.createdAt,
-                    messages:
-                      activeRun && activeRun.runId === runId
-                        ? replaceMessageById(
-                            thread.messages,
-                            activeRun.messageId,
-                            finalMessage,
-                          )
-                        : [...thread.messages, finalMessage],
-                    runs: replaceRunById(thread.runs, finalRun),
-                  },
+                  ...thread,
+                  title: execution.suggestedTitle ?? thread.title,
+                  lastUpdatedAt: finalMessage.createdAt,
+                  messages:
+                    activeRun && activeRun.runId === runId
+                      ? replaceMessageById(
+                        thread.messages,
+                        activeRun.messageId,
+                        finalMessage,
+                      )
+                      : [...thread.messages, finalMessage],
+                  runs: replaceRunById(thread.runs, finalRun),
+                },
             )
             .toSorted((left, right) =>
               right.lastUpdatedAt.localeCompare(left.lastUpdatedAt),
@@ -1354,21 +1364,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [workspaceId]: (state.threadsByWorkspace[workspaceId] ?? []).map(
             (thread) =>
               thread.id !==
-              (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
+                (activeRun?.threadId ?? state.activeThreadIds[workspaceId])
                 ? thread
                 : {
-                    ...thread,
-                    lastUpdatedAt: fallbackMessage.createdAt,
-                    messages:
-                      activeRun && activeRun.runId === runId
-                        ? replaceMessageById(
-                            thread.messages,
-                            activeRun.messageId,
-                            fallbackMessage,
-                          )
-                        : [...thread.messages, fallbackMessage],
-                    runs: replaceRunById(thread.runs, failedRun),
-                  },
+                  ...thread,
+                  lastUpdatedAt: fallbackMessage.createdAt,
+                  messages:
+                    activeRun && activeRun.runId === runId
+                      ? replaceMessageById(
+                        thread.messages,
+                        activeRun.messageId,
+                        fallbackMessage,
+                      )
+                      : [...thread.messages, fallbackMessage],
+                  runs: replaceRunById(thread.runs, failedRun),
+                },
           ),
         };
 
@@ -1433,11 +1443,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       thread.id !== activeThreadId
         ? thread
         : {
-            ...thread,
-            lastUpdatedAt: nextLastUpdatedAt,
-            messages: nextMessages,
-            title: nextMessages.length === 0 ? "New thread" : thread.title,
-          },
+          ...thread,
+          lastUpdatedAt: nextLastUpdatedAt,
+          messages: nextMessages,
+          title: nextMessages.length === 0 ? "New thread" : thread.title,
+        },
     );
 
     set((state) => ({

@@ -307,8 +307,10 @@ MaTE X uses **CSS-only glass**. Native window materials are permanently disabled
 
 - **System Scope**: MaTE X is not an IDE and must expose no separate user-facing workflow engines.
 - **Workflow Authority**: `EngineeringTask` is the canonical workflow authority.
+- **Canonical Work Runtime**: User intent, workspace authority, inspection, actual delta, applicable verification, and canonical outcome are one runtime contract. `WorkObjectiveContract`, `ValidationContract`, and `CompletionKind` are the shared authority consumed by execution, evidence, persistence, and UI.
 - **Behavior Modes**: Review, Plan, and Execute control agent strategy only; they are not authorization systems or workflow engines. Execute is default.
 - **Mode Differentiation**: Review produces evidence-backed findings, Plan produces an executable implementation strategy, and Execute performs and validates authorized work.
+- **Mode Compatibility**: Review, Plan, and Execute are deprecated compatibility adapters for the canonical Work strategy. They may shape internal strategy and mutation permission, but must not introduce separate planners, validation semantics, terminal reducers, or user-facing workflow engines. The primary UI exposes Work; explicit review, plan, and validation requests compile into structured task intent.
 - **Capability Authority**: `src/electron/capability-resolver.ts` is the single authorization path for agent tool calls. It combines mode capabilities, workspace policy, task state, and approval requirements before execution.
 - **Workspace Policy Separation**: Workspace policy defines paths, commands, domains, actions, and write access only. It must never define personality, response style, planning behavior, or model reasoning.
 - **Structured Outcomes**: Completed, blocked, approval, and failure states cross the runtime/UI boundary as typed outcomes. UI code must not infer application state from assistant prose.

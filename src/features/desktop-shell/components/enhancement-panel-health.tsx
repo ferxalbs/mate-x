@@ -5,7 +5,6 @@ import { Activity01Icon } from "@hugeicons/core-free-icons";
 import type { RepoHealthSignal } from "./enhancement-panel-utils";
 import type { WorkspaceSummary } from "../../../contracts/workspace";
 import { cn } from "../../../lib/utils";
-import { Card, CardContent } from "../../../components/ui/card";
 import { PanelTitle, TonePill } from "./enhancement-panel-primitives";
 import { toneDotClassName, toneSurfaceClassName } from "./enhancement-panel-tone";
 import { getRepoHealthVerdict } from "./enhancement-panel-utils";

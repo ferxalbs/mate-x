@@ -5,17 +5,15 @@ import {
   reconcileToolEvidence,
   resolveRequiredValidationStatus,
 } from "./execution-evidence";
+import { resolveObjectiveEvidence } from "./objective-compiler";
+import { activeContractForWorkPlan, hasHighRiskChange, requiredApplicableItems } from "../validation-contract";
 
 const UNSUPPORTED_DONE_RE = /\b(fixed|ready|works|no warnings|merge-ready|merge ready|done)\b/i;
 
 /**
- * Matches agent conclusions that mean "there is nothing to validate".
- * Text may only soft-warn when the mutation ledger is empty.
- * NES-5.1: mutation ledger ⇒ no text validation waive.
+ * Matches confidence wording so an incomplete canonical contract produces a
+ * visible warning. This never decides applicability or waives validation.
  */
-const NO_VALIDATION_NEEDED_RE =
-  /\b(no changes?(?:\s+(?:detected|to\s+review|found))?|nothing\s+to\s+(?:validate|review|check)|no\s+(?:patch|code\s+change)|patch\s+not\s+needed|read[\s-]?only|clean\s+working\s+(?:tree|directory)|0\s+(?:insertions?|deletions?)|no\s+(?:uncommitted|unstaged)\s+changes?)\b/i;
-
 export interface ValidationGateResult {
   allowed: boolean;
   warnings: string[];
@@ -46,19 +44,51 @@ export function evaluateValidationGate(
     };
   }
 
-  if (!workPlan.validationPlan.required) {
-    return { allowed: true, warnings: [] };
-  }
-
-  const strictNoTextWaive = options?.strictNoTextWaive ?? true;
-
   const validationAttempts = toolExecutions.filter((execution) =>
     ["run_tests", "sandbox_run"].includes(execution.toolName),
   );
   const normalizedValidation = reconcileToolEvidence(toolExecutions);
+  const objectiveResolution = workPlan.objectiveContract
+    ? resolveObjectiveEvidence(
+        workPlan.objectiveContract,
+        toolExecutions.map((execution) => ({
+          toolName: execution.toolName,
+          args: execution.args ?? {},
+          output: execution.output,
+          parsedOutput: execution.parsedOutput,
+        })),
+        { matches: workPlan.objectiveInspectionMatches ?? [] },
+      )
+    : { state: "unknown" as const, evidenceIds: [], summary: "Historical WorkPlan has no objective evidence contract." };
+  const objectiveState = objectiveResolution.state === "unknown" && workPlan.objectiveContract?.objectiveAlreadySatisfied
+    ? "satisfied" as const
+    : objectiveResolution.state;
+  const mutated = mutationOccurredInLedger(toolExecutions);
+  const activeContract = activeContractForWorkPlan(workPlan, {
+    phase: "final",
+    actualMutation: mutated,
+    objectiveAlreadySatisfied: objectiveState === "satisfied" && !mutated,
+    validationIsPrimaryObjective: workPlan.objectiveContract?.validationIsPrimaryObjective ?? false,
+    highRiskChange: mutated && (workPlan.risk === "high" || hasHighRiskChange(normalizedValidation.flatMap((item) => item.changedFiles.map((file) => file.path)))),
+    primaryStatus: primaryValidationStatus(normalizedValidation),
+    evidence: normalizedValidation,
+  });
+  const applicableRequired = requiredApplicableItems(activeContract);
+  if (applicableRequired.length === 0) {
+    return {
+      allowed: true,
+      warnings: objectiveState === "satisfied" && !mutated
+        ? ["Post-mutation validation is not applicable because no mutation was required."]
+        : [],
+    };
+  }
+
+  const strictNoTextWaive = options?.strictNoTextWaive ?? true;
+  void strictNoTextWaive;
   const requiredValidationStatus = resolveRequiredValidationStatus(
     workPlan,
     normalizedValidation,
+    activeContract,
   );
   const ranValidation = requiredValidationStatus === "passed" ||
     (requiredValidationStatus === null && validationAttempts.some(
@@ -67,25 +97,13 @@ export function evaluateValidationGate(
   const persisted = toolExecutions.some(
     (execution) => execution.toolName === "verify_validation_persistence",
   );
-  const fallbackRequired =
-    workPlan.risk === "high" && Boolean(workPlan.validationPlan.fallbackCommand);
-  const ranFallback =
-    !fallbackRequired ||
-    toolExecutions.some((execution) =>
-      String(execution.output).includes(workPlan.validationPlan.fallbackCommand ?? "\u0000"),
-    );
-
-  const mutated = mutationOccurredInLedger(toolExecutions);
-  // Text waive only when no mutation occurred; never after mutation (NES-5.1).
-  const textClaimsNoValidation = NO_VALIDATION_NEEDED_RE.test(finalContent);
-  void strictNoTextWaive;
-
-  // When strict (default): text may soft-warn only if mutation ledger empty;
-  // if mutation occurred, text cannot suppress hard blocker.
-  const allowTextWaive = !mutated && textClaimsNoValidation;
+  const fallbackItems = activeContract.items.filter(
+    (item) => item.obligation === "fallback" && item.applicability === "applicable",
+  );
+  const ranFallback = fallbackItems.every((item) => item.evidence.status === "passed");
 
   const hardBlockers: string[] = [];
-  if (!ranValidation && !allowTextWaive) {
+  if (!ranValidation) {
     hardBlockers.push(
       mutated
         ? "Validation required: mutation ledger shows repository changes; model prose cannot waive validation."
@@ -98,11 +116,8 @@ export function evaluateValidationGate(
 
   const softWarnings: string[] = [];
   if (!persisted) softWarnings.push("Validation result was not verified as persisted.");
-  if (!ranValidation && allowTextWaive) {
-    softWarnings.push("Validation skipped: no mutation ledger entries and agent concluded nothing to validate.");
-  }
-  if (mutated && textClaimsNoValidation && !ranValidation) {
-    softWarnings.push("Ignored model claim of no validation needed because mutation tools ran.");
+  if (!ranValidation && !mutated) {
+    softWarnings.push("Validation remains incomplete for the applicable objective; repository evidence did not show a mutation-triggered exemption.");
   }
 
   const warnings = [...hardBlockers, ...softWarnings];
@@ -113,6 +128,15 @@ export function evaluateValidationGate(
   }
 
   return { allowed: !blocked, warnings };
+}
+
+function primaryValidationStatus(
+  evidence: ReturnType<typeof reconcileToolEvidence>,
+): "passed" | "failed" | "inconclusive" | undefined {
+  if (evidence.some((item) => item.validationStatus === "failed" || item.validationStatus === "blocked")) return "failed";
+  if (evidence.some((item) => item.validationStatus === "passed")) return "passed";
+  if (evidence.some((item) => item.validationStatus === "pending" || item.validationStatus === "running")) return "inconclusive";
+  return undefined;
 }
 
 export function appendValidationGateWarning(content: string, gate: ValidationGateResult) {

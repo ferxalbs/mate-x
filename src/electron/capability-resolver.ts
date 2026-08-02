@@ -8,6 +8,7 @@ import {
   type BehaviorMode,
 } from "../contracts/behavior-mode";
 import type { WorkspaceTrustContract } from "../contracts/workspace";
+import type { WorkStrategy } from "../contracts/work-objective";
 import type { WorkIntent } from "./work-engine/types";
 import {
   findToolOperationalMeta,
@@ -30,6 +31,8 @@ export interface ExecutionAuthorityContext {
   behaviorMode: BehaviorMode;
   workspacePolicy: WorkspaceTrustContract;
   engineeringTaskStatus?: EngineeringTaskStatus | null;
+  /** Canonical Work strategy; legacy behaviorMode remains a compatibility adapter. */
+  workStrategy?: WorkStrategy;
 }
 
 type CapabilityMetadata = Pick<
@@ -118,6 +121,7 @@ export function resolveToolAuthorization(input: {
     behaviorMode: input.behaviorMode,
     workspacePolicy: input.workspacePolicy,
     engineeringTaskStatus: input.engineeringTaskStatus,
+    workStrategy: input.workStrategy,
   });
 }
 
@@ -135,6 +139,8 @@ export function resolveOperationAuthorization(input: {
       "Operation metadata is missing or incomplete.",
     );
   }
+  const strategyBlock = resolveWorkStrategyBlock(input.workStrategy, capability);
+  if (strategyBlock) return strategyBlock;
   const modeBlock = resolveBehaviorModeBlock(input.behaviorMode, capability);
   if (modeBlock) return modeBlock;
   if (
@@ -310,12 +316,16 @@ function requestedPaths(args: Record<string, unknown>): string[] {
     .map((value) => value.replaceAll("\\", "/").replace(/^\.\/+/, ""));
 }
 
-export function resolveAdvertisedToolNames(mode: BehaviorMode): string[] {
+export function resolveAdvertisedToolNames(
+  mode: BehaviorMode,
+  workStrategy?: WorkStrategy,
+): string[] {
   const definition = BEHAVIOR_MODE_DEFINITIONS[mode];
   const names = new Set<string>();
   for (const [name] of lazyToolLoaders) {
     const capability = classifyToolCapability(name);
     if (capability === "unclassified") continue;
+    if (!isCapabilityAllowedForWorkStrategy(workStrategy, capability)) continue;
     if (
       capability === "workspace.read" ||
       (definition.allowsMutation &&
@@ -326,6 +336,46 @@ export function resolveAdvertisedToolNames(mode: BehaviorMode): string[] {
     }
   }
   return [...names].sort();
+}
+
+function isCapabilityAllowedForWorkStrategy(
+  strategy: WorkStrategy | undefined,
+  capability: AgentCapability,
+) {
+  if (strategy === "inspection" || strategy === "planning") {
+    return capability === "workspace.read";
+  }
+  if (strategy === "validation") {
+    return capability === "workspace.read" || capability === "command.execute";
+  }
+  return true;
+}
+
+function resolveWorkStrategyBlock(
+  strategy: WorkStrategy | undefined,
+  capability: AgentCapability,
+): Extract<ToolAuthorizationDecision, { decision: "blocked" }> | undefined {
+  if (strategy === "inspection" || strategy === "planning") {
+    if (capability === "workspace.read") return undefined;
+    return blocked(
+      capability,
+      "MODE_READ_ONLY",
+      strategy === "inspection"
+        ? "This Work task is an inspection and cannot change or execute repository state."
+        : "This Work task is a plan and cannot change or execute repository state.",
+    );
+  }
+  if (strategy === "validation") {
+    if (capability === "workspace.read" || capability === "command.execute") {
+      return undefined;
+    }
+    return blocked(
+      capability,
+      "MODE_READ_ONLY",
+      "This Work task validates repository state and cannot mutate it.",
+    );
+  }
+  return undefined;
 }
 
 function blocked(

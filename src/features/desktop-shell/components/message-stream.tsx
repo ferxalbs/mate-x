@@ -309,6 +309,7 @@ const MessageEntry = memo(function MessageEntry({
             message.evidencePack?.executionOutcome?.evidence.validation.status ??
             message.evidencePack?.executionOutcome?.validationState
           }
+          completionKind={message.executionOutcome?.completionKind ?? message.evidencePack?.executionOutcome?.completionKind}
         />
         {message.executionOutcome &&
         message.executionOutcome.terminalState !== "completed" ? (
@@ -497,6 +498,10 @@ function ExecutionOutcomeCard({ outcome }: { outcome: ExecutionOutcome }) {
         </strong>
         <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
           {(outcome.validationState ?? outcome.evidence.validation.status).replaceAll("_", " ")}
+        </strong>
+        <span>Completion</span>
+        <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
+          {(outcome.completionKind ?? "unknown").replaceAll("_", " ")}
         </strong>
       </div>
       {changedFiles.length > 0 ? (

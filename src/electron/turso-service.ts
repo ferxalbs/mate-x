@@ -40,6 +40,7 @@ import {
 import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
 import { persistBackgroundImagePath } from './background-image-auth';
 import { resolveSqliteRuntimePolicy } from './sqlite-runtime-policy';
+import { normalizePersistedValidationPlan } from './validation-contract';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -796,7 +797,7 @@ export class TursoService {
     }
 
     try {
-      return JSON.parse(raw) as ValidationPlan;
+      return normalizePersistedValidationPlan(JSON.parse(raw));
     } catch {
       return null;
     }
@@ -1731,8 +1732,7 @@ function safeParseFailingTests(raw: string): string[] {
 
 function safeParseValidationPlan(raw: string): ValidationPlan | undefined {
   try {
-    const parsed = JSON.parse(raw) as ValidationPlan;
-    return parsed && typeof parsed === 'object' ? parsed : undefined;
+    return normalizePersistedValidationPlan(JSON.parse(raw)) ?? undefined;
   } catch {
     return undefined;
   }

@@ -4,14 +4,23 @@ export function buildValidationAuthoritySection(
   workPlanJson: string,
   behaviorMode: BehaviorMode = "execute",
 ) {
-  if (behaviorMode === "review") {
-    return "Validation authority for this run:\n- Review mode is read-only; do not execute validation or present validation as proof.";
-  }
-  if (behaviorMode === "plan") {
-    return "Validation authority for this run:\n- Plan mode may describe repository-backed validation requirements, but must not execute them or claim proof.";
-  }
   try {
     const workPlan = JSON.parse(workPlanJson) as {
+      objectiveContract?: {
+        strategy?: string;
+        validationIsPrimaryObjective?: boolean;
+      };
+      validationContract?: {
+        items?: Array<{
+          signal?: string;
+          obligation?: string;
+          trigger?: string;
+          applicability?: string;
+          command?: string | null;
+          availability?: string;
+          unavailableCause?: string;
+        }>;
+      };
       validationPlan?: {
         required?: boolean;
         requirements?: Array<{
@@ -22,24 +31,53 @@ export function buildValidationAuthoritySection(
         }>;
       };
     };
-    const validationPlan = workPlan.validationPlan;
-    const requirements = validationPlan?.requirements ?? [];
-    if (!validationPlan?.required || requirements.length === 0) {
-      return "Validation authority for this run:\n- No typed required validation requirements are present in the WorkPlan.";
+    const contractItems = workPlan.validationContract?.items ?? [];
+    const legacyRequirements = workPlan.validationPlan?.requirements ?? [];
+    const items = contractItems.length > 0
+      ? contractItems
+      : legacyRequirements.map((requirement) => ({
+          signal: requirement.id,
+          obligation: "required",
+          trigger: "always",
+          applicability: "applicable",
+          command: requirement.command,
+          availability: requirement.availability === "resolved" ? "resolved" : "unavailable",
+          unavailableCause: requirement.unavailableCause,
+        }));
+    const strategy = workPlan.objectiveContract?.strategy ?? "work";
+    const modeAdapter = behaviorMode === "execute"
+      ? "execute"
+      : `${behaviorMode} compatibility adapter; capability policy still governs execution`;
+    const readOnlyStrategy = strategy === "inspection" || strategy === "planning";
+    const readOnlyAdapter = behaviorMode !== "execute" || readOnlyStrategy;
+    const strategyInstruction = readOnlyAdapter
+      ? strategy === "planning" || behaviorMode === "plan"
+        ? "- This is a read-only plan; validation commands are planned outputs and must not execute."
+        : "- This is a read-only inspection; validation commands must not execute."
+      : "- Execute only the exact resolved command from the repository; its process evidence is required before claiming validation.";
+    if (items.length === 0) {
+      return [
+        "Canonical Work validation authority:",
+        `- strategy: ${strategy}; adapter: ${modeAdapter}`,
+        strategyInstruction,
+        "- No validation signals are currently compiled. Conditional checks activate only when their trigger is true.",
+      ].join("\n");
     }
 
-    const lines = requirements.map((requirement) => {
-      const command = requirement.command ?? "(none)";
-      const state = requirement.availability === "resolved"
+    const lines = items.map((item) => {
+      const command = item.command ?? "(none)";
+      const state = item.availability === "resolved" && !readOnlyAdapter
         ? `resolved: ${command}`
-        : `unresolved: ${requirement.unavailableCause ?? "VALIDATION_COMMAND_UNRESOLVED"}`;
-      return `- ${requirement.id ?? "validation"}: ${state}`;
+        : `${item.availability ?? "unavailable"}: ${item.unavailableCause ?? "VALIDATION_COMMAND_UNRESOLVED"}`;
+      return `- ${item.signal ?? "validation"} [${item.obligation ?? "required"}; trigger ${item.trigger ?? "always"}; ${item.applicability ?? "pending_trigger"}]: ${state}`;
     });
     return [
-      "Validation authority for this run:",
-      "- Required requirements are independent; every line below needs its own typed proof.",
+      "Canonical Work validation authority:",
+      `- strategy: ${strategy}; adapter: ${modeAdapter}`,
+      strategyInstruction,
+      "- Obligations are independent. A signal is blocking only when it is required and applicable.",
       ...lines,
-      "- Use only the exact resolved command shown above. Never invent a substitute for an unresolved line.",
+      "- Use only exact repository-authorized commands. Never invent a substitute for an unavailable or ambiguous signal.",
     ].join("\n");
   } catch {
     return "Validation authority for this run:\n- WorkPlan validation data could not be parsed; stop and obtain a typed validation plan before executing checks.";

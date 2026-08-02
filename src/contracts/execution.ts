@@ -1,3 +1,8 @@
+import type {
+  ObjectiveState,
+  ValidationContract,
+} from "./work-objective";
+
 export type ExecutionTerminalState =
   | "completed"
   | "partial"
@@ -19,6 +24,16 @@ export type ExecutionValidationStatus =
   | "blocked"
   | "not_run"
   | "not_required";
+
+export type CompletionKind =
+  | "changed_verified"
+  | "changed_unverified"
+  | "already_satisfied"
+  | "inspection_completed"
+  | "validation_completed"
+  | "awaiting_approval"
+  | "blocked"
+  | "failed";
 
 export type WorktreeHealth =
   | "unchanged"
@@ -101,6 +116,13 @@ export interface ExecutionEvidence {
     executionIds?: string[];
     /** Internal provenance for a validation command explicitly approved once. */
     validationAuthorization?: "approved_override";
+    contract?: ValidationContract;
+  };
+  objective?: {
+    state: ObjectiveState;
+    mutationOccurred: boolean;
+    evidenceIds: string[];
+    summary?: string;
   };
   synthesis: {
     status: ExecutionSynthesisStatus;
@@ -111,6 +133,7 @@ export interface ExecutionEvidence {
 
 export interface ExecutionOutcome {
   terminalState: ExecutionTerminalState;
+  completionKind?: CompletionKind;
   primaryCause?: TypedOutcomeCause | null;
   worktreeHealth?: WorktreeHealth;
   validationState?: ExecutionValidationStatus;
@@ -125,13 +148,25 @@ export function normalizeExecutionOutcome(
   outcome: ExecutionOutcome,
 ): ExecutionOutcome {
   const historicalState = outcome.terminalState as string;
+  const compatibilityKind = outcome.completionKind ?? (
+    historicalState === "awaiting_approval"
+      ? "awaiting_approval"
+      : historicalState === "partial"
+        ? outcome.evidence.changedFiles.length > 0 ? "changed_unverified" : "blocked"
+        : historicalState === "failed" || historicalState === "cancelled"
+          ? "failed"
+          : outcome.evidence.changedFiles.length > 0
+            ? outcome.evidence.validation.status === "passed" ? "changed_verified" : "changed_unverified"
+            : outcome.evidence.validation.status === "passed" ? "validation_completed" : "inspection_completed"
+  );
   if (historicalState === "succeeded") {
-    return { ...outcome, terminalState: "completed" };
+    return { ...outcome, terminalState: "completed", completionKind: compatibilityKind };
   }
   if (historicalState === "awaiting_approval") {
     return {
       ...outcome,
       terminalState: "blocked",
+      completionKind: "awaiting_approval",
       primaryCause: outcome.primaryCause ?? {
         code: "APPROVAL_REQUIRED",
         summary: outcome.summary,
@@ -139,7 +174,7 @@ export function normalizeExecutionOutcome(
       },
     };
   }
-  return outcome;
+  return { ...outcome, completionKind: compatibilityKind };
 }
 
 export interface ToolExecutionRecord {

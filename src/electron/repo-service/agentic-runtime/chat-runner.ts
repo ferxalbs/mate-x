@@ -40,6 +40,7 @@ import { executeAgentToolCall } from "./tool-executor";
 import { finalizeCriticLoop } from "./critic";
 import { attemptFinalChatSynthesis } from "./synthesis";
 import { resolveAdvertisedToolNames } from "../../capability-resolver";
+import type { WorkStrategy } from "../../../contracts/work-objective";
 import { sanitizePublicProgress } from "../../../lib/assistant-output";
 import {
   createModelToolsUnavailableResult,
@@ -67,6 +68,7 @@ export async function requestRainyChatAgenticResponse({
   serviceTier,
   signal,
   engineeringTaskStatus,
+  workStrategy,
   planningPhase,
 }: {
   apiKey: string;
@@ -86,6 +88,7 @@ export async function requestRainyChatAgenticResponse({
   serviceTier?: AssistantRunOptions["serviceTier"];
   signal?: AbortSignal;
   engineeringTaskStatus?: import("../../../contracts/engineering-task").EngineeringTaskStatus | null;
+  workStrategy?: WorkStrategy;
   planningPhase?: boolean;
 }): Promise<{
   toolExecutions: ToolExecutionRecord[];
@@ -102,7 +105,7 @@ export async function requestRainyChatAgenticResponse({
     { role: "user", content: buildChatUserContent(prompt, options.attachments) },
   ];
   const chatTools = await toolService.getChatToolDefinitions({
-    names: resolveAdvertisedToolNames(options.behaviorMode),
+    names: resolveAdvertisedToolNames(options.behaviorMode, workStrategy),
   });
   const tokenEstimator = createTokenEstimator(model);
   let iterations = 0;
@@ -456,6 +459,7 @@ export async function requestRainyChatAgenticResponse({
           runId,
           engineeringTaskStatus,
           behaviorMode: options.behaviorMode,
+          workStrategy,
           signal,
         }),
     );

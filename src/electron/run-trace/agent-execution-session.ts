@@ -149,25 +149,70 @@ export class AgentExecutionSession {
             : outcome.terminalState === "cancelled"
               ? "run.cancelled"
               : "run.failed";
-    const delta = this.append({
-      kind,
-      phase: "finalization",
-      visibility: "public",
-      payload: {
-        title: "Run finished",
-        summary: sanitizePublicText(outcome.summary),
-        status:
-          kind === "run.completed"
-            ? "completed"
-            : kind === "run.blocked"
-              ? "blocked"
-              : kind === "run.cancelled"
-                ? "cancelled"
-                : "failed",
-        validationState: outcome.validationState ?? outcome.evidence.validation.status,
-        worktreeHealth: outcome.worktreeHealth,
+    const annotations: AppendInput[] = [];
+    if (outcome.completionKind === "already_satisfied") {
+      annotations.push(
+        {
+          kind: "objective.already_satisfied",
+          phase: "inspection",
+          visibility: "public",
+          payload: {
+            title: "Objective already satisfied",
+            summary: "Repository evidence shows the requested state already exists.",
+            status: "completed",
+            completionKind: outcome.completionKind,
+          },
+        },
+        {
+          kind: "mutation.not_required",
+          phase: "execution",
+          visibility: "public",
+          payload: {
+            title: "No mutation required",
+            summary: "No workspace files needed changes.",
+            status: "completed",
+            completionKind: outcome.completionKind,
+          },
+        },
+        {
+          kind: "validation.not_applicable",
+          phase: "verification",
+          visibility: "public",
+          payload: {
+            title: "Post-mutation validation not applicable",
+            summary: "Mutation-triggered checks were not activated because no mutation occurred.",
+            status: "completed",
+            validationState: outcome.validationState ?? outcome.evidence.validation.status,
+            completionKind: outcome.completionKind,
+          },
+        },
+      );
+    }
+    const delta = this.appendMany([
+      ...annotations,
+      {
+        kind,
+        phase: "finalization",
+        visibility: "public",
+        payload: {
+          title: "Run finished",
+          summary: sanitizePublicText(outcome.summary),
+          status:
+            kind === "run.completed"
+              ? "completed"
+              : kind === "run.partial"
+                ? "partial"
+                : kind === "run.blocked"
+                  ? "blocked"
+                  : kind === "run.cancelled"
+                    ? "cancelled"
+                    : "failed",
+          validationState: outcome.validationState ?? outcome.evidence.validation.status,
+          worktreeHealth: outcome.worktreeHealth,
+          completionKind: outcome.completionKind,
+        },
       },
-    });
+    ]);
     activeSessions.delete(this.runId);
     return delta;
   }

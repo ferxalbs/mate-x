@@ -13,21 +13,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../../components/ui/menu";
-import type {
-  BehaviorMode,
-  BehaviorPreference,
-} from "../../../contracts/behavior-mode";
 import type { AssistantRunOptions } from "../../../contracts/chat";
 import type {
   RainyModelCatalogEntry,
   RainyServiceTier,
 } from "../../../contracts/rainy";
 import type { WorkspaceWriteAccess } from "../../../contracts/workspace";
-import {
-  BEHAVIOR_MODE_DESCRIPTIONS,
-  ComposerPolicySummary,
-  BEHAVIOR_MODE_LABELS,
-} from "./composer-policy-summary";
+import { ComposerPolicySummary } from "./composer-policy-summary";
 
 const TRUST_OPTIONS: Array<{
   description: string;
@@ -52,14 +44,12 @@ const TRUST_OPTIONS: Array<{
 ];
 
 interface ComposerRunSettingsProps {
-  behavior: BehaviorPreference;
   catalog: RainyModelCatalogEntry[];
   effortOptions: AssistantRunOptions["reasoning"][];
   isModelDisabled: boolean;
   isTrustDisabled: boolean;
   modelLabel: string;
   modelValue: string;
-  onBehaviorChange: (value: BehaviorPreference) => void;
   onModelChange: (value: string) => void;
   onReasoningChange: (value: AssistantRunOptions["reasoning"]) => void;
   onServiceTierChange: (value: RainyServiceTier) => void;
@@ -73,14 +63,12 @@ interface ComposerRunSettingsProps {
 }
 
 export function ComposerRunSettings({
-  behavior,
   catalog,
   effortOptions,
   isModelDisabled,
   isTrustDisabled,
   modelLabel,
   modelValue,
-  onBehaviorChange,
   onModelChange,
   onReasoningChange,
   onServiceTierChange,
@@ -109,7 +97,7 @@ export function ComposerRunSettings({
         data-testid="run-settings-trigger"
         ref={triggerRef}
       >
-        <ComposerPolicySummary behavior={behavior} trust={trust} />
+        <ComposerPolicySummary trust={trust} />
         <span className="h-3 w-px bg-border/60" />
         <span className="truncate text-muted-foreground">
           {modelLabel}
@@ -144,28 +132,6 @@ export function ComposerRunSettings({
                 </span>
                 <span className="mt-0.5 block break-words text-[10.5px] leading-tight text-muted-foreground/80">
                   {option.description}
-                </span>
-              </span>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-
-        <div className="my-1 border-t border-border/50" />
-        <MenuSubLabel>Behavior</MenuSubLabel>
-        <DropdownMenuRadioGroup
-          onValueChange={(mode) =>
-            onBehaviorChange({ ...behavior, mode: mode as BehaviorMode })
-          }
-          value={behavior.mode}
-        >
-          {(Object.keys(BEHAVIOR_MODE_LABELS) as BehaviorMode[]).map((mode) => (
-            <DropdownMenuRadioItem className="items-start rounded-lg px-2 py-1.5" key={mode} value={mode}>
-              <span className="min-w-0">
-                <span className="block text-[12px] font-medium text-foreground">
-                  {BEHAVIOR_MODE_LABELS[mode]}
-                </span>
-                <span className="mt-0.5 block break-words text-[10.5px] leading-tight text-muted-foreground/80">
-                  {BEHAVIOR_MODE_DESCRIPTIONS[mode]}
                 </span>
               </span>
             </DropdownMenuRadioItem>

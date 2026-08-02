@@ -11,6 +11,7 @@ import type { RainyApiMode, RainyModelCapabilities, RainyModelCatalogEntry } fro
 import { supportsTools } from "../../lib/rainy-model-capabilities";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../../config/mate-agent";
 import { behaviorInstruction, behaviorSystemContract, type BehaviorMode } from "../../contracts/behavior-mode";
+import type { WorkStrategy } from "../../contracts/work-objective";
 import type { AppSettings } from "../../contracts/settings";
 import type { RepoSnapshot } from "./workspace";
 
@@ -37,6 +38,7 @@ export { buildValidationAuthoritySection } from "./agentic-runtime/prompt-contra
 function buildRunbookPlaybookSection(
   runbook: WorkRunbook,
   behaviorMode: BehaviorMode,
+  workStrategy: WorkStrategy = "work",
 ): string {
   const sections: string[] = [];
 
@@ -44,14 +46,14 @@ function buildRunbookPlaybookSection(
 - Use rg for exact symbols, imports, config keys, and error strings; scope by path and result limits.
 - Use read_many for the smallest relevant set of files. Stop expanding once evidence is sufficient.`);
 
-  if (behaviorMode === "review") {
+  if (behaviorMode === "review" || workStrategy === "inspection") {
     sections.push(`Review contract:
 - Inspect only. Produce evidence-backed findings, impact, and confidence.
 - Do not edit files, run commands, or describe unperformed work as execution.`);
     return sections.join("\n");
   }
 
-  if (behaviorMode === "plan") {
+  if (behaviorMode === "plan" || workStrategy === "planning") {
     sections.push(`Plan contract:
 - Investigate read-only, resolve implementation decisions, and return ordered steps, affected areas, validation, and risks.
 - Do not edit files or run commands.`);
@@ -117,6 +119,7 @@ export function buildAgentSystemPrompt(input: {
   memory: string;
   failureMemoryContext: string;
   repoGraphSummary: string;
+  workStrategy?: WorkStrategy;
 }): string {
   return `${MATE_AGENT_SYSTEM_PROMPT}
 
@@ -127,6 +130,7 @@ Workspace: ${input.snapshot.workspace.name} (${input.snapshot.workspace.path})
 Branch: ${input.snapshot.workspace.branch}
 Stack: ${input.snapshot.workspace.stack.join(", ") || "unknown"}
 Execution requested: ${input.runtimeExecutionIntent ? "yes" : "no"}
+Canonical Work strategy: ${input.workStrategy ?? "work"}
 
 Use only advertised tools. Authorization failures are application states; never explain their implementation.
 Continue from tool results without repeating prior drafts. Stop when evidence is sufficient.
@@ -177,6 +181,7 @@ export async function requestRainyAgenticResponse({
   runId,
   signal,
   engineeringTaskStatus,
+  workStrategy,
   planningPhase,
 }: {
   apiKey: string;
@@ -197,6 +202,7 @@ export async function requestRainyAgenticResponse({
   runId: string;
   signal?: AbortSignal;
   engineeringTaskStatus?: import("../../contracts/engineering-task").EngineeringTaskStatus | null;
+  workStrategy?: WorkStrategy;
   planningPhase?: boolean;
 }): Promise<{
   toolExecutions: ToolExecutionRecord[];
@@ -248,12 +254,14 @@ export async function requestRainyAgenticResponse({
     playbook: buildRunbookPlaybookSection(
       workPlan.runbook,
       options.behaviorMode,
+      workStrategy ?? workPlan.objectiveContract?.strategy ?? "work",
     ),
     gitStatus,
     matches,
     memory: snapshot.memoryContext?.context ?? "",
     failureMemoryContext,
     repoGraphSummary,
+    workStrategy: workStrategy ?? workPlan.objectiveContract?.strategy,
   });
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
   const serviceTier = options.serviceTier;
@@ -276,6 +284,7 @@ export async function requestRainyAgenticResponse({
       serviceTier,
       signal,
       engineeringTaskStatus,
+      workStrategy: workStrategy ?? workPlan.objectiveContract?.strategy,
       planningPhase,
     });
   }
@@ -298,6 +307,7 @@ export async function requestRainyAgenticResponse({
     serviceTier,
     signal,
     engineeringTaskStatus,
+    workStrategy: workStrategy ?? workPlan.objectiveContract?.strategy,
     planningPhase,
   });
 }

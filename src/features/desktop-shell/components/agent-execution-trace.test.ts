@@ -70,4 +70,9 @@ describe("agent execution validation summary", () => {
     expect(getActivitySummary([staleFailure], "passed")).toMatch(/^validation passed$/);
     expect(getActivitySummary([staleFailure], "failed")).toMatch(/^validation blocked or failed$/);
   });
+
+  test("projects the canonical already-satisfied summary", () => {
+    expect(getActivitySummary([], "not_required", "already_satisfied"))
+      .toMatch(/^objective already satisfied · no changes required · validation not applicable$/);
+  });
 });

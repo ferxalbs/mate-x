@@ -20,8 +20,6 @@ import {
 import type { AssistantRunOptions } from '../contracts/chat';
 import { buildHomePageSubmission } from './home-page-submit-options';
 import { toastManager } from '../components/ui/toast';
-import { DEFAULT_BEHAVIOR_PREFERENCE, type BehaviorPreference } from '../contracts/behavior-mode';
-import { loadBehaviorPreference, saveBehaviorPreference } from '../lib/behavior-preference';
 import { updateAssistantBehavior, updateWorkspaceTrustContract } from '../services/repo-client';
 import type { WorkspaceWriteAccess } from '../contracts/workspace';
 import { useVisibilityInterval } from '../hooks/use-visibility-interval';
@@ -33,7 +31,6 @@ export function HomePage() {
   const [composerPrompt, setComposerPrompt] = useState('');
   const [activeEngineeringTask, setActiveEngineeringTask] =
     useState<EngineeringTaskViewModel | null>(null);
-  const [behavior, setBehavior] = useState<BehaviorPreference>(DEFAULT_BEHAVIOR_PREFERENCE);
   const workspace = useChatStore((state) => state.workspace);
   const trustContract = useChatStore((state) => state.trustContract);
   const activeWorkspaceId = useChatStore((state) => state.activeWorkspaceId);
@@ -67,7 +64,11 @@ export function HomePage() {
     isSubmitting.current = true;
     
     try {
-      const submission = buildHomePageSubmission(prompt, behavior, {
+      if (activeRun?.runId && overrides?.behaviorMode) {
+        const next = { mode: overrides.behaviorMode };
+        await updateAssistantBehavior(activeRun.runId, next.mode);
+      }
+      const submission = buildHomePageSubmission(prompt, { mode: overrides?.behaviorMode ?? 'execute' }, {
         ...overrides,
           // Resume same EngineeringTask when present — never second Capture on approve.
         engineeringTaskId:
@@ -99,14 +100,6 @@ export function HomePage() {
       workspace={workspace}
       prompt={composerPrompt}
       onPromptChange={setComposerPrompt}
-      behavior={behavior}
-      onBehaviorChange={(next) => {
-        setBehavior(next);
-        if (activeWorkspaceId) saveBehaviorPreference(activeWorkspaceId, next);
-        if (activeRun?.runId) {
-          void updateAssistantBehavior(activeRun.runId, next.mode);
-        }
-      }}
       onTrustChange={async (writeAccess: WorkspaceWriteAccess) => {
         if (!trustContract) {
           throw new Error('No active workspace policy.');
@@ -120,10 +113,6 @@ export function HomePage() {
       }}
     />
   );
-
-  useEffect(() => {
-    setBehavior(activeWorkspaceId ? loadBehaviorPreference(activeWorkspaceId) : DEFAULT_BEHAVIOR_PREFERENCE);
-  }, [activeWorkspaceId]);
 
   useEffect(() => {
     let cancelled = false;

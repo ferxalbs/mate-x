@@ -15,7 +15,10 @@ import {
 import { memo, useMemo, useState } from "react";
 
 import { normalizeToolEvent, type ToolEvent, type ToolEventType } from "../../../contracts/chat";
-import type { ExecutionValidationStatus } from "../../../contracts/execution";
+import type {
+  CompletionKind,
+  ExecutionValidationStatus,
+} from "../../../contracts/execution";
 import { useVisibilityInterval } from "../../../hooks/use-visibility-interval";
 import { ChatMarkdown, RawSyntaxHighlighter } from "./chat-markdown";
 import { formatDuration, getTimelineDuration, getTimelineStart } from "./agent-execution-trace-utils";
@@ -47,10 +50,12 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   events,
   isRunning,
   validationState,
+  completionKind,
 }: {
   events: ToolEvent[];
   isRunning: boolean;
   validationState?: ExecutionValidationStatus;
+  completionKind?: CompletionKind;
 }) {
   const [expanded, setExpanded] = useState(false);
   const normalizedEvents = useMemo(() => {
@@ -77,7 +82,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     event.status === "active" || event.status === "queued",
   );
   const runningActivityLabel = getRunningActivityLabel(activeEvent);
-  const activitySummary = getActivitySummary(settledTimeline, validationState);
+  const activitySummary = getActivitySummary(settledTimeline, validationState, completionKind);
 
   const groupedEvents = useMemo(() => {
     const groups: (ToolEvent | { isGroup: true; id: string; items: ToolEvent[] })[] = [];
@@ -160,8 +165,13 @@ export function getRunningActivityLabel(activeEvent?: ToolEvent) {
 export function getActivitySummary(
   events: ToolEvent[],
   validationState?: ExecutionValidationStatus,
+  completionKind?: CompletionKind,
 ) {
   const parts: string[] = [];
+  if (completionKind === "already_satisfied") {
+    parts.push("objective already satisfied");
+    parts.push("no changes required");
+  }
   const editCount = events.filter(
     (event) =>
       event.type === "edit" &&
@@ -186,7 +196,7 @@ export function getActivitySummary(
   } else if (validationState === "pending" || validationState === "running") {
     parts.push("validation in progress");
   } else if (validationState === "not_required") {
-    parts.push("validation not required");
+    parts.push("validation not applicable");
   } else if (validationEvents.some(
     (event) =>
       event.status === "error" ||

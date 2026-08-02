@@ -1,4 +1,5 @@
 import type { Conversation } from "./chat";
+import type { ValidationContract } from "./work-objective";
 
 export type WorkspaceStatus = "ready" | "indexing" | "offline";
 
@@ -106,6 +107,8 @@ export interface ValidationPlan {
   primary: ValidationPlanCommand;
   fallback: ValidationPlanCommand;
   requirements?: ValidationPlanCommand[];
+  /** Compatibility projection of the canonical validation contract. */
+  contract?: ValidationContract;
   authority?: ValidationPlanAuthority;
   fallbackTrigger: string;
   recommendations: string[];

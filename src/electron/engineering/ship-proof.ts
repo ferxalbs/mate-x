@@ -14,6 +14,8 @@ import type {
 import { deriveOutcomeMap, ERR_CODES } from '../../contracts/engineering-task';
 import { newNamespacedId, newProofHandle, nowIso } from './ids';
 import type { EngineeringRepository } from './repository';
+import type { ValidationContract } from '../../contracts/work-objective';
+import { requiredApplicableItems } from '../validation-contract';
 
 export function issueShipProof(input: {
   repo: EngineeringRepository;
@@ -23,6 +25,7 @@ export function issueShipProof(input: {
   coverage: CoverageConvergenceReport;
   readiness: string;
   outcomeMap?: OutcomeMap;
+  validationContract?: ValidationContract;
 }):
   | { ok: true; proof: ShipProof }
   | { ok: false; code: string; message: string } {
@@ -46,6 +49,22 @@ export function issueShipProof(input: {
       code: ERR_CODES.ERR_NOT_READY,
       message: 'ShipProof requires Ready readiness',
     };
+  }
+  if (input.validationContract) {
+    const missing = requiredApplicableItems(input.validationContract).filter(
+      (item) =>
+        item.evidence.approvalProvenance !== 'approved_override' &&
+        item.evidence.status !== 'passed',
+    );
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        code: ERR_CODES.ERR_VALIDATION_REQUIRED_MISSING,
+        message: `ShipProof requires canonical validation evidence: ${missing
+          .map((item) => item.signal)
+          .join(', ')}`,
+      };
+    }
   }
   const outcomeMap = input.outcomeMap ?? (input.task.changeContract
     ? deriveOutcomeMap({
@@ -86,6 +105,7 @@ export function issueShipProof(input: {
     generatedAt: nowIso(),
     traces: [],
     outcomeMap,
+    ...(input.validationContract ? { validationContract: input.validationContract } : {}),
   };
 
   input.repo.applyTransaction({

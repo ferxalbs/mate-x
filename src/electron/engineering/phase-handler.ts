@@ -482,6 +482,8 @@ export function createPhaseHandler(repo: EngineeringRepository): PhaseHandler {
           validationRuns: [...bundle.validationRuns.values()],
           coverage,
           readiness: 'Ready',
+          validationContract:
+            command.validationContract as import('../../contracts/work-objective').ValidationContract | undefined,
         });
         if (!issued.ok) {
           return fail(issued.code as ErrorCode, issued.message);

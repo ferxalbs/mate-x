@@ -128,7 +128,7 @@ export function PanelTabs({
                 transition={
                   reducedMotion
                     ? { duration: 0 }
-                    : { type: "spring", stiffness: 450, damping: 30 }
+                    : RESPONSIVE_SPRING
                 }
               />
             )}

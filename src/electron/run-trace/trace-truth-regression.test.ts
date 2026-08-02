@@ -30,6 +30,25 @@ import { normalizeToolEvent } from "../../contracts/chat";
 import { createPublicToolProgress } from "../repo-service/agentic-runtime/public-tool-progress";
 import { AgentExecutionSession } from "./agent-execution-session";
 
+function mutation(path = "src/service.ts"): ToolExecutionRecord {
+  return {
+    toolName: "file_editor",
+    args: { path },
+    output: `Edited ${path}.`,
+    evidence: {
+      toolName: "file_editor",
+      outcome: "completed",
+      summary: `Edited ${path}.`,
+      changedFiles: [{
+        path,
+        operation: "modified",
+        backupCreated: true,
+        impactAnalysis: "full",
+      }],
+    },
+  };
+}
+
 describe("trace and terminal truth regression", () => {
   test("preserves safe agent checkpoints as visible public progress", () => {
     const repository = new InMemoryEngineeringRepository();
@@ -295,6 +314,7 @@ describe("trace and terminal truth regression", () => {
       workPlan: { validationPlan: { required: true } } as WorkPlan,
       stages: [],
       toolExecutions: [
+        mutation(),
         {
           toolName: "run_tests",
           args: { path: "." },
@@ -338,6 +358,8 @@ describe("trace and terminal truth regression", () => {
       workPlan: { validationPlan: { required: true } } as WorkPlan,
       stages: [],
       toolExecutions: [{
+        ...mutation(),
+      }, {
         toolName: "run_tests",
         args: { scope: "changed-files" },
         output: JSON.stringify({
@@ -361,6 +383,8 @@ describe("trace and terminal truth regression", () => {
       workPlan: { validationPlan: { required: true } } as WorkPlan,
       stages: [],
       toolExecutions: [{
+        ...mutation(),
+      }, {
         toolName: "run_tests",
         args: { scope: "changed-files" },
         output: JSON.stringify({ status: "success", exitCode: 0 }),
@@ -529,7 +553,7 @@ describe("trace and terminal truth regression", () => {
     const evidence = buildExecutionEvidence({
       workPlan,
       stages: [],
-      toolExecutions: [{
+      toolExecutions: [mutation(), {
         toolName: "sandbox_run",
         args: { command: "bun", args: ["test"] },
         output: JSON.stringify({ status: "completed", validationExecution: { executionId: "test-only", command: "bun test", processStarted: true, exitCode: 0, requirementId: "test" } }),
@@ -543,11 +567,11 @@ describe("trace and terminal truth regression", () => {
       evidence,
       stages: [],
       evidenceAttached: true,
-    }), "blocked");
+    }), "partial");
     const finalization = finalizeWorkRun({
       workPlan,
       stages: [],
-      toolExecutions: [{
+      toolExecutions: [mutation(), {
         toolName: "sandbox_run",
         args: { command: "bun", args: ["test"] },
         output: JSON.stringify({
@@ -565,7 +589,7 @@ describe("trace and terminal truth regression", () => {
       evidenceAttached: true,
       synthesisStatus: "valid",
     });
-    assert.equal(finalization.terminalState, "blocked");
+    assert.equal(finalization.terminalState, "partial");
     assert.match(finalization.summary, /typecheck is unavailable/i);
   });
 
@@ -626,13 +650,13 @@ describe("trace and terminal truth regression", () => {
     const evidence = buildExecutionEvidence({
       workPlan,
       stages: approvedStages,
-      toolExecutions: [approvedFallback],
+      toolExecutions: [mutation(), approvedFallback],
       synthesisStatus: "valid",
     });
     const result = finalizeWorkRun({
       workPlan,
       stages: approvedStages,
-      toolExecutions: [approvedFallback],
+      toolExecutions: [mutation(), approvedFallback],
       content: "Typecheck passed.",
       evidenceAttached: true,
       synthesisStatus: "valid",
@@ -686,7 +710,7 @@ describe("trace and terminal truth regression", () => {
     const evidence = buildExecutionEvidence({
       workPlan,
       stages: [],
-      toolExecutions: [unapprovedFallback],
+      toolExecutions: [mutation(), unapprovedFallback],
       synthesisStatus: "valid",
     });
 
@@ -706,7 +730,7 @@ describe("trace and terminal truth regression", () => {
       workspacePath: process.cwd(),
       events: [{ id: "response", label: "Response complete", detail: "", status: "completed" }],
       content: "Tests passed.",
-      toolExecutions: [{
+      toolExecutions: [mutation(), {
         toolName: "run_tests",
         args: { scope: "changed-files" },
         output: JSON.stringify({
@@ -723,7 +747,7 @@ describe("trace and terminal truth regression", () => {
       workPlan,
     });
 
-    assert.equal(pack.status, "blocked");
+    assert.equal(pack.status, "partial");
   });
 
   test("approved fallback clears prior unresolved command failure for same requirement", async () => {
@@ -783,7 +807,7 @@ describe("trace and terminal truth regression", () => {
     const evidence = buildExecutionEvidence({
       workPlan,
       stages: [],
-      toolExecutions: [unresolvedRun, approvedFallback],
+      toolExecutions: [mutation(), unresolvedRun, approvedFallback],
       synthesisStatus: "valid",
     });
 
@@ -804,7 +828,7 @@ describe("trace and terminal truth regression", () => {
         { id: "response", label: "Response complete", detail: "", status: "completed" },
       ],
       content: "Typecheck passed.",
-      toolExecutions: [unresolvedRun, approvedFallback],
+      toolExecutions: [mutation(), unresolvedRun, approvedFallback],
       workPlan,
     });
     assert.equal(pack.status, "complete");

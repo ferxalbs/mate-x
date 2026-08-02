@@ -5,6 +5,15 @@ import {
   runbookRequiresValidation,
   runbookStopConditions,
 } from "./runbook-resolver";
+import {
+  compileObjectiveContract,
+} from "./objective-compiler";
+import {
+  compileValidationContract,
+  contractToLegacyRequirements,
+  hasHighRiskChange,
+} from "../validation-contract";
+import type { SearchMatch, WorkspaceTrustContract } from "../../contracts/workspace";
 import type { PreventiveRiskArea, SensitiveSurfaceKind, WorkPlan, WorkPlanMetadata, WorkRisk } from "./types";
 import type { RepositoryToolchainProfile } from "../repository-toolchain";
 
@@ -36,6 +45,13 @@ export type WorkPlanInputSnapshot = {
     }>;
   };
   targetToolchain?: RepositoryToolchainProfile;
+  workspacePolicy?: WorkspaceTrustContract | null;
+  initialInspection?: {
+    matches?: SearchMatch[];
+    state?: "satisfied" | "unsatisfied" | "unknown";
+    evidenceIds?: string[];
+  };
+  objectiveProposal?: unknown;
   scripts?: Array<{
     name: string;
     command: string;
@@ -62,6 +78,15 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
   const runbook = resolveWorkRunbook(intent, risk);
   const validationRequired = runbookRequiresValidation(runbook, risk, changedFiles);
   const evidenceRequired = runbookRequiresEvidence(runbook, changedFiles);
+  const objectiveContract = compileObjectiveContract({
+    prompt: snapshot.prompt,
+    intent,
+    mode: snapshot.mode,
+    preexistingFiles: changedFiles,
+    workspacePolicy: snapshot.workspacePolicy,
+    initialInspection: snapshot.initialInspection,
+    objectiveProposal: snapshot.objectiveProposal,
+  });
   const primaryCommand = selectScript(snapshot.scripts ?? [], ["test", "typecheck", "lint", "build"])?.command ??
     targetValidationCommand(snapshot, "test") ??
     targetValidationCommand(snapshot, "typecheck") ??
@@ -76,9 +101,16 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
         targetValidationCommand(snapshot, "build", primaryCommand) ??
         null
       : null;
-  const validationRequirements = validationRequired
-    ? requiredValidationSignals(snapshot, primaryCommand)
-    : [];
+  const validationContract = compileValidationContract({
+    objective: objectiveContract,
+    targetToolchain: snapshot.targetToolchain,
+    scripts: snapshot.scripts,
+    risk,
+    runbook,
+    requiresPostMutationValidation: validationRequired,
+    preferredPrimaryCommand: primaryCommand,
+    fallbackCommand,
+  });
 
   return {
     id: createPureWorkPlanId(snapshot),
@@ -86,6 +118,9 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
     risk,
     objective: snapshot.prompt,
     runbook,
+    objectiveContract,
+    validationContract,
+    objectiveInspectionMatches: snapshot.initialInspection?.matches ?? [],
     workingSet: {
       primaryFiles: primaryFilesFromSnapshot(snapshot, changedFiles),
       relatedFiles: [],
@@ -111,7 +146,17 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
       required: validationRequired,
       primaryCommand: validationRequired ? primaryCommand : null,
       fallbackCommand,
-      requirements: validationRequirements,
+      requirements: contractToLegacyRequirements(validationContract).map((requirement) => {
+        const base = {
+          id: requirement.requirementId,
+          command: requirement.command,
+          availability: requirement.availability,
+        } as const;
+        return requirement.unavailableCause
+          ? { ...base, unavailableCause: requirement.unavailableCause }
+          : base;
+      }),
+      contract: validationContract,
       reason: validationRequired
         ? `${runbook} requires runtime validation before final confidence claims.`
         : null,
@@ -133,36 +178,6 @@ export function buildWorkPlanFromSnapshot(snapshot: WorkPlanInputSnapshot): Work
   };
 }
 
-function requiredValidationSignals(
-  snapshot: WorkPlanInputSnapshot,
-  primaryCommand: string | null,
-): NonNullable<WorkPlan["validationPlan"]["requirements"]> {
-  const prompt = snapshot.prompt;
-  const scripts = snapshot.scripts ?? [];
-  const requested = new Set<"test" | "typecheck" | "lint" | "build" | "validation">();
-  if (/\btests?\b|\btest suite\b/i.test(prompt)) requested.add("test");
-  if (/\btypecheck\b|\btype[ -]?check\b|\btsc\b/i.test(prompt)) requested.add("typecheck");
-  if (/\blint\b|\beslint\b/i.test(prompt)) requested.add("lint");
-  if (/\bbuild\b|\bpackage\b/i.test(prompt)) requested.add("build");
-  if (requested.size === 0) requested.add(primaryCommand ? scriptRequirement(primaryCommand) : "validation");
-
-  return [...requested].map((id) => {
-    const command = targetValidationCommand(snapshot, id) ??
-      scripts.find((script) => script.signal === id)?.command ??
-      (primaryCommand && scriptRequirement(primaryCommand) === id ? primaryCommand : null);
-    return command
-      ? { id, command, availability: "resolved" as const }
-      : {
-          id,
-          command: null,
-          availability: "unresolved" as const,
-          unavailableCause: id === "typecheck"
-            ? snapshot.targetToolchain?.cause ?? "TYPECHECK_UNAVAILABLE" as const
-            : "VALIDATION_COMMAND_UNRESOLVED" as const,
-        };
-  });
-}
-
 function targetValidationCommand(
   snapshot: WorkPlanInputSnapshot,
   id: "test" | "typecheck" | "lint" | "build" | "validation",
@@ -172,14 +187,6 @@ function targetValidationCommand(
   return command && command !== exclude ? command : null;
 }
 
-function scriptRequirement(command: string) {
-  const normalized = command.toLowerCase();
-  if (/\btypecheck\b|\btsc\b/.test(normalized)) return "typecheck" as const;
-  if (/\blint\b|\beslint\b/.test(normalized)) return "lint" as const;
-  if (/\bbuild\b|\bpackage\b/.test(normalized)) return "build" as const;
-  if (/\btest\b|\bvitest\b|\bjest\b/.test(normalized)) return "test" as const;
-  return "validation" as const;
-}
 
 function buildPreventivePlan(
   snapshot: WorkPlanInputSnapshot,
@@ -297,6 +304,9 @@ function inferRisk(
 ): WorkRisk {
   // Prompt-keyword escalation is always authoritative.
   if (/\b(auth|secret|security|rce|ssrf|injection|payment|database|migration)\b/i.test(snapshot.prompt)) {
+    return "high";
+  }
+  if (hasHighRiskChange(changedFiles)) {
     return "high";
   }
   // Security-review mode with sensitive surfaces in the repo graph.

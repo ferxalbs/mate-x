@@ -12,6 +12,12 @@ import {
   normalizeValidationCommand,
   validationRequirementForCommand,
 } from './validation-command';
+import {
+  compileValidationContract,
+  contractToLegacyRequirements,
+} from './validation-contract';
+import { compileObjectiveContract } from './work-engine/objective-compiler';
+import type { RepositoryToolchainProfile } from './repository-toolchain';
 
 export interface ValidationPlannerInput {
   objective: string;
@@ -54,7 +60,26 @@ export class ValidationPlanner {
       ? this.fallbackAfterFullSuite(input)
       : this.fullSuiteCommand(input, framework, 'Fallback covers transitive regressions if targeted validation misses an integration boundary.');
     const fallback = this.ensureDistinctFallback(input, primary, fallbackCandidate, framework);
-    const requirements = buildRequirementMetadata(input, primary, fallback, framework, changedFiles);
+    const contract = compileValidationContract({
+      objective: compileObjectiveContract({
+        prompt: input.objective,
+        intent: "patch",
+        mode: "execute",
+        preexistingFiles: changedFiles,
+      }),
+      targetToolchain: legacyInputToolchain(input),
+      scripts: Object.entries(input.packageScripts).map(([name, command]) => ({
+        name,
+        command,
+        signal: signalForScript(name),
+      })),
+      risk: riskLevel,
+      runbook: "patch_test_verify",
+      requiresPostMutationValidation: true,
+      preferredPrimaryCommand: primary.command,
+      fallbackCommand: fallback.command,
+    });
+    const requirements = contractToLegacyRequirements(contract);
 
     return {
       id: createId('vplan'),
@@ -66,6 +91,7 @@ export class ValidationPlanner {
       primary,
       fallback,
       requirements,
+      contract,
       authority: input.authority,
       fallbackTrigger: buildFallbackTrigger(riskLevel, primary, fallback),
       recommendations: buildRecommendations(input, changedFiles, impactedFiles, riskLevel),
@@ -390,33 +416,42 @@ function isCurrentValidationCommand(input: ValidationPlannerInput, command: stri
   );
 }
 
-function buildRequirementMetadata(
-  input: ValidationPlannerInput,
-  primary: ValidationPlanCommand,
-  fallback: ValidationPlanCommand,
-  framework: string | undefined,
-  changedFiles: string[],
-) {
-  const requirements = new Map<ValidationRequirementId, ValidationPlanCommand>();
-  for (const command of [primary, fallback]) {
-    requirements.set(command.requirementId, command);
-  }
+function legacyInputToolchain(input: ValidationPlannerInput): RepositoryToolchainProfile {
+  const commands = ["test", "typecheck", "lint", "build"].reduce((result, signal) => {
+    const requirement = signal as Exclude<ValidationRequirementId, "validation">;
+    const command = input.resolvedCommands?.[requirement] ?? validationCommand(input, requirement);
+    result[requirement] = {
+      command: command && isExecutableValidationCommand(command) ? command : null,
+      source: command ? "script" : null,
+      guarantee: command ? "local_only_no_install" : null,
+    };
+    return result;
+  }, {} as RepositoryToolchainProfile["commands"]);
+  return {
+    packagePath: input.authority?.packagePath ?? ".",
+    manager: (input.authority?.manager as RepositoryToolchainProfile["manager"]) ?? null,
+    managerSource: input.authority?.managerSource ?? null,
+    status: input.authority?.status === "ambiguous" ? "ambiguous" : "resolved",
+    cause: input.authority?.cause === 'TOOLCHAIN_AMBIGUOUS' || input.authority?.cause === 'TYPECHECK_UNAVAILABLE'
+      ? input.authority.cause
+      : undefined,
+    commands,
+    typecheck: {
+      command: commands.typecheck.command,
+      source: commands.typecheck.source,
+      guarantee: commands.typecheck.guarantee,
+    },
+  };
+}
 
-  if (isTypeScriptFramework(framework, changedFiles) && !validationCommand(input, 'typecheck')) {
-    requirements.set('typecheck', {
-      command: null,
-      availability: 'unresolved',
-      requirementId: 'typecheck',
-      unavailableCause: input.authority?.cause === 'TOOLCHAIN_AMBIGUOUS'
-        ? 'TOOLCHAIN_AMBIGUOUS'
-        : 'TYPECHECK_UNAVAILABLE',
-      reason: 'The target repository has no current executable typecheck command.',
-      estimatedCost: 'cheap',
-      expectedSignal: 'Compile-time contract, import, and type-safety regressions.',
-    });
-  }
-
-  return [...requirements.values()];
+function signalForScript(name: string): "test" | "lint" | "typecheck" | "build" | "dev" | "other" {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("test")) return "test";
+  if (normalized.includes("lint")) return "lint";
+  if (normalized.includes("typecheck") || normalized.includes("tsc")) return "typecheck";
+  if (normalized.includes("build")) return "build";
+  if (normalized.includes("dev") || normalized.includes("start")) return "dev";
+  return "other";
 }
 
 function isAllowedValidationCommand(command: string) {

@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from "../../contracts/workspace";
+import type { SearchMatch, WorkspaceSummary, WorkspaceTrustContract } from "../../contracts/workspace";
 import type { WorkingSet } from "../../contracts/working-set";
 import type { BehaviorMode } from "../../contracts/behavior-mode";
 import { repoGraphService } from "../repo-graph-service";
@@ -20,6 +20,13 @@ interface BuildWorkPlanInput {
   gitStatus: string[];
   workingSet: WorkingSet;
   targetToolchain?: RepositoryToolchainProfile;
+  workspacePolicy?: WorkspaceTrustContract | null;
+  objectiveProposal?: unknown;
+  initialInspection?: {
+    matches?: SearchMatch[];
+    state?: "satisfied" | "unsatisfied" | "unknown";
+    evidenceIds?: string[];
+  };
   behaviorMode?: BehaviorMode;
 }
 
@@ -83,6 +90,9 @@ async function collectWorkPlanSnapshotFromElectronServices(
       ].slice(0, 20),
     },
     targetToolchain,
+    workspacePolicy: input.workspacePolicy,
+    objectiveProposal: input.objectiveProposal,
+    initialInspection: input.initialInspection,
     scripts: input.workingSet.relevantPackageScripts.map((script) => ({
       name: script.name,
       command: script.command,
