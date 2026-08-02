@@ -104,7 +104,8 @@ test("finalizer replaces prior Work Engine verdict instead of duplicating", () =
   });
 
   assert.equal(result.content.match(/Work Engine verdict:/g)?.length ?? 0, 0);
-  assert.match(result.content, /Completed partially/);
+  assert.match(result.content, /required verification is incomplete/i);
+  assert.doesNotMatch(result.content, /Completed partially/);
   assert.equal(result.terminalState, "partial");
 });
 
@@ -145,7 +146,8 @@ test("partial mutation outcome keeps execution truth instead of blocker prose", 
 
   assert.equal(result.terminalState, "partial");
   assert.doesNotMatch(result.summary, /outside policy/);
-  assert.match(result.summary, /partially|changed|validation/i);
+  assert.match(result.summary, /Changes applied/);
+  assert.match(result.summary, /required check could not run/i);
 });
 
 test("preparatory answer without tool evidence cannot be success", () => {

@@ -8,7 +8,12 @@ import {
 } from "../capability-resolver";
 import { createDefaultWorkspaceTrustContract } from "../workspace-trust";
 import { finalizeWorkRun } from "./finalizer";
-import { buildExecutionEvidence, normalizeToolEvidence, normalizeToolExecution } from "./execution-evidence";
+import {
+  buildExecutionEvidence,
+  buildUserFacingExecutionSummary,
+  normalizeToolEvidence,
+  normalizeToolExecution,
+} from "./execution-evidence";
 import type { WorkStage } from "./stages";
 import type { WorkPlan } from "./types";
 
@@ -112,6 +117,91 @@ const authorizationCases = [
   ["workspace", "plan", "blocked"],
   ["approval-required", "review", "blocked"],
 ] as const;
+
+const presentationEvidence = {
+  completedSteps: [],
+  failedSteps: [],
+  blockedSteps: [],
+  changedFiles: [],
+  validation: { status: "not_required" as const },
+  synthesis: { status: "valid" as const },
+};
+
+test("changed_verified uses natural completed wording", () => {
+  const summary = buildUserFacingExecutionSummary("completed", {
+    ...presentationEvidence,
+    changedFiles: [{ path: "src/example.ts", operation: "modified", backupCreated: false, impactAnalysis: "skipped" }],
+    validation: { status: "passed" },
+  }, "changed_verified");
+
+  assert.equal(summary, "Changes applied to 1 file.\nRequired verification passed.");
+});
+
+test("changed_unverified presents unavailable typecheck as one verification gap", () => {
+  const summary = buildUserFacingExecutionSummary("partial", {
+    ...presentationEvidence,
+    changedFiles: ["a.ts", "b.ts", "c.ts"].map((path) => ({
+      path,
+      operation: "modified" as const,
+      backupCreated: false,
+      impactAnalysis: "skipped" as const,
+    })),
+    validation: {
+      status: "not_run",
+      cause: "TYPECHECK_UNAVAILABLE",
+      contract: {
+        schemaVersion: 1,
+        actualMutation: true,
+        objectiveAlreadySatisfied: false,
+        validationIsPrimaryObjective: false,
+        compiledAt: "2026-08-01T00:00:00.000Z",
+        source: "canonical_compiler",
+        items: [{
+          id: "tests",
+          signal: "test",
+          obligation: "required",
+          trigger: "after_mutation",
+          applicability: "applicable",
+          availability: "resolved",
+          command: "bun test",
+          commandSource: "repository_script",
+          evidence: { status: "passed", executionId: "test-execution" },
+          reason: "Focused tests are required.",
+        }],
+      },
+    },
+  }, "changed_unverified");
+
+  assert.equal(
+    summary,
+    "Changes applied to 3 files.\nFocused tests passed.\nTypecheck could not run because this repository does not define one.\nReview the diff before shipping.",
+  );
+  assert.doesNotMatch(summary, /changed_unverified|changed unverified|backup|impact analysis|completed partially|(?:^|\n)not run(?:$|\n)/i);
+});
+
+test("already_satisfied says no changes are needed", () => {
+  assert.equal(
+    buildUserFacingExecutionSummary("completed", presentationEvidence, "already_satisfied"),
+    "No changes needed. The requested state is already satisfied.\nPost-change verification was not applicable because no files changed.",
+  );
+});
+
+test("validation-only unavailable remains genuinely blocked", () => {
+  const summary = buildUserFacingExecutionSummary("blocked", {
+    ...presentationEvidence,
+    validation: { status: "not_run", cause: "TYPECHECK_UNAVAILABLE" },
+  }, "blocked");
+  assert.match(summary, /^Stopped because the required typecheck is unavailable/);
+});
+
+test("failed mutation remains genuinely failed", () => {
+  const summary = buildUserFacingExecutionSummary("failed", {
+    ...presentationEvidence,
+    failedSteps: [{ name: "file_editor", reason: "The edit could not be applied" }],
+  }, "failed");
+  assert.match(summary, /^The run could not complete/);
+  assert.match(summary, /Why it stopped: The edit could not be applied/);
+});
 
 for (const [writeAccess, behaviorMode, expected] of authorizationCases) {
   test(

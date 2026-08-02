@@ -590,7 +590,8 @@ describe("trace and terminal truth regression", () => {
       synthesisStatus: "valid",
     });
     assert.equal(finalization.terminalState, "partial");
-    assert.match(finalization.summary, /typecheck is unavailable/i);
+    assert.match(finalization.summary, /Typecheck could not run because this repository does not define one/i);
+    assert.match(finalization.summary, /Review the diff before shipping/i);
   });
 
   test("approved fallback satisfies unresolved typecheck without stale cause", () => {

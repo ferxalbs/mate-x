@@ -15,6 +15,74 @@ import {
   type RepoHealthSignal,
   type ImpactSummary,
 } from "./enhancement-panel-utils";
+import { getShipProofAdvancedPresentation } from "./enhancement-panel-evidence";
+import { getExecutionOutcomePresentation } from "./message-stream";
+
+describe("execution outcome presentation", () => {
+  it("does not crash on a persisted validation item without evidence", () => {
+    const presentation = getExecutionOutcomePresentation({
+      terminalState: "partial",
+      completionKind: "changed_unverified",
+      evidence: {
+        completedSteps: [],
+        failedSteps: [],
+        blockedSteps: [],
+        changedFiles: [],
+        validation: {
+          status: "not_run",
+          contract: {
+            schemaVersion: 1,
+            actualMutation: false,
+            objectiveAlreadySatisfied: false,
+            validationIsPrimaryObjective: false,
+            compiledAt: "2026-08-01T00:00:00.000Z",
+            source: "canonical_compiler",
+            items: [{ signal: "test" } as never],
+          },
+        },
+        synthesis: { status: "valid" },
+      },
+      summary: "Verification is incomplete.",
+    });
+
+    assert.equal(presentation.title, "Changes applied");
+    assert.equal(presentation.statusRow, "1 check unavailable");
+  });
+
+  it("presents unavailable typecheck as applied changes with one unavailable check", () => {
+    const presentation = getExecutionOutcomePresentation({
+      terminalState: "partial",
+      completionKind: "changed_unverified",
+      evidence: {
+        completedSteps: [],
+        failedSteps: [],
+        blockedSteps: [],
+        changedFiles: [{ path: "src/service.ts", operation: "modified", backupCreated: false, impactAnalysis: "skipped" }],
+        validation: { status: "not_run", cause: "TYPECHECK_UNAVAILABLE" },
+        synthesis: { status: "valid" },
+      },
+      summary: "Changes applied to 1 file. Typecheck could not run.",
+    });
+
+    assert.equal(presentation.title, "Changes applied");
+    assert.equal(presentation.statusRow, "1 file modified · 1 check unavailable");
+    assert.equal(presentation.canConfigureTypecheck, true);
+    assert.doesNotMatch(`${presentation.title} ${presentation.summary}`, /changed_unverified|completed partially|backup|impact analysis|pending/i);
+  });
+
+  it("keeps execution state out of the Ship Proof security-risk label", () => {
+    const presentation = getShipProofAdvancedPresentation("Low risk", {
+      satisfied: 8,
+      total: 11,
+      passed: 8,
+      count: 11,
+    });
+
+    assert.equal(presentation.securityRisk, "Low risk");
+    assert.equal(presentation.evidenceCoverage, "8 of 11 signals");
+    assert.doesNotMatch(presentation.securityRisk, /completed partially|changed unverified/i);
+  });
+});
 
 describe("enhancement panel evidence scoring", () => {
   it("does not return a numeric score without an evidence pack", () => {

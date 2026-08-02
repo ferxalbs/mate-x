@@ -9,7 +9,6 @@ import { cn } from "../../../lib/utils";
 import { Card, CardContent } from "../../../components/ui/card";
 import { PanelTitle, SkeletonStack, TonePill } from "./enhancement-panel-primitives";
 import {
-  cleanVerdictLabel,
   getSecurityRiskTone,
   impactTone,
   toneSurfaceClassName,
@@ -49,7 +48,11 @@ export function EvidencePackSection({
     evidencePack?.verifiedTaskScore?.signals ?? [],
   );
   const hasVerifiedScore = score !== null && scoreBreakdown.count > 0;
-  const securityTone = getSecurityRiskTone(verdict, summary.risk);
+  const advancedPresentation = getShipProofAdvancedPresentation(
+    summary.risk,
+    scoreBreakdown,
+  );
+  const securityTone = getSecurityRiskTone(summary.risk, summary.risk);
   const blastRadius =
     impactedFiles.length > 0
       ? summary.risk
@@ -97,7 +100,7 @@ export function EvidencePackSection({
         <EvidenceRow
           label="Security risk"
           tone={securityTone}
-          value={cleanVerdictLabel(verdict)}
+          value={advancedPresentation.securityRisk}
         />
         <EvidenceRow
           label="Evidence confidence"
@@ -226,10 +229,10 @@ function EvidenceConfidenceCard({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-          Proof Confidence
+          Evidence coverage
         </span>
         <TonePill
-          label={hasVerifiedScore ? `${score}/100` : label}
+          label={hasVerifiedScore ? getShipProofAdvancedPresentation("", scoreBreakdown).evidenceCoverage : label}
           tone={hasVerifiedScore ? scoreTone : "watch"}
         />
       </div>
@@ -307,6 +310,16 @@ interface ScoreBreakdown {
   count: number;
 }
 
+export function getShipProofAdvancedPresentation(
+  securityRisk: string,
+  scoreBreakdown: ScoreBreakdown,
+) {
+  return {
+    securityRisk: securityRisk || "No security finding",
+    evidenceCoverage: `${scoreBreakdown.passed} of ${scoreBreakdown.count} signals`,
+  };
+}
+
 function getScoreBreakdown(signals: VerifiedTaskScoreSignal[]): ScoreBreakdown {
   return signals.reduce<ScoreBreakdown>(
     (breakdown, signal) => ({
@@ -368,7 +381,7 @@ function getEvidenceScoreReason(
       : "Needs verified task signals before MaTE X can score confidence.";
   }
   if (scoreBreakdown.total > 0) {
-    return `Score comes from verified task signals: ${formatScoreBasis(scoreBreakdown)}.`;
+    return `${scoreBreakdown.passed} of ${scoreBreakdown.count} evidence signals are present. Weighted detail: ${formatScoreBasis(scoreBreakdown)}.`;
   }
   if (score < 50) {
     return "Low confidence. Findings may be useful, but claims need stronger file-level verification before shipping.";

@@ -19,6 +19,7 @@ import type {
   RainyServiceTier,
 } from "../../../contracts/rainy";
 import type { WorkspaceWriteAccess } from "../../../contracts/workspace";
+import type { BehaviorMode } from "../../../contracts/behavior-mode";
 import { ComposerPolicySummary } from "./composer-policy-summary";
 
 const TRUST_OPTIONS: Array<{
@@ -44,6 +45,7 @@ const TRUST_OPTIONS: Array<{
 ];
 
 interface ComposerRunSettingsProps {
+  behavior: BehaviorMode;
   catalog: RainyModelCatalogEntry[];
   effortOptions: AssistantRunOptions["reasoning"][];
   isModelDisabled: boolean;
@@ -51,6 +53,7 @@ interface ComposerRunSettingsProps {
   modelLabel: string;
   modelValue: string;
   onModelChange: (value: string) => void;
+  onBehaviorChange: (value: BehaviorMode) => Promise<void>;
   onReasoningChange: (value: AssistantRunOptions["reasoning"]) => void;
   onServiceTierChange: (value: RainyServiceTier) => void;
   onTrustChange: (value: WorkspaceWriteAccess) => Promise<void>;
@@ -63,6 +66,7 @@ interface ComposerRunSettingsProps {
 }
 
 export function ComposerRunSettings({
+  behavior,
   catalog,
   effortOptions,
   isModelDisabled,
@@ -70,6 +74,7 @@ export function ComposerRunSettings({
   modelLabel,
   modelValue,
   onModelChange,
+  onBehaviorChange,
   onReasoningChange,
   onServiceTierChange,
   onTrustChange,
@@ -97,7 +102,7 @@ export function ComposerRunSettings({
         data-testid="run-settings-trigger"
         ref={triggerRef}
       >
-        <ComposerPolicySummary trust={trust} />
+        <ComposerPolicySummary behavior={behavior} trust={trust} />
         <span className="h-3 w-px bg-border/60" />
         <span className="truncate text-muted-foreground">
           {modelLabel}
@@ -112,6 +117,17 @@ export function ComposerRunSettings({
       >
         <MenuSectionLabel>Run settings</MenuSectionLabel>
 
+        <MenuSubLabel>Behavior</MenuSubLabel>
+        <DropdownMenuRadioGroup
+          onValueChange={(value) => void onBehaviorChange(value as BehaviorMode)}
+          value={behavior}
+        >
+          <DropdownMenuRadioItem className="rounded-lg px-2 py-1.5" value="review">Review</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem className="rounded-lg px-2 py-1.5" value="plan">Plan</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem className="rounded-lg px-2 py-1.5" value="execute">Work</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+
+        <div className="my-1 border-t border-border/50" />
         <MenuSubLabel>Workspace policy</MenuSubLabel>
         <DropdownMenuRadioGroup
           onValueChange={(value) =>
@@ -122,7 +138,7 @@ export function ComposerRunSettings({
           {TRUST_OPTIONS.map((option) => (
             <DropdownMenuRadioItem
               className="items-start rounded-lg px-2 py-1.5"
-              disabled={isTrustDisabled}
+              disabled={isTrustDisabled || behavior !== "execute"}
               key={option.value}
               value={option.value}
             >

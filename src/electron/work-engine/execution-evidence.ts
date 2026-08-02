@@ -624,9 +624,31 @@ export function buildUserFacingExecutionSummary(
   completionKind?: CompletionKind,
 ): string {
   const lines: string[] = [];
-  if (outcome === "completed") {
+  const changedFileCount = evidence.changedFiles.length;
+  const changedFileLabel = `${changedFileCount} ${changedFileCount === 1 ? "file" : "files"}`;
+  if (completionKind === "changed_verified") {
+    lines.push(`Changes applied to ${changedFileLabel}.`);
+    const passedChecks = passedValidationCopy(evidence);
+    if (passedChecks.length > 0) {
+      lines.push(...passedChecks);
+    } else if (evidence.validation.status === "passed") {
+      lines.push("Required verification passed.");
+    }
+  } else if (completionKind === "changed_unverified" && changedFileCount > 0) {
+    lines.push(`Changes applied to ${changedFileLabel}.`);
+    lines.push(...passedValidationCopy(evidence));
+    if (evidence.validation.cause === "TYPECHECK_UNAVAILABLE") {
+      lines.push("Typecheck could not run because this repository does not define one.");
+    } else {
+      lines.push(
+        `A required check could not run: ${validationCauseDescription(evidence.validation.cause) ?? "required verification is unavailable"}.`,
+      );
+    }
+    lines.push("Review the diff before shipping.");
+  } else if (outcome === "completed") {
     if (completionKind === "already_satisfied") {
-      lines.push("Already satisfied; no files required changes.");
+      lines.push("No changes needed. The requested state is already satisfied.");
+      lines.push("Post-change verification was not applicable because no files changed.");
     } else if (completionKind === "validation_completed") {
       lines.push("Validation completed successfully.");
     } else if (completionKind === "inspection_completed") {
@@ -635,7 +657,7 @@ export function buildUserFacingExecutionSummary(
       lines.push("Completed successfully.");
     }
   } else if (outcome === "partial") {
-    lines.push("Completed partially; review the remaining work before relying on the result.");
+    lines.push("Changes were applied, but required verification is incomplete. Review the diff before shipping.");
   } else if (outcome === "blocked") {
     if (evidence.requiredUserAction) {
       lines.push(`Stopped pending required action: ${evidence.requiredUserAction}`);
@@ -652,36 +674,24 @@ export function buildUserFacingExecutionSummary(
     lines.push("The run could not complete.");
   }
 
-  if (completionKind === "already_satisfied") {
-    lines.push("Post-mutation validation was not applicable because no mutation was required.");
-  }
-
-  if (evidence.changedFiles.length > 0) {
-    lines.push(
-      `Changed files: ${evidence.changedFiles
-        .map(
-          (file) =>
-            `${file.path} (backup ${file.backupCreated ? "created" : "not created"}; impact analysis ${file.impactAnalysis})`,
-        )
-        .join(", ")}.`,
-    );
-  } else {
-    lines.push("Changed files: none confirmed.");
-  }
-  const notRun = [
-    evidence.validation.status === "not_run" ? validationNotRunLabel(evidence.validation.cause) : "",
-    evidence.synthesis.status !== "valid" ? "final synthesis" : "",
-  ].filter(Boolean);
-  if (notRun.length > 0) lines.push(`Not run or incomplete: ${notRun.join(" and ")}.`);
-  if (outcome === "partial" && evidence.validation.status === "not_run") {
-    lines.push(
-      `Verification gap: ${validationCauseDescription(evidence.validation.cause) ?? "required validation did not complete"}.`,
-    );
-  }
   const reason = evidence.failedSteps[0]?.reason ?? evidence.blockedSteps[0]?.reason;
-  if (reason) lines.push(`Why it stopped: ${sanitizeUserReason(reason)}.`);
-  if (evidence.requiredUserAction) lines.push(`Next action: ${sanitizeUserReason(evidence.requiredUserAction)}.`);
+  if (reason && changedFileCount === 0) lines.push(`Why it stopped: ${sanitizeUserReason(reason)}.`);
+  if (evidence.requiredUserAction && completionKind !== "changed_unverified") {
+    lines.push(`Next action: ${sanitizeUserReason(evidence.requiredUserAction)}.`);
+  }
   return lines.join("\n");
+}
+
+function passedValidationCopy(evidence: ExecutionEvidence): string[] {
+  return (evidence.validation.contract?.items ?? [])
+    .filter((item) => item.evidence.status === "passed")
+    .map((item) => {
+      if (item.signal === "test") return "Focused tests passed.";
+      if (item.signal === "typecheck") return "Typecheck passed.";
+      if (item.signal === "lint") return "Lint passed.";
+      if (item.signal === "build") return "Build passed.";
+      return "Required verification passed.";
+    });
 }
 
 export function deriveCompletionKind(input: {
@@ -721,14 +731,6 @@ function primaryValidationStatus(
 
 function legacyRequirementId(signal: ValidationContract["items"][number]["signal"]): ValidationRequirementId {
   return signal === "custom" ? "validation" : signal;
-}
-
-function validationNotRunLabel(
-  cause: ExecutionEvidence["validation"]["cause"],
-) {
-  if (cause === "TYPECHECK_UNAVAILABLE") return "typecheck validation";
-  if (cause === "TOOLCHAIN_AMBIGUOUS") return "toolchain resolution";
-  return "required validation";
 }
 
 function validationCauseDescription(

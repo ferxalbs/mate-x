@@ -15,6 +15,7 @@ import type {
   AssistantRunOptions,
 } from "../../../contracts/chat";
 import type { PolicyStop, PolicyStopAction } from "../../../contracts/policy";
+import type { BehaviorMode } from "../../../contracts/behavior-mode";
 import {
   getRainyServiceTierOptions,
   modelSupportsServiceTiers,
@@ -41,6 +42,10 @@ import {
   isAppControlAvailable,
 } from "../../../lib/rainy-model-launches";
 import { cn } from "../../../lib/utils";
+import {
+  loadBehaviorPreference,
+  saveBehaviorPreference,
+} from "../../../lib/behavior-preference";
 import {
   getModel,
   listModelLaunches,
@@ -107,10 +112,16 @@ export function ComposerPanel({
   const [isResolvingPolicyStop, setIsResolvingPolicyStop] = useState(false);
   const [isCancellingRun, setIsCancellingRun] = useState(false);
   const [isTrustSaving, setIsTrustSaving] = useState(false);
+  const [behavior, setBehavior] = useState<BehaviorMode>("execute");
+  const [workTrust, setWorkTrust] = useState<WorkspaceWriteAccess>("approval-required");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cancelActiveRun = useChatStore((state) => state.cancelActiveRun);
   const { blurEnabled } = useTheme();
   const hasWorkspace = Boolean(workspace);
+
+  useEffect(() => {
+    if (workspace?.id) setBehavior(loadBehaviorPreference(workspace.id).mode);
+  }, [workspace?.id]);
 
   useEffect(() => {
     if (externalPrompt !== undefined && externalPrompt !== prompt) {
@@ -232,7 +243,12 @@ export function ComposerPanel({
   const modelLabel =
     selectedModel?.label ??
     (isCatalogLoading ? "Loading…" : modelValue || "Unavailable");
-  const trust = trustContract?.writeAccess ?? "approval-required";
+  const policyTrust = trustContract?.writeAccess ?? "approval-required";
+  const trust = behavior === "execute" ? policyTrust : "read-only";
+
+  useEffect(() => {
+    if (behavior === "execute") setWorkTrust(policyTrust);
+  }, [behavior, policyTrust]);
 
   useEffect(() => {
     if (!selectedModel) return;
@@ -306,6 +322,7 @@ export function ComposerPanel({
     handlePromptChange("");
     setAttachments([]);
     await onSubmit(nextPrompt, {
+      behaviorMode: behavior,
       reasoningEnabled: reasoningSupported && reasoningEnabled,
       reasoning: reasoningValue,
       serviceTier,
@@ -350,6 +367,7 @@ export function ComposerPanel({
   }
 
   async function handleTrustChange(writeAccess: WorkspaceWriteAccess) {
+    if (behavior !== "execute") return;
     if (!trustContract || writeAccess === trustContract.writeAccess || isTrustSaving) {
       return;
     }
@@ -363,6 +381,24 @@ export function ComposerPanel({
           ? error.message
           : "Could not update workspace policy.",
       );
+    } finally {
+      setIsTrustSaving(false);
+    }
+  }
+
+  async function handleBehaviorChange(nextBehavior: BehaviorMode) {
+    if (nextBehavior === behavior || isTrustSaving) return;
+    setBehavior(nextBehavior);
+    if (workspace?.id) saveBehaviorPreference(workspace.id, { mode: nextBehavior });
+    if (!trustContract) return;
+    const nextTrust = nextBehavior === "execute" ? workTrust : "read-only";
+    if (nextTrust !== trustContract.writeAccess) await handleTrustChangeForBehavior(nextTrust);
+  }
+
+  async function handleTrustChangeForBehavior(writeAccess: WorkspaceWriteAccess) {
+    setIsTrustSaving(true);
+    try {
+      await onTrustChange(writeAccess);
     } finally {
       setIsTrustSaving(false);
     }
@@ -452,6 +488,7 @@ export function ComposerPanel({
               <HugeiconsIcon icon={Attachment01Icon} className="size-4" />
             </button>
             <ComposerRunSettings
+              behavior={behavior}
               catalog={catalog}
               effortOptions={effortOptions}
               isModelDisabled={
@@ -461,6 +498,7 @@ export function ComposerPanel({
               modelLabel={modelLabel}
               modelValue={modelValue}
               onModelChange={(value) => void handleModelChange(value)}
+              onBehaviorChange={handleBehaviorChange}
               onReasoningChange={setReasoningValue}
               onServiceTierChange={setServiceTier}
               onTrustChange={handleTrustChange}

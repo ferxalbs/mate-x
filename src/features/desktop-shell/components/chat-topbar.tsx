@@ -79,6 +79,7 @@ export function ChatTopbar({
   const platform = usePlatform();
 
   const title = conversation?.title ?? "No active thread";
+  const contextualStatus = getContextualRunStatus(conversation, runStatus, repoSafetyLabel);
   const liveTone =
     runStatus === "running"
       ? "border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-none transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)]"
@@ -122,7 +123,7 @@ export function ChatTopbar({
               <HugeiconsIcon icon={Shield01Icon} className="size-3.5 opacity-70" />
             )}
             <span className="font-medium tracking-tight max-[1024px]:sr-only">
-              {runStatus === "running" ? "Running" : repoSafetyLabel}
+              {contextualStatus}
             </span>
           </TitlebarButton>
         ) : null}
@@ -231,4 +232,22 @@ export function ChatTopbar({
       </div>
     </header>
   );
+}
+
+export function getContextualRunStatus(
+  conversation: ChatTopbarProps["conversation"],
+  runStatus: ChatTopbarProps["runStatus"],
+  fallback: string,
+) {
+  const latestOutcome = [...(conversation?.messages ?? [])].reverse().find((message) => message.executionOutcome)?.executionOutcome;
+  if (runStatus === "running") {
+    const behavior = conversation?.runs?.at(-1)?.initialState.settings.behaviorMode;
+    return behavior === "review" ? "Reviewing" : behavior === "plan" ? "Planning" : "Working";
+  }
+  if (latestOutcome?.completionKind === "awaiting_approval") return "Approval required";
+  if (latestOutcome?.terminalState === "blocked") return "Blocked";
+  if (latestOutcome?.terminalState === "failed") return "Failed";
+  if (latestOutcome?.completionKind === "changed_unverified" && latestOutcome.evidence.validation.status === "not_run") return "Done · Check unavailable";
+  if (latestOutcome?.terminalState === "completed" || latestOutcome?.completionKind === "changed_verified") return "Done";
+  return fallback;
 }

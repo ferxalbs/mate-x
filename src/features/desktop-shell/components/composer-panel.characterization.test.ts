@@ -58,6 +58,30 @@ test("composer keeps scoped trust choices and direct cancellation", async () => 
   assert.match(source, /Attach files/);
 });
 
+test("composer exposes Review, Plan, and Work as behavior strategies", async () => {
+  const source = await readComposerSurface();
+  assert.match(source, /value="review">Review/);
+  assert.match(source, /value="plan">Plan/);
+  assert.match(source, /value="execute">Work/);
+  assert.match(source, /behaviorMode: behavior/);
+});
+
+test("read-only behaviors force policy while Work retains every policy option", async () => {
+  const source = await readComposerSurface();
+  assert.match(source, /behavior === "execute" \? policyTrust : "read-only"/);
+  assert.match(source, /behavior !== "execute"/);
+  assert.match(source, /nextBehavior === "execute" \? workTrust : "read-only"/);
+  assert.match(source, /TRUST_OPTIONS\.map/);
+});
+
+test("composer behavior is persisted and restored", async () => {
+  const source = await readComposerSurface();
+  assert.match(source, /loadBehaviorPreference/);
+  assert.match(source, /saveBehaviorPreference/);
+  assert.match(source, /workspace\.id/);
+  assert.match(source, /mode: nextBehavior/);
+});
+
 test("composer reflects a model activated outside its route tree", async () => {
   const source = await readComposerSurface();
 

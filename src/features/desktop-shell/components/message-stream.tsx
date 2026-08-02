@@ -311,9 +311,11 @@ const MessageEntry = memo(function MessageEntry({
           }
           completionKind={message.executionOutcome?.completionKind ?? message.evidencePack?.executionOutcome?.completionKind}
         />
-        {message.executionOutcome &&
-        message.executionOutcome.terminalState !== "completed" ? (
-          <ExecutionOutcomeCard outcome={message.executionOutcome} />
+        {message.executionOutcome ? (
+          <ExecutionOutcomeCard
+            onConfigureTypecheck={() => onSelectPrompt("Configure a repository-local typecheck command for this workspace.")}
+            outcome={message.executionOutcome}
+          />
         ) : message.outcome &&
         (message.outcome.status === "blocked" ||
           message.outcome.status === "needs_approval" ||
@@ -466,73 +468,117 @@ function ResultFallback() {
   );
 }
 
-function ExecutionOutcomeCard({ outcome }: { outcome: ExecutionOutcome }) {
-  const title =
-    outcome.terminalState === "partial"
-      ? "Completed partially"
-      : outcome.terminalState === "blocked"
-          ? "Blocked"
-          : outcome.terminalState === "cancelled"
-            ? "Cancelled"
-            : "Couldn’t complete";
+function ExecutionOutcomeCard({
+  onConfigureTypecheck,
+  outcome,
+}: {
+  onConfigureTypecheck: () => void;
+  outcome: ExecutionOutcome;
+}) {
+  const presentation = getExecutionOutcomePresentation(outcome);
   const changedFiles = outcome.files ?? outcome.evidence.changedFiles.map((file) => ({
     path: file.path,
     operation: file.operation,
-    verification: "pending" as const,
+    verification: "verified" as const,
   }));
 
   return (
     <section className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none">
-      <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
-        <HugeiconsIcon icon={Alert01Icon} className="size-4 text-amber-500" />
-        {title}
+      <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+        <HugeiconsIcon icon={presentation.icon} className={cn("size-4", presentation.iconClassName)} />
+        {presentation.title}
       </div>
       <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-        {outcome.summary}
+        {presentation.summary}
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground/70">
-        <span>Workspace</span>
-        <span>Validation</span>
-        <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
-          {(outcome.worktreeHealth ?? "unchanged").replaceAll("_", " ")}
-        </strong>
-        <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
-          {(outcome.validationState ?? outcome.evidence.validation.status).replaceAll("_", " ")}
-        </strong>
-        <span>Completion</span>
-        <strong className="break-words font-medium normal-case tracking-normal text-foreground/85">
-          {(outcome.completionKind ?? "unknown").replaceAll("_", " ")}
-        </strong>
+      <p className="mt-2 text-[11px] text-muted-foreground">{presentation.statusRow}</p>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {changedFiles.length > 0 ? <span className="rounded-xl border border-border/70 px-3 py-1.5 text-[11px] font-medium">Review changes</span> : null}
+        {presentation.canConfigureTypecheck ? (
+          <button className="rounded-xl border border-border/70 px-3 py-1.5 text-[11px] font-medium hover:bg-accent" onClick={onConfigureTypecheck} type="button">Configure typecheck</button>
+        ) : null}
       </div>
-      {changedFiles.length > 0 ? (
-        <div className="mt-3 border-t border-border/70 pt-2.5">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-            Changed files
-          </p>
-          <ul className="mt-1.5 space-y-1">
-            {changedFiles.slice(0, 8).map((file) => (
-              <li
-                className="flex min-w-0 items-center justify-between gap-3 text-[11px]"
-                key={`${file.path}:${file.operation}`}
-              >
-                <span className="min-w-0 break-all text-foreground/85">
-                  {file.path}
-                </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {file.verification}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {outcome.primaryCause ? (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          Cause: {outcome.primaryCause.summary}
-        </p>
-      ) : null}
+      <details className="mt-2.5 border-t border-border/70 pt-2 text-[11px] text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground/80">Details</summary>
+        {changedFiles.length > 0 ? <ul className="mt-2 space-y-1">{changedFiles.map((file) => <li className="flex gap-3" key={`${file.path}:${file.operation}`}><span className="min-w-0 flex-1 break-all">{file.path}</span><span>{fileOperationLabel(file.operation)}</span></li>)}</ul> : null}
+        <p className="mt-2">Checks: {presentation.checksDetail}</p>
+        {presentation.validationCause ? <p className="mt-1">Unavailable: {presentation.validationCause}</p> : null}
+      </details>
+      <details className="mt-2 text-[11px] text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground/80">Advanced</summary>
+        <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1">
+          <dt>Canonical outcome</dt><dd>{outcome.terminalState}</dd>
+          <dt>Workspace</dt><dd>{outcome.worktreeHealth ?? "unchanged"}</dd>
+          <dt>Validation</dt><dd>{outcome.validationState ?? outcome.evidence.validation.status}</dd>
+          <dt>Completion</dt><dd>{outcome.completionKind ?? "unknown"}</dd>
+          <dt>Evidence IDs</dt><dd>{outcome.evidence.validation.executionIds?.join(", ") || outcome.evidence.objective?.evidenceIds.join(", ") || "None"}</dd>
+          {outcome.primaryCause ? <><dt>Cause</dt><dd>{outcome.primaryCause.summary}</dd></> : null}
+        </dl>
+      </details>
     </section>
   );
+}
+
+export function getExecutionOutcomePresentation(outcome: ExecutionOutcome) {
+  const unavailableTypecheck =
+    outcome.completionKind === "changed_unverified" &&
+    outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE";
+  const title = outcome.completionKind === "changed_verified" || outcome.completionKind === "changed_unverified"
+      ? "Changes applied"
+      : outcome.completionKind === "already_satisfied"
+        ? "No changes needed"
+        : outcome.completionKind === "inspection_completed"
+          ? "Review complete"
+          : outcome.completionKind === "validation_completed"
+            ? "Checks completed"
+            : outcome.completionKind === "awaiting_approval"
+              ? "Approval required"
+        : outcome.terminalState === "blocked"
+          ? "Couldn’t continue"
+          : outcome.terminalState === "cancelled"
+            ? "Cancelled"
+            : outcome.terminalState === "failed"
+              ? "Task failed"
+              : "Changes applied";
+  const changedCount = (outcome.files ?? outcome.evidence.changedFiles).length;
+  const passedChecks = outcome.evidence.validation.contract?.items.filter(
+    (item) => item.evidence?.status === "passed",
+  ) ?? [];
+  const unavailableCount = outcome.evidence.validation.status === "not_run" ? 1 : 0;
+  const statusRow = [
+    changedCount > 0 ? `${changedCount} ${changedCount === 1 ? "file" : "files"} modified` : null,
+    passedChecks.length > 0 || outcome.evidence.validation.status === "passed" ? "Tests passed" : null,
+    unavailableCount > 0 ? `${unavailableCount} check unavailable` : null,
+  ].filter(Boolean).join(" · ");
+  return {
+    title,
+    summary: buildPrimaryOutcomeSummary(outcome, changedCount, passedChecks.length > 0),
+    statusRow,
+    checksDetail: passedChecks.length > 0 ? passedChecks.map((item) => `${item.signal} passed`).join(", ") : outcome.evidence.validation.status.replaceAll("_", " "),
+    validationCause: unavailableTypecheck ? "This repository does not define a typecheck command." : outcome.evidence.validation.summary,
+    canConfigureTypecheck: unavailableTypecheck,
+    icon: outcome.terminalState === "failed" || outcome.terminalState === "blocked" ? Alert01Icon : CheckIcon,
+    iconClassName: outcome.terminalState === "failed" || outcome.terminalState === "blocked" ? "text-amber-500" : "text-emerald-500",
+  };
+}
+
+function buildPrimaryOutcomeSummary(
+  outcome: ExecutionOutcome,
+  changedCount: number,
+  hasPassedCheck: boolean,
+) {
+  if (outcome.completionKind === "changed_unverified" && outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE") {
+    const serviceFiles = outcome.evidence.changedFiles.length > 0 && outcome.evidence.changedFiles.every((file) => /service/i.test(file.path));
+    const subject = serviceFiles ? "service files" : changedCount === 1 ? "file" : "files";
+    return `Updated ${changedCount} ${subject}${hasPassedCheck ? " and confirmed the focused tests pass" : ""}. This repository does not define a typecheck command, so that check could not run.`;
+  }
+  return outcome.summary.replace(/\n/g, " ");
+}
+
+export function fileOperationLabel(operation: string) {
+  if (operation === "created") return "Added";
+  if (operation === "deleted") return "Deleted";
+  return "Modified";
 }
 
 function AgentOutcomeCard({
