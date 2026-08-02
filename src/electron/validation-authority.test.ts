@@ -47,7 +47,7 @@ async function createBunScriptWorkspace() {
   const root = join(tmpdir(), `mate-x-validation-authority-${Date.now()}-${Math.random()}`);
   await mkdir(root, { recursive: true });
   await writeFile(join(root, "package.json"), JSON.stringify({
-    name: "acme-demo",
+    name: "synthetic-validation-fixture",
     private: true,
     scripts: { test: "bun test" },
   }));

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, test } from "bun:test";
 
 import type {
@@ -19,21 +23,113 @@ import { finalizeWorkRun } from "./finalizer";
 import { evaluateValidationGate } from "./validation-gate";
 import { buildEvidencePack } from "../evidence-pack";
 
-const ACME_PROMPT = `Migrate every Acme SDK v2 customer API.
+const MIGRATION_PROMPT = `Migrate every legacy SDK v2 record API.
 
-Replace client.createCustomer(email) with client.customers.create({ email }) in all runtime service files.
+Replace client.createLegacyRecord(email) with client.records.create({ email }) in all runtime service files.
 
 Do not modify tests unless required.
 
 After editing:
-- search for remaining createCustomer calls
+- search for remaining createLegacyRecord calls
 - run focused tests
 - run typecheck
 - report files changed and validation results`;
 
-const fixtureRoot = resolve(process.cwd(), "qa/fixtures/canonical-work/acme-demo");
+type SyntheticRepositoryVariant = "already-satisfied" | "migration-required";
 
-function toolchain(options: {
+const execFileAsync = promisify(execFile);
+
+async function createSyntheticRepository(
+  variant: SyntheticRepositoryVariant,
+  options: { initializeGit?: boolean } = {},
+) {
+  const workspacePath = await mkdtemp(join(tmpdir(), "mate-x-work-"));
+  const migrationRequired = variant === "migration-required";
+  const runtimeFiles = [
+    ["record-a.ts", migrationRequired
+      ? "export function createRecordA(client: { createLegacyRecord(email: string): unknown }, email: string) {\n  return client.createLegacyRecord(email);\n}\n"
+      : "export function createRecordA(client: { records: { create(input: { email: string }): unknown } }, email: string) {\n  return client.records.create({ email });\n}\n"],
+    ["record-b.ts", "export function createRecordB(client: { records: { create(input: { email: string }): unknown } }, email: string) {\n  return client.records.create({ email });\n}\n"],
+    ["record-c.ts", "export function createRecordC(client: { records: { create(input: { email: string }): unknown } }, email: string) {\n  return client.records.create({ email });\n}\n"],
+  ] as const;
+  const fixtureTest = `import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+
+const root = join(import.meta.dir, "..");
+const migrationRequired = ${JSON.stringify(migrationRequired)};
+const runtimeFiles = [
+  "src/services/record-a.ts",
+  "src/services/record-b.ts",
+  "src/services/record-c.ts",
+];
+
+test("isolated synthetic repository has the expected SDK state", () => {
+  const runtimeSources = runtimeFiles.map((relativePath) => readFileSync(join(root, relativePath), "utf8"));
+  if (migrationRequired) {
+    assert.match(runtimeSources[0], /client\\.createLegacyRecord\\(/);
+    assert.doesNotMatch(runtimeSources[1], /client\\.createLegacyRecord\\(/);
+    assert.doesNotMatch(runtimeSources[2], /client\\.createLegacyRecord\\(/);
+  } else {
+    for (const source of runtimeSources) {
+      assert.match(source, /client\\.records\\.create\\(\\{ email \\}\\)/);
+      assert.doesNotMatch(source, /client\\.createLegacyRecord\\(/);
+    }
+  }
+
+  const stub = readFileSync(join(root, "src/sdk/legacy.ts"), "utf8");
+  assert.match(stub, /client\\.createLegacyRecord\\(email\\)/);
+});
+`;
+
+  try {
+    await Promise.all([
+      mkdir(join(workspacePath, "src/sdk"), { recursive: true }),
+      mkdir(join(workspacePath, "src/services"), { recursive: true }),
+      mkdir(join(workspacePath, "tests"), { recursive: true }),
+    ]);
+    await Promise.all([
+      writeFile(join(workspacePath, "package.json"), JSON.stringify({
+        name: `synthetic-${variant}`,
+        private: true,
+        scripts: { test: "bun test" },
+      }, null, 2) + "\n"),
+      writeFile(join(workspacePath, "src/sdk/legacy.ts"), "/** Intentional legacy SDK v2 reference. */\nexport const legacySdkStub = \"client.createLegacyRecord(email)\";\n"),
+      ...runtimeFiles.map(([file, source]) => writeFile(join(workspacePath, "src/services", file), source)),
+      writeFile(join(workspacePath, "tests/migration.test.ts"), fixtureTest),
+    ]);
+
+    if (options.initializeGit) {
+      const gitOptions = { cwd: workspacePath };
+      await execFileAsync("git", ["init", "--quiet"], gitOptions);
+      await execFileAsync("git", ["config", "user.email", "mate-x-test@example.invalid"], gitOptions);
+      await execFileAsync("git", ["config", "user.name", "MaTE X Test"], gitOptions);
+      await execFileAsync("git", ["add", "."], gitOptions);
+      await execFileAsync("git", ["commit", "--quiet", "-m", "create isolated synthetic repository"], gitOptions);
+    }
+
+    return { workspacePath };
+  } catch (error) {
+    await rm(workspacePath, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function withSyntheticRepository<T>(
+  variant: SyntheticRepositoryVariant,
+  callback: (workspacePath: string) => T | Promise<T>,
+  options: { initializeGit?: boolean } = {},
+): Promise<T> {
+  const repository = await createSyntheticRepository(variant, options);
+  try {
+    return await callback(repository.workspacePath);
+  } finally {
+    await rm(repository.workspacePath, { recursive: true, force: true });
+  }
+}
+
+function toolchain(workspacePath: string, options: {
   test?: string | null;
   typecheck?: string | null;
   lint?: string | null;
@@ -48,7 +144,7 @@ function toolchain(options: {
   };
   const status = options.status ?? (commands.typecheck.command ? "resolved" : "unavailable");
   return {
-    packagePath: fixtureRoot,
+    packagePath: workspacePath,
     manager: "bun",
     managerSource: "fixture",
     status,
@@ -91,6 +187,7 @@ function proposal(criteria: Array<{
 }
 
 function planFor(input: {
+  workspacePath: string;
   prompt: string;
   targetToolchain?: RepositoryToolchainProfile;
   objectiveProposal?: unknown;
@@ -101,13 +198,13 @@ function planFor(input: {
   return buildWorkPlanFromSnapshot({
     prompt: input.prompt,
     mode: input.mode ?? "execute",
-    workspace: { root: fixtureRoot, name: "acme-demo" },
+    workspace: { root: input.workspacePath, name: "synthetic-workspace" },
     git: {
       changedFiles: input.changedFiles ?? [],
       stagedFiles: [],
       untrackedFiles: [],
     },
-    targetToolchain: input.targetToolchain ?? toolchain(),
+    targetToolchain: input.targetToolchain ?? toolchain(input.workspacePath),
     scripts: [
       { name: "test", command: "bun test", signal: "test" },
       ...(input.targetToolchain?.commands.build.command
@@ -198,318 +295,370 @@ function item(contract: ValidationContract | undefined, signal: string) {
 }
 
 describe("canonical Work objective and validation contract", () => {
-  test("Scenario 1: the Acme no-op is already_satisfied, not blocked", () => {
-    const workPlan = planFor({
-      prompt: ACME_PROMPT,
-      targetToolchain: toolchain(),
-      initialMatches: [{
-        file: "src/services/customer-a.ts",
-        line: 2,
-        text: "return client.customers.create({ email });",
-      }],
-    });
-    const { stages, result } = finish(workPlan, [
-      search("createCustomer", "No matches found."),
-      validation("test"),
-    ], "Search completed. Focused tests passed. No files required changes.");
-    const gate = evaluateValidationGate(workPlan, [
-      search("createCustomer", "No matches found."),
-      validation("test"),
-    ], "No files required changes.");
+  test("Scenario 1: an already-satisfied migration completes without a blocker", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: MIGRATION_PROMPT,
+        targetToolchain: toolchain(workspacePath),
+        initialMatches: [{
+          file: "src/services/record-a.ts",
+          line: 2,
+          text: "return client.records.create({ email });",
+        }],
+      });
+      const { stages, result } = finish(workPlan, [
+        search("createLegacyRecord", "No matches found."),
+        validation("test"),
+      ], "Search completed. Focused tests passed. No files required changes.");
+      const gate = evaluateValidationGate(workPlan, [
+        search("createLegacyRecord", "No matches found."),
+        validation("test"),
+      ], "No files required changes.");
 
-    assert.equal(workPlan.intent, "patch");
-    assert.equal(result.terminalState, "completed");
-    assert.equal(result.completionKind, "already_satisfied");
-    assert.deepEqual(result.evidence.changedFiles, []);
-    assert.equal(workPlan.objectiveContract?.actualDelta.targetState, "satisfied");
-    assert.deepEqual(workPlan.objectiveContract?.actualDelta.changedFiles, []);
-    assert.equal(result.evidence.validation.status, "not_required");
-    assert.equal(item(result.evidence.validation.contract, "test")?.applicability, "not_applicable");
-    assert.equal(item(result.evidence.validation.contract, "test")?.evidence.status, "passed");
-    assert.equal(item(result.evidence.validation.contract, "typecheck")?.applicability, "not_applicable");
-    assert.equal(item(result.evidence.validation.contract, "typecheck")?.availability, "unavailable");
-    assert.equal(item(workPlan.validationContract, "typecheck")?.applicability, "not_applicable");
-    assert.equal(stages.find((stage) => stage.id === "patch_attempted")?.status, "skipped");
-    assert.equal(gate.allowed, true);
-    assert.match(result.content, /Focused tests passed/i);
-    assert.match(result.content, /not applicable/i);
+      assert.equal(workPlan.intent, "patch");
+      assert.equal(result.terminalState, "completed");
+      assert.equal(result.completionKind, "already_satisfied");
+      assert.deepEqual(result.evidence.changedFiles, []);
+      assert.equal(workPlan.objectiveContract?.actualDelta.targetState, "satisfied");
+      assert.deepEqual(workPlan.objectiveContract?.actualDelta.changedFiles, []);
+      assert.equal(result.evidence.validation.status, "not_required");
+      assert.equal(item(result.evidence.validation.contract, "test")?.applicability, "not_applicable");
+      assert.equal(item(result.evidence.validation.contract, "test")?.evidence.status, "passed");
+      assert.equal(item(result.evidence.validation.contract, "typecheck")?.applicability, "not_applicable");
+      assert.equal(item(result.evidence.validation.contract, "typecheck")?.availability, "unavailable");
+      assert.equal(item(workPlan.validationContract, "typecheck")?.applicability, "not_applicable");
+      assert.equal(stages.find((stage) => stage.id === "patch_attempted")?.status, "skipped");
+      assert.equal(gate.allowed, true);
+      assert.match(result.content, /Focused tests passed/i);
+      assert.match(result.content, /not applicable/i);
+    });
   });
 
   test("Scenario 1 Evidence Pack keeps the canonical no-op completion", async () => {
-    const workPlan = planFor({
-      prompt: ACME_PROMPT,
-      targetToolchain: toolchain(),
-      initialMatches: [{
-        file: "src/services/customer-a.ts",
-        line: 2,
-        text: "return client.customers.create({ email });",
-      }],
-    });
-    const toolExecutions = [
-      search("createCustomer", "No matches found."),
-      validation("test"),
-    ];
-    const events: ToolEvent[] = [
-      {
-        id: "search",
-        label: "Search completed",
-        detail: "No remaining runtime createCustomer calls.",
-        status: "done",
-        type: "search",
-      },
-      {
-        id: "tests",
-        label: "Focused tests passed",
-        detail: "bun test",
-        status: "done",
-        type: "validation",
-      },
-    ];
-    const evidencePack = await buildEvidencePack({
-      workspacePath: fixtureRoot,
-      events,
-      content: "Already satisfied; no files required changes. Focused tests passed.",
-      toolExecutions,
-      workPlan,
-      initialStatusLines: (await new GitService(fixtureRoot).getStatusSafe())?.files.map((file) =>
-        `${file.index}${file.working_dir} ${file.path}`,
-      ) ?? [],
-    });
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: MIGRATION_PROMPT,
+        targetToolchain: toolchain(workspacePath),
+        initialMatches: [{
+          file: "src/services/record-a.ts",
+          line: 2,
+          text: "return client.records.create({ email });",
+        }],
+      });
+      const toolExecutions = [
+        search("createLegacyRecord", "No matches found."),
+        validation("test"),
+      ];
+      const events: ToolEvent[] = [
+        {
+          id: "search",
+          label: "Search completed",
+          detail: "No remaining runtime createLegacyRecord calls.",
+          status: "done",
+          type: "search",
+        },
+        {
+          id: "tests",
+          label: "Focused tests passed",
+          detail: "bun test",
+          status: "done",
+          type: "validation",
+        },
+      ];
+      const evidencePack = await buildEvidencePack({
+        workspacePath,
+        events,
+        content: "Already satisfied; no files required changes. Focused tests passed.",
+        toolExecutions,
+        workPlan,
+        initialStatusLines: (await new GitService(workspacePath).getStatusSafe())?.files.map((file) =>
+          `${file.index}${file.working_dir} ${file.path}`,
+        ) ?? [],
+      });
 
-    assert.equal(evidencePack.status, "complete");
-    assert.equal(evidencePack.filesModified?.length ?? 0, 0);
+      assert.equal(evidencePack.status, "complete");
+      assert.equal(evidencePack.filesModified?.length ?? 0, 0);
+    }, { initializeGit: true });
   });
 
-  test("Scenario 2: a real migration is partial and preserves the changed file", () => {
-    const workPlan = planFor({ prompt: ACME_PROMPT, targetToolchain: toolchain() });
-    const { result } = finish(workPlan, [
-      mutation("src/services/customer.ts"),
-      planValidation(),
-      search("createCustomer", "No matches found."),
-      search("client.customers.create", "src/services/customer.ts:2: return client.customers.create({ email });"),
-      validation("test"),
-    ], "Migrated the runtime service and focused tests passed.");
-
-    assert.equal(result.terminalState, "partial");
-    assert.equal(result.completionKind, "changed_unverified");
-    assert.deepEqual(result.evidence.changedFiles.map((file) => file.path), ["src/services/customer.ts"]);
-    assert.deepEqual(workPlan.objectiveContract?.actualDelta.changedFiles, ["src/services/customer.ts"]);
-    assert.equal(result.evidence.validation.status, "not_run");
-    assert.equal(result.evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
-    assert.match(result.summary, /typecheck/i);
+  test("isolated synthetic repositories pass in parallel", async () => {
+    await Promise.all(([
+      "already-satisfied",
+      "migration-required",
+    ] as const).map((variant) => withSyntheticRepository(variant, async (workspacePath) => {
+      const result = await execFileAsync("bun", ["test", "tests/migration.test.ts"], {
+        cwd: workspacePath,
+      });
+      assert.match(`${result.stdout}${result.stderr}`, /pass/i);
+    })));
   });
 
-  test("Scenario 3: typecheck-only validation is blocked when unavailable", () => {
-    const workPlan = planFor({
-      prompt: "Run the repository typecheck and report the result.",
-      targetToolchain: toolchain(),
-    });
-    const { result } = finish(workPlan, [], "The requested validation could not run.");
+  test("Scenario 2: a required migration is partial and preserves the changed file", async () => {
+    await withSyntheticRepository("migration-required", async (workspacePath) => {
+      const workPlan = planFor({ workspacePath, prompt: MIGRATION_PROMPT, targetToolchain: toolchain(workspacePath) });
+      const { result } = finish(workPlan, [
+        mutation("src/services/record-a.ts"),
+        planValidation(),
+        search("createLegacyRecord", "No matches found."),
+        search("client.records.create", "src/services/record-a.ts:2: return client.records.create({ email });"),
+        validation("test"),
+      ], "Migrated the runtime service and focused tests passed.");
 
-    assert.equal(workPlan.objectiveContract?.validationIsPrimaryObjective, true);
-    assert.equal(item(workPlan.validationContract, "typecheck")?.trigger, "validation_is_objective");
-    assert.equal(item(workPlan.validationContract, "typecheck")?.applicability, "applicable");
-    assert.equal(result.terminalState, "blocked");
-    assert.equal(result.completionKind, "blocked");
-    assert.equal(result.evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
+      assert.equal(result.terminalState, "partial");
+      assert.equal(result.completionKind, "changed_unverified");
+      assert.deepEqual(result.evidence.changedFiles.map((file) => file.path), ["src/services/record-a.ts"]);
+      assert.deepEqual(workPlan.objectiveContract?.actualDelta.changedFiles, ["src/services/record-a.ts"]);
+      assert.equal(result.evidence.validation.status, "not_run");
+      assert.equal(result.evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
+      assert.match(result.summary, /typecheck/i);
+    });
   });
 
-  test("Scenario 4: unavailable recommended lint warns without blocking", () => {
-    const workPlan = planFor({
-      prompt: "Update the customer service.",
-      targetToolchain: toolchain(),
-      objectiveProposal: proposal([
-        { id: "tests", criterion: "focused tests", trigger: "after_mutation", signal: "test", obligation: "required" },
-        { id: "lint", criterion: "lint", trigger: "after_mutation", signal: "lint", obligation: "recommended" },
-      ]),
-    });
-    const { result } = finish(workPlan, [mutation("src/services/customer.ts"), planValidation(), validation("test")]);
+  test("Scenario 3: typecheck-only validation is blocked when unavailable", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Run the repository typecheck and report the result.",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const { result } = finish(workPlan, [], "The requested validation could not run.");
 
-    assert.equal(result.terminalState, "completed");
-    assert.equal(result.completionKind, "changed_verified");
-    assert.equal(item(result.evidence.validation.contract, "lint")?.availability, "unavailable");
-    assert.equal(item(result.evidence.validation.contract, "lint")?.applicability, "applicable");
-    assert.ok(result.warnings.some((warning) => /recommended lint.*unavailable/i.test(warning)));
+      assert.equal(workPlan.objectiveContract?.validationIsPrimaryObjective, true);
+      assert.equal(item(workPlan.validationContract, "typecheck")?.trigger, "validation_is_objective");
+      assert.equal(item(workPlan.validationContract, "typecheck")?.applicability, "applicable");
+      assert.equal(result.terminalState, "blocked");
+      assert.equal(result.completionKind, "blocked");
+      assert.equal(result.evidence.validation.cause, "TYPECHECK_UNAVAILABLE");
+    });
   });
 
-  test("Scenario 5: a fallback configured for primary failure stays not_applicable after a pass", () => {
-    const workPlan = planFor({
-      prompt: "Update the customer service.",
-      targetToolchain: toolchain({ build: "bun run build" }),
-      objectiveProposal: proposal([
-        { id: "tests", criterion: "focused tests", trigger: "after_mutation", signal: "test", obligation: "required" },
-        { id: "fallback-build", criterion: "fallback build", trigger: "primary_failed", signal: "build", obligation: "fallback" },
-      ]),
-    });
-    const { result } = finish(workPlan, [mutation("src/services/customer.ts"), planValidation(), validation("test")]);
+  test("Scenario 4: unavailable recommended lint warns without blocking", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Update the record service.",
+        targetToolchain: toolchain(workspacePath),
+        objectiveProposal: proposal([
+          { id: "tests", criterion: "focused tests", trigger: "after_mutation", signal: "test", obligation: "required" },
+          { id: "lint", criterion: "lint", trigger: "after_mutation", signal: "lint", obligation: "recommended" },
+        ]),
+      });
+      const { result } = finish(workPlan, [mutation("src/services/record.ts"), planValidation(), validation("test")]);
 
-    assert.equal(result.terminalState, "completed");
-    assert.equal(result.completionKind, "changed_verified");
-    assert.equal(item(result.evidence.validation.contract, "build")?.applicability, "not_applicable");
+      assert.equal(result.terminalState, "completed");
+      assert.equal(result.completionKind, "changed_verified");
+      assert.equal(item(result.evidence.validation.contract, "lint")?.availability, "unavailable");
+      assert.equal(item(result.evidence.validation.contract, "lint")?.applicability, "applicable");
+      assert.ok(result.warnings.some((warning) => /recommended lint.*unavailable/i.test(warning)));
+    });
   });
 
-  test("Scenario 6: a high-risk fallback activates and waits for proof", () => {
-    const workPlan = planFor({
-      prompt: "Update the authorization contract and run focused tests.",
-      targetToolchain: toolchain({ build: "bun run build" }),
-      objectiveProposal: proposal([
-        { id: "tests", criterion: "focused tests", trigger: "after_mutation", signal: "test", obligation: "required" },
-        { id: "high-risk-build", criterion: "high-risk fallback build", trigger: "high_risk_change", signal: "build", obligation: "fallback" },
-      ]),
-    });
-    const incomplete = finish(workPlan, [mutation("src/contracts/authorization.ts"), planValidation(), validation("test")]);
-    assert.equal(incomplete.result.terminalState, "partial");
-    assert.equal(item(incomplete.result.evidence.validation.contract, "build")?.applicability, "applicable");
+  test("Scenario 5: a fallback configured for primary failure stays not_applicable after a pass", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Update the record service.",
+        targetToolchain: toolchain(workspacePath, { build: "bun run build" }),
+        objectiveProposal: proposal([
+          { id: "tests", criterion: "focused tests", trigger: "after_mutation", signal: "test", obligation: "required" },
+          { id: "fallback-build", criterion: "fallback build", trigger: "primary_failed", signal: "build", obligation: "fallback" },
+        ]),
+      });
+      const { result } = finish(workPlan, [mutation("src/services/record.ts"), planValidation(), validation("test")]);
 
-    const complete = finish(workPlan, [
-      mutation("src/contracts/authorization.ts"),
-      planValidation(),
-      validation("test"),
-      validation("build"),
-    ]);
-    assert.equal(complete.result.terminalState, "completed");
-    assert.equal(complete.result.completionKind, "changed_verified");
+      assert.equal(result.terminalState, "completed");
+      assert.equal(result.completionKind, "changed_verified");
+      assert.equal(item(result.evidence.validation.contract, "build")?.applicability, "not_applicable");
+    });
   });
 
-  test("Scenario 7: review is inspection with read-only evidence", () => {
-    const workPlan = planFor({
-      prompt: "Review this diff and do not modify anything. Report evidence-backed findings.",
-      mode: "analyze",
-      targetToolchain: toolchain(),
-    });
-    const { result } = finish(workPlan, [{ toolName: "read", args: { path: "src/services/customer-a.ts" }, output: "read-only source evidence" }]);
+  test("Scenario 6: a high-risk fallback activates and waits for proof", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Update the authorization contract and run focused tests.",
+        targetToolchain: toolchain(workspacePath, { build: "bun run build" }),
+        objectiveProposal: proposal([
+          { id: "tests", criterion: "focused tests", trigger: "after_mutation", signal: "test", obligation: "required" },
+          { id: "high-risk-build", criterion: "high-risk fallback build", trigger: "high_risk_change", signal: "build", obligation: "fallback" },
+        ]),
+      });
+      const incomplete = finish(workPlan, [mutation("src/contracts/authorization.ts"), planValidation(), validation("test")]);
+      assert.equal(incomplete.result.terminalState, "partial");
+      assert.equal(item(incomplete.result.evidence.validation.contract, "build")?.applicability, "applicable");
 
-    assert.equal(workPlan.objectiveContract?.strategy, "inspection");
-    assert.equal(result.terminalState, "completed");
-    assert.equal(result.completionKind, "inspection_completed");
-    assert.equal(result.evidence.changedFiles.length, 0);
-    assert.equal(result.evidence.validation.status, "not_required");
+      const complete = finish(workPlan, [
+        mutation("src/contracts/authorization.ts"),
+        planValidation(),
+        validation("test"),
+        validation("build"),
+      ]);
+      assert.equal(complete.result.terminalState, "completed");
+      assert.equal(complete.result.completionKind, "changed_verified");
+    });
   });
 
-  test("explicit no-modification constraints become canonical read-only strategy", () => {
-    const workPlan = planFor({
-      prompt: "Fix the customer migration, but do not modify files.",
-      targetToolchain: toolchain(),
-    });
-    const decision = resolveToolAuthorization({
-      toolName: "file_editor",
-      args: { path: "src/services/customer.ts" },
-      behaviorMode: "execute",
-      workStrategy: workPlan.objectiveContract?.strategy,
-      workspacePolicy: createDefaultWorkspaceTrustContract("workspace", "Fixture", {
-        packageManager: "bun",
-        detectedScripts: ["test"],
-      }),
-    });
+  test("Scenario 7: review is inspection with read-only evidence", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Review this diff and do not modify anything. Report evidence-backed findings.",
+        mode: "analyze",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const { result } = finish(workPlan, [{ toolName: "read", args: { path: "src/services/record-a.ts" }, output: "read-only source evidence" }]);
 
-    assert.equal(workPlan.objectiveContract?.mutationPermission, "read_only");
-    assert.equal(workPlan.objectiveContract?.strategy, "inspection");
-    assert.equal(decision.decision, "blocked");
+      assert.equal(workPlan.objectiveContract?.strategy, "inspection");
+      assert.equal(result.terminalState, "completed");
+      assert.equal(result.completionKind, "inspection_completed");
+      assert.equal(result.evidence.changedFiles.length, 0);
+      assert.equal(result.evidence.validation.status, "not_required");
+    });
   });
 
-  test("Scenario 8: planning is read-only and does not turn planned checks into proof", () => {
-    const workPlan = planFor({
-      prompt: "Create an implementation plan for fixing the customer migration. Do not modify files.",
-      mode: "quality",
-      targetToolchain: toolchain(),
-    });
-    const { result } = finish(workPlan, [{ toolName: "read", args: { path: "src/services/customer-a.ts" }, output: "source inspected" }], "Plan: update the runtime service and then run tests.");
+  test("explicit no-modification constraints become canonical read-only strategy", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Fix the record migration, but do not modify files.",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const decision = resolveToolAuthorization({
+        toolName: "file_editor",
+        args: { path: "src/services/record.ts" },
+        behaviorMode: "execute",
+        workStrategy: workPlan.objectiveContract?.strategy,
+        workspacePolicy: createDefaultWorkspaceTrustContract("workspace", "Fixture", {
+          packageManager: "bun",
+          detectedScripts: ["test"],
+        }),
+      });
 
-    assert.equal(workPlan.objectiveContract?.strategy, "planning");
-    assert.equal(result.terminalState, "completed");
-    assert.equal(result.completionKind, "inspection_completed");
-    assert.equal(result.evidence.validation.status, "not_required");
-    assert.equal(result.evidence.validation.executionIds?.length ?? 0, 0);
+      assert.equal(workPlan.objectiveContract?.mutationPermission, "read_only");
+      assert.equal(workPlan.objectiveContract?.strategy, "inspection");
+      assert.equal(decision.decision, "blocked");
+    });
   });
 
-  test("planning intent is canonical even when the legacy mode adapter is Execute", () => {
-    const workPlan = planFor({
-      prompt: "Create an implementation plan for fixing the customer migration. Do not modify files.",
-      targetToolchain: toolchain(),
-    });
-    const { result } = finish(workPlan, [{
-      toolName: "read",
-      args: { path: "src/services/customer-a.ts" },
-      output: "source inspected",
-    }]);
+  test("Scenario 8: planning is read-only and does not turn planned checks into proof", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Create an implementation plan for fixing the record migration. Do not modify files.",
+        mode: "quality",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const { result } = finish(workPlan, [{ toolName: "read", args: { path: "src/services/record-a.ts" }, output: "source inspected" }], "Plan: update the runtime service and then run tests.");
 
-    assert.equal(workPlan.objectiveContract?.strategy, "planning");
-    assert.equal(result.completionKind, "inspection_completed");
-    assert.equal(result.evidence.changedFiles.length, 0);
+      assert.equal(workPlan.objectiveContract?.strategy, "planning");
+      assert.equal(result.terminalState, "completed");
+      assert.equal(result.completionKind, "inspection_completed");
+      assert.equal(result.evidence.validation.status, "not_required");
+      assert.equal(result.evidence.validation.executionIds?.length ?? 0, 0);
+    });
   });
 
-  test("Scenario 9: a resolved test capability remains usable without typecheck", () => {
-    const workPlan = planFor({
-      prompt: "Run focused tests and report the result.",
-      targetToolchain: toolchain(),
-    });
-    const { result } = finish(workPlan, [validation("test")], "Focused tests passed.");
+  test("planning intent is canonical even when the legacy mode adapter is Execute", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Create an implementation plan for fixing the record migration. Do not modify files.",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const { result } = finish(workPlan, [{
+        toolName: "read",
+        args: { path: "src/services/record-a.ts" },
+        output: "source inspected",
+      }]);
 
-    assert.equal(workPlan.validationContract?.items.length, 1);
-    assert.equal(item(workPlan.validationContract, "test")?.availability, "resolved");
-    assert.equal(item(workPlan.validationContract, "typecheck"), undefined);
-    assert.equal(result.terminalState, "completed");
-    assert.equal(result.completionKind, "validation_completed");
+      assert.equal(workPlan.objectiveContract?.strategy, "planning");
+      assert.equal(result.completionKind, "inspection_completed");
+      assert.equal(result.evidence.changedFiles.length, 0);
+    });
+  });
+
+  test("Scenario 9: a resolved test capability remains usable without typecheck", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Run focused tests and report the result.",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const { result } = finish(workPlan, [validation("test")], "Focused tests passed.");
+
+      assert.equal(workPlan.validationContract?.items.length, 1);
+      assert.equal(item(workPlan.validationContract, "test")?.availability, "resolved");
+      assert.equal(item(workPlan.validationContract, "typecheck"), undefined);
+      assert.equal(result.terminalState, "completed");
+      assert.equal(result.completionKind, "validation_completed");
+    });
   });
 
   test("Scenario 10: current repository authority rejects a stale persisted typecheck", async () => {
-    const stalePlan = {
-      id: "stale-plan",
-      objective: "Run typecheck",
-      changedFiles: ["src/services/customer.ts"],
-      impactedFiles: [],
-      riskLevel: "low" as const,
-      primary: {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const stalePlan = {
+        id: "stale-plan",
+        objective: "Run typecheck",
+        changedFiles: ["src/services/record.ts"],
+        impactedFiles: [],
+        riskLevel: "low" as const,
+        primary: {
+          command: "bun run typecheck",
+          availability: "resolved" as const,
+          requirementId: "typecheck" as const,
+          reason: "historical",
+          estimatedCost: "cheap" as const,
+          expectedSignal: "historical",
+        },
+        fallback: {
+          command: null,
+          availability: "unresolved" as const,
+          requirementId: "typecheck" as const,
+          reason: "none",
+          estimatedCost: "cheap" as const,
+          expectedSignal: "none",
+        },
+        fallbackTrigger: "never",
+        recommendations: [],
+        comments: [],
+        executionState: {
+          primary: "not_run" as const,
+          fallback: "not_run" as const,
+          persistence: "not_verified" as const,
+          blockingInstruction: "historical",
+        },
+        createdAt: new Date().toISOString(),
+      };
+      const decision = await authorizeValidationInvocation({
         command: "bun run typecheck",
-        availability: "resolved" as const,
-        requirementId: "typecheck" as const,
-        reason: "historical",
-        estimatedCost: "cheap" as const,
-        expectedSignal: "historical",
-      },
-      fallback: {
-        command: null,
-        availability: "unresolved" as const,
-        requirementId: "typecheck" as const,
-        reason: "none",
-        estimatedCost: "cheap" as const,
-        expectedSignal: "none",
-      },
-      fallbackTrigger: "never",
-      recommendations: [],
-      comments: [],
-      executionState: {
-        primary: "not_run" as const,
-        fallback: "not_run" as const,
-        persistence: "not_verified" as const,
-        blockingInstruction: "historical",
-      },
-      createdAt: new Date().toISOString(),
-    };
-    const decision = await authorizeValidationInvocation({
-      command: "bun run typecheck",
-      workspacePath: fixtureRoot,
-      validationPlan: stalePlan,
-    });
+        workspacePath,
+        validationPlan: stalePlan,
+      });
 
-    assert.equal(decision.allowed, false);
-    assert.equal(decision.cause, "TYPECHECK_UNAVAILABLE");
+      assert.equal(decision.allowed, false);
+      assert.equal(decision.cause, "TYPECHECK_UNAVAILABLE");
+    });
   });
 
-  test("Scenario 11: provider prose does not change canonical outcome", () => {
-    const workPlan = planFor({
-      prompt: "Run focused tests and report the result.",
-      targetToolchain: toolchain(),
-    });
-    const first = finish(workPlan, [validation("test")], "Everything is perfect and ready.");
-    const second = finish(workPlan, [validation("test")], "The provider says this is blocked.");
+  test("Scenario 11: provider prose does not change canonical outcome", async () => {
+    await withSyntheticRepository("already-satisfied", async (workspacePath) => {
+      const workPlan = planFor({
+        workspacePath,
+        prompt: "Run focused tests and report the result.",
+        targetToolchain: toolchain(workspacePath),
+      });
+      const first = finish(workPlan, [validation("test")], "Everything is perfect and ready.");
+      const second = finish(workPlan, [validation("test")], "The provider says this is blocked.");
 
-    assert.equal(first.result.terminalState, second.result.terminalState);
-    assert.equal(first.result.completionKind, second.result.completionKind);
-    assert.deepEqual(
-      first.result.evidence.validation.contract?.items.map((candidate) => [candidate.applicability, candidate.evidence.status]),
-      second.result.evidence.validation.contract?.items.map((candidate) => [candidate.applicability, candidate.evidence.status]),
-    );
+      assert.equal(first.result.terminalState, second.result.terminalState);
+      assert.equal(first.result.completionKind, second.result.completionKind);
+      assert.deepEqual(
+        first.result.evidence.validation.contract?.items.map((candidate) => [candidate.applicability, candidate.evidence.status]),
+        second.result.evidence.validation.contract?.items.map((candidate) => [candidate.applicability, candidate.evidence.status]),
+      );
+    });
   });
 
   test("Scenario 12: workspace authorization adapters remain deterministic", () => {
@@ -533,7 +682,7 @@ function authorizeTool(
 ) {
   return resolveToolAuthorization({
     toolName: "file_editor",
-    args: { path: "src/services/customer.ts" },
+    args: { path: "src/services/record.ts" },
     behaviorMode,
     workspacePolicy,
   });

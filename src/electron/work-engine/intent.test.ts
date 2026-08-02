@@ -4,12 +4,12 @@ import { describe, test } from 'bun:test';
 import { resolveRunIntentOutcome } from '../capability-resolver';
 import { classifyWorkIntent } from './intent';
 
-const acmeReviewPrompt = `The Acme SDK was upgraded to v3.
+const legacyReviewPrompt = `The legacy SDK was upgraded to v3.
 
-Find every incompatible use of the old customer API, explain what will break,
+Find every incompatible use of the old record API, explain what will break,
 and identify the required migration. Do not modify the repository.`;
 
-const acmeExecutePrompt = `Migrate every Acme SDK v2 customer API call to v3.
+const legacyExecutePrompt = `Migrate every legacy SDK v2 record API call to v3.
 
 Update the three runtime service call sites, search for remaining deprecated
 usages, and run the focused tests plus typecheck. Do not modify tests unless required.`;
@@ -21,8 +21,8 @@ describe('work intent classification', () => {
     ['Identify the required migration.', 'inspect'],
     ['Review and fix the errors.', 'patch'],
     ['Edit README.md.', 'patch'],
-    [acmeExecutePrompt, 'patch'],
-    [acmeReviewPrompt, 'inspect'],
+    [legacyExecutePrompt, 'patch'],
+    [legacyReviewPrompt, 'inspect'],
   ] as const;
 
   for (const [prompt, expectedIntent] of cases) {
@@ -56,7 +56,7 @@ describe('work intent classification', () => {
     assert.equal(
       resolveRunIntentOutcome({
         behaviorMode: 'review',
-        intent: classifyWorkIntent(acmeReviewPrompt),
+        intent: classifyWorkIntent(legacyReviewPrompt),
       }),
       undefined,
     );

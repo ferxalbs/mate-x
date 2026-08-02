@@ -40,13 +40,13 @@ async function createWorkspace() {
 
 const settings = {} as import("../../contracts/settings").AppSettings;
 
-test("reverts the Acme-style duplicated closing brace", async () => {
+test("reverts a legacy API edit with a duplicated closing brace", async () => {
   const workspacePath = await createWorkspace();
   const source = [
     "import { client } from './client';",
     "",
     "export async function create(email: string) {",
-    "  return client.createCustomer(email);",
+    "  return client.createLegacyRecord(email);",
     "}",
     "",
   ].join("\n");
@@ -59,11 +59,11 @@ test("reverts the Acme-style duplicated closing brace", async () => {
       startLine: 3,
       endLine: 4,
       expectedContent:
-        "export async function create(email: string) {\n  return client.createCustomer(email);",
+        "export async function create(email: string) {\n  return client.createLegacyRecord(email);",
       newContent:
-        "export async function create(email: string) {\n  return client.customers.create({ email });\n}",
+        "export async function create(email: string) {\n  return client.records.create({ email });\n}",
     },
-    { workspacePath, settings, runId: "run-acme-regression" },
+    { workspacePath, settings, runId: "run-legacy-api-regression" },
   );
 
   assert.equal(isStructuredToolFailureOutput(output), true);
