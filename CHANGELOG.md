@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## Unreleased - 2026.08.02 (1) [Natural Work Results and Repository Objective Proof]
+
+* Restored the explicit Review, Plan, and Work behavior selector in the composer while keeping Workspace Policy as the independent authorization axis; Review and Plan force Read only, Work exposes all policy choices, and the selected behavior persists across composer and run state.
+* Replaced compliance-style execution cards with compact assistant-like results, natural public outcome titles, concise evidence summaries, contextual topbar states, useful actions, and separate Details and Advanced evidence levels.
+* Presented changed files as Modified, Added, or Deleted; removed raw completion enums, hostile partial-completion language, impossible validation retries, duplicated warnings, and execution-derived security-risk labels from the primary result.
+* Kept Ship Proof secondary and expressed its existing signal computation as evidence coverage without changing canonical outcomes, validation authority, authorization, activity events, evidence collection, or Ship Proof computation.
+* Prevented persisted validation items without embedded evidence from crashing the result renderer, preserving compatibility with historical run records.
+* Added typed repository objective evidence for live search and read tools, including execution identity, query and scope, matched locations, files read, repository and run provenance, freshness, and complete, partial, or ambiguous coverage.
+* Bridged live repository evidence into canonical objective resolution, execution evidence, persisted outcomes, Evidence Packs, and downstream proof inputs so complete scoped search and read evidence can establish an already-satisfied objective without relying on tests or assistant prose alone.
+* Classified matches against requested objective scope so allowed deprecated definitions outside runtime-service scope do not invalidate a completed migration, while incomplete, failed, stale, ambiguous, or still-matching runtime searches remain unproven.
+* Preserved `preexisting_changes` as valid provenance: a proven no-op repository state can complete as `already_satisfied`, while current-run mutations with complete objective proof and applicable passing checks complete as `changed_verified`.
+* Expanded focused regression coverage for behavior and policy selection, persisted modes, natural outcome presentation, historical evidence compatibility, changed-file labels, impossible actions, diagnostic isolation, and Ship Proof presentation integrity.
+
 ## Unreleased - 2026.08.01 (2) [Canonical Work Outcomes and Validation Contracts]
 
 * Added one schema-validated Work objective compiler and canonical per-signal `ValidationContract`, with explicit obligations, triggers, applicability, availability, command authority, and evidence provenance.
