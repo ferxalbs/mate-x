@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.08.03 (1) [Immediate Conversation and Visible Work Progress]
+
+* Added a true `chat_help` fast path that resolves conversational intent before repository snapshot collection and bypasses repository discovery, Working Sets, WorkPlans, objective verification, EngineeringTask execution state, Evidence Packs, and Outcome Cards.
+* Made greetings, acknowledgements, and thanks return immediate local natural responses, while ordinary conversational questions use the lightweight provider chat path without entering the repository Work Engine or exposing repository execution metadata.
+* Committed the submitted user message, assistant placeholder, and running state before awaiting `CaptureTask` or other IPC, preserving the same canonical EngineeringTask authority without creating duplicate tasks.
+* Published a safe public startup phase synchronously before repository snapshot work, then progressed through repository context, relevant-file discovery, implementation review, and verification; the first payload bypasses IPC and renderer coalescing while later updates retain bounded batching.
+* Preserved valid sanitized agent synthesis when an `ExecutionOutcome` is attached, using the deterministic terminal response only when synthesis is missing or failed, avoiding duplicated summaries and translating internal outcome enums into natural language.
+* Simplified successful inspection, already-satisfied, validation, and clean verified results to the natural response plus a compact evidence row when useful; removed `0 files changed`, `validation not applicable`, and `Review complete` from primary-result emphasis while retaining full Outcome Cards for actionable states.
+* Kept completed activity automatically collapsed and manually expandable, maintained privacy filtering and append-only trace authority, and added focused regressions for conversational bypass, optimistic submission, immediate first progress, response composition, compact success presentation, and trace disclosure safety.
+* Verified 30 focused tests with zero failures, plus `bun run typecheck`, `bun run lint`, `bun run check:deprecated`, and `git diff --check`; no application package was produced.
+
 ## Unreleased - 2026.08.02 (1) [Natural Work Results and Repository Objective Proof]
 
 * Restored the explicit Review, Plan, and Work behavior selector in the composer while keeping Workspace Policy as the independent authorization axis; Review and Plan force Read only, Work exposes all policy choices, and the selected behavior persists across composer and run state.

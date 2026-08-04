@@ -50,6 +50,14 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
   let runAssistant: typeof import("../services/repo-client").runAssistant;
 
   beforeEach(async () => {
+    const testGlobal = globalThis as unknown as {
+      mate: Record<string, unknown>;
+      window: unknown;
+    };
+    testGlobal.window = globalThis;
+    testGlobal.mate = {
+      repo: { saveWorkspaceSession: async () => undefined },
+    };
     runAssistantMock.calls = [];
     runAssistantMock.impl = async (prompt, _history, options) => ({
       message: {
@@ -267,5 +275,131 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
       useChatStore.getState().threadsByWorkspace["workspace-1"]?.length,
       2,
     );
+  });
+
+  it("renders the submitted turn before a delayed CaptureTask resolves", async () => {
+    let releaseCapture!: () => void;
+    let markCaptureStarted!: () => void;
+    const captureStarted = new Promise<void>((resolve) => {
+      markCaptureStarted = resolve;
+    });
+    const captureGate = new Promise<void>((resolve) => {
+      releaseCapture = resolve;
+    });
+    let receivedOptions: AssistantRunOptions | undefined;
+    const testGlobal = globalThis as unknown as {
+      mate: Record<string, unknown>;
+      window: unknown;
+    };
+    testGlobal.window = globalThis;
+    testGlobal.mate = {
+      engineering: {
+        dispatch: async () => {
+          markCaptureStarted();
+          await captureGate;
+          return {
+            ok: true,
+            data: { engineeringTaskId: "engineering-task-1" },
+          };
+        },
+      },
+      repo: {
+        saveWorkspaceSession: async () => undefined,
+        runAssistant: async (
+          _prompt: string,
+          _history: string[],
+          options: AssistantRunOptions,
+        ) => {
+          receivedOptions = options;
+          return {
+            message: {
+              id: "assistant-complete",
+              role: "assistant" as const,
+              content: "Implemented the focused fix.",
+              createdAt: new Date().toISOString(),
+              events: [],
+              artifacts: [],
+            },
+          };
+        },
+      },
+    };
+
+    const submission = useChatStore.getState().submitPrompt("Fix the flow", {
+      behaviorMode: "execute",
+      pathKind: "full",
+      reasoning: "high",
+      reasoningEnabled: true,
+      runbookId: "patch_test_verify",
+      serviceTier: "standard",
+    });
+    await captureStarted;
+
+    const pendingState = useChatStore.getState();
+    const pendingMessages = pendingState.threadsByWorkspace["workspace-1"]![0]!.messages;
+    assert.equal(pendingState.runStatus, "running");
+    assert.equal(pendingMessages.length, 2);
+    assert.equal(pendingMessages[0]?.content, "Fix the flow");
+    assert.equal(pendingMessages[1]?.role, "assistant");
+    assert.equal(receivedOptions, undefined);
+
+    releaseCapture();
+    await submission;
+    const completedOptions = receivedOptions as AssistantRunOptions | undefined;
+    assert.equal(completedOptions?.engineeringTaskId, "engineering-task-1");
+  });
+
+  it("routes a greeting through chat_help without CaptureTask or an Outcome Card payload", async () => {
+    let captureCalls = 0;
+    let receivedOptions: AssistantRunOptions | undefined;
+    const testGlobal = globalThis as unknown as {
+      mate: Record<string, unknown>;
+      window: unknown;
+    };
+    testGlobal.window = globalThis;
+    testGlobal.mate = {
+      engineering: {
+        dispatch: async () => {
+          captureCalls += 1;
+          return { ok: false };
+        },
+      },
+      repo: {
+        saveWorkspaceSession: async () => undefined,
+        runAssistant: async (
+          _prompt: string,
+          _history: string[],
+          options: AssistantRunOptions,
+        ) => {
+          receivedOptions = options;
+          return {
+            message: {
+              id: "assistant-greeting",
+              role: "assistant" as const,
+              content: "Hey — what do you want to inspect or change in fixture?",
+              createdAt: new Date().toISOString(),
+              events: [],
+              artifacts: [],
+            },
+          };
+        },
+      },
+    };
+
+    await useChatStore.getState().submitPrompt("Hi", {
+      behaviorMode: "execute",
+      pathKind: "full",
+      reasoning: "high",
+      reasoningEnabled: true,
+      runbookId: "patch_test_verify",
+      serviceTier: "standard",
+    });
+
+    const finalMessage = useChatStore.getState()
+      .threadsByWorkspace["workspace-1"]![0]!.messages.at(-1);
+    assert.equal(captureCalls, 0);
+    assert.equal(receivedOptions?.pathKind, "chat_help");
+    assert.equal(finalMessage?.content, "Hey — what do you want to inspect or change in fixture?");
+    assert.equal(finalMessage?.executionOutcome, undefined);
   });
 });

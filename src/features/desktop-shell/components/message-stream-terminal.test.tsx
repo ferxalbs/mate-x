@@ -193,7 +193,7 @@ function makeMessage(outcome: ExecutionOutcome): ChatMessage {
   return {
     id: "assistant-terminal",
     role: "assistant",
-    content: "Provider progress prose with changed_unverified and raw tool diagnostics.",
+    content: "I inspected the runtime services and found the requested state already in place.",
     createdAt: "2026-08-02T00:00:42.000Z",
     events: terminalEvents,
     executionOutcome: outcome,
@@ -240,15 +240,16 @@ function getActivityToggle(container: HTMLElement) {
 }
 
 describe("terminal message composition", () => {
-  it("renders a natural assistant response outside the compact outcome card", async () => {
+  it("preserves a valid natural synthesis and shows compact evidence separately", async () => {
     const view = await renderStream(makeMessage(makeOutcome("already_satisfied")));
     const response = view.container.querySelector('[data-slot="assistant-final-response"]');
     const card = view.container.querySelector('[data-slot="agent-outcome-card"]');
+    const evidence = view.container.querySelector('[data-slot="outcome-evidence-row"]');
 
-    assert.ok(response?.textContent?.includes("The migration was already complete."));
-    assert.ok(card?.textContent?.includes("No changes needed"));
-    assert.equal(card?.contains(response ?? null), false);
-    assert.equal(response?.contains(card ?? null), false);
+    assert.ok(response?.textContent?.includes("I inspected the runtime services"));
+    assert.equal(card, null);
+    assert.match(evidence?.textContent ?? "", /3 services verified · Tests passed/);
+    assert.doesNotMatch(evidence?.textContent ?? "", /0 files changed/);
   });
 
   it("automatically collapses activity once a running message completes", async () => {
@@ -333,17 +334,21 @@ describe("terminal message composition", () => {
     assert.equal(approvalToggle.hasAttribute("disabled"), true);
   });
 
-  it("keeps the outcome card compact and evidence-backed", async () => {
-    const view = await renderStream(makeMessage(makeOutcome("already_satisfied")));
+  it("keeps the full outcome card for actionable partial changes", async () => {
+    const view = await renderStream(makeMessage(makeOutcome("changed_unverified", {
+      changedFiles: ["src/services/customer-one.ts"],
+      validationStatus: "not_run",
+      validationCause: "TYPECHECK_UNAVAILABLE",
+    })));
     const card = view.container.querySelector('[data-slot="agent-outcome-card"]');
-    assert.ok(card?.textContent?.includes("No changes needed"));
-    assert.ok(card?.textContent?.includes("0 files changed · 3 services verified · Tests passed"));
+    assert.ok(card?.textContent?.includes("Changes applied"));
+    assert.ok(card?.textContent?.includes("1 file changed · 3 services verified · Tests passed"));
     assert.equal(card?.textContent?.match(/test(?:s)? passed/gi)?.length, 1);
-    assert.equal(card?.textContent?.includes("The requested state was already present."), false);
+    assert.doesNotMatch(card?.textContent ?? "", /changed_unverified|TYPECHECK_UNAVAILABLE/);
     assert.equal(card?.querySelector("details")?.hasAttribute("open"), false);
   });
 
-  it("restores response, collapsed activity, and card once after persistence hydration", async () => {
+  it("restores response, collapsed activity, and compact evidence once after persistence hydration", async () => {
     const message = makeMessage(makeOutcome("already_satisfied"));
     const persisted = compactConversationSnapshotForPersistence([{
       id: "thread-1",
@@ -353,9 +358,9 @@ describe("terminal message composition", () => {
     }], "thread-1");
     const view = await renderStream(persisted[0].messages[0]);
 
-    assert.equal(view.getAllByText(/Focused tests passed, so no files were changed\./).length, 1);
-    assert.equal(view.getAllByText("No changes needed").length, 1);
-    assert.equal(view.getAllByText(/0 files changed · 3 services verified · Tests passed/).length, 1);
+    assert.equal(view.getAllByText(/I inspected the runtime services/).length, 1);
+    assert.equal(view.container.querySelector('[data-slot="agent-outcome-card"]'), null);
+    assert.equal(view.getAllByText(/3 services verified · Tests passed/).length, 1);
     const toggle = view.getByRole("button", { name: /Worked for.*Tests passed/ });
     assert.equal(toggle.getAttribute("aria-expanded"), "false");
     fireEvent.click(toggle);
@@ -406,17 +411,21 @@ describe("terminal assistant response projection", () => {
     }
   });
 
-  it("never exposes internal enums, diagnostics, or provider progress prose", async () => {
+  it("uses the deterministic fallback when synthesis is missing", async () => {
     const outcome = makeOutcome("changed_unverified", {
       changedFiles: ["src/services/customer-one.ts"],
       validationStatus: "not_run",
       validationCause: "VALIDATION_COMMAND_UNRESOLVED",
     });
+    outcome.evidence.synthesis.status = "missing";
     const response = getTerminalAssistantResponse(outcome);
     assert.doesNotMatch(response, /changed_unverified|VALIDATION_COMMAND_UNRESOLVED|INTERNAL/);
 
-    const view = await renderStream(makeMessage(outcome));
+    const message = makeMessage(outcome);
+    message.content = "Provider progress prose with changed_unverified and raw tool diagnostics.";
+    const view = await renderStream(message);
     const natural = view.container.querySelector('[data-slot="assistant-final-response"]');
     assert.doesNotMatch(natural?.textContent ?? "", /changed_unverified|raw tool diagnostics|Provider progress/);
+    assert.match(natural?.textContent ?? "", /Updated 1 service file/);
   });
 });

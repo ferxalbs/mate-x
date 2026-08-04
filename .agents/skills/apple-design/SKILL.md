@@ -74,6 +74,7 @@ Apple deliberately replaced the physics triplet (mass/stiffness/damping) with tw
 - **Response** — how quickly the value reaches the target, in seconds. Lower = snappier. **This is not "duration"** — a spring has no fixed duration; its settle time emerges from the parameters.
 
 **Defaults:**
+
 - Start most UI at **damping `1.0`** (critically damped) — graceful and non-distracting.
 - Add bounce (**damping ~`0.8`**) **only when the gesture itself carried momentum** (a flick, a throw, a drag release). Overshoot on a menu that just faded in feels wrong; overshoot on a card you flicked feels right.
 

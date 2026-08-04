@@ -44,6 +44,9 @@ import {
 } from "./telemetry-service";
 import { AgentExecutionSession } from "./run-trace/agent-execution-session";
 import { collectRepositoryToolchainProfile } from "./repository-toolchain";
+import { requestRainyChatCompletionStream } from "./rainy-service";
+import { sanitizeAssistantOutput } from "../lib/assistant-output";
+import { getImmediateConversationalResponse } from "../lib/conversational-intent";
 import {
   activeContractForWorkPlan,
   hasHighRiskChange,
@@ -75,6 +78,88 @@ function cloneEvents(events: ToolEvent[]) {
   return events.map((event) => ({ ...event }));
 }
 
+async function runConversationalAssistant(
+  prompt: string,
+  history: string[],
+  workspaceId: string | undefined,
+  options: AssistantRunOptions,
+  progressReporter?: AssistantProgressReporter,
+): Promise<AssistantExecution> {
+  const createdAt = new Date().toISOString();
+  const resolvedWorkspaceId = workspaceId ?? await tursoService.getActiveWorkspaceId();
+  const workspaceName = (await tursoService.getWorkspaces()).find(
+    (workspace) => workspace.id === resolvedWorkspaceId,
+  )?.name ?? "this repository";
+  const immediateResponse = getImmediateConversationalResponse(
+    prompt,
+    workspaceName,
+  );
+  let content = immediateResponse ?? "";
+
+  if (!content) {
+    const [apiKey, storedModel] = await Promise.all([
+      tursoService.getApiKey(),
+      tursoService.getModel(),
+    ]);
+    const runtimeConfig = apiKey
+      ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
+      : null;
+
+    if (apiKey && runtimeConfig) {
+      const messages = [
+        {
+          role: "system",
+          content:
+            `You are MaTE X in conversational mode for ${workspaceName}. ` +
+            "Answer naturally and concisely. Do not claim to inspect repository state, use tools, change files, validate code, or create evidence unless a repository Work run actually occurred.",
+        },
+        ...history.slice(-12).flatMap((entry) => {
+          const match = /^(user|assistant):\s*([\s\S]*)$/i.exec(entry);
+          return match
+            ? [{ role: match[1].toLowerCase(), content: match[2] }]
+            : [];
+        }),
+        { role: "user", content: prompt },
+      ];
+      await requestRainyChatCompletionStream({
+        apiKey,
+        messages,
+        model: runtimeConfig.model,
+        capabilities: runtimeConfig.capabilities,
+        maxTokens: 800,
+        serviceTier: options.serviceTier,
+        signal: progressReporter?.signal,
+        onContentDelta(delta) {
+          content += delta;
+          progressReporter?.emit({
+            runId: progressReporter.runId,
+            status: "running",
+            content: sanitizeAssistantOutput(content),
+            events: [],
+            artifacts: [],
+          });
+        },
+      });
+      content = sanitizeAssistantOutput(content);
+    } else {
+      content =
+        "I can help with that once the conversational provider is configured. You can also ask me to inspect or change this repository.";
+    }
+  }
+
+  return {
+    suggestedTitle: history.length === 0 ? buildThreadTitle(prompt) : undefined,
+    message: {
+      id: `assistant-${Date.now()}`,
+      role: "assistant",
+      content,
+      createdAt,
+      events: [],
+      artifacts: [],
+    },
+  };
+}
+
 export async function runAssistant(
   prompt: string,
   history: string[],
@@ -83,8 +168,17 @@ export async function runAssistant(
   progressReporter?: AssistantProgressReporter,
 ): Promise<AssistantExecution> {
   const startedAt = Date.now();
-  const snapshot = await collectRepoSnapshot(prompt, workspaceId);
   const resolvedOptions = resolveAssistantRunOptions(options);
+  if (resolvedOptions.pathKind === "chat_help") {
+    return runConversationalAssistant(
+      prompt,
+      history,
+      workspaceId,
+      resolvedOptions,
+      progressReporter,
+    );
+  }
+
   const effectiveRunId = progressReporter?.runId ?? `assistant-${Date.now()}`;
   const traceSession = new AgentExecutionSession(
     effectiveRunId,
@@ -93,6 +187,85 @@ export async function runAssistant(
   );
   traceSession.start();
   let traceCursor = 0;
+  const events: ToolEvent[] = [
+    {
+      id: "step-preparing-context",
+      label: "Preparing repository context",
+      detail: "",
+      status: "active",
+      segmentKind: "tool",
+      type: "read",
+      visibility: "public",
+    },
+  ];
+  let artifacts: MessageArtifact[] = [];
+  let privacyPreflight: Awaited<ReturnType<typeof runPrivacyPreflight>> | null = null;
+  let content = "";
+  let agentOutcome: AgentOutcome | undefined;
+  let toolExecutions: ToolExecutionRecord[] = [];
+  let synthesisStatus: ExecutionSynthesisStatus = "failed";
+  let synthesisSummary = "No valid final synthesis was returned.";
+
+  const emitProgress = (
+    nextContent?: string,
+    status: AssistantRunProgress["status"] = "running",
+  ) => {
+    if (!progressReporter) {
+      return;
+    }
+
+    if (typeof nextContent === "string") {
+      content = nextContent;
+    }
+
+    const emittedAt = new Date().toISOString();
+    events.forEach((event, sequence) => {
+      event.id = event.segmentId ?? event.id;
+      event.segmentId ??= event.id;
+      event.version = 2;
+      event.runId ??= progressReporter.runId;
+      event.sequence ??= sequence;
+      event.timestamp ??= emittedAt;
+    });
+    traceSession.captureLegacyEvents(events);
+    const traceEvents = traceSession.getEvents(traceCursor, 10_000);
+    const delta =
+      traceEvents.length > 0
+        ? {
+            runId: effectiveRunId,
+            fromSeq: traceEvents[0].seq,
+            toSeq: traceEvents.at(-1)!.seq,
+            events: traceEvents,
+          }
+        : undefined;
+    if (delta) traceCursor = delta.toSeq;
+
+    progressReporter.emit({
+      runId: progressReporter.runId,
+      status,
+      content,
+      events: cloneEvents(events),
+      delta,
+      artifacts: cloneArtifacts(artifacts),
+      outcome: agentOutcome,
+    });
+  };
+
+  // This payload is emitted synchronously. Snapshot, toolchain, and plan work
+  // all happen after the renderer has a safe public activity label.
+  emitProgress();
+  const snapshot = await collectRepoSnapshot(prompt, workspaceId);
+  events[0].status = "done";
+  events.push({
+    id: "step-finding-files",
+    label: "Finding relevant files",
+    detail: "",
+    status: "active",
+    segmentKind: "tool",
+    type: "search",
+    visibility: "public",
+  });
+  emitProgress();
   const targetToolchain = await collectRepositoryToolchainProfile({
     root: snapshot.workspace.path,
     changedFiles: snapshot.statusLines
@@ -109,6 +282,17 @@ export async function runAssistant(
     memoryContext: snapshot.memoryContext,
     targetToolchain,
   });
+  events.at(-1)!.status = "done";
+  events.push({
+    id: "step-reviewing-implementation",
+    label: "Reviewing the current implementation",
+    detail: "",
+    status: "active",
+    segmentKind: "tool",
+    type: "read",
+    visibility: "public",
+  });
+  emitProgress();
   const workPlan = await buildWorkPlan({
     prompt,
     workspace: snapshot.workspace,
@@ -125,6 +309,7 @@ export async function runAssistant(
     workspaceId: snapshot.workspace.id,
     runId: effectiveRunId,
   });
+  events.at(-1)!.status = "done";
   const workStrategy = workPlan.objectiveContract?.strategy ?? "work";
   // EngineeringTask is sole workflow authority when linked.
   let engineeringTaskStatus: import("../contracts/engineering-task").EngineeringTaskStatus | null =
@@ -177,7 +362,7 @@ export async function runAssistant(
   const effectiveRunbookId = toAssistantRunbookId(workPlan.runbook);
   const runbookDefinition = resolveRunbookDefinition(effectiveRunbookId);
   const initialWorkPlanMetadata = buildWorkPlanMetadata(workPlan, "pending");
-  const events: ToolEvent[] = [
+  events.push(
     {
       id: "step-work-engine",
       label: "Create WorkPlan",
@@ -229,14 +414,7 @@ export async function runAssistant(
       segmentKind: "tool",
       visibility: "technical",
     },
-  ];
-  let artifacts: MessageArtifact[] = [];
-  let privacyPreflight: Awaited<ReturnType<typeof runPrivacyPreflight>> | null = null;
-  let content = "";
-  let agentOutcome: AgentOutcome | undefined;
-  let toolExecutions: ToolExecutionRecord[] = [];
-  let synthesisStatus: ExecutionSynthesisStatus = "failed";
-  let synthesisSummary = "No valid final synthesis was returned.";
+  );
 
   try {
   const [apiKey, storedModel, appSettings] = await Promise.all([
@@ -314,51 +492,6 @@ export async function runAssistant(
           : event.type === "AGENT_ACTION_PENDING"
             ? "active"
             : "done",
-    });
-  };
-
-  const emitProgress = (
-    nextContent?: string,
-    status: AssistantRunProgress["status"] = "running",
-  ) => {
-    if (!progressReporter) {
-      return;
-    }
-
-    if (typeof nextContent === "string") {
-      content = nextContent;
-    }
-
-    const emittedAt = new Date().toISOString();
-    events.forEach((event, sequence) => {
-      event.id = event.segmentId ?? event.id;
-      event.segmentId ??= event.id;
-      event.version = 2;
-      event.runId ??= progressReporter.runId;
-      event.sequence ??= sequence;
-      event.timestamp ??= emittedAt;
-    });
-    traceSession.captureLegacyEvents(events);
-    const traceEvents = traceSession.getEvents(traceCursor, 10_000);
-    const delta =
-      traceEvents.length > 0
-        ? {
-            runId: effectiveRunId,
-            fromSeq: traceEvents[0].seq,
-            toSeq: traceEvents.at(-1)!.seq,
-            events: traceEvents,
-          }
-        : undefined;
-    if (delta) traceCursor = delta.toSeq;
-
-    progressReporter.emit({
-      runId: progressReporter.runId,
-      status,
-      content,
-      events: cloneEvents(events),
-      delta,
-      artifacts: cloneArtifacts(artifacts),
-      outcome: agentOutcome,
     });
   };
 
@@ -600,12 +733,25 @@ export async function runAssistant(
   }
 
   if ((workPlan.objectiveContract?.repositoryAssertions?.length ?? 0) > 0) {
+    const verificationProgress: ToolEvent = {
+      id: "step-verifying-result",
+      label: "Verifying the result",
+      detail: "",
+      status: "active",
+      segmentKind: "tool",
+      type: "validation",
+      visibility: "public",
+    };
+    events.push(verificationProgress);
+    emitProgress();
     await scheduleObjectiveVerification({
       workPlan,
       workspacePath: snapshot.workspace.path,
       workspaceId: snapshot.workspace.id,
       runId: effectiveRunId,
     });
+    verificationProgress.status = "done";
+    emitProgress();
     const verificationState = workPlan.objectiveContract!.actualDelta.targetState;
     events.push({
       id: `step-${workPlan.objectiveVerification!.id}`,

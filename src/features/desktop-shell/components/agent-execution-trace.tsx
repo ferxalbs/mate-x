@@ -227,8 +227,6 @@ export function getActivitySummary(
     parts.push("validation incomplete");
   } else if (validationState === "pending" || validationState === "running") {
     parts.push("validation in progress");
-  } else if (validationState === "not_required") {
-    parts.push("validation not applicable");
   } else if (validationEvents.some(
     (event) =>
       event.status === "error" ||

@@ -77,11 +77,38 @@ export function getOutcomeEvidenceRow(outcome: ExecutionOutcome) {
     : null;
 
   return [
-    `${changedCount} ${changedCount === 1 ? "file" : "files"} changed`,
+    changedCount > 0
+      ? `${changedCount} ${changedCount === 1 ? "file" : "files"} changed`
+      : null,
     scope.label,
     checks,
     unavailable,
   ].filter(Boolean).join(" · ");
+}
+
+export function shouldShowFullOutcomeCard(outcome: ExecutionOutcome) {
+  if (
+    outcome.terminalState === "blocked" ||
+    outcome.terminalState === "failed" ||
+    outcome.terminalState === "partial" ||
+    outcome.terminalState === "cancelled" ||
+    outcome.completionKind === "awaiting_approval" ||
+    outcome.completionKind === "changed_unverified"
+  ) {
+    return true;
+  }
+
+  const requiredValidationIncomplete =
+    outcome.evidence.validation.contract?.items.some(
+      (item) =>
+        (item.obligation === "required" || item.obligation === "fallback") &&
+        item.applicability === "applicable" &&
+        item.evidence?.status !== "passed",
+    ) ?? false;
+  return requiredValidationIncomplete &&
+    (outcome.evidence.validation.status === "failed" ||
+      outcome.evidence.validation.status === "blocked" ||
+      outcome.evidence.validation.status === "not_run");
 }
 
 export function getTerminalActivityEvidence(outcome: ExecutionOutcome) {

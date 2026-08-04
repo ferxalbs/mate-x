@@ -1147,24 +1147,6 @@ export function registerIpcHandlers() {
       event.sender.once("destroyed", abortWhenSenderDestroyed);
       if (normalizedRunId) {
         activeAssistantRunControllers.set(normalizedRunId, assistantAbortController);
-        try {
-          const workspace = await getWorkspaceSummary(
-            optionalWorkspaceId(workspaceId),
-          );
-          policyService.registerRunContext({
-            runId: normalizedRunId,
-            workspaceId: workspace.id,
-            workspacePath: workspace.path,
-            behaviorMode: validatedOptions?.behaviorMode ?? "execute",
-            resolvePolicy: async () => ({
-              workspacePolicy: await getWorkspaceTrustContract(workspace.id),
-            }),
-          });
-        } catch (error) {
-          activeAssistantRunControllers.delete(normalizedRunId);
-          event.sender.removeListener("destroyed", abortWhenSenderDestroyed);
-          throw error;
-        }
       }
       let pendingProgress: {
         runId: string;
@@ -1182,6 +1164,7 @@ export function registerIpcHandlers() {
       } | null = null;
       let progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
       let lastProgressSignature = "";
+      let sentFirstProgress = false;
 
       const flushProgress = () => {
         if (progressFlushTimer) {
@@ -1242,6 +1225,12 @@ export function registerIpcHandlers() {
                 }
               : progress.delta ?? pendingDelta,
         };
+
+        if (!sentFirstProgress) {
+          sentFirstProgress = true;
+          flushProgress();
+          return;
+        }
 
         if (ASSISTANT_PROGRESS_TERMINAL_STATUSES.has(progress.status)) {
           flushProgress();

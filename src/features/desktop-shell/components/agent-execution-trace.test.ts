@@ -73,7 +73,7 @@ describe("agent execution validation summary", () => {
 
   test("projects the canonical already-satisfied summary", () => {
     expect(getActivitySummary([], "not_required", "already_satisfied"))
-      .toMatch(/^No changes required · validation not applicable$/);
+      .toMatch(/^No changes required$/);
   });
 
   test("uses typed terminal evidence for repository and check summaries", () => {

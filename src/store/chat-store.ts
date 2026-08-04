@@ -100,6 +100,7 @@ let pendingAssistantProgress: AssistantProgressPayload | null = null;
 let assistantProgressFlushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAssistantProgressSignature: string | null = null;
 const assistantRunEventCursors = new Map<string, number>();
+const assistantRunsWithVisibleProgress = new Set<string>();
 
 function createEmptyConversation(
   partial?: Partial<Conversation>,
@@ -465,6 +466,12 @@ function queueAssistantProgress(
   progress: AssistantProgressPayload,
   set: ChatStateSetter,
 ) {
+  if (!assistantRunsWithVisibleProgress.has(progress.runId)) {
+    assistantRunsWithVisibleProgress.add(progress.runId);
+    applyAssistantProgress(progress, set);
+    return;
+  }
+
   if (TERMINAL_RUN_STATUSES.has(progress.status)) {
     if (assistantProgressFlushTimer) {
       clearTimeout(assistantProgressFlushTimer);
@@ -1079,29 +1086,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    // R5: CaptureTask is sole authority entry — keep the returned engineeringTaskId
-    // for every planning/execution run. Never Capture again on approve/resume.
     let engineeringTaskId: string | null =
       typeof runOptions.engineeringTaskId === "string"
         ? runOptions.engineeringTaskId
         : null;
-    if (!engineeringTaskId && !conversational) {
-      try {
-        const { captureEngineeringTask } = await import(
-          "../services/engineering-client"
-        );
-        const captured = await captureEngineeringTask({
-          workspaceId,
-          objectiveSeed: displayedPrompt,
-          conversationId: activeThreadId,
-        });
-        if (captured.ok && captured.engineeringTaskId) {
-          engineeringTaskId = captured.engineeringTaskId;
-        }
-      } catch {
-        // Unit tests without IPC still exercise chat path; packaged app has engineering IPC.
-      }
-    }
     const historyBeforePrompt = currentThread.messages.map(
       (message) => `${message.role}: ${message.content}`,
     );
@@ -1213,6 +1201,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
+      // Commit the visible turn before crossing any IPC boundary. CaptureTask
+      // remains the sole EngineeringTask authority, but it no longer blocks the
+      // submitted message or active assistant state from rendering.
+      if (!engineeringTaskId && !conversational) {
+        try {
+          const { captureEngineeringTask } = await import(
+            "../services/engineering-client"
+          );
+          const captured = await captureEngineeringTask({
+            workspaceId,
+            objectiveSeed: displayedPrompt,
+            conversationId: activeThreadId,
+          });
+          if (captured.ok && captured.engineeringTaskId) {
+            engineeringTaskId = captured.engineeringTaskId;
+          }
+        } catch {
+          // Unit tests without IPC still exercise chat path; packaged app has engineering IPC.
+        }
+      }
+
+      if (get().activeRun?.runId !== runId) {
+        return;
+      }
+
       const noProgressTimeout = new Promise<never>((_, reject) => {
         window.setTimeout(() => {
           const state = get();
@@ -1256,11 +1269,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const finalMessage: ChatMessage = {
         ...execution.message,
       };
-      const executionOutcome = deriveExecutionOutcome({
-        ...finalMessage,
-        executionOutcome: execution.executionOutcome,
-      });
-      finalMessage.executionOutcome = executionOutcome;
+      const executionOutcome = conversational
+        ? undefined
+        : deriveExecutionOutcome({
+            ...finalMessage,
+            executionOutcome: execution.executionOutcome,
+          });
+      if (executionOutcome) {
+        finalMessage.executionOutcome = executionOutcome;
+      }
       // Prove dead write path — completeFactoryRun never restores authority
       void completeFactoryRun(undefined, {
         events: execution.message.events ?? [],
@@ -1276,8 +1293,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         events: finalMessage.events ?? [],
         artifacts: finalMessage.artifacts ?? [],
         result: {
-          status: executionOutcome.terminalState,
-          summary: executionOutcome.summary,
+          status: executionOutcome?.terminalState ?? "completed",
+          summary: executionOutcome?.summary ?? finalMessage.content,
           executionOutcome,
           evidencePack: finalMessage.evidencePack,
           workingSet: finalMessage.workingSet?.metadata,
