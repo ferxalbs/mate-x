@@ -46,7 +46,10 @@ import { AgentExecutionSession } from "./run-trace/agent-execution-session";
 import { collectRepositoryToolchainProfile } from "./repository-toolchain";
 import { requestRainyChatCompletionStream } from "./rainy-service";
 import { sanitizeAssistantOutput } from "../lib/assistant-output";
-import { getImmediateConversationalResponse } from "../lib/conversational-intent";
+import {
+  getRepositoryStartupProgressLabel,
+  getImmediateConversationalResponse,
+} from "../lib/conversational-intent";
 import {
   activeContractForWorkPlan,
   hasHighRiskChange,
@@ -190,7 +193,7 @@ export async function runAssistant(
   const events: ToolEvent[] = [
     {
       id: "step-preparing-context",
-      label: "Preparing repository context",
+      label: getRepositoryStartupProgressLabel(prompt, true),
       detail: "",
       status: "active",
       segmentKind: "tool",

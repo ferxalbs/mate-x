@@ -41,9 +41,15 @@ import {
   normalizeFactoryRunOptions,
 } from "../lib/factory-run";
 import { type AppSettings, DEFAULT_APP_SETTINGS } from "../contracts/settings";
+import { behaviorRunOptions } from "../contracts/behavior-mode";
 import { getAppSettings } from "../services/settings-client";
 import { compactConversationSnapshotForPersistence } from "../lib/conversation-persistence";
-import { isConversationalPrompt } from "../lib/conversational-intent";
+import {
+  isConversationalPrompt,
+  isPureSocialPrompt,
+  isRepositoryGroundedQuestion,
+  isRepositoryWorkRequest,
+} from "../lib/conversational-intent";
 
 interface ChatState {
   workspaces: WorkspaceEntry[];
@@ -1061,10 +1067,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
       (attachmentNames.length > 0
         ? `Attached ${attachmentNames.join(", ")}`
         : "");
-    const conversational =
+    const hasActiveWorkspace = Boolean(get().workspace);
+    const repositoryGrounded = isRepositoryGroundedQuestion(displayedPrompt, {
+      hasActiveWorkspace,
+    });
+    const repositoryWork = isRepositoryWorkRequest(displayedPrompt);
+    const pureSocial = isPureSocialPrompt(displayedPrompt);
+    const conversational = !repositoryGrounded && !repositoryWork && (
+      pureSocial ||
       normalizedOptions.pathKind === "chat_help" ||
-      isConversationalPrompt(displayedPrompt);
-    const runOptions = conversational
+      isConversationalPrompt(displayedPrompt, { hasActiveWorkspace })
+    );
+    const runOptions = repositoryGrounded
+      ? {
+        ...normalizedOptions,
+        pathKind: "verify_only" as const,
+        behaviorMode: "review" as const,
+        runbookId: "review_classify_summarize" as const,
+      }
+      : repositoryWork
+        ? {
+          ...normalizedOptions,
+          ...behaviorRunOptions({ mode: normalizedOptions.behaviorMode }),
+        }
+      : conversational
       ? {
         ...normalizedOptions,
         pathKind: "chat_help" as const,

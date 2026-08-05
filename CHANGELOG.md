@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased - 2026.08.04 (1) [Repository-Aware Conversation Routing]
+
+* Separated pure social conversation, general questions, repository-grounded explanations, and mutation or validation requests with deterministic routing precedence instead of treating every `explain`, `describe`, `summarize`, `tell me`, or `what is` prompt as casual chat.
+* Made repository references such as repo, repository, codebase, project, workspace, architecture, app, source, implementation, files, and code take precedence over conversational wording when an active workspace is available.
+* Routed repository explanation prompts through the read-only Review inspection path with repository tools and immediate `Understanding the repository` progress, while preserving the instant tool-free path for greetings, thanks, acknowledgements, and general questions such as `What is React?`.
+* Prevented repository explanations from editing files or running validation, and strengthened the agent contract against false repository-access disclaimers, requests to paste inspectable files, and speculation based only on a workspace name.
+* Grounded repository explanations in the smallest sufficient evidence surface, including manifests, documentation, entry points, major directories, relevant configuration, architecture, and execution flow, with verified facts kept distinct from unknowns.
+* Added focused regression coverage for social prompts, general chat, repository-reference precedence, read-only routing, startup progress, capability-disclaimer prevention, and workspace-name speculation; 13 focused tests passed with zero failures, `bun run typecheck` and `git diff --check` passed, and no application package was produced.
+* Confirmed the exact `explain me the repo` flow in the running app: it inspected the active repository, returned a file-grounded explanation of structure and execution flow, kept activity compact, and did not run fresh validation.
+
 ## Unreleased - 2026.08.03 (1) [Immediate Conversation and Visible Work Progress]
 
 * Added a true `chat_help` fast path that resolves conversational intent before repository snapshot collection and bypasses repository discovery, Working Sets, WorkPlans, objective verification, EngineeringTask execution state, Evidence Packs, and Outcome Cards.

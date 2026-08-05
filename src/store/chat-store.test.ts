@@ -402,4 +402,63 @@ describe("chat-store submit without Factory authority [NES-8][CLOSURE 2]", () =>
     assert.equal(finalMessage?.content, "Hey — what do you want to inspect or change in fixture?");
     assert.equal(finalMessage?.executionOutcome, undefined);
   });
+
+  it("routes repository explanations through read-only repository inspection", async () => {
+    let captureCalls = 0;
+    let receivedOptions: AssistantRunOptions | undefined;
+    const testGlobal = globalThis as unknown as {
+      mate: Record<string, unknown>;
+      window: unknown;
+    };
+    testGlobal.window = globalThis;
+    testGlobal.mate = {
+      engineering: {
+        dispatch: async () => {
+          captureCalls += 1;
+          return {
+            ok: true,
+            data: { engineeringTaskId: "engineering-repo-explanation" },
+          };
+        },
+      },
+      repo: {
+        saveWorkspaceSession: async () => undefined,
+        runAssistant: async (
+          _prompt: string,
+          _history: string[],
+          options: AssistantRunOptions,
+        ) => {
+          receivedOptions = options;
+          return {
+            message: {
+              id: "assistant-repo-explanation",
+              role: "assistant" as const,
+              content: "This repository is grounded in its inspected manifest and entry points.",
+              createdAt: new Date().toISOString(),
+              events: [],
+              artifacts: [],
+            },
+          };
+        },
+      },
+    };
+
+    await useChatStore.getState().submitPrompt("Explain me the repo", {
+      behaviorMode: "execute",
+      pathKind: "chat_help",
+      reasoning: "high",
+      reasoningEnabled: true,
+      runbookId: "patch_test_verify",
+      serviceTier: "standard",
+    });
+
+    assert.equal(captureCalls, 1);
+    assert.equal(receivedOptions?.pathKind, "verify_only");
+    assert.equal(receivedOptions?.behaviorMode, "review");
+    assert.equal(receivedOptions?.runbookId, "review_classify_summarize");
+    assert.equal(
+      receivedOptions?.engineeringTaskId,
+      "engineering-repo-explanation",
+    );
+  });
 });

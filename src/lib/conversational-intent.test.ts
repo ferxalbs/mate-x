@@ -2,14 +2,52 @@ import assert from "node:assert/strict";
 import { test } from "bun:test";
 
 import {
+  getRepositoryStartupProgressLabel,
   getImmediateConversationalResponse,
   isConversationalPrompt,
+  isPureSocialPrompt,
+  isRepositoryGroundedQuestion,
 } from "./conversational-intent";
+import { MATE_AGENT_SYSTEM_PROMPT } from "../config/mate-agent";
 
-test("recognizes concise repository questions as conversational", () => {
-  assert.equal(isConversationalPrompt("umm explain the repo in 3 words"), true);
-  assert.equal(isConversationalPrompt("What changed?"), true);
+test("separates pure social prompts from general questions", () => {
+  assert.equal(isPureSocialPrompt("Hi"), true);
+  assert.equal(isPureSocialPrompt("Thanks"), true);
+  assert.equal(isPureSocialPrompt("How are you?"), true);
+  assert.equal(isConversationalPrompt("What is React?"), true);
+  assert.equal(
+    isRepositoryGroundedQuestion("What is application security?", {
+      hasActiveWorkspace: true,
+    }),
+    false,
+  );
   assert.equal(isConversationalPrompt("Fix the failing test"), false);
+});
+
+test("repository references take precedence over conversational wording", () => {
+  const activeWorkspace = { hasActiveWorkspace: true };
+
+  assert.equal(isRepositoryGroundedQuestion("Explain me the repo", activeWorkspace), true);
+  assert.equal(isRepositoryGroundedQuestion("Summarize this codebase", activeWorkspace), true);
+  assert.equal(isRepositoryGroundedQuestion("What does this project do?", activeWorkspace), true);
+  assert.equal(isRepositoryGroundedQuestion("Describe the architecture", activeWorkspace), true);
+  assert.equal(isRepositoryGroundedQuestion("Tell me about this workspace", activeWorkspace), true);
+  assert.equal(isRepositoryGroundedQuestion("How is this app structured?", activeWorkspace), true);
+  assert.equal(isRepositoryGroundedQuestion("What is React?", activeWorkspace), false);
+  assert.equal(isRepositoryGroundedQuestion("Fix the code", activeWorkspace), false);
+  assert.equal(isConversationalPrompt("Explain me the repo", activeWorkspace), false);
+  assert.equal(
+    getRepositoryStartupProgressLabel("Explain me the repo", true),
+    "Understanding the repository",
+  );
+});
+
+test("repository prompt contract forbids capability disclaimers and name speculation", () => {
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /never claim that you cannot inspect or access the repository/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /never speculate from a repository name/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /do not ask the user to paste files/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /repository explanation is read-only/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /do not edit files, execute validation/i);
 });
 
 test("returns immediate local responses for social turns", () => {
