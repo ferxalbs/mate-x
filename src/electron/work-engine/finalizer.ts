@@ -315,18 +315,23 @@ function hasConfirmedSecurityWording(content: string) {
 }
 
 function buildSecurityProofLedger(toolExecutions: ToolExecutionRecord[]): SecurityProofLedger {
-  return toolExecutions
-    .filter((execution) => execution.toolName === "security_path_trace" || execution.toolName === "candidate_revalidator")
-    .flatMap((execution, index) => {
+  const ledger: SecurityProofLedger = [];
+  for (let index = 0; index < toolExecutions.length; index++) {
+    const execution = toolExecutions[index];
+    if (execution.toolName === "security_path_trace" || execution.toolName === "candidate_revalidator") {
       const evidenceId = `${execution.toolName}:${index}`;
       const paths = extractProofPaths(execution);
-      return paths.map((path) => ({
-        claimKind: String(execution.args.title ?? execution.toolName),
-        sourcePath: path,
-        sinkPath: path,
-        evidenceIds: [evidenceId],
-      }));
-    });
+      for (const path of paths) {
+        ledger.push({
+          claimKind: String(execution.args.title ?? execution.toolName),
+          sourcePath: path,
+          sinkPath: path,
+          evidenceIds: [evidenceId],
+        });
+      }
+    }
+  }
+  return ledger;
 }
 
 function extractProofPaths(execution: ToolExecutionRecord) {

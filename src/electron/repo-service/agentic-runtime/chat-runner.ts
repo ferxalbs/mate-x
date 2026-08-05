@@ -219,13 +219,21 @@ export async function requestRainyChatAgenticResponse({
     }
 
     messages.push(responseMessage);
-    const toolCalls = responseMessage.tool_calls
-      ?.filter((toolCall) => toolCall.type === "function")
-      .map((toolCall) => ({
-        id: toolCall.id,
-        name: toolCall.function.name,
-        arguments: toolCall.function.arguments,
-      }));
+    const toolCalls = responseMessage.tool_calls?.reduce<{
+      id: string;
+      name: string;
+      arguments: string;
+    }[]>((acc, toolCall) => {
+      if (toolCall.type === "function") {
+        acc.push({
+          id: toolCall.id,
+          name: toolCall.function.name,
+          arguments: toolCall.function.arguments,
+        });
+      }
+      return acc;
+    }, []);
+
 
     const responseText = normalizeAssistantText(responseMessage.content);
     if (

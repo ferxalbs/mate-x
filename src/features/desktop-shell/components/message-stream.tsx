@@ -92,18 +92,18 @@ export function MessageStream({
         {messages.map((message, index) => (
           <MessageScrollerItem key={message.id}>
             <MessageEntry
-              canUndo={
+              allowUndo={
                 canUndoLastTurn &&
                 message.role === "user" &&
                 index === messages.length - 1
               }
+              isLast={index === messages.length - 1}
+              isRunning={isRunning}
               isStreaming={
                 isRunning &&
                 index === messages.length - 1 &&
                 message.role === "assistant"
               }
-              isLast={index === messages.length - 1}
-              isRunning={isRunning}
               message={message}
               onSelectPrompt={onSelectPrompt}
               onSubmitPrompt={onSubmitPrompt}
@@ -129,22 +129,111 @@ export function MessageStream({
   );
 }
 
-const MessageEntry = memo(function MessageEntry({
+interface MessageEntryProps {
+  allowUndo: boolean;
+  isLast: boolean;
+  isRunning: boolean;
+  isStreaming: boolean;
+  message: ChatMessage;
+  onSelectPrompt: (prompt: string) => void;
+  onSubmitPrompt?: (
+    prompt: string,
+    overrides?: Partial<AssistantRunOptions>,
+  ) => Promise<void> | void;
+  onUndo: () => Promise<string | null>;
+  retryPrompt?: string;
+}
+
+const UserMessageEntry = memo(function UserMessageEntry({
+  allowUndo,
   message,
-  isStreaming,
+  onUndo,
+}: {
+  allowUndo: boolean;
+  message: ChatMessage;
+  onUndo: () => Promise<string | null>;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  async function handleCopy() {
+    try {
+      await window.mate.ui.copyToClipboard(message.content);
+      setCopied(true);
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = setTimeout(() => {
+        copyResetTimerRef.current = null;
+        setCopied(false);
+      }, 1200);
+    } catch (error) {
+      console.error("Failed to copy to clipboard:", error);
+    }
+  }
+
+  const settings = useChatStore.getState().settings;
+  return (
+    <article
+      className={cn(
+        "group ml-auto flex w-full flex-col items-end gap-1.5",
+        settings.compactMode ? "max-w-[540px]" : "max-w-[680px]",
+      )}
+    >
+      <div className="rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-4 py-3 text-left shadow-none backdrop-blur-xl">
+        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
+          {message.content}
+        </p>
+      </div>
+      <div className="flex items-center justify-end gap-1.5 pr-2 opacity-0 transition-opacity duration-[var(--motion-press)] ease-[var(--ease-out)] group-hover:opacity-100">
+        <p className="text-[11px] text-muted-foreground/60">
+          {formatTimestamp(message.createdAt)}
+        </p>
+        <MessageActionButton
+          ariaLabel={copied ? "Copied message" : "Copy message"}
+          icon={
+            copied ? (
+              <HugeiconsIcon icon={CheckIcon} className="size-3.5" />
+            ) : (
+              <HugeiconsIcon icon={CopyIcon} className="size-3.5" />
+            )
+          }
+          onClick={() => void handleCopy()}
+        />
+        {allowUndo ? (
+          <MessageActionButton
+            ariaLabel="Undo last turn"
+            icon={<HugeiconsIcon icon={ReloadIcon} className="size-4" />}
+            onClick={() => void onUndo()}
+          />
+        ) : null}
+      </div>
+    </article>
+  );
+});
+
+const AssistantMessageEntry = memo(function AssistantMessageEntry({
   isLast,
   isRunning,
-  canUndo,
+  isStreaming,
+  message,
   onSelectPrompt,
   onSubmitPrompt,
   onUndo,
   retryPrompt,
 }: {
-  message: ChatMessage;
-  isStreaming: boolean;
   isLast: boolean;
   isRunning: boolean;
-  canUndo: boolean;
+  isStreaming: boolean;
+  message: ChatMessage;
   onSelectPrompt: (prompt: string) => void;
   onSubmitPrompt?: (
     prompt: string,
@@ -153,7 +242,6 @@ const MessageEntry = memo(function MessageEntry({
   onUndo: () => Promise<string | null>;
   retryPrompt?: string;
 }) {
-  const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
   const sanitizedAssistantResponse = stripTraceTransportMarkers(message.content);
@@ -172,8 +260,6 @@ const MessageEntry = memo(function MessageEntry({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<TelemetryFeedbackRating | null>(null);
   const [pendingFeedback, setPendingFeedback] = useState<TelemetryFeedbackRating | null>(null);
-  // Synchronous guard so double-clicks in the same tick cannot start two submits
-  // before React re-renders with pendingAction set.
   const ambientActionInFlightRef = useRef(false);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -187,9 +273,7 @@ const MessageEntry = memo(function MessageEntry({
 
   async function handleCopy() {
     try {
-      await window.mate.ui.copyToClipboard(
-        isUser ? message.content : finalizedAssistantResponse,
-      );
+      await window.mate.ui.copyToClipboard(finalizedAssistantResponse);
       setCopied(true);
       if (copyResetTimerRef.current) {
         clearTimeout(copyResetTimerRef.current);
@@ -246,47 +330,6 @@ const MessageEntry = memo(function MessageEntry({
     } finally {
       setPendingFeedback(null);
     }
-  }
-
-  if (isUser) {
-    const settings = useChatStore.getState().settings;
-    return (
-      <article
-        className={cn(
-          "group ml-auto flex w-full flex-col items-end gap-1.5",
-          settings.compactMode ? "max-w-[540px]" : "max-w-[680px]",
-        )}
-      >
-        <div className="rounded-[20px] border border-border/65 bg-[var(--mate-surface-bg)] px-4 py-3 text-left shadow-none backdrop-blur-xl">
-          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
-            {message.content}
-          </p>
-        </div>
-        <div className="flex items-center justify-end gap-1.5 pr-2 opacity-0 transition-opacity duration-[var(--motion-press)] ease-[var(--ease-out)] group-hover:opacity-100">
-          <p className="text-[11px] text-muted-foreground/60">
-            {formatTimestamp(message.createdAt)}
-          </p>
-          <MessageActionButton
-            ariaLabel={copied ? "Copied message" : "Copy message"}
-            icon={
-              copied ? (
-                <HugeiconsIcon icon={CheckIcon} className="size-3.5" />
-              ) : (
-                <HugeiconsIcon icon={CopyIcon} className="size-3.5" />
-              )
-            }
-            onClick={() => void handleCopy()}
-          />
-          {canUndo ? (
-            <MessageActionButton
-              ariaLabel="Undo last turn"
-              icon={<HugeiconsIcon icon={ReloadIcon} className="size-4" />}
-              onClick={() => void onUndo()}
-            />
-          ) : null}
-        </div>
-      </article>
-    );
   }
 
   const normalizedContent = message.executionOutcome
@@ -434,6 +477,41 @@ const MessageEntry = memo(function MessageEntry({
         ) : null}
       </div>
     </article>
+  );
+});
+
+const MessageEntry = memo(function MessageEntry({
+  allowUndo,
+  isLast,
+  isRunning,
+  isStreaming,
+  message,
+  onSelectPrompt,
+  onSubmitPrompt,
+  onUndo,
+  retryPrompt,
+}: MessageEntryProps) {
+  if (message.role === "user") {
+    return (
+      <UserMessageEntry
+        allowUndo={allowUndo}
+        message={message}
+        onUndo={onUndo}
+      />
+    );
+  }
+
+  return (
+    <AssistantMessageEntry
+      isLast={isLast}
+      isRunning={isRunning}
+      isStreaming={isStreaming}
+      message={message}
+      onSelectPrompt={onSelectPrompt}
+      onSubmitPrompt={onSubmitPrompt}
+      onUndo={onUndo}
+      retryPrompt={retryPrompt}
+    />
   );
 });
 
