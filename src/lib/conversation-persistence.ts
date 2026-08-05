@@ -60,6 +60,9 @@ function compactMessage(message: ChatMessage): ChatMessage {
         ? sanitizeAssistantOutput(message.content)
         : message.content,
     createdAt: message.createdAt,
+    ...(message.presentationIntent
+      ? { presentationIntent: message.presentationIntent }
+      : {}),
     ...(message.events ? { events: compactEvents(message.events) } : {}),
     ...(message.outcome ? { outcome: compactValue(message.outcome) as ChatMessage["outcome"] } : {}),
     ...(message.artifacts
@@ -146,6 +149,9 @@ function compactConversationCore(
         maxMessageLength,
       ),
       createdAt: message.createdAt,
+      ...(message.presentationIntent
+        ? { presentationIntent: message.presentationIntent }
+        : {}),
       ...(message.executionOutcome ? { executionOutcome: message.executionOutcome } : {}),
     })),
   };

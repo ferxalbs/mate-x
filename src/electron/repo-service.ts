@@ -22,6 +22,7 @@ import {
 import { resolveRainyApiBaseUrl } from "../config/rainy";
 import type { AgentOutcome, AssistantExecution, AssistantRunProgress, AssistantRunOptions, MessageArtifact, ToolEvent } from "../contracts/chat";
 import type { ExecutionSynthesisStatus } from "../contracts/execution";
+import type { PresentationIntent } from "../contracts/presentation";
 import type { WorkPlan } from "./work-engine/types";
 import type { AgentRoutingRecommendation } from "../contracts/agent-capability-profiler";
 import { resolveAssistantRunOptions, resolveRunbookDefinition, toAssistantRunbookId } from "./assistant-runbooks";
@@ -83,6 +84,23 @@ function cloneArtifacts(artifacts: MessageArtifact[]) {
 
 function cloneEvents(events: ToolEvent[]) {
   return events.map((event) => ({ ...event }));
+}
+
+function getPresentationIntent(
+  repositoryOverview: boolean,
+  intent: WorkPlan["intent"],
+): PresentationIntent {
+  if (repositoryOverview) return "repository_overview";
+  if (intent === "validate") return "validation";
+  if (
+    intent === "inspect" ||
+    intent === "review_changes" ||
+    intent === "security_review" ||
+    intent === "trace_issue" ||
+    intent === "generate_evidence"
+  ) return "review";
+  if (intent === "answer") return "conversation";
+  return "change";
 }
 
 async function runConversationalAssistant(
@@ -163,6 +181,8 @@ async function runConversationalAssistant(
       createdAt,
       events: [],
       artifacts: [],
+      presentationIntent: "conversation",
+      presentationEvidenceFreshness: "current_run",
     },
   };
 }
@@ -1194,6 +1214,8 @@ export async function runAssistant(
       createdAt,
       events,
       artifacts: finalArtifacts,
+      presentationIntent: getPresentationIntent(repositoryOverview, workPlan.intent),
+      presentationEvidenceFreshness: "current_run",
       evidencePack,
       executionOutcome,
       outcome: agentOutcome,
@@ -1283,6 +1305,8 @@ export async function runAssistant(
         createdAt: new Date().toISOString(),
         events,
         artifacts,
+        presentationIntent: getPresentationIntent(repositoryOverview, workPlan.intent),
+        presentationEvidenceFreshness: "current_run",
         executionOutcome: recoveryOutcome,
         outcome: {
           status: "failed",

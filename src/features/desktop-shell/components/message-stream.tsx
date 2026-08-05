@@ -3,7 +3,6 @@ import {
   ReloadIcon,
   CheckIcon,
   CopyIcon,
-  File01Icon,
   Loading02Icon,
   Alert01Icon,
   ThumbsUpIcon,
@@ -38,16 +37,17 @@ import {
 import { ChatMarkdown } from "./chat-markdown";
 import { useChatStore } from "../../../store/chat-store";
 import {
+  getPresentationCompletionKind,
+  getPresentationValidationStatus,
+  presentChatMessage,
+  presentExecutionOutcome,
+} from "../../../lib/user-facing-presentation";
+import type { UserFacingPresentation } from "../../../contracts/presentation";
+import {
   ambientSafetyActions,
   type AmbientSafetyAction,
 } from "./ambient-safety-actions";
 import { AgentExecutionTrace } from "./agent-execution-trace";
-import {
-  getOutcomeEvidenceRow,
-  getTerminalActivityEvidence,
-  getTerminalAssistantResponse,
-  shouldShowFullOutcomeCard,
-} from "./terminal-outcome-presentation";
 
 interface MessageStreamProps {
   canUndoLastTurn: boolean;
@@ -244,18 +244,11 @@ const AssistantMessageEntry = memo(function AssistantMessageEntry({
 }) {
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
-  const sanitizedAssistantResponse = stripTraceTransportMarkers(message.content);
-  const finalizedAssistantResponse = message.executionOutcome &&
-      (message.executionOutcome.evidence.synthesis.status !== "valid" ||
-        sanitizedAssistantResponse.length === 0)
-    ? getTerminalAssistantResponse(message.executionOutcome)
-    : sanitizedAssistantResponse;
-  const showFullOutcomeCard = message.executionOutcome
-    ? shouldShowFullOutcomeCard(message.executionOutcome)
-    : false;
-  const outcomeEvidenceRow = message.executionOutcome
-    ? getOutcomeEvidenceRow(message.executionOutcome)
-    : "";
+  const executionOutcome = message.executionOutcome ?? message.evidencePack?.executionOutcome;
+  const presentation = presentChatMessage(message, { isRunning: isStreaming });
+  const finalizedAssistantResponse = presentation.primaryResponse;
+  const showFullOutcomeCard = presentation.showFullOutcomeCard;
+  const outcomeEvidenceRow = presentation.compactEvidence ?? "";
   const [copied, setCopied] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<TelemetryFeedbackRating | null>(null);
@@ -332,21 +325,18 @@ const AssistantMessageEntry = memo(function AssistantMessageEntry({
     }
   }
 
-  const normalizedContent = message.executionOutcome
+  const normalizedContent = !isStreaming
     ? finalizedAssistantResponse.trim()
     : deferredContent.trim();
-  const showFinalizedBody = Boolean(message.executionOutcome && !isStreaming);
+  const showFinalizedBody = !isStreaming;
   const showStreamingBody = Boolean(
-    !message.executionOutcome && normalizedContent.length > 0,
-  );
-  const showFallback = Boolean(
-    !message.executionOutcome && normalizedContent.length === 0 && !isStreaming,
+    isStreaming && normalizedContent.length > 0,
   );
   const showEvidenceRow = Boolean(
-    message.executionOutcome && !showFullOutcomeCard && outcomeEvidenceRow,
+    executionOutcome && !showFullOutcomeCard && outcomeEvidenceRow,
   );
   const supplementalAgentOutcome =
-    !message.executionOutcome &&
+    !executionOutcome &&
     message.outcome &&
     message.outcome.status !== "completed"
       ? message.outcome
@@ -384,18 +374,11 @@ const AssistantMessageEntry = memo(function AssistantMessageEntry({
           isRunning={isStreaming}
           requiresInteraction={
             message.outcome?.status === "needs_approval" ||
-            message.executionOutcome?.completionKind === "awaiting_approval"
+            presentation.presentationState === "approval_required"
           }
-          validationState={
-            message.executionOutcome?.validationState ??
-            message.executionOutcome?.evidence.validation.status ??
-            message.evidencePack?.executionOutcome?.evidence.validation.status ??
-            message.evidencePack?.executionOutcome?.validationState
-          }
-          completionKind={message.executionOutcome?.completionKind ?? message.evidencePack?.executionOutcome?.completionKind}
-          terminalEvidence={message.executionOutcome
-            ? getTerminalActivityEvidence(message.executionOutcome)
-            : undefined}
+          validationState={getPresentationValidationStatus(executionOutcome)}
+          completionKind={getPresentationCompletionKind(executionOutcome)}
+          activitySummary={presentation.activitySummary}
         />
         {showFinalizedBody ? (
           <div data-slot="assistant-final-response">
@@ -411,11 +394,11 @@ const AssistantMessageEntry = memo(function AssistantMessageEntry({
             isStreaming={isStreaming}
           />
         ) : null}
-        {showFallback ? <ResultFallback /> : null}
-        {message.executionOutcome && showFullOutcomeCard ? (
+        {executionOutcome && showFullOutcomeCard ? (
           <ExecutionOutcomeCard
             onConfigureTypecheck={() => onSelectPrompt("Configure a repository-local typecheck command for this workspace.")}
-            outcome={message.executionOutcome}
+            outcome={executionOutcome}
+            presentation={presentation}
           />
         ) : null}
         {showEvidenceRow ? (
@@ -426,8 +409,16 @@ const AssistantMessageEntry = memo(function AssistantMessageEntry({
             {outcomeEvidenceRow}
           </p>
         ) : null}
-        {supplementalAgentOutcome ? (
-          <AgentOutcomeCard outcome={supplementalAgentOutcome} />
+        {supplementalAgentOutcome && presentation.showFullOutcomeCard ? (
+          <PresentationOutcomeCard
+            onSelectModel={() =>
+              document
+                .querySelector<HTMLElement>("[data-model-selector-trigger]")
+                ?.click()
+            }
+            outcome={supplementalAgentOutcome}
+            presentation={presentation}
+          />
         ) : null}
         {isLast && showAmbientActions ? (
           <div className="mt-2.5 flex items-center gap-2">
@@ -593,29 +584,16 @@ function ResponseActions({
   );
 }
 
-function ResultFallback() {
-  return (
-    <section className="rounded-2xl border border-border/65 bg-[var(--mate-surface-bg)] p-3.5 backdrop-blur-xl">
-      <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground/85">
-        <HugeiconsIcon icon={File01Icon} className="size-3.5" />
-        Result
-      </div>
-      <p className="mt-1.5 text-[12px] text-muted-foreground">
-        No final synthesis text was returned for this run. The audit timeline
-        above has the full execution trace.
-      </p>
-    </section>
-  );
-}
-
 function ExecutionOutcomeCard({
   onConfigureTypecheck,
   outcome,
+  presentation,
 }: {
   onConfigureTypecheck: () => void;
   outcome: ExecutionOutcome;
+  presentation: UserFacingPresentation;
 }) {
-  const presentation = getExecutionOutcomePresentation(outcome);
+  const cardPresentation = getExecutionOutcomePresentation(outcome, presentation);
   const changedFiles = outcome.files ?? outcome.evidence.changedFiles.map((file) => ({
     path: file.path,
     operation: file.operation,
@@ -628,17 +606,22 @@ function ExecutionOutcomeCard({
       data-slot="agent-outcome-card"
     >
       <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
-        <HugeiconsIcon icon={presentation.icon} className={cn("size-4", presentation.iconClassName)} />
-        {presentation.title}
+        <HugeiconsIcon icon={cardPresentation.icon} className={cn("size-4", cardPresentation.iconClassName)} />
+        {cardPresentation.title}
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">{presentation.statusRow}</p>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">{cardPresentation.statusRow}</p>
+      {presentation.nextAction ? (
+        <p className="mt-2 text-[11px] font-medium text-foreground/85" data-slot="outcome-next-action">
+          Next: {presentation.nextAction.label}.
+        </p>
+      ) : null}
       <div className="mt-2.5 flex flex-wrap gap-2">
         {changedFiles.length > 0 ? (
           <span className="rounded-xl border border-border/70 bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-medium text-foreground/90">
             Review changes
           </span>
         ) : null}
-        {presentation.canConfigureTypecheck ? (
+        {cardPresentation.canConfigureTypecheck ? (
           <button
             className="rounded-xl border border-border/70 bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-medium text-foreground/90 hover:bg-accent transition-colors active:scale-[0.97]"
             onClick={onConfigureTypecheck}
@@ -663,122 +646,74 @@ function ExecutionOutcomeCard({
             ))}
           </ul>
         ) : null}
-        {!presentation.hasPassedChecks ? (
-          <p className="mt-2">Checks: {presentation.checksDetail}</p>
+        {!cardPresentation.hasPassedChecks ? (
+          <p className="mt-2">{cardPresentation.checksDetail}</p>
         ) : null}
-        {presentation.validationCause ? (
-          <p className="mt-1 font-medium text-amber-500/90">Unavailable: {presentation.validationCause}</p>
+        {cardPresentation.validationCause ? (
+          <p className="mt-1 font-medium text-amber-500/90">{cardPresentation.validationCause}</p>
         ) : null}
-      </details>
-      <details className="group mt-2 text-[11px] text-muted-foreground">
-        <summary className="flex cursor-pointer select-none items-center justify-between font-medium text-foreground/80 transition-colors hover:text-foreground">
-          <span>Advanced</span>
-          <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5 opacity-60 transition-transform duration-150 group-open:rotate-180" />
-        </summary>
-        <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[11px]">
-          <dt className="text-muted-foreground/75">Canonical outcome</dt><dd className="font-mono text-foreground/90">{outcome.terminalState}</dd>
-          <dt className="text-muted-foreground/75">Workspace</dt><dd className="text-foreground/90">{getWorktreeHealthLabel(outcome.worktreeHealth)}</dd>
-          <dt className="text-muted-foreground/75">Validation</dt><dd className="text-foreground/90">{getValidationStateLabel(outcome.validationState ?? outcome.evidence.validation.status)}</dd>
-          <dt className="text-muted-foreground/75">Completion</dt><dd className="text-foreground/90">{getCompletionKindLabel(outcome.completionKind)}</dd>
-          <dt className="text-muted-foreground/75">Evidence IDs</dt><dd className="font-mono text-foreground/90">{outcome.evidence.validation.executionIds?.join(", ") || outcome.evidence.objective?.evidenceIds.join(", ") || "None"}</dd>
-          {outcome.primaryCause ? <><dt className="text-muted-foreground/75">Cause</dt><dd className="font-medium text-amber-500/90">{outcome.primaryCause.summary}</dd></> : null}
-        </dl>
       </details>
     </section>
   );
 }
 
-export function getExecutionOutcomePresentation(outcome: ExecutionOutcome) {
+export function getExecutionOutcomePresentation(
+  outcome: ExecutionOutcome,
+  userFacingPresentation?: UserFacingPresentation,
+) {
+  const presentation = userFacingPresentation ?? presentExecutionOutcome(outcome);
   const unavailableTypecheck =
-    outcome.completionKind === "changed_unverified" &&
+    presentation.presentationState === "partial" &&
     outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE";
-  const title = outcome.completionKind === "changed_verified" || outcome.completionKind === "changed_unverified"
-      ? "Changes applied"
-      : outcome.completionKind === "already_satisfied"
-        ? "No changes needed"
-        : outcome.completionKind === "inspection_completed"
-          ? "Review complete"
-          : outcome.completionKind === "validation_completed"
-            ? "Checks completed"
-            : outcome.completionKind === "awaiting_approval"
-              ? "Approval required"
-        : outcome.terminalState === "blocked"
-          ? "Couldn’t continue"
-          : outcome.terminalState === "cancelled"
-            ? "Cancelled"
-            : outcome.terminalState === "failed"
+  const title = presentation.presentationState === "already_present"
+    ? "No changes needed"
+    : presentation.presentationState === "review_complete" ||
+        presentation.presentationState === "repository_overview"
+      ? "Review complete"
+      : presentation.presentationState === "validation_complete"
+        ? "Checks completed"
+        : presentation.presentationState === "approval_required"
+          ? "Approval required"
+          : presentation.presentationState === "blocked"
+            ? "Couldn’t continue"
+            : presentation.presentationState === "failed"
               ? "Task failed"
               : "Changes applied";
-  const changedCount = (outcome.files ?? outcome.evidence.changedFiles).length;
   const passedChecks = outcome.evidence.validation.contract?.items.filter(
     (item) => item.evidence?.status === "passed",
   ) ?? [];
-  const statusRow = getOutcomeEvidenceRow(outcome);
+  const statusRow = presentation.compactEvidence ?? "";
   return {
     title,
-    summary: buildPrimaryOutcomeSummary(outcome, changedCount, passedChecks.length > 0),
+    summary: presentation.primaryResponse,
     statusRow,
     hasPassedChecks: passedChecks.length > 0,
-    checksDetail: passedChecks.length > 0 ? passedChecks.map((item) => `${item.signal} passed`).join(", ") : outcome.evidence.validation.status.replaceAll("_", " "),
-    validationCause: unavailableTypecheck ? "This repository does not define a typecheck command." : outcome.evidence.validation.summary,
+    checksDetail: passedChecks.length > 0
+      ? passedChecks.map((item) => `${item.signal} passed`).join(", ")
+      : outcome.evidence.validation.status === "not_run"
+        ? "A required check was unavailable."
+        : outcome.evidence.validation.status === "failed"
+          ? "The required checks did not pass."
+          : outcome.evidence.validation.status === "blocked"
+            ? "The required checks were blocked."
+            : "Checks were not completed.",
+    validationCause: unavailableTypecheck
+      ? "A typecheck command is not defined for this repository."
+      : undefined,
     canConfigureTypecheck: unavailableTypecheck,
-    icon: outcome.terminalState === "failed" || outcome.terminalState === "blocked" ? Alert01Icon : CheckIcon,
-    iconClassName: outcome.terminalState === "failed" || outcome.terminalState === "blocked" ? "text-amber-500" : "text-emerald-500",
+    icon: presentation.presentationState === "failed" ||
+      presentation.presentationState === "blocked" ||
+      presentation.presentationState === "approval_required"
+      ? Alert01Icon
+      : CheckIcon,
+    iconClassName: presentation.presentationState === "failed" ||
+      presentation.presentationState === "blocked" ||
+      presentation.presentationState === "approval_required"
+      ? "text-amber-500"
+      : "text-emerald-500",
   };
 }
 
-function buildPrimaryOutcomeSummary(
-  outcome: ExecutionOutcome,
-  changedCount: number,
-  hasPassedCheck: boolean,
-) {
-  if (outcome.completionKind === "changed_unverified" && outcome.evidence.validation.cause === "TYPECHECK_UNAVAILABLE") {
-    const serviceFiles = outcome.evidence.changedFiles.length > 0 && outcome.evidence.changedFiles.every((file) => /service/i.test(file.path));
-    const subject = serviceFiles ? "service files" : changedCount === 1 ? "file" : "files";
-    return `Updated ${changedCount} ${subject}${hasPassedCheck ? " and confirmed the focused tests pass" : ""}. This repository does not define a typecheck command, so that check could not run.`;
-  }
-  return outcome.summary.replace(/\n/g, " ");
-}
-
-function getWorktreeHealthLabel(value: ExecutionOutcome["worktreeHealth"]) {
-  switch (value) {
-    case "preexisting_changes": return "Pre-existing changes preserved";
-    case "changed_unverified": return "Changes need verification";
-    case "changed_verified": return "Changes verified";
-    case "invalid_edit_reverted": return "Invalid edit reverted";
-    case "recovery_conflict": return "Recovery needs attention";
-    default: return "Unchanged";
-  }
-}
-
-function getValidationStateLabel(
-  value: ExecutionOutcome["validationState"] | ExecutionOutcome["evidence"]["validation"]["status"],
-) {
-  switch (value) {
-    case "not_required": return "Not required";
-    case "not_run": return "Not run";
-    case "passed": return "Passed";
-    case "failed": return "Failed";
-    case "blocked": return "Blocked";
-    case "pending": return "Pending";
-    case "running": return "Running";
-    default: return "Unknown";
-  }
-}
-
-function getCompletionKindLabel(value: ExecutionOutcome["completionKind"]) {
-  switch (value) {
-    case "changed_verified": return "Changes verified";
-    case "changed_unverified": return "Changes need verification";
-    case "already_satisfied": return "Already complete";
-    case "inspection_completed": return "Inspection complete";
-    case "validation_completed": return "Validation complete";
-    case "awaiting_approval": return "Approval required";
-    case "blocked": return "Blocked";
-    case "failed": return "Failed";
-    default: return "Unknown";
-  }
-}
 
 export function fileOperationLabel(operation: string) {
   if (operation === "created") return "Added";
@@ -786,10 +721,14 @@ export function fileOperationLabel(operation: string) {
   return "Modified";
 }
 
-function AgentOutcomeCard({
+function PresentationOutcomeCard({
   outcome,
+  presentation,
+  onSelectModel,
 }: {
   outcome: Exclude<AgentOutcome, { status: "completed" }>;
+  presentation: UserFacingPresentation;
+  onSelectModel: () => void;
 }) {
   const remediation =
     outcome.status === "blocked"
@@ -798,37 +737,36 @@ function AgentOutcomeCard({
         ? outcome.remediation
         : undefined;
   const canSelectModel = remediation?.type === "select_model";
+  const safeRemediationLabel = presentation.nextAction?.label ?? "Choose an available model";
+  const title = presentation.presentationState === "approval_required"
+    ? "Approval required"
+    : presentation.presentationState === "blocked"
+      ? "Couldn’t continue"
+      : "Couldn’t complete";
   return (
-    <section className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none">
+    <section
+      className="rounded-2xl border border-border/70 bg-[var(--mate-surface-bg)] p-3.5 shadow-none"
+      data-slot="agent-outcome-card"
+    >
       <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
         <HugeiconsIcon icon={Alert01Icon} className="size-4 text-amber-500" />
-        {outcome.status === "needs_approval"
-          ? "Approval required"
-          : outcome.status === "blocked"
-            ? "Blocked"
-            : "Couldn’t complete"}
+        {title}
       </div>
-      <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-        {outcome.summary}
-      </p>
+      {presentation.nextAction ? (
+        <p className="mt-2 text-[11px] font-medium text-foreground/85">
+          Next: {presentation.nextAction.label}.
+        </p>
+      ) : null}
       {remediation ? (
         canSelectModel ? (
           <button
             className="mt-2 rounded-xl border border-border/70 px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
-            onClick={() =>
-              document
-                .querySelector<HTMLElement>("[data-model-selector-trigger]")
-                ?.click()
-            }
+            onClick={onSelectModel}
             type="button"
           >
-            {remediation.label}
+            {safeRemediationLabel}
           </button>
-        ) : (
-          <p className="mt-2 text-[11px] font-medium text-foreground/80">
-            Next: {remediation.label}
-          </p>
-        )
+        ) : null
       ) : null}
     </section>
   );

@@ -4,6 +4,7 @@ import type { BehaviorMode } from "./behavior-mode";
 import type { ExecutionOutcome, ExecutionTerminalState } from "./execution";
 import type { ObjectiveVerificationEvidence } from "./work-objective";
 import type { RunEventDelta } from "./agent-run-trace";
+import type { PresentationEvidenceFreshness, PresentationIntent } from "./presentation";
 
 export type MessageRole = "user" | "assistant";
 export type RunStatus = "idle" | "running" | "completed" | "failed";
@@ -524,6 +525,10 @@ export interface ChatMessage {
   evidencePack?: EvidencePack;
   executionOutcome?: ExecutionOutcome;
   outcome?: AgentOutcome;
+  /** Deterministic renderer hint, never a provider control signal. */
+  presentationIntent?: PresentationIntent;
+  /** Set by the renderer when a message is restored from persisted history. */
+  presentationEvidenceFreshness?: PresentationEvidenceFreshness;
   /** Historical migration field — decoder only may attach historical payload */
   engineeringTaskId?: string | null;
   workingSet?: WorkingSet;

@@ -19,6 +19,10 @@ import type {
   CompletionKind,
   ExecutionValidationStatus,
 } from "../../../contracts/execution";
+import {
+  getPresentationActivitySummary,
+  getPresentationRunningActivityLabel,
+} from "../../../lib/user-facing-presentation";
 import { useVisibilityInterval } from "../../../hooks/use-visibility-interval";
 import { ChatMarkdown, RawSyntaxHighlighter } from "./chat-markdown";
 import { formatDuration, getTimelineDuration, getTimelineStart } from "./agent-execution-trace-utils";
@@ -53,6 +57,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   completionKind,
   requiresInteraction = false,
   terminalEvidence,
+  activitySummary: activitySummaryOverride,
 }: {
   events: ToolEvent[];
   isRunning: boolean;
@@ -63,6 +68,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     repositoryVerified: boolean;
     passedChecksLabel: string | null;
   };
+  activitySummary?: string | null;
 }) {
   const interactive = isRunning || requiresInteraction;
   const [expanded, setExpanded] = useState(interactive);
@@ -90,7 +96,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     event.status === "active" || event.status === "queued",
   );
   const runningActivityLabel = getRunningActivityLabel(activeEvent);
-  const activitySummary = getActivitySummary(
+  const activitySummary = activitySummaryOverride ?? getActivitySummary(
     settledTimeline,
     validationState,
     completionKind,
@@ -191,9 +197,10 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
 });
 
 export function getRunningActivityLabel(activeEvent?: ToolEvent) {
-  return activeEvent?.title ??
-    activeEvent?.label ??
-    "Preparing next repository action";
+  return getPresentationRunningActivityLabel(
+    activeEvent,
+    "Preparing the next repository step",
+  );
 }
 
 export function getActivitySummary(
@@ -205,61 +212,31 @@ export function getActivitySummary(
     passedChecksLabel: string | null;
   },
 ) {
-  const parts: string[] = [];
-  if (terminalEvidence?.repositoryVerified) {
-    parts.push("Repository verified");
-  }
-  if (completionKind === "already_satisfied") {
-    parts.push("No changes required");
-  }
-  const editCount = events.filter(
-    (event) =>
-      event.type === "edit" &&
-      (event.status === "done" || event.status === "completed"),
-  ).length;
-  if (editCount > 0) {
-    parts.push(`${editCount} ${editCount === 1 ? "file edited" : "files edited"}`);
-  }
-  if (!terminalEvidence?.repositoryVerified && events.some((event) =>
-    event.type === "search" &&
-    (event.status === "done" || event.status === "completed")
-  )) {
-    parts.push("Repository inspected");
-  }
-  const validationEvents = events.filter((event) => event.type === "validation");
-  if (terminalEvidence?.passedChecksLabel) {
-    parts.push(terminalEvidence.passedChecksLabel);
-  } else if (validationState === "failed" || validationState === "blocked") {
-    parts.push("validation blocked or failed");
-  } else if (validationState === "passed") {
-    parts.push("validation passed");
-  } else if (validationState === "not_run") {
-    parts.push("validation incomplete");
-  } else if (validationState === "pending" || validationState === "running") {
-    parts.push("validation in progress");
-  } else if (validationEvents.some(
-    (event) =>
-      event.status === "error" ||
-      event.status === "failed" ||
-      event.status === "blocked",
-  )) {
-    parts.push("validation blocked or failed");
-  } else if (validationEvents.some(
-    (event) => event.status === "done" || event.status === "completed",
-  )) {
-    parts.push("validation checks run");
-  }
-  if (parts.length > 0) return parts.join(" · ");
-
-  const readCount = events.filter(
-    (event) =>
-      event.type === "read" &&
-      (event.status === "done" || event.status === "completed"),
-  ).length;
-  if (readCount > 0) {
-    return `${readCount} ${readCount === 1 ? "read completed" : "reads completed"}`;
-  }
-  return events.length > 0 ? "work recorded" : "";
+  return getPresentationActivitySummary({
+    events,
+    presentationIntent: completionKind === "inspection_completed"
+      ? "review"
+      : completionKind === "validation_completed"
+        ? "validation"
+        : completionKind === "changed_verified" || completionKind === "changed_unverified"
+          ? "change"
+          : "unknown",
+    completionKind,
+    terminalState:
+      completionKind === "awaiting_approval" ? "blocked" :
+        completionKind === "blocked" ? "blocked" :
+          completionKind === "failed" ? "failed" :
+            completionKind === "changed_unverified" ? "partial" :
+              "completed",
+    validation: validationState && validationState !== "not_required"
+      ? { status: validationState }
+      : terminalEvidence?.passedChecksLabel
+        ? { status: "passed" }
+        : undefined,
+    inspection: terminalEvidence?.repositoryVerified
+      ? { label: "repository files", status: "satisfied", coverage: "complete" }
+      : undefined,
+  });
 }
 
 export function toLocalDiagnosticEvent(event: ToolEvent) {

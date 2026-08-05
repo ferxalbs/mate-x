@@ -146,6 +146,16 @@ function applyWorkspaceSnapshot(
           title: "New thread",
         }),
       ];
+  const restoredThreads = snapshotThreads.map((thread) => ({
+    ...thread,
+    messages: thread.messages.map((message) => ({
+      ...message,
+      ...(message.role === "assistant" &&
+      (message.executionOutcome ?? message.evidencePack?.executionOutcome)
+        ? { presentationEvidenceFreshness: "historical" as const }
+        : {}),
+    })),
+  }));
   const nextActiveThreadId = snapshot.activeThreadId || snapshotThreads[0].id;
 
   return {
@@ -157,7 +167,7 @@ function applyWorkspaceSnapshot(
     repoSignals: snapshot.signals,
     threadsByWorkspace: {
       ...threadsByWorkspace,
-      [nextWorkspaceId]: snapshotThreads,
+      [nextWorkspaceId]: restoredThreads,
     },
     activeThreadIds: {
       ...activeThreadIds,

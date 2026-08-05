@@ -23,7 +23,7 @@ import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
 import { createModelToolsUnavailableResult } from "./agentic-runtime/model-tools-unavailable";
 import { buildValidationAuthoritySection } from "./agentic-runtime/prompt-contract";
 import { collectRepositoryOverviewEvidence } from "./agentic-runtime/repository-overview";
-import { requestRepositoryOverviewSynthesis } from "./agentic-runtime/repository-overview-synthesis";
+import { runRepositoryOverviewSynthesis } from "./agentic-runtime/repository-overview-synthesis";
 import { executeAgentToolCall } from "./agentic-runtime/tool-executor";
 import { isRepositoryOverviewRequest } from "../../lib/conversational-intent";
 import { sanitizePublicProgress } from "../../lib/assistant-output";
@@ -299,7 +299,7 @@ export async function requestRainyAgenticResponse({
       "",
       "Return only the final natural-language repository overview. Tools are unavailable in this synthesis pass: do not emit tool-call markup, function calls, or promises to inspect more files. If bounded evidence leaves a gap, state that limitation in the overview instead of requesting more evidence.",
     ].join("\n");
-    const content = await requestRepositoryOverviewSynthesis({
+    const content = await runRepositoryOverviewSynthesis({
       apiKey,
       apiMode,
       capabilities,

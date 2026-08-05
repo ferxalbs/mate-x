@@ -288,7 +288,7 @@ describe("terminal message composition", () => {
     assert.equal(view.container.querySelectorAll('[data-slot="agent-outcome-card"]').length, 1);
   });
 
-  it("renders a conversational assistant message without an execution outcome once", async () => {
+  it("renders a conversational assistant message exactly once", async () => {
     const message: ChatMessage = {
       id: "assistant-conversation",
       role: "assistant",
@@ -299,7 +299,7 @@ describe("terminal message composition", () => {
     const view = await renderStream(message);
 
     assert.equal(countSentence(view.container, "This is acme-demo"), 1);
-    assert.equal(view.container.querySelector('[data-slot="assistant-final-response"]'), null);
+    assert.equal(view.container.querySelectorAll('[data-slot="assistant-final-response"]').length, 1);
   });
 
   it("renders the missing-content fallback exactly once", async () => {
@@ -312,9 +312,10 @@ describe("terminal message composition", () => {
     };
     const view = await renderStream(message);
 
-    assert.equal(
-      countSentence(view.container, "No final synthesis text was returned for this run."),
-      1,
+    assert.equal(view.container.querySelectorAll('[data-slot="assistant-final-response"]').length, 1);
+    assert.match(
+      view.container.querySelector('[data-slot="assistant-final-response"]')?.textContent ?? "",
+      /couldn't produce a final answer/i,
     );
   });
 
@@ -326,7 +327,8 @@ describe("terminal message composition", () => {
 
     assert.ok(response?.textContent?.includes("I inspected the runtime services"));
     assert.equal(card, null);
-    assert.match(evidence?.textContent ?? "", /3 services verified · Tests passed/);
+    assert.match(evidence?.textContent ?? "", /3 services checked/);
+    assert.doesNotMatch(evidence?.textContent ?? "", /verified|tests passed/i);
     assert.doesNotMatch(evidence?.textContent ?? "", /0 files changed/);
   });
 
@@ -367,7 +369,7 @@ describe("terminal message composition", () => {
     };
     const view = await renderStream(message);
 
-    assert.ok(view.getByRole("button", { name: /Repository inspected/ }));
+    assert.ok(view.getByRole("button", { name: /Worked for.*Relevant code inspected/ }));
     assert.equal(view.queryByText(/Search completed/), null);
   });
 
@@ -388,7 +390,7 @@ describe("terminal message composition", () => {
     const view = await renderStream(message);
 
     const toggle = view.getByRole("button", {
-      name: /Repository verified · No changes required · Tests passed/,
+      name: /Worked for.*Requested state already present/,
     });
     assert.equal(toggle.getAttribute("aria-expanded"), "false");
   });
@@ -442,8 +444,8 @@ describe("terminal message composition", () => {
     })));
     const card = view.container.querySelector('[data-slot="agent-outcome-card"]');
     assert.ok(card?.textContent?.includes("Changes applied"));
-    assert.ok(card?.textContent?.includes("1 file changed · 3 services verified · Tests passed"));
-    assert.equal(card?.textContent?.match(/test(?:s)? passed/gi)?.length, 1);
+    assert.ok(card?.textContent?.includes("1 file changed · 3 services checked · Tests passed · Typecheck unavailable"));
+    assert.equal(card?.textContent?.match(/test(?:s)? passed/gi)?.length ?? 0, 1);
     assert.doesNotMatch(card?.textContent ?? "", /changed_unverified|TYPECHECK_UNAVAILABLE/);
     assert.equal(card?.querySelector("details")?.hasAttribute("open"), false);
   });
@@ -460,8 +462,11 @@ describe("terminal message composition", () => {
 
     assert.equal(view.getAllByText(/I inspected the runtime services/).length, 1);
     assert.equal(view.container.querySelector('[data-slot="agent-outcome-card"]'), null);
-    assert.equal(view.getAllByText(/3 services verified · Tests passed/).length, 1);
-    const toggle = view.getByRole("button", { name: /Worked for.*Tests passed/ });
+    assert.match(
+      view.container.querySelector('[data-slot="outcome-evidence-row"]')?.textContent ?? "",
+      /3 services checked/,
+    );
+    const toggle = view.getByRole("button", { name: /Worked for.*Requested state already present/ });
     assert.equal(toggle.getAttribute("aria-expanded"), "false");
     fireEvent.click(toggle);
     fireEvent.click(view.getByRole("button", { name: /Read files.*validated/ }));
@@ -473,10 +478,9 @@ describe("terminal message composition", () => {
 describe("terminal assistant response projection", () => {
   it("uses natural no-change wording for already-satisfied work", () => {
     const response = getTerminalAssistantResponse(makeOutcome("already_satisfied"));
-    assert.equal(
-      response,
-      "The migration was already complete. I verified all 3 runtime services and confirmed no obsolete runtime calls remain. The only legacy references are the allowed SDK declarations. Focused tests passed, so no files were changed.",
-    );
+    assert.match(response, /requested state is already present/i);
+    assert.match(response, /no files were changed/i);
+    assert.doesNotMatch(response, /verified|objective|execution outcome/i);
   });
 
   it("explains verified changes and passed checks", () => {
@@ -488,9 +492,8 @@ describe("terminal assistant response projection", () => {
       ],
       validationStatus: "passed",
     }));
-    assert.match(response, /Updated 3 service files/);
-    assert.match(response, /no prohibited runtime calls remain/i);
-    assert.match(response, /Focused tests passed\./);
+    assert.match(response, /Updated 3 files/);
+    assert.match(response, /relevant checks passed/i);
   });
 
   it("explains an unavailable check naturally after changes", () => {
@@ -500,7 +503,7 @@ describe("terminal assistant response projection", () => {
       validationCause: "TYPECHECK_UNAVAILABLE",
     }));
     assert.match(response, /does not define a typecheck command/i);
-    assert.match(response, /Review the diff before shipping\./);
+    assert.match(response, /review the changes.*required check/i);
   });
 
   it("never presents missing or failed focused tests as passed", () => {
@@ -526,6 +529,6 @@ describe("terminal assistant response projection", () => {
     const view = await renderStream(message);
     const natural = view.container.querySelector('[data-slot="assistant-final-response"]');
     assert.doesNotMatch(natural?.textContent ?? "", /changed_unverified|raw tool diagnostics|Provider progress/);
-    assert.match(natural?.textContent ?? "", /Updated 1 service file/);
+    assert.match(natural?.textContent ?? "", /Updated 1 file/);
   });
 });

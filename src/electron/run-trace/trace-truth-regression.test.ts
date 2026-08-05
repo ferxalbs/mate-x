@@ -171,7 +171,7 @@ describe("trace and terminal truth regression", () => {
     }
     assert.equal(
       getRunningActivityLabel(),
-      "Preparing next repository action",
+      "Preparing the next repository step",
     );
     assert.equal(
       getGroupName([
@@ -299,7 +299,7 @@ describe("trace and terminal truth regression", () => {
           visibility: "public",
         },
       ]),
-      "validation blocked or failed",
+      "Checks need attention",
     );
 
     const blockedValidation: ToolExecutionRecord = {

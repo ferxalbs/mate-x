@@ -12,7 +12,7 @@ import {
 import { resolveRainyReasoningPayload } from "./config";
 import { buildHistoryMessages, normalizeAssistantText } from "./helpers";
 
-export async function requestRepositoryOverviewSynthesis(input: {
+export interface RepositoryOverviewSynthesisInput {
   apiKey: string;
   apiMode: RainyApiMode;
   capabilities?: RainyModelCapabilities;
@@ -23,7 +23,25 @@ export async function requestRepositoryOverviewSynthesis(input: {
   systemPrompt: string;
   emitProgress: (content?: string) => void;
   signal?: AbortSignal;
-}): Promise<string> {
+}
+
+export type RepositoryOverviewSynthesisRequest =
+  (input: RepositoryOverviewSynthesisInput) => Promise<string>;
+
+/**
+ * Keep the repository-overview synthesis boundary explicit: evidence is
+ * already bounded upstream and this pass is the only provider request.
+ */
+export async function runRepositoryOverviewSynthesis(
+  input: RepositoryOverviewSynthesisInput,
+  request: RepositoryOverviewSynthesisRequest = requestRepositoryOverviewSynthesis,
+) {
+  return request(input);
+}
+
+export async function requestRepositoryOverviewSynthesis(
+  input: RepositoryOverviewSynthesisInput,
+): Promise<string> {
   const timeoutMs = resolveRainyAgentTimeoutMs({
     reasoningEnabled: input.options.reasoningEnabled,
     reasoning: input.options.reasoning,

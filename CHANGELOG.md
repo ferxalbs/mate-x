@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Unreleased - 2026.08.04 (2) [Universal User-Facing Presentation Architecture]
+
+* Added one deterministic presentation layer for conversations, repository explanations, reviews with or without findings, successful and already-present changes, validation results, partial work, blocked operations, approval requests, runtime failures, and missing synthesis.
+* Preserved valid natural synthesis as the primary response and added safe deterministic fallback prose only when synthesis is missing, invalid, unsafe, or empty; final responses now render exactly once.
+* Translated typed runtime states, evidence strength, and evidence freshness into ordinary user language while keeping inspection distinct from runtime validation and identifying persisted evidence as historical.
+* Kept commands, assertions, diagnostics, and technical tool activity in the expandable trace; normal success stays lightweight with a natural response, optional compact evidence, and collapsed activity, while full outcome cards are reserved for blocked, approval-required, failed, partial, or unavailable or failed required validation states.
+* Added user-meaningful activity summaries and concrete next actions, including automatic activity collapse on completion, without exposing internal execution terminology or codes in the primary result.
+* Preserved the repository-overview execution strategy exactly: immediate public progress, one bounded parallel evidence batch, at most one bounded read-only fallback batch, and one tool-disabled synthesis request. Presentation adds zero provider or tool calls.
+* Added table-driven universal presentation coverage and repository-overview request-count regressions; 67 focused tests passed with zero failures, `bun run typecheck`, `bun run lint`, `bun run check:deprecated`, and `git diff --check` passed, and no application package was produced.
+* Kept the repository-overview optimization isolated from dependency changes and preserved concurrent configuration and packaged-recovery-driver edits.
+
 ## Unreleased - 2026.08.04 (1) [Repository-Aware Conversation Routing]
 
 * Separated pure social conversation, general questions, repository-grounded explanations, and mutation or validation requests with deterministic routing precedence instead of treating every `explain`, `describe`, `summarize`, `tell me`, or `what is` prompt as casual chat.

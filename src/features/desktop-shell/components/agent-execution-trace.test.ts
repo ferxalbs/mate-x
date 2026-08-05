@@ -53,9 +53,9 @@ describe("agent execution validation summary", () => {
       type: "validation",
     };
 
-    expect(getActivitySummary([validationEvent])).toMatch(/^validation checks run$/);
-    expect(getActivitySummary([validationEvent], "not_run")).toMatch(/^validation incomplete$/);
-    expect(getActivitySummary([validationEvent], "passed")).toMatch(/^validation passed$/);
+    expect(getActivitySummary([validationEvent])).toMatch(/^Checks completed$/);
+    expect(getActivitySummary([validationEvent], "not_run")).toMatch(/^Checks not run$/);
+    expect(getActivitySummary([validationEvent], "passed")).toMatch(/^Checks passed$/);
   });
 
   test("uses canonical recovery over a stale validation error event", () => {
@@ -67,19 +67,19 @@ describe("agent execution validation summary", () => {
       type: "validation",
     };
 
-    expect(getActivitySummary([staleFailure], "passed")).toMatch(/^validation passed$/);
-    expect(getActivitySummary([staleFailure], "failed")).toMatch(/^validation blocked or failed$/);
+    expect(getActivitySummary([staleFailure], "passed")).toMatch(/^Checks passed$/);
+    expect(getActivitySummary([staleFailure], "failed")).toMatch(/^Checks need attention$/);
   });
 
   test("projects the canonical already-satisfied summary", () => {
     expect(getActivitySummary([], "not_required", "already_satisfied"))
-      .toMatch(/^No changes required$/);
+      .toMatch(/^Requested state already present$/);
   });
 
   test("uses typed terminal evidence for repository and check summaries", () => {
     expect(getActivitySummary([], "not_required", "already_satisfied", {
       repositoryVerified: true,
       passedChecksLabel: "Tests passed",
-    })).toMatch(/^Repository verified · No changes required · Tests passed$/);
+    })).toMatch(/^Requested state already present · repository files checked · Checks passed$/);
   });
 });
