@@ -156,7 +156,6 @@ const MessageEntry = memo(function MessageEntry({
   const isUser = message.role === "user";
   const deferredContent = useDeferredValue(message.content);
   const events = message.events ?? [];
-  const hasTimeline = events.length > 0;
   const sanitizedAssistantResponse = stripTraceTransportMarkers(message.content);
   const finalizedAssistantResponse = message.executionOutcome &&
       (message.executionOutcome.evidence.synthesis.status !== "valid" ||
@@ -293,6 +292,22 @@ const MessageEntry = memo(function MessageEntry({
   const normalizedContent = message.executionOutcome
     ? finalizedAssistantResponse.trim()
     : deferredContent.trim();
+  const showFinalizedBody = Boolean(message.executionOutcome && !isStreaming);
+  const showStreamingBody = Boolean(
+    !message.executionOutcome && normalizedContent.length > 0,
+  );
+  const showFallback = Boolean(
+    !message.executionOutcome && normalizedContent.length === 0 && !isStreaming,
+  );
+  const showEvidenceRow = Boolean(
+    message.executionOutcome && !showFullOutcomeCard && outcomeEvidenceRow,
+  );
+  const supplementalAgentOutcome =
+    !message.executionOutcome &&
+    message.outcome &&
+    message.outcome.status !== "completed"
+      ? message.outcome
+      : null;
   const showAmbientActions = normalizedContent.includes(
     "Repo note: changes need a safety check before commit.",
   );
@@ -339,7 +354,7 @@ const MessageEntry = memo(function MessageEntry({
             ? getTerminalActivityEvidence(message.executionOutcome)
             : undefined}
         />
-        {message.executionOutcome && !isStreaming ? (
+        {showFinalizedBody ? (
           <div data-slot="assistant-final-response">
             <ChatMarkdown
               content={finalizedAssistantResponse}
@@ -347,29 +362,30 @@ const MessageEntry = memo(function MessageEntry({
             />
           </div>
         ) : null}
+        {showStreamingBody ? (
+          <ChatMarkdown
+            content={stripTraceTransportMarkers(message.content)}
+            isStreaming={isStreaming}
+          />
+        ) : null}
+        {showFallback ? <ResultFallback /> : null}
         {message.executionOutcome && showFullOutcomeCard ? (
           <ExecutionOutcomeCard
             onConfigureTypecheck={() => onSelectPrompt("Configure a repository-local typecheck command for this workspace.")}
             outcome={message.executionOutcome}
           />
-        ) : message.executionOutcome && outcomeEvidenceRow ? (
+        ) : null}
+        {showEvidenceRow ? (
           <p
             className="text-[11px] text-muted-foreground/70"
             data-slot="outcome-evidence-row"
           >
             {outcomeEvidenceRow}
           </p>
-        ) : message.outcome &&
-        (message.outcome.status === "blocked" ||
-          message.outcome.status === "needs_approval" ||
-          message.outcome.status === "failed") ? (
-          <AgentOutcomeCard outcome={message.outcome} />
-        ) : normalizedContent.length > 0 && (!isStreaming || !hasTimeline) ? (
-          <ChatMarkdown
-            content={stripTraceTransportMarkers(message.content)}
-            isStreaming={isStreaming}
-          />
-        ) : !hasTimeline && !isStreaming ? <ResultFallback /> : null}
+        ) : null}
+        {supplementalAgentOutcome ? (
+          <AgentOutcomeCard outcome={supplementalAgentOutcome} />
+        ) : null}
         {isLast && showAmbientActions ? (
           <div className="mt-2.5 flex items-center gap-2">
             <button

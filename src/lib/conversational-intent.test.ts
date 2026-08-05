@@ -50,6 +50,17 @@ test("repository prompt contract forbids capability disclaimers and name specula
   assert.match(MATE_AGENT_SYSTEM_PROMPT, /do not edit files, execute validation/i);
 });
 
+test("repository prompt contract keeps explanations concise and temporal claims accurate", () => {
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Default to 150-300 words/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /open with 1-2 sentences/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /2-4 architecture bullets/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /execution flow in one short paragraph or compact sequence/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Do not create dedicated Inference or Unknowns sections by default/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /unless fresh typed evidence was produced during this run/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /The latest recorded test run passed\. I did not rerun the tests during this inspection\./i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Never combine currently with recorded, historical, persisted, or prior-run evidence/i);
+});
+
 test("returns immediate local responses for social turns", () => {
   assert.equal(
     getImmediateConversationalResponse("Hi", "acme-demo"),

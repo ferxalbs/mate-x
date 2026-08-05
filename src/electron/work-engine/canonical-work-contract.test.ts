@@ -509,13 +509,21 @@ describe("canonical Work objective and validation contract", () => {
         mode: "analyze",
         targetToolchain: toolchain(workspacePath),
       });
-      const { result } = finish(workPlan, [{ toolName: "read", args: { path: "src/services/record-a.ts" }, output: "read-only source evidence" }]);
+      const synthesis = "This repository contains a small service migration fixture with read-only source evidence.";
+      const { result } = finish(
+        workPlan,
+        [{ toolName: "read", args: { path: "src/services/record-a.ts" }, output: "read-only source evidence" }],
+        synthesis,
+      );
 
       assert.equal(workPlan.objectiveContract?.strategy, "inspection");
       assert.equal(result.terminalState, "completed");
       assert.equal(result.completionKind, "inspection_completed");
       assert.equal(result.evidence.changedFiles.length, 0);
       assert.equal(result.evidence.validation.status, "not_required");
+      assert.equal(result.content, synthesis);
+      assert.doesNotMatch(result.content, /Inspection completed successfully\./);
+      assert.equal(result.summary, "Inspection completed successfully.");
     });
   });
 

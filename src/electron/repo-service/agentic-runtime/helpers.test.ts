@@ -4,6 +4,7 @@ import { describe, test } from "bun:test";
 import {
   normalizeAssistantText,
   sanitizeAssistantOutput,
+  selectFinalAssistantText,
 } from "./helpers";
 
 describe("assistant output boundary", () => {
@@ -46,5 +47,15 @@ describe("assistant output boundary", () => {
       ),
       "Reading the relevant service files first.",
     );
+  });
+
+  test("persists only the selected final synthesis across agent passes", () => {
+    const priorDraft = "This is acme-demo.\n\nThis draft belongs in the trace.";
+    const finalSynthesis = "This is acme-demo.\n\nThis is the selected final explanation.";
+    const persistedContent = selectFinalAssistantText(priorDraft, finalSynthesis);
+
+    assert.equal(persistedContent, finalSynthesis);
+    assert.equal(persistedContent.match(/This is acme-demo\./g)?.length, 1);
+    assert.doesNotMatch(persistedContent, /draft belongs in the trace/);
   });
 });

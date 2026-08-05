@@ -200,6 +200,19 @@ function makeMessage(outcome: ExecutionOutcome): ChatMessage {
   };
 }
 
+function makeInspectionOutcome(options: { withEvidenceRow?: boolean } = {}) {
+  const outcome = makeOutcome("inspection_completed", {
+    validationStatus: options.withEvidenceRow ? "passed" : "not_required",
+  });
+  outcome.evidence.objective = undefined;
+  outcome.evidence.validation.contract = undefined;
+  return outcome;
+}
+
+function countSentence(container: HTMLElement, sentence: string) {
+  return (container.textContent?.split(sentence).length ?? 1) - 1;
+}
+
 function stream(message: ChatMessage, isRunning = false) {
   return (
     <MessageStream
@@ -240,6 +253,71 @@ function getActivityToggle(container: HTMLElement) {
 }
 
 describe("terminal message composition", () => {
+  it("renders a completed inspection synthesis exactly once without supplemental outcome UI", async () => {
+    const message = makeMessage(makeInspectionOutcome());
+    message.content = "This is acme-demo, a small repository fixture.";
+    message.events = [];
+    const view = await renderStream(message);
+
+    assert.equal(countSentence(view.container, "This is acme-demo"), 1);
+    assert.equal(view.container.querySelector('[data-slot="agent-outcome-card"]'), null);
+    assert.equal(view.container.querySelector('[data-slot="outcome-evidence-row"]'), null);
+  });
+
+  it("renders one inspection synthesis and one compact evidence row", async () => {
+    const message = makeMessage(makeInspectionOutcome({ withEvidenceRow: true }));
+    message.content = "This is acme-demo, a small repository fixture.";
+    const view = await renderStream(message);
+
+    assert.equal(countSentence(view.container, "This is acme-demo"), 1);
+    assert.equal(view.container.querySelectorAll('[data-slot="assistant-final-response"]').length, 1);
+    assert.equal(view.container.querySelectorAll('[data-slot="outcome-evidence-row"]').length, 1);
+  });
+
+  it("renders one natural response with one actionable outcome card", async () => {
+    const message = makeMessage(makeOutcome("changed_unverified", {
+      changedFiles: ["src/services/customer-one.ts"],
+      validationStatus: "not_run",
+      validationCause: "TYPECHECK_UNAVAILABLE",
+    }));
+    message.content = "This is acme-demo, with one change awaiting verification.";
+    const view = await renderStream(message);
+
+    assert.equal(countSentence(view.container, "This is acme-demo"), 1);
+    assert.equal(view.container.querySelectorAll('[data-slot="assistant-final-response"]').length, 1);
+    assert.equal(view.container.querySelectorAll('[data-slot="agent-outcome-card"]').length, 1);
+  });
+
+  it("renders a conversational assistant message without an execution outcome once", async () => {
+    const message: ChatMessage = {
+      id: "assistant-conversation",
+      role: "assistant",
+      content: "This is acme-demo, and I can help inspect it.",
+      createdAt: "2026-08-02T00:00:42.000Z",
+      events: [],
+    };
+    const view = await renderStream(message);
+
+    assert.equal(countSentence(view.container, "This is acme-demo"), 1);
+    assert.equal(view.container.querySelector('[data-slot="assistant-final-response"]'), null);
+  });
+
+  it("renders the missing-content fallback exactly once", async () => {
+    const message: ChatMessage = {
+      id: "assistant-empty",
+      role: "assistant",
+      content: "",
+      createdAt: "2026-08-02T00:00:42.000Z",
+      events: terminalEvents,
+    };
+    const view = await renderStream(message);
+
+    assert.equal(
+      countSentence(view.container, "No final synthesis text was returned for this run."),
+      1,
+    );
+  });
+
   it("preserves a valid natural synthesis and shows compact evidence separately", async () => {
     const view = await renderStream(makeMessage(makeOutcome("already_satisfied")));
     const response = view.container.querySelector('[data-slot="assistant-final-response"]');

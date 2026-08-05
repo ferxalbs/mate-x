@@ -238,9 +238,15 @@ export function finalizeWorkRun(input: {
   const summary = useLegacyTypedSummary
     ? input.terminalOutcome!.summary
     : buildUserFacingExecutionSummary(terminalState, evidence, completionKind);
+  const validNaturalInspectionSynthesis =
+    completionKind === "inspection_completed" &&
+    synthesisStatus === "valid" &&
+    rewrittenContent.trim().length > 0;
   const content = useLegacyTypedSummary
     ? input.terminalOutcome!.summary
-    : appendExecutionSummary(rewrittenContent, summary);
+    : validNaturalInspectionSynthesis
+      ? rewrittenContent.trim()
+      : appendExecutionSummary(rewrittenContent, summary);
 
   return {
     verdict: terminalState,

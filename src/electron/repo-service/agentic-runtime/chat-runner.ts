@@ -50,6 +50,10 @@ import {
   recordProviderFailure,
 } from "./model-tools-unavailable";
 
+export function projectVisibleAssistantPass(streamedPassText: string) {
+  return sanitizeAssistantOutput(streamedPassText);
+}
+
 export async function requestRainyChatAgenticResponse({
   apiKey,
   history,
@@ -190,12 +194,7 @@ export async function requestRainyChatAgenticResponse({
         requireTools: runtime.executionIntent,
         onContentDelta: (delta: string) => {
           streamedPassText += delta;
-          const visibleStream = sanitizeAssistantOutput(streamedPassText);
-          emitProgress(
-            lastNonEmptyAssistantText
-              ? [lastNonEmptyAssistantText, visibleStream].filter(Boolean).join("\n\n")
-              : visibleStream,
-          );
+          emitProgress(projectVisibleAssistantPass(streamedPassText));
         },
       });
     } catch (error) {
