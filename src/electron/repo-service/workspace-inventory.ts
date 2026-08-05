@@ -1,5 +1,9 @@
 import path from "node:path";
 
+export function normalizeWorkspaceInventoryPath(file: string) {
+  return file.replace(/^\.\//, "");
+}
+
 export function compareWorkspaceInventoryPaths(left: string, right: string) {
   const rank = (file: string) => {
     const basename = path.basename(file);

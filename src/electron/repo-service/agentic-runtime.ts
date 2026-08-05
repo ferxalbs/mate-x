@@ -296,6 +296,8 @@ export async function requestRainyAgenticResponse({
       "Repository evidence collection is complete. Synthesize the final answer now without requesting or describing more tool use. Explain purpose, architecture, entry points, and execution flow. Preserve the repository explanation contract and its historical-test wording.",
       "",
       evidence.modelContext,
+      "",
+      "Return only the final natural-language repository overview. Tools are unavailable in this synthesis pass: do not emit tool-call markup, function calls, or promises to inspect more files. If bounded evidence leaves a gap, state that limitation in the overview instead of requesting more evidence.",
     ].join("\n");
     const content = await requestRepositoryOverviewSynthesis({
       apiKey,

@@ -44,7 +44,10 @@ import {
 } from "./telemetry-service";
 import { AgentExecutionSession } from "./run-trace/agent-execution-session";
 import { collectRepositoryToolchainProfile } from "./repository-toolchain";
-import { requestRainyChatCompletionStream } from "./rainy-service";
+import {
+  requestRainyChatCompletionStream,
+  resolvePreferredRainyApiMode,
+} from "./rainy-service";
 import { sanitizeAssistantOutput } from "../lib/assistant-output";
 import {
   getRepositoryStartupProgressLabel,
@@ -444,7 +447,14 @@ export async function runAssistant(
   );
   const runtimeConfig =
     apiKey && rainyHostAllowed
-      ? await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
+      ? repositoryOverview && storedModel?.trim()
+        ? {
+            model: storedModel.trim(),
+            apiMode: resolvePreferredRainyApiMode(storedModel.trim()),
+            capabilities: undefined,
+            modelCatalogEntry: undefined,
+          }
+        : await resolveDefaultRainyRuntimeConfig(apiKey, storedModel)
       : null;
   const configuredModel = runtimeConfig?.model ?? null;
   if (

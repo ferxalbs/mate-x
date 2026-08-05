@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "bun:test";
 
 import type { RepoSnapshot } from "../workspace";
-import { compareWorkspaceInventoryPaths } from "../workspace-inventory";
+import {
+  compareWorkspaceInventoryPaths,
+  normalizeWorkspaceInventoryPath,
+} from "../workspace-inventory";
 import {
   assessRepositoryOverviewCoverage,
   buildRepositoryOverviewToolCalls,
@@ -54,6 +57,11 @@ test("repository inventory ordering is deterministic and signal-first", () => {
     "src/main.ts",
     "src/zeta.ts",
   ]);
+});
+
+test("repository inventory paths normalize rg's explicit working-directory prefix", () => {
+  assert.equal(normalizeWorkspaceInventoryPath("./package.json"), "package.json");
+  assert.equal(normalizeWorkspaceInventoryPath("packages/app/package.json"), "packages/app/package.json");
 });
 
 test("repository overview uses one batched read and one scoped search", async () => {

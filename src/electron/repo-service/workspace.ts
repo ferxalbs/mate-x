@@ -10,7 +10,10 @@ import type { Conversation } from "../../contracts/chat";
 import type { SearchMatch, WorkspaceMemoryBootstrapContext, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary, WorkspaceTrustContract } from "../../contracts/workspace";
 import { MATE_AGENT_PROMPT_STOP_WORDS } from "../../config/mate-agent";
 import { buildWorkspaceHealthProfile } from "./workspace-health";
-import { compareWorkspaceInventoryPaths } from "./workspace-inventory";
+import {
+  compareWorkspaceInventoryPaths,
+  normalizeWorkspaceInventoryPath,
+} from "./workspace-inventory";
 
 const execFileAsync = promisify(execFile);
 
@@ -231,18 +234,18 @@ function buildEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
 
 async function getValidWorkspaces(): Promise<WorkspaceEntry[]> {
   const workspaces = await tursoService.getWorkspaces();
-  const valid: WorkspaceEntry[] = [];
+  const valid = await Promise.all(
+    workspaces.map(async (workspace) => {
+      if (await isValidWorkspacePath(workspace.path)) {
+        return workspace;
+      }
 
-  for (const workspace of workspaces) {
-    if (await isValidWorkspacePath(workspace.path)) {
-      valid.push(workspace);
-      continue;
-    }
+      await tursoService.removeWorkspace(workspace.id);
+      return null;
+    }),
+  );
 
-    await tursoService.removeWorkspace(workspace.id);
-  }
-
-  return valid;
+  return valid.filter((workspace): workspace is WorkspaceEntry => workspace !== null);
 }
 
 async function isValidWorkspacePath(workspacePath: string) {
@@ -345,6 +348,7 @@ async function listWorkspaceFiles(
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
+      .map(normalizeWorkspaceInventoryPath)
       .sort(compareWorkspaceInventoryPaths)
       .slice(0, limit);
   } catch (error) {
@@ -489,10 +493,13 @@ async function searchWorkspaceFilesFallback(
 ): Promise<SearchMatch[]> {
   const matches: SearchMatch[] = [];
   const files = await listWorkspaceFilesFallback(workspacePath, 500);
+  const contents = await Promise.all(
+    files.map((file) => readFileMaybe(workspacePath, file)),
+  );
 
-  for (const file of files) {
+  for (const [index, content] of contents.entries()) {
+    const file = files[index];
     if (matches.length >= limit) break;
-    const content = await readFileMaybe(workspacePath, file);
     if (!content || content.includes("\u0000")) continue;
 
     content.split(/\r?\n/).some((line, index) => {

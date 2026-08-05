@@ -67,6 +67,7 @@ export async function requestRepositoryOverviewSynthesis(input: {
     includeReasoning: false,
     reasoningEffort: rainyReasoning.reasoningEffort,
     capabilities: input.capabilities,
+    maxTokens: 700,
     serviceTier,
     signal: input.signal,
     timeoutMs,
