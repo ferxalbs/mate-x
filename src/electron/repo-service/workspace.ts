@@ -10,6 +10,7 @@ import type { Conversation } from "../../contracts/chat";
 import type { SearchMatch, WorkspaceMemoryBootstrapContext, WorkspaceEntry, WorkspaceSnapshot, WorkspaceSummary, WorkspaceTrustContract } from "../../contracts/workspace";
 import { MATE_AGENT_PROMPT_STOP_WORDS } from "../../config/mate-agent";
 import { buildWorkspaceHealthProfile } from "./workspace-health";
+import { compareWorkspaceInventoryPaths } from "./workspace-inventory";
 
 const execFileAsync = promisify(execFile);
 
@@ -344,6 +345,7 @@ async function listWorkspaceFiles(
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
+      .sort(compareWorkspaceInventoryPaths)
       .slice(0, limit);
   } catch (error) {
     if (!isMissingExecutable(error)) {

@@ -12,7 +12,7 @@ import {
   Tick01Icon,
   LockKeyIcon,
 } from "@hugeicons/core-free-icons";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { normalizeToolEvent, type ToolEvent, type ToolEventType } from "../../../contracts/chat";
 import type {
@@ -66,16 +66,14 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
 }) {
   const interactive = isRunning || requiresInteraction;
   const [expanded, setExpanded] = useState(interactive);
-  const wasInteractiveRef = useRef(interactive);
-  useEffect(() => {
-    const wasInteractive = wasInteractiveRef.current;
-    wasInteractiveRef.current = interactive;
-    if (interactive) {
-      setExpanded(true);
-    } else if (wasInteractive) {
-      setExpanded(false);
-    }
-  }, [interactive]);
+  // Adjust expansion while rendering when interactive mode flips — same-render
+  // update so the UI never paints one frame with a stale open/closed state.
+  // See https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [prevInteractive, setPrevInteractive] = useState(interactive);
+  if (interactive !== prevInteractive) {
+    setPrevInteractive(interactive);
+    setExpanded(interactive);
+  }
   const normalizedEvents = useMemo(() => {
     return events
       .map((event, sequence) => normalizeToolEvent(event, { sequence }))
@@ -87,14 +85,6 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
   const settledTimeline = isRunning
     ? timeline
     : timeline.filter((event) => event.status !== "active" && event.status !== "queued");
-  const diagnosticTimeline = normalizedEvents.filter(toLocalDiagnosticEvent);
-  const visible = expanded
-    ? [...settledTimeline, ...diagnosticTimeline].sort(
-        (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
-      )
-    : isRunning
-      ? settledTimeline.slice(-4)
-      : [];
   const duration = useRunDuration(normalizedEvents, isRunning);
   const activeEvent = [...timeline].reverse().find((event) =>
     event.status === "active" || event.status === "queued",
@@ -107,7 +97,27 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
     terminalEvidence,
   );
 
+  // Compute visibility inside the memo so deps stay stable (normalizedEvents /
+  // expanded / isRunning). An outer `visible` array is recreated every render
+  // and would defeat the memo entirely.
   const groupedEvents = useMemo(() => {
+    const publicTimeline = normalizedEvents
+      .map(toPublicExecutionEvent)
+      .filter((event): event is ToolEvent => event !== null);
+    const settled = isRunning
+      ? publicTimeline
+      : publicTimeline.filter(
+          (event) => event.status !== "active" && event.status !== "queued",
+        );
+    const diagnostic = normalizedEvents.filter(toLocalDiagnosticEvent);
+    const visible = expanded
+      ? [...settled, ...diagnostic].sort(
+          (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
+        )
+      : isRunning
+        ? settled.slice(-4)
+        : [];
+
     const groups: (ToolEvent | { isGroup: true; id: string; items: ToolEvent[] })[] = [];
     let currentGroup: ToolEvent[] = [];
 
@@ -140,7 +150,7 @@ export const AgentExecutionTrace = memo(function AgentExecutionTrace({
       }
     }
     return groups;
-  }, [visible]);
+  }, [normalizedEvents, expanded, isRunning]);
 
   if (timeline.length === 0 && !isRunning && !activitySummary) return null;
 
@@ -214,7 +224,7 @@ export function getActivitySummary(
     event.type === "search" &&
     (event.status === "done" || event.status === "completed")
   )) {
-    parts.push("Search completed");
+    parts.push("Repository inspected");
   }
   const validationEvents = events.filter((event) => event.type === "validation");
   if (terminalEvidence?.passedChecksLabel) {

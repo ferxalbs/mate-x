@@ -49,6 +49,7 @@ import { sanitizeAssistantOutput } from "../lib/assistant-output";
 import {
   getRepositoryStartupProgressLabel,
   getImmediateConversationalResponse,
+  isRepositoryOverviewRequest,
 } from "../lib/conversational-intent";
 import {
   activeContractForWorkPlan,
@@ -183,6 +184,9 @@ export async function runAssistant(
   }
 
   const effectiveRunId = progressReporter?.runId ?? `assistant-${Date.now()}`;
+  const repositoryOverview = isRepositoryOverviewRequest(prompt, {
+    hasActiveWorkspace: true,
+  });
   const traceSession = new AgentExecutionSession(
     effectiveRunId,
     resolvedOptions.behaviorMode,
@@ -271,9 +275,10 @@ export async function runAssistant(
   emitProgress();
   const targetToolchain = await collectRepositoryToolchainProfile({
     root: snapshot.workspace.path,
-    changedFiles: snapshot.statusLines
-      .map((line) => line.replace(/^[ MADRCU?!]{2}\s+/, "").trim())
-      .filter(Boolean),
+    changedFiles: snapshot.statusLines.flatMap((line) => {
+      const file = line.replace(/^[ MADRCU?!]{2}\s+/, "").trim();
+      return file ? [file] : [];
+    }),
   });
   const workingSet = await workingSetCompiler.compile({
     prompt,
@@ -306,12 +311,14 @@ export async function runAssistant(
     initialInspection: { matches: snapshot.promptMatches },
     behaviorMode: resolvedOptions.behaviorMode,
   });
-  await scheduleObjectiveVerification({
-    workPlan,
-    workspacePath: snapshot.workspace.path,
-    workspaceId: snapshot.workspace.id,
-    runId: effectiveRunId,
-  });
+  if (!repositoryOverview) {
+    await scheduleObjectiveVerification({
+      workPlan,
+      workspacePath: snapshot.workspace.path,
+      workspaceId: snapshot.workspace.id,
+      runId: effectiveRunId,
+    });
+  }
   events.at(-1)!.status = "done";
   const workStrategy = workPlan.objectiveContract?.strategy ?? "work";
   // EngineeringTask is sole workflow authority when linked.
@@ -319,9 +326,15 @@ export async function runAssistant(
     null;
   if (resolvedOptions.engineeringTaskId) {
     try {
-      const { getEngineeringCommandBus } = await import("./engineering/command-bus");
-      const { createPhaseHandler } = await import("./engineering/phase-handler");
-      const { getEngineeringRepository } = await import("./engineering/repository");
+      const [
+        { getEngineeringCommandBus },
+        { createPhaseHandler },
+        { getEngineeringRepository },
+      ] = await Promise.all([
+        import("./engineering/command-bus"),
+        import("./engineering/phase-handler"),
+        import("./engineering/repository"),
+      ]);
       const repo = getEngineeringRepository();
       const bus = getEngineeringCommandBus();
       bus.setPhaseHandler(createPhaseHandler(repo));
@@ -450,6 +463,7 @@ export async function runAssistant(
     resolvedOptions,
   );
   privacyPreflight =
+    !repositoryOverview &&
     hasRainyConfig && workPlan.privacyPlan.requireSanitization
       ? await runPrivacyPreflight(
           {
@@ -735,7 +749,10 @@ export async function runAssistant(
     emitProgress();
   }
 
-  if ((workPlan.objectiveContract?.repositoryAssertions?.length ?? 0) > 0) {
+  if (
+    !repositoryOverview &&
+    (workPlan.objectiveContract?.repositoryAssertions?.length ?? 0) > 0
+  ) {
     const verificationProgress: ToolEvent = {
       id: "step-verifying-result",
       label: "Verifying the result",

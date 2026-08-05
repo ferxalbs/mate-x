@@ -22,6 +22,11 @@ import { requestRainyResponsesAgenticResponse } from "./agentic-runtime/response
 import { requestRainyChatAgenticResponse } from "./agentic-runtime/chat-runner";
 import { createModelToolsUnavailableResult } from "./agentic-runtime/model-tools-unavailable";
 import { buildValidationAuthoritySection } from "./agentic-runtime/prompt-contract";
+import { collectRepositoryOverviewEvidence } from "./agentic-runtime/repository-overview";
+import { requestRepositoryOverviewSynthesis } from "./agentic-runtime/repository-overview-synthesis";
+import { executeAgentToolCall } from "./agentic-runtime/tool-executor";
+import { isRepositoryOverviewRequest } from "../../lib/conversational-intent";
+import { sanitizePublicProgress } from "../../lib/assistant-output";
 
 // Re-exports for absolute backward-compatibility
 export * from "./agentic-runtime/types";
@@ -213,6 +218,10 @@ export async function requestRainyAgenticResponse({
 }> {
   void runbookDefinition;
   const runtime = buildAgentRuntimeConfig(options, prompt);
+  const serviceTier = options.serviceTier;
+  const repositoryOverview = isRepositoryOverviewRequest(prompt, {
+    hasActiveWorkspace: true,
+  });
   if (runtime.executionIntent && !supportsTools(capabilities)) {
     events.push({
       id: "step-model-tools-unsupported",
@@ -232,14 +241,104 @@ export async function requestRainyAgenticResponse({
     .map((match) => `${match.file}:${match.line} ${match.text}`)
     .join("\n");
   const gitStatus = snapshot.statusLines.slice(0, 40).join("\n");
-  const repoGraphSummary = await repoGraphService.getPromptSummary(
-    snapshot.workspace,
-  );
-  const similarFailures = await failureMemoryEngine.findSimilarFailures({
-    workspaceId: snapshot.workspace.id,
-    output: prompt,
-    limit: 1,
-  });
+  if (repositoryOverview) {
+    const systemPrompt = buildAgentSystemPrompt({
+      options,
+      snapshot,
+      runtimeExecutionIntent: false,
+      workingSet: renderWorkingSetForPrompt(workingSet),
+      workPlan: renderWorkPlanForPrompt(workPlan),
+      playbook: buildRunbookPlaybookSection(
+        workPlan.runbook,
+        options.behaviorMode,
+        workStrategy ?? "inspection",
+      ),
+      gitStatus,
+      matches,
+      memory: snapshot.memoryContext?.context ?? "",
+      failureMemoryContext: "",
+      repoGraphSummary: "(bounded repository overview uses the inspected inventory below)",
+      workStrategy: workStrategy ?? "inspection",
+    });
+    const evidence = await collectRepositoryOverviewEvidence({
+      snapshot,
+      execute: (toolCall, toolIndex) => executeAgentToolCall({
+        toolCall,
+        toolIndex,
+        iteration: 0,
+        snapshot,
+        events,
+        emitProgress,
+        appSettings,
+        runId,
+        engineeringTaskStatus,
+        behaviorMode: options.behaviorMode,
+        workStrategy: workStrategy ?? "inspection",
+        signal,
+      }),
+    });
+    events.push({
+      id: "step-repository-overview-collected",
+      label: "Repository inspected",
+      detail: evidence.inspectedFileCount > 0
+        ? `Inspected ${evidence.inspectedFileCount} files in ${evidence.evidenceBatchCount} bounded evidence batch${evidence.evidenceBatchCount === 1 ? "" : "es"}.`
+        : `Completed ${evidence.evidenceBatchCount} bounded evidence batch${evidence.evidenceBatchCount === 1 ? "" : "es"}.`,
+      status: "done",
+      segmentKind: "tool",
+      type: "search",
+      visibility: "public",
+    });
+    emitProgress();
+
+    const promptWithEvidence = [
+      appendAttachmentContext(prompt, options.attachments),
+      "",
+      "Repository evidence collection is complete. Synthesize the final answer now without requesting or describing more tool use. Explain purpose, architecture, entry points, and execution flow. Preserve the repository explanation contract and its historical-test wording.",
+      "",
+      evidence.modelContext,
+    ].join("\n");
+    const content = await requestRepositoryOverviewSynthesis({
+      apiKey,
+      apiMode,
+      capabilities,
+      history,
+      model,
+      options,
+      promptWithEvidence,
+      systemPrompt,
+      emitProgress,
+      signal,
+    });
+    events.push({
+      id: `${runId}:repository-overview-response`,
+      segmentId: `${runId}:repository-overview-response`,
+      passId: `${runId}:synthesis:1`,
+      runId,
+      segmentKind: "final_response",
+      type: "result",
+      label: "Final response",
+      detail: sanitizePublicProgress(content),
+      status: "completed",
+      visibility: "public",
+    });
+    emitProgress(content);
+    return {
+      toolExecutions: evidence.toolExecutions,
+      content,
+      synthesisStatus: content ? "valid" : "missing",
+      synthesisSummary: content
+        ? "Repository overview synthesized in one model pass."
+        : "The model returned no repository overview text.",
+    };
+  }
+  const [repoGraphSummary, similarFailures] = await Promise.all([
+    repoGraphService.getPromptSummary(snapshot.workspace),
+    failureMemoryEngine.findSimilarFailures({
+      workspaceId: snapshot.workspace.id,
+      output: prompt,
+      limit: 1,
+    }),
+  ]);
   const failureMemoryContext = [
     failureMemoryEngine.renderPromptSection(similarFailures),
     renderFailureMemoryInstruction(similarFailures),
@@ -264,8 +363,6 @@ export async function requestRainyAgenticResponse({
     workStrategy: workStrategy ?? workPlan.objectiveContract?.strategy,
   });
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
-  const serviceTier = options.serviceTier;
-
   // The capability resolver advertises only tools available to this mode.
   if (apiMode === "responses") {
     return requestRainyResponsesAgenticResponse({

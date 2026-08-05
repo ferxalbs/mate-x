@@ -76,6 +76,22 @@ export function isRepositoryGroundedQuestion(
   );
 }
 
+export function isRepositoryOverviewRequest(
+  prompt: string,
+  options: { hasActiveWorkspace?: boolean } = {},
+): boolean {
+  const normalized = normalizeConversationalPrompt(prompt);
+  if (!isRepositoryGroundedQuestion(normalized, options)) {
+    return false;
+  }
+
+  return (
+    /^(?:explain|summari[sz]e|describe|tell me|walk me through|give me (?:an? )?overview)\b/i.test(normalized) ||
+    /^(?:what does (?:this|the|our) (?:repo|repository|codebase|project|workspace|app|application) do|how is (?:this|the|our) (?:repo|repository|codebase|project|workspace|app|application) structured)\b/i.test(normalized) ||
+    REPOSITORY_OVERVIEW.test(normalized)
+  );
+}
+
 export function getRepositoryStartupProgressLabel(
   prompt: string,
   hasActiveWorkspace: boolean,

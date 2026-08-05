@@ -349,6 +349,28 @@ describe("terminal message composition", () => {
     });
   });
 
+  it("summarizes completed repository inspection accurately", async () => {
+    const message: ChatMessage = {
+      id: "assistant-repository-overview",
+      role: "assistant",
+      content: "This repository is a compact demo application.",
+      createdAt: "2026-08-02T00:00:42.000Z",
+      events: [
+        {
+          id: "repository-overview-search",
+          label: "Repository inspected",
+          detail: "Inspected 6 files in one batched read plus one scoped search.",
+          type: "search",
+          status: "completed",
+        },
+      ],
+    };
+    const view = await renderStream(message);
+
+    assert.ok(view.getByRole("button", { name: /Repository inspected/ }));
+    assert.equal(view.queryByText(/Search completed/), null);
+  });
+
   it("keeps the complete append-only activity trace expandable", async () => {
     const view = await renderStream(makeMessage(makeOutcome("already_satisfied")));
     const toggle = view.getByRole("button", { name: /Worked for/ });

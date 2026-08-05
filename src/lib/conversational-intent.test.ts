@@ -7,6 +7,7 @@ import {
   isConversationalPrompt,
   isPureSocialPrompt,
   isRepositoryGroundedQuestion,
+  isRepositoryOverviewRequest,
 } from "./conversational-intent";
 import { MATE_AGENT_SYSTEM_PROMPT } from "../config/mate-agent";
 
@@ -22,6 +23,16 @@ test("separates pure social prompts from general questions", () => {
     false,
   );
   assert.equal(isConversationalPrompt("Fix the failing test"), false);
+});
+
+test("bounds only repository overview requests", () => {
+  const activeWorkspace = { hasActiveWorkspace: true };
+  assert.equal(isRepositoryOverviewRequest("Explain me the repo", activeWorkspace), true);
+  assert.equal(isRepositoryOverviewRequest("Describe the architecture", activeWorkspace), true);
+  assert.equal(isRepositoryOverviewRequest("How is this app structured?", activeWorkspace), true);
+  assert.equal(isRepositoryOverviewRequest("Where is authentication handled?", activeWorkspace), false);
+  assert.equal(isRepositoryOverviewRequest("Fix the code", activeWorkspace), false);
+  assert.equal(isRepositoryOverviewRequest("Hi", activeWorkspace), false);
 });
 
 test("repository references take precedence over conversational wording", () => {
