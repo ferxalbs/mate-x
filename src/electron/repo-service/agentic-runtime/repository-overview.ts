@@ -70,13 +70,34 @@ function isUsefulToolResult(content: string) {
     !/^Error:/i.test(content.trim());
 }
 
-function extractSuccessfulReadPaths(content: string) {
-  return content
-    .split(/^### /m)
-    .slice(1)
-    .filter((section) => !/^.*\nError:/s.test(section))
-    .map((section) => section.split("\n", 1)[0]!.trim())
-    .filter(Boolean);
+function extractSuccessfulReadPaths(content: string): string[] {
+  const paths: string[] = [];
+  for (const section of content.split(/^### /m).slice(1)) {
+    if (/^.*\nError:/s.test(section)) continue;
+    const path = section.split("\n", 1)[0]?.trim();
+    if (path) paths.push(path);
+  }
+  return paths;
+}
+
+/** Safely read `paths` from a tool-call arguments JSON string. */
+function parseToolCallPaths(argumentsJson: string | undefined): string[] {
+  try {
+    const parsed: unknown = JSON.parse(argumentsJson ?? "{}");
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("paths" in parsed) ||
+      !Array.isArray((parsed as { paths: unknown }).paths)
+    ) {
+      return [];
+    }
+    return (parsed as { paths: unknown[] }).paths.filter(
+      (path): path is string => typeof path === "string",
+    );
+  } catch {
+    return [];
+  }
 }
 
 export function assessRepositoryOverviewCoverage(input: {
@@ -112,15 +133,19 @@ export function buildRepositoryOverviewExpansionToolCalls(
   initialReadPaths: string[],
 ): AgentToolCall[] {
   const alreadyRead = new Set(initialReadPaths);
-  const expansionPaths = snapshot.files
-    .filter((file) => !alreadyRead.has(file))
-    .filter((file) =>
+  const expansionPaths: string[] = [];
+  for (const file of snapshot.files) {
+    if (alreadyRead.has(file)) continue;
+    if (
       MANIFEST_NAMES.has(file.split("/").at(-1) ?? "") ||
       /(?:README|architecture|overview|entry|bootstrap)/i.test(file) ||
       ENTRY_BASENAMES.test(file.split("/").at(-1) ?? "") ||
       (IMPLEMENTATION_EXTENSIONS.test(file) && !IGNORED_IMPLEMENTATION_PATH.test(file))
-    )
-    .slice(0, 8);
+    ) {
+      expansionPaths.push(file);
+      if (expansionPaths.length >= 8) break;
+    }
+  }
 
   return [
     {
@@ -147,11 +172,16 @@ export function buildRepositoryOverviewToolCalls(
   snapshot: RepoSnapshot,
 ): AgentToolCall[] {
   const readPaths = selectRepositoryOverviewReadPaths(snapshot);
-  const sourceDirectories = Array.from(new Set(
-    snapshot.files
-      .map((file) => file.split("/")[0])
-      .filter((directory) => /^(?:src|app|lib|packages?|cmd)$/i.test(directory)),
-  )).slice(0, 4);
+  const sourceDirectories: string[] = [];
+  const seenSourceDirectories = new Set<string>();
+  for (const file of snapshot.files) {
+    const directory = file.split("/")[0];
+    if (!directory || seenSourceDirectories.has(directory)) continue;
+    if (!/^(?:src|app|lib|packages?|cmd)$/i.test(directory)) continue;
+    seenSourceDirectories.add(directory);
+    sourceDirectories.push(directory);
+    if (sourceDirectories.length >= 4) break;
+  }
 
   return [
     {
@@ -188,9 +218,7 @@ export async function collectRepositoryOverviewEvidence(input: {
   const toolResults = await Promise.all(
     toolCalls.map((toolCall, toolIndex) => input.execute(toolCall, toolIndex)),
   );
-  const requestedInitialReadPaths = JSON.parse(
-    toolCalls[0]!.arguments ?? "{}",
-  ).paths as string[];
+  const requestedInitialReadPaths = parseToolCallPaths(toolCalls[0]?.arguments);
   const initialReadContent = toolResults.find(
     (result) => result.toolExecution.toolName === "read_many",
   )?.content ?? "";
@@ -236,11 +264,15 @@ export async function collectRepositoryOverviewEvidence(input: {
       (count, result) => count + extractSuccessfulReadPaths(result.content).length,
       0,
     );
-  const majorDirectories = Array.from(new Set(
-    input.snapshot.files
-      .map((file) => file.split("/")[0])
-      .filter((part) => part && !part.includes(".")),
-  )).slice(0, 16);
+  const majorDirectories: string[] = [];
+  const seenMajorDirectories = new Set<string>();
+  for (const file of input.snapshot.files) {
+    const part = file.split("/")[0];
+    if (!part || part.includes(".") || seenMajorDirectories.has(part)) continue;
+    seenMajorDirectories.add(part);
+    majorDirectories.push(part);
+    if (majorDirectories.length >= 16) break;
+  }
 
   return {
     toolResults,
