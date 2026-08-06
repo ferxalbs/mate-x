@@ -116,7 +116,7 @@ demos
 
 *.txt
 
-*.md
+#*.md
 
 *.demo
 
