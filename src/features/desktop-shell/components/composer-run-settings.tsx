@@ -174,7 +174,7 @@ export function ComposerRunSettings({
                   key={model.id}
                   value={model.id}
                 >
-                  <span className="min-w-0 truncate">{model.label}</span>
+                  <span className="block truncate">{model.label}</span>
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>

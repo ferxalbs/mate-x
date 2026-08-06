@@ -384,15 +384,15 @@ export function AppSidebar({
               <div className="mb-4 px-1">
                 <button
                   onClick={onOpenSearch}
-                  className="mate-text-compact flex h-[34px] w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/35 bg-foreground/[0.03] px-3 transition-[background-color,border-color,color] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+                  className="group mate-text-compact flex h-[34px] w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[var(--sidebar-border)]/40 bg-foreground/[0.04] px-3 transition-[background-color,border-color,color,transform] duration-[var(--motion-press)] ease-[var(--ease-out)] hover:bg-foreground/[0.08] hover:border-[var(--sidebar-border)]/60 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                   type="button"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <HugeiconsIcon icon={Search02Icon} className="size-4 shrink-0 text-muted-foreground/80" />
-                    <span className="truncate font-medium tracking-tight">Search...</span>
+                    <HugeiconsIcon icon={Search02Icon} className="size-4 shrink-0 text-foreground/70 transition-colors group-hover:text-foreground/90" />
+                    <span className="truncate font-medium tracking-tight text-foreground/80 transition-colors group-hover:text-foreground">Search...</span>
                   </div>
-                  <KbdGroup className="shrink-0 gap-0.5 opacity-60">
-                    <Kbd className="h-5 min-w-6 rounded-lg border border-foreground/[0.06] bg-foreground/[0.05] px-1 text-[10px] font-medium">
+                  <KbdGroup className="shrink-0 gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                    <Kbd className="h-5 min-w-6 rounded-lg border border-foreground/[0.06] bg-foreground/[0.05] px-1 text-[10px] font-medium transition-colors group-hover:bg-foreground/[0.08] group-hover:border-foreground/10">
                       ⌘K
                     </Kbd>
                   </KbdGroup>
