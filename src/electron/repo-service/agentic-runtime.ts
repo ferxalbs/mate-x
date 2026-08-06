@@ -125,8 +125,16 @@ export function buildAgentSystemPrompt(input: {
   failureMemoryContext: string;
   repoGraphSummary: string;
   workStrategy?: WorkStrategy;
+  modelCatalogEntry?: RainyModelCatalogEntry;
+  model?: string;
 }): string {
-  return `${MATE_AGENT_SYSTEM_PROMPT}
+  const activeModelLabel = input.modelCatalogEntry?.label ?? input.model ?? "";
+  const modelProvider = input.modelCatalogEntry?.ownedBy ?? "";
+  const activeModelContext = activeModelLabel || modelProvider
+    ? `\nActive model: ${activeModelLabel || "unknown"}${modelProvider ? ` (Provider: ${modelProvider})` : ""}`
+    : "";
+
+  return `${MATE_AGENT_SYSTEM_PROMPT}${activeModelContext}
 
 Behavior: ${behaviorInstruction(input.options.behaviorMode)}
 Mode contract:
@@ -259,6 +267,8 @@ export async function requestRainyAgenticResponse({
       failureMemoryContext: "",
       repoGraphSummary: "(bounded repository overview uses the inspected inventory below)",
       workStrategy: workStrategy ?? "inspection",
+      modelCatalogEntry,
+      model,
     });
     const evidence = await collectRepositoryOverviewEvidence({
       snapshot,
@@ -363,6 +373,8 @@ export async function requestRainyAgenticResponse({
     failureMemoryContext,
     repoGraphSummary,
     workStrategy: workStrategy ?? workPlan.objectiveContract?.strategy,
+    modelCatalogEntry,
+    model,
   });
   const promptWithAttachments = appendAttachmentContext(prompt, options.attachments);
   // The capability resolver advertises only tools available to this mode.

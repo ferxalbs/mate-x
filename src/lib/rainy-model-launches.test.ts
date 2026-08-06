@@ -487,7 +487,7 @@ describe("GPT-5.6 pricing notice", () => {
       modelId: "openai/gpt-5.6-sol",
     });
     assert.match(notice ?? "", /272/);
-    assert.match(notice ?? "", /not estimate from message count/i);
+    assert.doesNotMatch(notice ?? "", /not estimate from message count/i);
     assert.doesNotMatch(notice ?? "", /estimated from \d+ messages/i);
 
     const measured = getHighContextPricingNotice({

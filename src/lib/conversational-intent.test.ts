@@ -53,6 +53,16 @@ test("repository references take precedence over conversational wording", () => 
   );
 });
 
+test("repository prompt contract enforces MaTE X product identity distinction", () => {
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Product identity:/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /answer like a normal assistant would/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Do not speak as if MaTE X itself were the model/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Adapt to the user's wording and language/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Avoid corporate, legal, architectural, or documentation-style language/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Never claim that MaTE X was created, built, owned, or operated by the model provider/i);
+  assert.match(MATE_AGENT_SYSTEM_PROMPT, /Do not mention Rainy API, infrastructure, routing, inference, distribution/i);
+});
+
 test("repository prompt contract forbids capability disclaimers and name speculation", () => {
   assert.match(MATE_AGENT_SYSTEM_PROMPT, /never claim that you cannot inspect or access the repository/i);
   assert.match(MATE_AGENT_SYSTEM_PROMPT, /never speculate from a repository name/i);
