@@ -1,12 +1,42 @@
 # CHANGELOG
 
-## [Unreleased] - Security Hardening
+## Unreleased - 2026.08.06 (1) [Security Hardening]
 
-* Added centralized canonical workspace validation that blocks symlink escapes across reads, writes, mutations, patches, trees, searches, and metadata operations, with revalidation before filesystem commits.
-* Added centralized network policy enforcement for HTTP probing, browser probing, and credential validators, including domain allowlists, approval gates, private/link-local/metadata blocking, and redirect validation.
-* Added typed secret redaction before persistence, evidence packs, events, and session storage so tokens, API keys, passwords, credentials, and authorization headers are not retained.
-* Migrated Rainy API keys from plaintext app state to Electron safeStorage, removed legacy values after migration, and failed closed when encrypted storage is unavailable.
-* Pinned GitHub Actions and privacy-model revisions to immutable references and added SHA-256 verification for downloaded model assets. These security changes prepare MaTE X v0.1.4; no unrelated v0.1.4 features are included.
+This security-only hardening pass closes the highest-impact paths identified in the authorized defensive review and prepares MaTE X v0.1.4. No unrelated v0.1.4 product features are included.
+
+### Workspace boundary and mutation safety
+
+* Added centralized canonical filesystem validation that resolves the approved workspace and target paths through `realpath`, rejects traversal through symlinks or canonical paths outside the active workspace, and keeps lexical containment checks as an early input guard.
+* Applied the canonical boundary to repository reads, batched reads, metadata, tree and directory enumeration, find/glob/search operations, source scanners, graph inspection, evidence loading, workspace memory, patching, file editing, mutation, rollback, and sandbox proof flows.
+* Made tree and search-style enumeration skip symlink entries instead of following them into another repository or host directory, while preserving ordinary repository-relative results.
+* Added same-directory exclusive temporary writes with cleanup, permission preservation, canonical-path revalidation before file creation, and a second boundary and symlink-state check immediately before rename so a changed filesystem cannot redirect a commit outside the approved workspace.
+* Added regressions for symlinked files, symlinked directories, canonical macOS `/var` paths, escaped reads and writes, and atomic safe-write behavior.
+
+### Network and remote-content controls
+
+* Added one main-process network policy layer for `http_prober`, `browser_prober`, and credential validators. It enforces `allowedDomains`, typed capability approval requirements, supported protocols, request timeouts, bounded response sizes, and rejection of embedded URL credentials.
+* Blocked localhost, loopback, private, carrier-grade NAT, link-local, reserved, multicast, and cloud metadata destinations, including destinations that resolve to blocked addresses rather than only literal private IPs.
+* Re-resolved approved hosts at request time and pinned the outbound connection to a validated public address, reducing DNS-rebinding exposure. Redirects are not followed implicitly; every permitted redirect is parsed and checked again against the same policy.
+* Hardened browser probing with an ephemeral session, `nodeIntegration: false`, `contextIsolation: true`, sandboxing, web security, and policy checks for navigation, redirects, subresources, and other requests. Credential validation uses fixed provider endpoints and only sends sensitive headers after an explicit approved policy stop.
+* Added regression coverage for private and metadata literals, private DNS answers, domain allowlists, sensitive-header restrictions, tool approval gates, and redirect/network target validation.
+
+### Secret and credential protection
+
+* Added typed recursive secret redaction before tool events and results cross persistence or UI boundaries, including Evidence Packs, session snapshots, workspace memory, diagnostics, and compliance-attestation inputs.
+* Redaction covers bearer, basic, token, cookie, authorization, API-key, password, credential, private-key, JWT, and provider-secret forms in structured values and text, while preserving safe evidence such as field names, status, and non-secret metadata.
+* Bound approval fingerprints to the exact in-memory operation arguments with a process-local HMAC key so changing a target or credential cannot reuse an approval, without persisting the raw secret-bearing arguments.
+* Migrated Rainy API keys from plaintext app state to Electron `safeStorage`; the migration removes legacy plaintext values only after successful encryption and fails closed when encrypted storage is unavailable. Production Rainy execution now resolves the key through the secure main-process store rather than an environment-variable fallback.
+
+### Supply-chain and model integrity
+
+* Pinned every GitHub Actions dependency to an immutable commit SHA while retaining the human-readable action version beside each pin.
+* Pinned privacy-model downloads to an immutable model revision and constrained downloaded asset names and URLs to the expected repository and revision.
+* Added SHA-256 verification for every downloaded privacy-model asset before it is committed to the local cache, with temporary-file cleanup and fail-closed behavior for mismatches, invalid revisions, invalid hashes, unexpected redirects, or oversized responses.
+
+### Verification
+
+* Added focused regression coverage for filesystem boundaries, network policy, secret redaction, approval binding, safeStorage migration, and model-asset integrity: 54 focused tests passed.
+* `bun run typecheck`, `bun run lint`, `bun run check:deprecated`, and `git diff --check` passed. The repository-wide suite completed with 824 passing tests; 14 unrelated renderer/session characterization tests failed and 9 errors remain, so this entry does not claim a green full-suite result.
 
 ## Unreleased - 2026.08.04 (2) [Universal User-Facing Presentation Architecture]
 
