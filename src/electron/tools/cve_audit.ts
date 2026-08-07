@@ -1,8 +1,7 @@
 import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { resolveWorkspacePathForRead } from "./tool-utils";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -38,20 +37,15 @@ const LOCKFILES: Array<{ file: string; manager: Exclude<PackageManager, "auto"> 
 
 const SEVERITY_ORDER = ["critical", "high", "moderate", "medium", "low", "info", "unknown"];
 
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-};
-
 const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numberValue) || numberValue <= 0) return fallback;
   return Math.min(Math.floor(numberValue), max);
 };
 
-const fileExists = async (path: string) => {
+const fileExists = async (workspacePath: string, relativePath: string) => {
   try {
-    await access(path);
+    await resolveWorkspacePathForRead(workspacePath, relativePath);
     return true;
   } catch {
     return false;
@@ -62,12 +56,12 @@ const detectPackageManagers = async (workspacePath: string) => {
   const detected: Array<Exclude<PackageManager, "auto">> = [];
 
   for (const lockfile of LOCKFILES) {
-    if (await fileExists(resolve(workspacePath, lockfile.file))) {
+    if (await fileExists(workspacePath, lockfile.file)) {
       if (!detected.includes(lockfile.manager)) detected.push(lockfile.manager);
     }
   }
 
-  if ((await fileExists(resolve(workspacePath, "package.json"))) && detected.length === 0) {
+  if ((await fileExists(workspacePath, "package.json")) && detected.length === 0) {
     detected.push("npm");
   }
 
@@ -232,15 +226,11 @@ export const cveAuditTool: Tool = {
   async execute(args, { workspacePath }) {
     const packageManager = (args.packageManager || "auto") as PackageManager;
     const relativePath = String(args.path || ".");
-    const auditPath = resolve(workspacePath, relativePath);
     const limit = toPositiveInteger(args.limit, 25, 100);
     const timeoutMs = toPositiveInteger(args.timeoutMs, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
 
-    if (!isInsideWorkspace(workspacePath, auditPath)) {
-      return "Refusing to audit outside the workspace.";
-    }
-
     try {
+      const auditPath = await resolveWorkspacePathForRead(workspacePath, relativePath);
       const managers =
         packageManager === "auto" ? await detectPackageManagers(auditPath) : [packageManager as Exclude<PackageManager, "auto">];
 

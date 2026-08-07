@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type { Tool } from '../tool-service';
 import {
@@ -6,7 +6,7 @@ import {
   formatToolFailure,
   mapErrnoToToolError,
 } from '../tool-result';
-import { resolveWorkspacePath } from "./tool-utils";
+import { resolveWorkspacePathForRead } from "./tool-utils";
 
 const MAX_RECURSIVE_ENTRIES = 4_000;
 
@@ -40,8 +40,8 @@ export const lsTool: Tool = {
     }
 
     try {
-      const targetDir = resolveWorkspacePath(workspacePath, relativePath);
-      const targetStats = await stat(targetDir);
+      const targetDir = await resolveWorkspacePathForRead(workspacePath, relativePath);
+      const targetStats = await lstat(targetDir);
       if (targetStats.isFile()) {
         return [
           'Path is a file; use read to inspect contents.',
@@ -118,7 +118,7 @@ async function walk(
 
     const res = join(dir, entry.name);
     const rel = relative(root, res);
-    if (entry.isDirectory()) {
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
       results.push(`[DIR] ${rel}`);
       await walk(res, root, results, signal);
     } else {

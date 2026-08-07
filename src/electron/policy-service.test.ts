@@ -175,6 +175,22 @@ test("approval binding fails closed for non-JSON operation metadata", () => {
   );
 });
 
+test("approval fingerprints bind secret arguments without retaining their values", () => {
+  const first = fingerprintOperation({
+    operationName: "creds_validator",
+    requiredCapability: "network.access",
+    args: { provider: "github", token: "first-secret" },
+  });
+  const second = fingerprintOperation({
+    operationName: "creds_validator",
+    requiredCapability: "network.access",
+    args: { provider: "github", token: "second-secret" },
+  });
+
+  assert.notEqual(first, second);
+  assert.doesNotMatch(first, /first-secret|second-secret/);
+});
+
 test("resolution itself requires the exact run, workspace, and fingerprint", () => {
   const { stop } = createApproval("run-resolution-binding");
   const request = createPolicyStopResolutionRequest(stop, "approve_once");

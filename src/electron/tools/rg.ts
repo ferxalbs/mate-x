@@ -1,9 +1,13 @@
-import { existsSync } from 'node:fs';
 import type { Tool } from '../tool-service';
 import { createToolError, formatToolFailure } from '../tool-result';
 import { ripgrepPath } from '../rg-binary';
 import { execFileAbortable } from './process';
-import { clampNumber, limitTextOutput, resolveWorkspacePath } from './tool-utils';
+import {
+  clampNumber,
+  limitTextOutput,
+  resolveWorkspacePathForRead,
+  resolveWorkspacePathSecure,
+} from './tool-utils';
 
 const DEFAULT_MAX_RESULTS = 80;
 const MAX_RESULTS = 500;
@@ -139,7 +143,7 @@ export const rgTool: Tool = {
     const requestedPaths = normalizePathList(args.paths ?? args.path);
     try {
       for (const requestedPath of requestedPaths) {
-        resolveWorkspacePath(workspacePath, requestedPath);
+        await resolveWorkspacePathSecure(workspacePath, requestedPath);
       }
     } catch (error) {
       return formatToolFailure(
@@ -151,7 +155,17 @@ export const rgTool: Tool = {
       trustContract && !trustContract.allowedPaths.includes('.')
         ? trustContract.allowedPaths
         : requestedPaths;
-    const existingScopedPaths = scopedPaths.filter((scopedPath) => existsSync(resolveWorkspacePath(workspacePath, scopedPath)));
+    const existingScopedPaths: string[] = [];
+    for (const scopedPath of scopedPaths) {
+      try {
+        existingScopedPaths.push(
+          await resolveWorkspacePathForRead(workspacePath, scopedPath),
+        );
+      } catch {
+        // Missing paths and symlink escapes are both excluded from the search
+        // set. A caller receives the same safe no-results outcome for either.
+      }
+    }
     if (existingScopedPaths.length === 0) {
       return 'No matches found. Search paths do not exist in this workspace.';
     }

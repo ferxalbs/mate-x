@@ -1,10 +1,8 @@
-import { access, readFile } from "node:fs/promises";
-import path from "node:path";
-
 import { tursoService } from "../turso-service";
 import type { Tool } from "../tool-service";
 import type { WorkspaceProfile } from "../../contracts/workspace";
 import { collectRepositoryToolchainProfile } from "../repository-toolchain";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "./tool-utils";
 
 export const detectWorkspaceCapabilitiesTool: Tool = {
   name: "detect_workspace_capabilities",
@@ -30,7 +28,7 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
 
     const hasFile = async (filename: string) => {
       try {
-        await access(path.join(context.workspacePath, filename));
+        await resolveWorkspacePathForRead(context.workspacePath, filename);
         return true;
       } catch {
         return false;
@@ -39,7 +37,7 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
 
     const readJson = async (filename: string) => {
       try {
-        const content = await readFile(path.join(context.workspacePath, filename), "utf-8");
+        const { content } = await readUtf8FileSafe(context.workspacePath, filename);
         return JSON.parse(content);
       } catch {
         return null;
@@ -48,7 +46,7 @@ export const detectWorkspaceCapabilitiesTool: Tool = {
 
     const readText = async (filename: string) => {
       try {
-        return await readFile(path.join(context.workspacePath, filename), "utf-8");
+        return (await readUtf8FileSafe(context.workspacePath, filename)).content;
       } catch {
         return null;
       }

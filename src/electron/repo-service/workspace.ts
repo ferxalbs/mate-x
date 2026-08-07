@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { promisify } from "node:util";
 
@@ -14,6 +14,7 @@ import {
   compareWorkspaceInventoryPaths,
   normalizeWorkspaceInventoryPath,
 } from "./workspace-inventory";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "../tools/tool-utils";
 
 const execFileAsync = promisify(execFile);
 
@@ -404,7 +405,7 @@ async function searchWorkspaceFiles(
 
 async function readFileMaybe(workspacePath: string, relativePath: string) {
   try {
-    return await readFile(path.join(workspacePath, relativePath), "utf8");
+    return (await readUtf8FileSafe(workspacePath, relativePath)).content;
   } catch {
     return null;
   }
@@ -431,7 +432,7 @@ async function detectRootQualityFiles(workspacePath: string) {
   const checks = await Promise.all(
     ROOT_QUALITY_FILES.map(async (file) => {
       try {
-        await access(path.join(workspacePath, file));
+        await resolveWorkspacePathForRead(workspacePath, file);
         return file;
       } catch {
         return null;

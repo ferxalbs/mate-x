@@ -1,17 +1,15 @@
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 
 import type { WorkspaceSummary } from "../../contracts/workspace";
 import type { WorkPlan } from "../work-engine/types";
 import type { WorkPlanInputSnapshot } from "../work-engine/work-engine-core";
 import { runPrivacyPreflight } from "../work-engine/privacy-preflight";
+import { readUtf8FileSafe } from "../tools/tool-utils";
 
 export async function loadCompliancePolicySources(workspacePath: string) {
-  const agentsPath = path.join(workspacePath, "AGENTS.md");
-  const rulesPath = path.join(workspacePath, "RULES.md");
   const sources = await Promise.all(
-    [agentsPath, rulesPath].map(async (policyPath): Promise<{ path: string; content: string } | null> => {
-      const content = await readFile(policyPath, 'utf8').catch((): null => null);
+    ["AGENTS.md", "RULES.md"].map(async (policyPath): Promise<{ path: string; content: string } | null> => {
+      const content = await readUtf8FileSafe(workspacePath, policyPath).then(({ content }) => content).catch((): null => null);
       return content ? { path: path.basename(policyPath), content } : null;
     }),
   );

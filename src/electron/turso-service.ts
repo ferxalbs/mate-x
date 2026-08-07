@@ -41,6 +41,7 @@ import { ENGINEERING_SCHEMA_SQL } from './engineering/schema';
 import { persistBackgroundImagePath } from './background-image-auth';
 import { resolveSqliteRuntimePolicy } from './sqlite-runtime-policy';
 import { normalizePersistedValidationPlan } from './validation-contract';
+import { redactSecretPayload } from './secret-redaction';
 
 interface WorkspaceSessionRecord {
   activeThreadId: string;
@@ -48,6 +49,8 @@ interface WorkspaceSessionRecord {
 }
 
 const DEFAULT_THREADS_JSON = '[]';
+const RAINY_API_KEY_LEGACY_STATE_KEY = 'rainy_api_key';
+const RAINY_API_KEY_SECURE_STATE_KEY = 'secure:rainy_api_key';
 
 export class TursoService {
   private client: Client | null = null;
@@ -510,14 +513,44 @@ export class TursoService {
       sql: `UPDATE workspace_sessions
             SET active_thread_id = ?, threads_json = ?, updated_at = ?
             WHERE workspace_id = ?`,
-      args: [activeThreadId, JSON.stringify(threads), new Date().toISOString(), workspaceId],
+      args: [
+        activeThreadId,
+        JSON.stringify(redactSecretPayload(threads)),
+        new Date().toISOString(),
+        workspaceId,
+      ],
     });
   }
 
   // ── API Key ─────────────────────────────────────────────────────────────
 
   async getApiKey(): Promise<string | null> {
-    return this.getAppStateValue('rainy_api_key');
+    await this.initialize();
+    const encryptedHex = await this.getAppStateValue(RAINY_API_KEY_SECURE_STATE_KEY);
+    const legacyValue = await this.getAppStateValue(RAINY_API_KEY_LEGACY_STATE_KEY);
+
+    if (encryptedHex) {
+      if (legacyValue !== null) {
+        await this.deleteAppStateValue(RAINY_API_KEY_LEGACY_STATE_KEY);
+      }
+      return this.decryptRainyApiKey(encryptedHex);
+    }
+
+    if (legacyValue === null) {
+      return null;
+    }
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error(
+        'Encrypted Rainy API key storage is unavailable; the legacy plaintext key was not used.',
+      );
+    }
+
+    // Migrate only after encryption succeeds. If the process stops between
+    // these statements, the next read sees the encrypted copy and removes the
+    // remaining legacy row without ever returning plaintext to a caller.
+    await this.setEncryptedAppStateValue(RAINY_API_KEY_SECURE_STATE_KEY, legacyValue);
+    await this.deleteAppStateValue(RAINY_API_KEY_LEGACY_STATE_KEY);
+    return legacyValue;
   }
 
   async getLinearDeviceId(): Promise<string> {
@@ -561,11 +594,14 @@ export class TursoService {
   async setApiKey(apiKey: string) {
     await this.initialize();
     const normalizedApiKey = apiKey.trim();
-    await this.getClient().execute({
-      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      args: ['rainy_api_key', normalizedApiKey],
-    });
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Encrypted Rainy API key storage is unavailable.');
+    }
+    await this.setEncryptedAppStateValue(
+      RAINY_API_KEY_SECURE_STATE_KEY,
+      normalizedApiKey,
+    );
+    await this.deleteAppStateValue(RAINY_API_KEY_LEGACY_STATE_KEY);
   }
 
   async getSecureAppSecretJson(key: string): Promise<Record<string, unknown> | null> {
@@ -594,6 +630,41 @@ export class TursoService {
       sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       args: [`secure:${key}`, encryptedHex],
+    });
+  }
+
+  private decryptRainyApiKey(encryptedHex: string): string {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Encrypted Rainy API key storage is unavailable.');
+    }
+    try {
+      return safeStorage.decryptString(Buffer.from(encryptedHex, 'hex'));
+    } catch {
+      throw new Error('Stored Rainy API key could not be decrypted safely.');
+    }
+  }
+
+  private async setEncryptedAppStateValue(key: string, value: string): Promise<void> {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Native encrypted storage is unavailable on this system.');
+    }
+    let encryptedHex: string;
+    try {
+      encryptedHex = safeStorage.encryptString(value).toString('hex');
+    } catch {
+      throw new Error('Native encrypted storage is unavailable on this system.');
+    }
+    await this.getClient().execute({
+      sql: `INSERT INTO app_state (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      args: [key, encryptedHex],
+    });
+  }
+
+  private async deleteAppStateValue(key: string): Promise<void> {
+    await this.getClient().execute({
+      sql: 'DELETE FROM app_state WHERE key = ?',
+      args: [key],
     });
   }
 

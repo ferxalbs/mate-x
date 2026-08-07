@@ -172,4 +172,26 @@ describe("capability resolution", () => {
       assert.equal(sensitiveFile.code, "HIGH_IMPACT_APPROVAL_REQUIRED");
     }
   });
+
+  test("all outbound network tools require approval and respect allowedDomains", () => {
+    const allowed = resolveToolAuthorization({
+      toolName: "http_prober",
+      args: { url: "https://api.github.com/user" },
+      behaviorMode: "execute",
+      workspacePolicy: workspace("workspace"),
+    });
+    assert.equal(allowed.decision, "needs_approval");
+    if (allowed.decision === "needs_approval") {
+      assert.equal(allowed.capability, "network.access");
+      assert.equal(allowed.code, "HIGH_IMPACT_APPROVAL_REQUIRED");
+    }
+
+    const blocked = resolveToolAuthorization({
+      toolName: "http_prober",
+      args: { url: "https://example.com/" },
+      behaviorMode: "execute",
+      workspacePolicy: workspace("workspace"),
+    });
+    assert.equal(blocked.decision, "blocked");
+  });
 });

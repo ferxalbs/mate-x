@@ -1,8 +1,7 @@
-import { resolve } from 'node:path';
 import type { Tool } from '../tool-service';
 import { formatSecurityTraces } from '../security-trace/format';
 import { traceSecurityPaths } from '../security-trace/scanner';
-import { isPathInsideRoot } from './tool-utils';
+import { resolveWorkspacePathForRead } from './tool-utils';
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number, min = 1) => {
   const numberValue = typeof value === 'number' ? value : Number(value);
@@ -43,17 +42,13 @@ export const securityPathTraceTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const scope = typeof args.scope === 'string' && args.scope.trim() ? args.scope : '.';
-    const resolvedScope = resolve(workspacePath, scope);
     const maxFiles = toPositiveInteger(args.maxFiles, 250, 1000, 10);
     const maxTraces = toPositiveInteger(args.maxTraces, 12, 50);
     const minConfidence = Math.max(0, Math.min(1, Number(args.minConfidence) || 0));
     const mode = args.mode === 'summary' ? 'summary' : 'full';
 
-    if (!isPathInsideRoot(workspacePath, resolvedScope)) {
-      return 'Refusing to trace outside the workspace.';
-    }
-
     try {
+      await resolveWorkspacePathForRead(workspacePath, scope);
       const traces = await traceSecurityPaths(workspacePath, { scope, maxFiles, maxTraces });
       const filteredTraces =
         minConfidence > 0

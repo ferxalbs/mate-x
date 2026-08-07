@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Tool } from "../tool-service";
+import { resolveWorkspacePathForRead } from "./tool-utils";
 
 export const projectTreeTool: Tool = {
   name: "tree",
@@ -23,9 +24,8 @@ export const projectTreeTool: Tool = {
   async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = args.path || ".";
     const maxDepth = args.depth || 2;
-    const startDir = join(workspacePath, relativePath);
-
     try {
+      const startDir = await resolveWorkspacePathForRead(workspacePath, relativePath);
       const tree = await buildTree(startDir, 0, maxDepth);
       return tree || "Directory empty or depth exceeded.";
     } catch (error) {
@@ -43,18 +43,24 @@ async function buildTree(
   if (currentDepth > maxDepth) return "";
 
   const entries = await readdir(dir, { withFileTypes: true });
+  const visibleEntries = entries.filter(
+    (entry) =>
+      !entry.name.includes("node_modules") &&
+      !entry.name.includes(".git"),
+  );
   let result = "";
 
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    if (entry.name.includes("node_modules") || entry.name.includes(".git"))
-      continue;
-
-    const isLast = i === entries.length - 1;
+  for (let i = 0; i < visibleEntries.length; i++) {
+    const entry = visibleEntries[i];
+    const isLast = i === visibleEntries.length - 1;
     const marker = isLast ? "└── " : "├── ";
-    result += `${prefix}${marker}${entry.name}${entry.isDirectory() ? "/" : ""}\n`;
+    const isSymlink = entry.isSymbolicLink();
+    result += `${prefix}${marker}${entry.name}${entry.isDirectory() && !isSymlink ? "/" : isSymlink ? " @" : ""}\n`;
 
-    if (entry.isDirectory() && currentDepth < maxDepth) {
+    // Never recurse through directory symlinks. The displayed link is useful
+    // evidence, but resolving it during traversal would re-open the workspace
+    // escape that the root validator closed.
+    if (entry.isDirectory() && !isSymlink && currentDepth < maxDepth) {
       const newPrefix = prefix + (isLast ? "    " : "│   ");
       result += await buildTree(
         join(dir, entry.name),

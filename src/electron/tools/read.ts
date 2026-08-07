@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { relative } from "node:path";
 import type { Tool } from '../tool-service';
 import {
@@ -6,7 +5,7 @@ import {
   formatToolFailure,
   mapErrnoToToolError,
 } from '../tool-result';
-import { limitTextOutput, resolveWorkspacePath } from "./tool-utils";
+import { limitTextOutput, readUtf8FileSafe } from "./tool-utils";
 
 export const readTool: Tool = {
   name: 'read',
@@ -74,8 +73,10 @@ export const readTool: Tool = {
         );
       }
 
-      const targetFile = resolveWorkspacePath(workspacePath, path);
-      const content = await readFile(targetFile, 'utf8');
+      const { resolvedPath: targetFile, content } = await readUtf8FileSafe(
+        workspacePath,
+        path,
+      );
       const lines = content.split('\n');
       const relPath = relative(workspacePath, targetFile);
 

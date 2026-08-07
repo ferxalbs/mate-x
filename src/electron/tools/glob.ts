@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
-import { lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
-import { isPathInsideRoot } from './tool-utils';
+import { isPathInsideRoot, resolveWorkspacePathForRead } from './tool-utils';
 import { createToolError, formatToolFailure, formatToolSuccess } from '../tool-result';
 
 const execFileAsync = promisify(execFile);
@@ -149,7 +148,7 @@ export const globTool: Tool = {
     const missingPaths: string[] = [];
     for (const scopedPath of scopedPaths) {
       try {
-        await lstat(resolve(workspacePath, scopedPath));
+        await resolveWorkspacePathForRead(workspacePath, scopedPath);
         existingPaths.push(scopedPath);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {

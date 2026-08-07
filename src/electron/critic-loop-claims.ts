@@ -1,7 +1,5 @@
-import { access } from "node:fs/promises";
-
 import type { ToolExecutionRecord } from "./evidence-pack";
-import { resolveWorkspacePath } from "./tools/tool-utils";
+import { resolveWorkspacePathForRead } from "./tools/tool-utils";
 
 export interface CriticLoopClaimInput {
   workspacePath: string;
@@ -316,8 +314,7 @@ function uniqueWarnings(warnings: string[]) {
 
 async function fileExistsInsideWorkspace(workspacePath: string, path: string) {
   try {
-    const resolved = resolveWorkspacePath(workspacePath, path);
-    await access(resolved);
+    await resolveWorkspacePathForRead(workspacePath, path);
     return true;
   } catch {
     return false;

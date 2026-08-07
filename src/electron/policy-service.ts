@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 
 import type { BehaviorMode } from "../contracts/behavior-mode";
 import type {
@@ -14,6 +14,7 @@ import type {
   AgentCapability,
   ExecutionAuthorityContext,
 } from "./capability-resolver";
+import { redactSecretPayload, redactSensitiveText } from "./secret-redaction";
 
 type CreatePolicyStopInput = {
   runId: string;
@@ -164,9 +165,9 @@ class PolicyService {
       attemptedAction: {
         kind: input.kind,
         toolName: input.toolName,
-        target: input.target,
-        command: input.command,
-        metadata: input.metadata,
+        target: input.target === undefined ? undefined : redactSensitiveText(input.target),
+        command: input.command === undefined ? undefined : redactSensitiveText(input.command),
+        metadata: input.metadata === undefined ? undefined : redactSecretPayload(input.metadata),
       },
       operation: {
         workspaceId: input.workspaceId,
@@ -358,13 +359,18 @@ function createPolicyAbortError() {
 
 export const policyService = new PolicyService();
 
+// Approval fingerprints bind the exact in-memory operation without retaining
+// raw credentials in policy stops or renderer-visible metadata.
+const OPERATION_FINGERPRINT_KEY = randomBytes(32);
+
 export function fingerprintOperation(input: {
   operationName: string;
   requiredCapability: string;
   args: Record<string, unknown>;
 }): string {
-  return createHash("sha256")
-    .update(stableJson(input))
+  const serialized = stableJson(input);
+  return createHmac("sha256", OPERATION_FINGERPRINT_KEY)
+    .update(serialized)
     .digest("hex");
 }
 

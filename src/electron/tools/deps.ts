@@ -1,6 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { Tool } from '../tool-service';
+import { readUtf8FileSafe } from './tool-utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,10 +70,8 @@ export const dependencyAnalyzerTool: Tool = {
   async execute(args, { workspacePath }) {
     const relativePath = (args.path as string | undefined) || 'package.json';
     const includeInfo = args.include_info === true;
-    const targetFile = join(workspacePath, relativePath);
-
     try {
-      const content = await readFile(targetFile, 'utf8');
+      const { content } = await readUtf8FileSafe(workspacePath, relativePath);
       const findings: Finding[] = [];
       const stack: string[] = [];
 

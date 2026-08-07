@@ -1,5 +1,5 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -27,6 +27,7 @@ import {
 import { getEmbeddingContent } from './repo-graph-embedding-privacy';
 import { powerStateService } from './power-state-service';
 import { tursoService } from './turso-service';
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from './tools/tool-utils';
 
 type RepoGraphWorkspace = Pick<WorkspaceEntry, 'id' | 'name' | 'path'>;
 type RepoGraphEmbeddingProgressReporter = (progress: {
@@ -1063,6 +1064,7 @@ async function collectIndexableFiles(rootPath: string) {
     }
     const entries = await readdir(directory, { withFileTypes: true });
     for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
       const absolutePath = path.join(directory, entry.name);
       const relativePath = normalizeRelativePath(path.relative(rootPath, absolutePath));
       if (shouldIgnorePath(relativePath)) {
@@ -1094,7 +1096,7 @@ async function readIndexedFiles(rootPath: string, files: string[]) {
         nextIndex += 1;
         const file = files[index];
         if (!file) continue;
-        const indexedContent = await readSmallFile(path.join(rootPath, file));
+        const indexedContent = await readSmallFile(rootPath, file);
         if (indexedContent) {
           contents.set(file, indexedContent);
         }
@@ -1105,14 +1107,16 @@ async function readIndexedFiles(rootPath: string, files: string[]) {
   return contents;
 }
 
-async function readSmallFile(filePath: string) {
+async function readSmallFile(rootPath: string, relativeFile: string) {
   try {
+    const filePath = await resolveWorkspacePathForRead(rootPath, relativeFile);
     const fileStat = await stat(filePath);
     if (fileStat.size > MAX_FILE_BYTES) {
       return null;
     }
+    const content = (await readUtf8FileSafe(rootPath, relativeFile)).content;
     return {
-      content: await readFile(filePath, 'utf8'),
+      content,
       size: fileStat.size,
       mtimeMs: Math.floor(fileStat.mtimeMs),
     };
@@ -1599,7 +1603,7 @@ async function hasIndexableFingerprintChanges(
       continue;
     }
     const existing = stateByPath.get(file);
-    const indexedContent = await readSmallFile(path.join(workspace.path, file));
+    const indexedContent = await readSmallFile(workspace.path, file);
     if (!existing || !indexedContent) {
       return true;
     }

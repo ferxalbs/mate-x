@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import type { ToolExecutionRecord } from "./evidence-pack";
@@ -9,7 +8,7 @@ import {
   extractClaimedChangedFiles,
   extractRepoPaths,
 } from "./critic-loop-claims";
-import { resolveWorkspacePath } from "./tools/tool-utils";
+import { resolveWorkspacePathForRead } from "./tools/tool-utils";
 
 export interface CriticLoopInput {
   workspacePath: string;
@@ -230,8 +229,7 @@ function resolveValidationStatus(
  */
 async function fileExistsInsideWorkspace(workspacePath: string, path: string) {
   try {
-    const resolved = resolveWorkspacePath(workspacePath, path);
-    await access(resolved);
+    await resolveWorkspacePathForRead(workspacePath, path);
     return true;
   } catch {
     return false;

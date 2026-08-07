@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import type { Tool } from "../tool-service";
 import {
@@ -15,7 +15,10 @@ import {
   formatPatchImpactSummary,
 } from "../patch-impact-engine";
 import { writeVerifiedMutation } from "../run-trace/verified-mutation";
-import { resolveWorkspacePathSecure } from "./tool-utils";
+import {
+  readUtf8FileSafe,
+  resolveWorkspacePathSecure,
+} from "./tool-utils";
 
 export const fileEditorTool: Tool = {
   name: "file_editor",
@@ -106,14 +109,16 @@ export const fileEditorTool: Tool = {
       ? args.impactAnalysis
       : "none";
     
-    const targetFile = await resolveWorkspacePathSecure(workspacePath, path);
+    let targetFile = await resolveWorkspacePathSecure(workspacePath, path);
 
     try {
       let content = "";
       let fileExists = true;
       let fileMode: number | null = null;
       try {
-        content = await readFile(targetFile, "utf8");
+        const readResult = await readUtf8FileSafe(workspacePath, path);
+        targetFile = readResult.resolvedPath;
+        content = readResult.content;
         fileMode = (await stat(targetFile)).mode;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

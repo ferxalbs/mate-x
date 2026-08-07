@@ -1,8 +1,11 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, realpath } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Tool } from '../tool-service';
-import { isPathInsideRoot, resolveWorkspacePath } from './tool-utils';
+import {
+  isPathInsideRoot,
+  resolveWorkspacePathForRead,
+} from './tool-utils';
 
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 2000;
@@ -98,12 +101,10 @@ export const findTool: Tool = {
     required: ['name'],
   },
   async execute(args, { workspacePath }) {
-    const targetDir = resolveWorkspacePath(workspacePath, args.path || '.');
     const searchName = String(args.name || '').trim().toLowerCase();
     const limit = toPositiveInteger(args.limit, DEFAULT_LIMIT, MAX_LIMIT);
 
     if (!searchName) return 'Find name is required.';
-    if (!isPathInsideRoot(workspacePath, targetDir)) return 'Refusing to search outside the workspace.';
 
     const options: SearchOptions = {
       root: workspacePath,
@@ -118,6 +119,12 @@ export const findTool: Tool = {
     };
 
     try {
+      const canonicalWorkspace = await realpath(workspacePath);
+      const targetDir = await resolveWorkspacePathForRead(workspacePath, args.path || '.');
+      if (!isPathInsideRoot(canonicalWorkspace, targetDir)) {
+        return 'Refusing to search outside the workspace.';
+      }
+      options.root = canonicalWorkspace;
       await searchFiles(targetDir, options, 0);
       if (options.results.length === 0) return 'No matching files found.';
       
@@ -137,6 +144,7 @@ async function searchFiles(dir: string, options: SearchOptions, depth: number) {
     if (options.results.length >= options.limit) return;
     if (!options.includeHidden && entry.name.startsWith('.')) continue;
     if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) continue;
+    if (entry.isSymbolicLink()) continue;
     
     const fullPath = join(dir, entry.name);
     const relativePath = relative(options.root, fullPath);

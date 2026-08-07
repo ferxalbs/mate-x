@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { readUtf8FileSafe } from "./tool-utils";
 
 const execFileAsync = promisify(execFile);
 
@@ -53,7 +52,7 @@ export const sqlAuditTool: Tool = {
       for (const file of files) {
         if (file.includes("node_modules") || file.includes(".git")) continue;
 
-        const content = await readFile(join(workspacePath, file), "utf8");
+        const { content } = await readUtf8FileSafe(workspacePath, file);
         for (const pattern of SQL_INJECTION_PATTERNS) {
           const matches = content.match(pattern.regex);
           if (matches) {

@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { readUtf8FileSafe } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,7 +36,7 @@ export const entropyScannerTool: Tool = {
           continue;
         }
 
-        const content = await readFile(join(workspacePath, file), 'utf8');
+        const { content } = await readUtf8FileSafe(workspacePath, file);
         // Extract strings and potential keys (alphanumeric sequences > 16 chars)
         const potentialSecrets = content.match(/[A-Za-z0-9+/=_-]{16,}/g);
         

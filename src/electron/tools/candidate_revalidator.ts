@@ -1,7 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { Tool } from '../tool-service';
-import { resolveWorkspacePath } from './tool-utils';
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from './tool-utils';
 
 type Verdict = 'confirmed_candidate' | 'likely_false_positive' | 'needs_context';
 
@@ -36,20 +34,6 @@ const REFERENCE_HINTS = [
   /\b(scanner|canary|fuzzer|prober|poison|audit)\b/i,
   /\b(pattern|regex|rule|matcher)\b/i,
 ];
-
-function assertInsideWorkspace(workspacePath: string, filePath: string) {
-  let absolutePath: string;
-  try {
-    absolutePath = resolveWorkspacePath(workspacePath, filePath);
-  } catch {
-    throw new Error('Candidate file must stay inside workspace.');
-  }
-  // Candidates must be files under the workspace, not the workspace root itself.
-  if (absolutePath === resolve(workspacePath)) {
-    throw new Error('Candidate file must stay inside workspace.');
-  }
-  return absolutePath;
-}
 
 function collectSignals(lines: string[], patterns: RegExp[], label: string, reason: string): Signal[] {
   return lines.some((line) => patterns.some((pattern) => pattern.test(line)))
@@ -128,8 +112,8 @@ export const candidateRevalidatorTool: Tool = {
     const contextRadius = Math.max(6, Math.min(Number(args.contextRadius || 18), 60));
 
     try {
-      const absolutePath = assertInsideWorkspace(workspacePath, file);
-      const content = await readFile(absolutePath, 'utf8');
+      await resolveWorkspacePathForRead(workspacePath, file);
+      const { content } = await readUtf8FileSafe(workspacePath, file);
       const allLines = content.split(/\r?\n/);
       const start = Math.max(1, line - contextRadius);
       const end = Math.min(allLines.length, line + contextRadius);

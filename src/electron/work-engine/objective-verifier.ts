@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 import type {
@@ -10,6 +10,7 @@ import type {
   WorkObjectiveContract,
 } from "../../contracts/work-objective";
 import { GitService } from "../git-service";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "../tools/tool-utils";
 import type { WorkPlan } from "./types";
 
 const IGNORED_DIRECTORY_NAMES = new Set([
@@ -376,15 +377,16 @@ async function inspectRepository(workspacePath: string) {
   const readFailures: string[] = [];
   for (const relativePath of await listRepositoryFiles(workspacePath)) {
     try {
-      const content = await readFile(path.join(workspacePath, relativePath));
+      const safePath = await resolveWorkspacePathForRead(workspacePath, relativePath);
+      const { content } = await readUtf8FileSafe(workspacePath, safePath);
       files.push({
         path: relativePath,
-        contentHash: createHash("sha256").update(content).digest("hex"),
-        text: isSourceFile(relativePath) && content.byteLength <= MAX_INSPECTABLE_FILE_BYTES
-          ? content.toString("utf8")
+        contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
+        text: isSourceFile(relativePath) && Buffer.byteLength(content, "utf8") <= MAX_INSPECTABLE_FILE_BYTES
+          ? content
           : undefined,
       });
-      if (isSourceFile(relativePath) && content.byteLength > MAX_INSPECTABLE_FILE_BYTES) {
+      if (isSourceFile(relativePath) && Buffer.byteLength(content, "utf8") > MAX_INSPECTABLE_FILE_BYTES) {
         readFailures.push(relativePath);
       }
     } catch {
@@ -403,14 +405,10 @@ async function listRepositoryFiles(workspacePath: string) {
       if (entry.name.startsWith(".") && entry.name !== ".github") continue;
       if (entry.isDirectory() && IGNORED_DIRECTORY_NAMES.has(entry.name)) continue;
       const relativePath = path.posix.join(relativeDirectory.replace(/\\/g, "/"), entry.name);
-      const absolutePath = path.join(workspacePath, relativePath);
       if (entry.isDirectory()) {
         await visit(relativePath);
       } else if (entry.isFile()) {
         files.push(relativePath);
-      } else if (entry.isSymbolicLink()) {
-        const stat = await lstat(absolutePath);
-        if (stat.isFile()) files.push(relativePath);
       }
     }
   };

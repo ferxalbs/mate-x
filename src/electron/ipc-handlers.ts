@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
-import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
@@ -51,6 +50,8 @@ import {
 } from "./telemetry-service";
 import { resolveOperationAuthorization, type AgentCapability } from "./capability-resolver";
 import { createDefaultWorkspaceTrustContract } from "./workspace-trust";
+import { redactSecretPayload } from "./secret-redaction";
+import { resolveWorkspacePathForRead } from "./tools/tool-utils";
 
 // ── Lazy service loaders (keep main-process cold start free of assistant/SDK bulk) ──
 const loadRepoService = () => import("./repo-service");
@@ -532,7 +533,7 @@ function validateConversationSnapshot(value: unknown) {
   if (serialized.length > 2_000_000) {
     throw new Error("threads payload is too large.");
   }
-  return value as Conversation[];
+  return redactSecretPayload(value as Conversation[]);
 }
 
 function validateWorkspaceTrustContract(contract: unknown): WorkspaceTrustContract {
@@ -620,9 +621,14 @@ function validateComplianceExportRequest(value: unknown) {
 }
 
 async function loadVerifiedEvidencePackForExport(workspacePath: string, taskId: string) {
-  const evidenceDirectory = resolve(workspacePath, ".mate-x", "evidence", taskId);
-  const evidencePackPath = resolve(evidenceDirectory, "evidence-pack.json");
-  const attestationPath = resolve(evidenceDirectory, "attestation.intoto.json");
+  const evidencePackPath = await resolveWorkspacePathForRead(
+    workspacePath,
+    `.mate-x/evidence/${taskId}/evidence-pack.json`,
+  );
+  const attestationPath = await resolveWorkspacePathForRead(
+    workspacePath,
+    `.mate-x/evidence/${taskId}/attestation.intoto.json`,
+  );
   const evidencePack = validateEvidencePack(JSON.parse(await readFile(evidencePackPath, "utf8")));
   const attestation = JSON.parse(await readFile(attestationPath, "utf8")) as {
     statement?: { subject?: Array<{ name?: string; digest?: { sha256?: string } }> };
@@ -652,7 +658,12 @@ async function listLocalEvidencePacks(workspaceId?: string) {
   const id = optionalWorkspaceId(workspaceId);
   // Use collect with dummy prompt; it resolves the workspace path without full agent run.
   const snapshot = await collectRepoSnapshot("list-evidence-packs", id);
-  const evidenceRoot = resolve(snapshot.workspace.path, ".mate-x", "evidence");
+  let evidenceRoot: string;
+  try {
+    evidenceRoot = await resolveWorkspacePathForRead(snapshot.workspace.path, ".mate-x/evidence");
+  } catch {
+    return [];
+  }
   try {
     const dirents = await readdir(evidenceRoot, { withFileTypes: true });
     const packs: Array<{
@@ -669,8 +680,14 @@ async function listLocalEvidencePacks(workspaceId?: string) {
       const taskId = dirent.name;
       if (!/^[A-Za-z0-9._-]+$/.test(taskId)) continue;
       try {
-        const packPath = resolve(evidenceRoot, taskId, "evidence-pack.json");
-        const attPath = resolve(evidenceRoot, taskId, "attestation.intoto.json");
+        const packPath = await resolveWorkspacePathForRead(
+          snapshot.workspace.path,
+          `.mate-x/evidence/${taskId}/evidence-pack.json`,
+        );
+        const attPath = await resolveWorkspacePathForRead(
+          snapshot.workspace.path,
+          `.mate-x/evidence/${taskId}/attestation.intoto.json`,
+        );
         const packRaw = await readFile(packPath, "utf8");
         const pack = JSON.parse(packRaw);
         let attestationStatus: "signed" | "failed" | "missing" | "blocked" = "missing";

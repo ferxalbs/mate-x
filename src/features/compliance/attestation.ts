@@ -5,6 +5,7 @@ import { dirname, join, relative } from "node:path";
 
 import type { EvidencePack } from "../../contracts/chat";
 import type { AgentRunIdentity } from "./agentIdentity";
+import { redactSecretPayload } from "../../electron/secret-redaction";
 
 export const MATE_X_SLSA_PREDICATE_TYPE = "https://slsa.dev/provenance/v1";
 export const MATE_X_BUILDER_ID = "mate-x-desktop-electron-42";
@@ -109,8 +110,9 @@ export async function generateEvidenceAttestation(
   params: GenerateEvidenceAttestationParams,
 ): Promise<GenerateEvidenceAttestationResult> {
   const generatedAt = (params.now ?? new Date()).toISOString();
+  const safeEvidencePack = redactSecretPayload(params.evidencePack);
   const unsignedEvidencePack: EvidencePack = {
-    ...params.evidencePack,
+    ...safeEvidencePack,
     attestation: undefined,
   };
   const evidencePayload = canonicalJson(unsignedEvidencePack);
@@ -120,7 +122,7 @@ export async function generateEvidenceAttestation(
 
   if (privacyGate.hasSecrets) {
     return {
-      evidencePack: withAttestationStatus(params.evidencePack, {
+        evidencePack: withAttestationStatus(safeEvidencePack, {
         status: "blocked",
         taskId: params.taskId,
         reason:
@@ -243,7 +245,7 @@ export async function generateEvidenceAttestation(
     await writeFile(proofPath, proofJson);
 
     return {
-      evidencePack: withAttestationStatus(params.evidencePack, {
+      evidencePack: withAttestationStatus(safeEvidencePack, {
         status: "signed",
         taskId: params.taskId,
         path: relative(params.workspacePath, attestationPath),
@@ -255,7 +257,7 @@ export async function generateEvidenceAttestation(
     };
   } catch (error) {
     return {
-      evidencePack: withAttestationStatus(params.evidencePack, {
+      evidencePack: withAttestationStatus(safeEvidencePack, {
         status: "failed",
         taskId: params.taskId,
         reason: error instanceof Error ? error.message : "Attestation generation failed.",

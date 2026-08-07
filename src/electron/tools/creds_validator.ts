@@ -1,5 +1,9 @@
 import type { Tool } from '../tool-service';
 import { ToolRateLimiter } from './tool-rate-limiter';
+import {
+  CREDENTIAL_PROVIDER_URLS,
+  fetchWithNetworkPolicy,
+} from "../network-policy";
 
 type CredentialProvider = 'github' | 'npm' | 'slack';
 
@@ -87,20 +91,30 @@ export const credsValidatorTool: Tool = {
     },
     required: ['provider', 'token'],
   },
-  async execute(args) {
+  async execute(args, { trustContract, signal, approvedPolicyStopId }) {
     const { provider, token } = args;
+    if (!trustContract) {
+      return JSON.stringify({
+        error: "NETWORK_POLICY_BLOCKED",
+        message: "Workspace network policy is unavailable.",
+      });
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
+    const abortFromCaller = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", abortFromCaller, { once: true });
+    const normalizedProvider = typeof provider === "string" ? provider.toLowerCase() : "";
 
     try {
-      switch (provider.toLowerCase()) {
+      switch (normalizedProvider) {
         case 'github': {
           const blocked = checkExternalPreflight('github');
           if (blocked) return blocked;
-          const res = await fetch('https://api.github.com/user', {
+          const res = await fetchWithNetworkPolicy(CREDENTIAL_PROVIDER_URLS.github, {
             headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'MaTE-X-Sec-Auditor' },
-            signal: controller.signal
-          });
+            signal: controller.signal,
+          }, trustContract, { allowSensitiveHeaders: Boolean(approvedPolicyStopId) });
           if (isExternalFailureStatus(res.status)) recordExternalFailure('github');
           else recordExternalSuccess('github');
           if (res.status === 200) {
@@ -112,10 +126,10 @@ export const credsValidatorTool: Tool = {
         case 'npm': {
           const blocked = checkExternalPreflight('npm');
           if (blocked) return blocked;
-          const res = await fetch('https://registry.npmjs.org/-/whoami', {
+          const res = await fetchWithNetworkPolicy(CREDENTIAL_PROVIDER_URLS.npm, {
             headers: { Authorization: `Bearer ${token}` },
-            signal: controller.signal
-          });
+            signal: controller.signal,
+          }, trustContract, { allowSensitiveHeaders: Boolean(approvedPolicyStopId) });
           if (isExternalFailureStatus(res.status)) recordExternalFailure('npm');
           else recordExternalSuccess('npm');
           if (res.status === 200) {
@@ -127,10 +141,10 @@ export const credsValidatorTool: Tool = {
         case 'slack': {
             const blocked = checkExternalPreflight('slack');
             if (blocked) return blocked;
-            const res = await fetch('https://slack.com/api/auth.test', {
+            const res = await fetchWithNetworkPolicy(CREDENTIAL_PROVIDER_URLS.slack, {
                 headers: { Authorization: `Bearer ${token}` },
-                signal: controller.signal
-            });
+                signal: controller.signal,
+            }, trustContract, { allowSensitiveHeaders: Boolean(approvedPolicyStopId) });
             if (isExternalFailureStatus(res.status)) recordExternalFailure('slack');
             else recordExternalSuccess('slack');
             const data = await res.json();
@@ -140,10 +154,9 @@ export const credsValidatorTool: Tool = {
             return `Token is INVALID or REVOKED.`;
         }
         default:
-          return `Validation for provider '${provider}' is not natively supported yet. Recommend using http_prober to test it manually.`;
+          return `Validation for provider '${normalizedProvider || "<empty>"}' is not natively supported.`;
       }
     } catch (error: any) {
-      const normalizedProvider = typeof provider === 'string' ? provider.toLowerCase() : '';
       if (normalizedProvider === 'github' || normalizedProvider === 'npm' || normalizedProvider === 'slack') {
         recordExternalFailure(normalizedProvider);
       }
@@ -151,6 +164,7 @@ export const credsValidatorTool: Tool = {
       return `Error validating token: ${error.message}`;
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener("abort", abortFromCaller);
     }
   },
 };

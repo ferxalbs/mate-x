@@ -87,6 +87,8 @@ export function createDefaultWorkspaceTrustContract(
       "api.github.com",
       "docs.github.com",
       "docs.npmjs.com",
+      "registry.npmjs.org",
+      "slack.com",
       ...(rainyHostname ? [rainyHostname] : []),
     ],
     allowedSecrets: [],

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { resolveWorkspacePathForRead } from "./tool-utils";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_DEPTH = 5;
@@ -31,11 +31,6 @@ const DEFAULT_SINKS = [
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-};
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === "number" ? value : Number(value);
@@ -133,7 +128,6 @@ export const flowTraceTool: Tool = {
     const maxMatches = toPositiveInteger(args.maxMatches, DEFAULT_MAX_MATCHES, MAX_MATCHES_LIMIT);
     const timeoutMs = toPositiveInteger(args.timeoutMs, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
     const path = String(args.path || ".");
-    const searchPath = resolve(workspacePath, path);
     const glob = typeof args.glob === "string" && args.glob.trim() ? args.glob.trim() : undefined;
     const sinks = toStringArray(args.sinks).length > 0 ? toStringArray(args.sinks) : DEFAULT_SINKS;
     let currentTrace = [source];
@@ -142,9 +136,9 @@ export const flowTraceTool: Tool = {
     const flowPath: string[] = [];
 
     if (!source) return "Flow source is required.";
-    if (!isInsideWorkspace(workspacePath, searchPath)) return "Refusing to trace outside the workspace.";
 
     try {
+      await resolveWorkspacePathForRead(workspacePath, path);
       for (let depth = 0; depth < safeDepth; depth++) {
         const nextTerms: string[] = [];
         for (const term of currentTrace) {

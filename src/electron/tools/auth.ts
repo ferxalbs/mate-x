@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { readUtf8FileSafe } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,7 +29,7 @@ export const accessControlAuditTool: Tool = {
       const findings: string[] = [];
 
       for (const file of files) {
-        const content = await readFile(join(workspacePath, file), 'utf8');
+        const { content } = await readUtf8FileSafe(workspacePath, file);
         
         // Match common route patterns: .get(', .post(', router.get(', etc.
         const routeMatches = content.matchAll(/\.(get|post|put|delete|patch)\s*\(\s*['"](.+?)['"]/g);

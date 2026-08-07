@@ -1,6 +1,5 @@
-import { readFile, access } from "node:fs/promises";
-import { join } from "node:path";
 import type { Tool } from "../tool-service";
+import { readUtf8FileSafe } from "./tool-utils";
 
 export const threatModelTool: Tool = {
   name: "threat_model",
@@ -23,14 +22,12 @@ export const threatModelTool: Tool = {
 
     try {
       // Analyze Package.json to infer architecture components
-      const pkgPath = join(workspacePath, "package.json");
       let hasApi = false;
       let hasDb = false;
       let hasUi = false;
 
       try {
-        await access(pkgPath);
-        const pkgContent = await readFile(pkgPath, "utf8");
+        const { content: pkgContent } = await readUtf8FileSafe(workspacePath, "package.json");
         const pkg = JSON.parse(pkgContent);
         const deps = {
           ...(pkg.dependencies || {}),

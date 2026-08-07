@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import type { Tool } from '../tool-service';
 import { PDF, StandardFonts, rgb } from '@libpdf/core';
+import { writeWorkspaceFileSecure } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -235,8 +234,11 @@ export const pdfReportTool: Tool = {
 
       // Save the PDF
       const pdfBytes = await doc.save();
-      const absolutePath = path.resolve(workspacePath, outputPath);
-      await fs.writeFile(absolutePath, pdfBytes);
+      const absolutePath = await writeWorkspaceFileSecure(
+        workspacePath,
+        outputPath,
+        pdfBytes,
+      );
 
       return `Successfully generated premium PDF security report at: ${absolutePath}`;
     } catch (error) {

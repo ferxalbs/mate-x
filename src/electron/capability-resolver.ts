@@ -16,6 +16,7 @@ import {
 } from "./tool-metadata";
 import { lazyToolLoaders } from "./tool-registry";
 import { evaluateTrustForToolCall } from "./workspace-trust";
+import { validateNetworkTargetForToolCall } from "./network-policy";
 
 export type AgentCapability =
   | "workspace.read"
@@ -194,6 +195,22 @@ export function resolveOperationAuthorization(input: {
     );
   }
 
+  if (capability === "network.access") {
+    const networkError = validateNetworkTargetForToolCall(
+      input.operationName,
+      args,
+      input.workspacePolicy,
+    );
+    if (networkError) {
+      return blocked(
+        capability,
+        "ACTION_NOT_ALLOWED",
+        networkError,
+        { type: "update_workspace_policy", label: "Review network policy" },
+      );
+    }
+  }
+
   if (
     input.engineeringTaskStatus === "awaiting_approval" &&
     capability !== "workspace.read" &&
@@ -231,6 +248,15 @@ export function resolveOperationAuthorization(input: {
       capability,
       code: "HIGH_IMPACT_APPROVAL_REQUIRED",
       summary: "Approve this security test once.",
+    };
+  }
+
+  if (capability === "network.access") {
+    return {
+      decision: "needs_approval",
+      capability,
+      code: "HIGH_IMPACT_APPROVAL_REQUIRED",
+      summary: "Approve this outbound network request once.",
     };
   }
 

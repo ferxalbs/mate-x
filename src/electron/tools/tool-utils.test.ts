@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import {
   clampNumber,
   isPathInsideRoot,
   limitTextOutput,
   resolveWorkspacePath,
+  resolveWorkspacePathForRead,
+  resolveWorkspacePathForWrite,
+  writeWorkspaceFileSecure,
 } from "./tool-utils";
 
 describe("resolveWorkspacePath / isPathInsideRoot", () => {
@@ -70,5 +75,63 @@ describe("limitTextOutput / clampNumber", () => {
     assert.equal(clampNumber(100, 1, 10, 5), 10);
     assert.equal(clampNumber("x", 1, 10, 5), 5);
     assert.equal(clampNumber(Number.NaN, 1, 10, 5), 5);
+  });
+});
+
+describe("canonical workspace filesystem boundary", () => {
+  test("rejects reads through a symlink that escapes the workspace", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "matex-tool-utils-workspace-"));
+    const outside = await mkdtemp(join(tmpdir(), "matex-tool-utils-outside-"));
+    try {
+      await writeFile(join(outside, "secret.txt"), "outside secret");
+      await symlink(outside, join(workspace, "linked"));
+
+      await assert.rejects(
+        () => resolveWorkspacePathForRead(workspace, "linked/secret.txt"),
+        /outside the active workspace/,
+      );
+    } finally {
+      await Promise.all([
+        rm(workspace, { recursive: true, force: true }),
+        rm(outside, { recursive: true, force: true }),
+      ]);
+    }
+  });
+
+  test("rejects writes through a symlink and leaves the outside target unchanged", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "matex-tool-utils-workspace-"));
+    const outside = await mkdtemp(join(tmpdir(), "matex-tool-utils-outside-"));
+    try {
+      const outsideFile = join(outside, "target.txt");
+      await writeFile(outsideFile, "outside original");
+      await symlink(outsideFile, join(workspace, "target.txt"));
+
+      await assert.rejects(
+        () => resolveWorkspacePathForWrite(workspace, "target.txt"),
+        /symbolic link|outside the active workspace/,
+      );
+      await assert.rejects(
+        () => writeWorkspaceFileSecure(workspace, "target.txt", "must not write"),
+        /symbolic link|outside the active workspace/,
+      );
+      assert.equal(await readFile(outsideFile, "utf8"), "outside original");
+    } finally {
+      await Promise.all([
+        rm(workspace, { recursive: true, force: true }),
+        rm(outside, { recursive: true, force: true }),
+      ]);
+    }
+  });
+
+  test("atomically writes a regular file after canonical revalidation", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "matex-tool-utils-workspace-"));
+    try {
+      await writeWorkspaceFileSecure(workspace, "nested/result.txt", "safe", {
+        createDirectories: true,
+      });
+      assert.equal(await readFile(join(workspace, "nested/result.txt"), "utf8"), "safe");
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
   });
 });

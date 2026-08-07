@@ -1,8 +1,7 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "./tool-utils";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LIMIT = 100;
@@ -23,11 +22,6 @@ const PATTERNS = [
   { name: "live secret prefix", severity: "critical", regex: "(sk_live_|gh[pousr]_|xox[baprs]-|AKIA[0-9A-Z]{16})" },
 ];
 
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-};
-
 const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numberValue) || numberValue <= 0) return fallback;
@@ -43,10 +37,7 @@ const redactLine = (line: string) =>
 const inspectSourceMap = async (workspacePath: string, file: string) => {
   if (!file.endsWith(".map")) return "";
 
-  const filePath = resolve(workspacePath, file);
-  if (!isInsideWorkspace(workspacePath, filePath)) return "";
-
-  const content = await readFile(filePath, "utf8");
+  const { content } = await readUtf8FileSafe(workspacePath, file);
   if (Buffer.byteLength(content, "utf8") > MAX_FILE_BYTES) return "source map too large for structural inspection";
 
   const parsed = JSON.parse(content) as { sources?: string[]; sourcesContent?: string[] };
@@ -84,11 +75,12 @@ export const sourceMapAnalyzerTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const targetDir = String(args.path || ".");
-    const targetPath = resolve(workspacePath, targetDir);
     const limit = toPositiveInteger(args.limit, DEFAULT_LIMIT, MAX_LIMIT);
     const contextLimit = toPositiveInteger(args.contextLimit, DEFAULT_CONTEXT_LIMIT, 20);
 
-    if (!isInsideWorkspace(workspacePath, targetPath)) {
+    try {
+      await resolveWorkspacePathForRead(workspacePath, targetDir);
+    } catch {
       return "Refusing to analyze outside the workspace.";
     }
 

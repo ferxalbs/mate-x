@@ -1,4 +1,5 @@
 import type { Tool } from '../tool-service';
+import { fetchWithNetworkPolicy } from "../network-policy";
 
 export const httpProberTool: Tool = {
   name: 'http_prober',
@@ -25,21 +26,41 @@ export const httpProberTool: Tool = {
     },
     required: ['url'],
   },
-  async execute(args) {
+  async execute(args, { trustContract, signal, approvedPolicyStopId }) {
     const { url, method = 'GET', headers = '{}', body } = args;
-    
-    let parsedHeaders = {};
-    try { parsedHeaders = JSON.parse(headers); } catch (_e) { /* ignore */ }
+    if (!trustContract) {
+      return "Error probing network target: workspace network policy is unavailable.";
+    }
+
+    let parsedHeaders: Record<string, string>;
+    try {
+      const candidate = JSON.parse(headers);
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+        return "Error probing network target: headers must be a JSON object.";
+      }
+      parsedHeaders = Object.fromEntries(
+        Object.entries(candidate).map(([key, value]) => [key, String(value)]),
+      );
+    } catch (_e) {
+      return "Error probing network target: headers must be valid JSON.";
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+    const abortFromCaller = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", abortFromCaller, { once: true });
 
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithNetworkPolicy(url, {
         method,
         headers: parsedHeaders,
         body: (method !== 'GET' && method !== 'HEAD') ? body : undefined,
         signal: controller.signal,
+      }, trustContract, {
+        // Generic HTTP probes may send sensitive headers only after the
+        // canonical outbound-network approval has been consumed.
+        allowSensitiveHeaders: Boolean(approvedPolicyStopId),
       });
 
       const text = await res.text();
@@ -52,6 +73,7 @@ export const httpProberTool: Tool = {
       return `Error probing ${url}: ${error.message}`;
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener("abort", abortFromCaller);
     }
   },
 };

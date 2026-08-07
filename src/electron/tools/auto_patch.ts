@@ -1,4 +1,3 @@
-import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import type { Tool } from "../tool-service";
 import {
@@ -8,7 +7,10 @@ import {
   formatPatchImpactSkipped,
   formatPatchImpactSummary,
 } from "../patch-impact-engine";
-import { resolveWorkspacePath } from "./tool-utils";
+import {
+  readUtf8FileSafe,
+  writeWorkspaceFileSecure,
+} from "./tool-utils";
 
 export const autoPatchTool: Tool = {
   name: "auto_patch",
@@ -39,10 +41,11 @@ export const autoPatchTool: Tool = {
   },
   async execute(args, { workspacePath }) {
     const { path, searchString, replacementString, replaceAll = false } = args;
-    const targetFile = resolveWorkspacePath(workspacePath, path);
-
     try {
-      const content = await readFile(targetFile, "utf8");
+      const { resolvedPath: targetFile, content } = await readUtf8FileSafe(
+        workspacePath,
+        path,
+      );
       const impactBefore = await analyzePatchBefore(workspacePath, String(path));
       const decision = assessPatchBeforeWrite(impactBefore);
 
@@ -57,7 +60,7 @@ export const autoPatchTool: Tool = {
       if (newContent === content) {
         return formatPatchImpactSkipped(impactBefore.targetFile, decision, impactBefore.summary);
       }
-      await writeFile(targetFile, newContent, "utf8");
+      await writeWorkspaceFileSecure(workspacePath, targetFile, newContent);
       const impactSummary = await analyzePatchAfter(impactBefore);
 
       const rel = relative(workspacePath, targetFile);

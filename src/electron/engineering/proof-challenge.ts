@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
 import type { ProofChallengeResult } from '../../contracts/engineering-task';
+import { readUtf8FileSafe, writeWorkspaceFileSecure } from '../tools/tool-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,10 +47,12 @@ export async function runProofChallenge(input: ProofChallengeInput): Promise<Pro
     worktreeAdded = true;
     if (input.signal?.aborted) return artifact(input, 'inconclusive', 'Cancelled before mutation');
 
-    const target = path.resolve(sandbox, input.mutation.file);
-    if (!target.startsWith(`${sandbox}${path.sep}`)) return artifact(input, 'inconclusive', 'Mutation escaped sandbox');
-    const source = await readFile(target, 'utf8');
-    await writeFile(target, source.slice(0, input.mutation.start) + input.mutation.replacement + source.slice(input.mutation.end));
+    const target = await readUtf8FileSafe(sandbox, input.mutation.file);
+    await writeWorkspaceFileSecure(
+      sandbox,
+      input.mutation.file,
+      target.content.slice(0, input.mutation.start) + input.mutation.replacement + target.content.slice(input.mutation.end),
+    );
     const result = await runValidation(sandbox, input.validation, input.signal);
     if (result === 'cancelled') return artifact(input, 'inconclusive', 'Cancelled during validation');
     return artifact(input, result === 'failed' ? 'sensitive' : 'insensitive');

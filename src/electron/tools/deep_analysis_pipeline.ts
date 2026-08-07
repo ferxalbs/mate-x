@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
@@ -9,7 +9,14 @@ import {
   SEVERITY_RANK,
   scanAttackSurfaceCandidates,
 } from './attack_surface_scan';
-import { clampNumber, limitTextOutput, resolveWorkspacePath } from './tool-utils';
+import {
+  clampNumber,
+  limitTextOutput,
+  readUtf8FileSafe,
+  resolveWorkspacePathForRead,
+  resolveWorkspacePathForWrite,
+  writeWorkspaceFileSecure,
+} from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -107,9 +114,10 @@ function verdictFor(labels: string[]) {
   return 'needs_context' as const;
 }
 
-async function readPreviousRecord(path: string): Promise<FileRecord | null> {
+async function readPreviousRecord(workspacePath: string, path: string): Promise<FileRecord | null> {
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as FileRecord;
+    const { content } = await readUtf8FileSafe(workspacePath, path);
+    return JSON.parse(content) as FileRecord;
   } catch {
     return null;
   }
@@ -230,8 +238,12 @@ export const deepAnalysisPipelineTool: Tool = {
   async execute(args, { workspacePath }) {
     const relativePath = String(args.path || 'src');
     const limit = clampNumber(args.limit, 5, 120, 40);
-    const dataDir = relative(workspacePath, resolveWorkspacePath(workspacePath, args.dataDir, '.mate-x/deep-analysis'));
-    const outputRoot = resolveWorkspacePath(workspacePath, dataDir);
+    const outputRoot = await resolveWorkspacePathForWrite(
+      workspacePath,
+      args.dataDir,
+      '.mate-x/deep-analysis',
+    );
+    const dataDir = relative(await realpath(workspacePath), outputRoot) || '.';
     const runId = `deep-${Date.now().toString(36)}`;
     const checkedAt = new Date().toISOString();
 
@@ -243,13 +255,14 @@ export const deepAnalysisPipelineTool: Tool = {
         grouped.set(candidate.file, [...(grouped.get(candidate.file) ?? []), candidate]);
       }
 
-      await mkdir(outputRoot, { recursive: true });
       const written: string[] = [];
       const verdictCounts = { confirmed_candidate: 0, likely_false_positive: 0, needs_context: 0 };
 
       for (const [file, fileCandidates] of grouped) {
-        const absoluteFile = resolveWorkspacePath(workspacePath, file);
-        const content = await readFile(absoluteFile, 'utf8').catch(() => '');
+        const absoluteFile = await resolveWorkspacePathForRead(workspacePath, file);
+        const content = await readUtf8FileSafe(workspacePath, absoluteFile)
+          .then(({ content: value }) => value)
+          .catch(() => '');
         const lines = content.split(/\r?\n/);
         const revalidation = fileCandidates.map((candidate) => {
           const start = Math.max(0, candidate.line - 16);
@@ -273,7 +286,7 @@ export const deepAnalysisPipelineTool: Tool = {
           reason: candidate.matcher.reason,
         }));
         const recordPath = join(outputRoot, `${file.replace(/[\\/]/g, '__')}.json`);
-        const previous = await readPreviousRecord(recordPath);
+        const previous = await readPreviousRecord(workspacePath, recordPath);
         const record = mergeRecord(previous, {
           schemaVersion: 1,
           runId,
@@ -288,8 +301,12 @@ export const deepAnalysisPipelineTool: Tool = {
             { stage: 'enrich', runId, at: checkedAt, summary: 'Git ownership metadata refreshed.' },
           ],
         });
-        await mkdir(dirname(recordPath), { recursive: true });
-        await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+        await writeWorkspaceFileSecure(
+          workspacePath,
+          recordPath,
+          `${JSON.stringify(record, null, 2)}\n`,
+          { createDirectories: true },
+        );
         written.push(relative(workspacePath, recordPath));
       }
 

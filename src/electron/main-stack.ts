@@ -56,9 +56,9 @@ export async function initStack(): Promise<void> {
   // Production Rainy agent adapter + optional migration + config load can proceed in parallel
   // after the durable repo is ready (adapter does not depend on migration).
   const agentAdapterPromise = import('./engineering/agent-runtime').then(
-    ({ initProductionAgentAdapter, resolveRainyApiKeyFromEnv }) => {
+    ({ initProductionAgentAdapter }) => {
       initProductionAgentAdapter({
-        getApiKey: () => resolveRainyApiKeyFromEnv(process.env),
+        getApiKey: () => tursoService.getApiKey(),
       });
     },
   );

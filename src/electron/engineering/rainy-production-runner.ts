@@ -90,7 +90,7 @@ export type RainyTransport = (
 ) => Promise<RainyScopedResponse>;
 
 export interface ProductionRainyRunnerDeps {
-  getApiKey: () => string | null | undefined;
+  getApiKey: () => string | null | undefined | Promise<string | null | undefined>;
   transport?: RainyTransport;
   /** Optional HEAD re-check during/after execution */
   resolveCurrentHeadSha?: (workspaceId: string) => Promise<string | null>;
@@ -342,7 +342,7 @@ export function createProductionRainyRunner(
         timeoutMs: input.timeoutMs ?? defaultTimeoutMs,
       };
 
-      const apiKey = deps.getApiKey()?.trim();
+      const apiKey = (await deps.getApiKey())?.trim();
       if (!apiKey) {
         return blocked(
           request,

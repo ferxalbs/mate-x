@@ -15,6 +15,7 @@ import {
   resolveRequiredValidation,
 } from "./work-engine/execution-evidence";
 import { objectiveStateFromVerification } from "./work-engine/objective-verifier";
+import { redactSecretPayload } from "./secret-redaction";
 
 export type { ToolExecutionRecord };
 
@@ -326,7 +327,7 @@ export async function buildEvidencePack(params: {
     } as ReturnType<typeof computeVerifiedTaskScore>;
   }
 
-  return {
+  const pack: EvidencePack = {
     status,
     objectiveVerification,
     governanceMode: "governed",
@@ -368,6 +369,7 @@ export async function buildEvidencePack(params: {
     touchedPaths: filesModified.map((file) => file.path),
     generatedAt: new Date().toISOString(),
   };
+  return redactSecretPayload(pack);
 }
 
 /**

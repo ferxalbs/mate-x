@@ -2,7 +2,7 @@ import { stat, readdir } from 'node:fs/promises';
 import type { Stats, Dirent } from 'node:fs';
 import { join } from 'node:path';
 import type { Tool } from '../tool-service';
-import { resolveWorkspacePath } from './tool-utils';
+import { resolveWorkspacePathForRead } from './tool-utils';
 
 export const duTool: Tool = {
   name: 'du',
@@ -32,9 +32,8 @@ export const duTool: Tool = {
     const relativePath = (args.path as string | undefined) || '.';
     const depth = typeof args.depth === 'number' ? Math.max(0, args.depth) : 1;
     const top = typeof args.top === 'number' ? Math.max(1, args.top) : undefined;
-    const targetPath = resolveWorkspacePath(workspacePath, relativePath);
-
     try {
+      const targetPath = await resolveWorkspacePathForRead(workspacePath, relativePath);
       const rootStat = await stat(targetPath).catch((): Stats | null => null);
       if (!rootStat) {
         return `du: cannot access "${relativePath}": No such file or directory`;

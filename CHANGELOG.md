@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [Unreleased] - Security Hardening
+
+* Added centralized canonical workspace validation that blocks symlink escapes across reads, writes, mutations, patches, trees, searches, and metadata operations, with revalidation before filesystem commits.
+* Added centralized network policy enforcement for HTTP probing, browser probing, and credential validators, including domain allowlists, approval gates, private/link-local/metadata blocking, and redirect validation.
+* Added typed secret redaction before persistence, evidence packs, events, and session storage so tokens, API keys, passwords, credentials, and authorization headers are not retained.
+* Migrated Rainy API keys from plaintext app state to Electron safeStorage, removed legacy values after migration, and failed closed when encrypted storage is unavailable.
+* Pinned GitHub Actions and privacy-model revisions to immutable references and added SHA-256 verification for downloaded model assets. These security changes prepare MaTE X v0.1.4; no unrelated v0.1.4 features are included.
+
 ## Unreleased - 2026.08.04 (2) [Universal User-Facing Presentation Architecture]
 
 * Added one deterministic presentation layer for conversations, repository explanations, reviews with or without findings, successful and already-present changes, validation results, partial work, blocked operations, approval requests, runtime failures, and missing synthesis.

@@ -1,5 +1,6 @@
 import { BrowserWindow, session } from "electron";
 import type { Tool } from "../tool-service";
+import { assertNetworkUrlAllowed } from "../network-policy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,37 +67,19 @@ function destroyBrowserWindow(win: BrowserWindow | null): void {
  * or until the outer timeout fires.
  */
 async function waitForNetworkIdle(
-  win: BrowserWindow,
+  activity: { inFlight: number; idleSince: number },
   idleThresholdMs = 500,
   maxWaitMs = 5000,
 ): Promise<void> {
-  let inFlight = 0;
-  let idleSince = Date.now();
   const deadline = Date.now() + maxWaitMs;
-
-  const onRequest = (): void => {
-    inFlight++;
-    idleSince = Infinity;
-  };
-  const onFinished = (): void => {
-    inFlight = Math.max(0, inFlight - 1);
-    if (inFlight <= 2) idleSince = Date.now();
-  };
-
-  win.webContents.session.webRequest.onBeforeRequest(onRequest);
-  win.webContents.session.webRequest.onCompleted(onFinished);
-  win.webContents.session.webRequest.onErrorOccurred(onFinished);
-
-  try {
-    while (Date.now() < deadline) {
-      if (inFlight <= 2 && Date.now() - idleSince >= idleThresholdMs) break;
-      await sleep(50);
+  while (Date.now() < deadline) {
+    if (
+      activity.inFlight <= 2 &&
+      Date.now() - activity.idleSince >= idleThresholdMs
+    ) {
+      break;
     }
-  } finally {
-    // Remove listeners by passing null filter and empty handler
-    win.webContents.session.webRequest.onBeforeRequest(null as never);
-    win.webContents.session.webRequest.onCompleted(null as never);
-    win.webContents.session.webRequest.onErrorOccurred(null as never);
+    await sleep(50);
   }
 }
 
@@ -171,7 +154,7 @@ export const browserProberTool: Tool = {
     required: ["url"],
   },
 
-  async execute(args): Promise<string> {
+  async execute(args, { trustContract, signal }): Promise<string> {
     const url = args.url as string;
     const script = (args.script as string | undefined) ?? null;
     const waitFor: WaitFor = (args.wait_for as WaitFor | undefined) ?? "load";
@@ -182,6 +165,24 @@ export const browserProberTool: Tool = {
     const captureScreenshot = args.capture_screenshot === true;
     const interceptRequests = args.intercept_requests === true;
     const extractCookies = args.extract_cookies === true;
+
+    if (!trustContract) {
+      return JSON.stringify({
+        error: "NETWORK_POLICY_BLOCKED",
+        message: "Workspace network policy is unavailable.",
+      });
+    }
+    try {
+      await assertNetworkUrlAllowed(url, trustContract);
+    } catch (error) {
+      return JSON.stringify({
+        error: "NETWORK_POLICY_BLOCKED",
+        message: error instanceof Error ? error.message : "Network URL is not allowed.",
+      });
+    }
+    if (signal?.aborted) {
+      return JSON.stringify({ error: "CANCELLED", message: "Browser probe cancelled." });
+    }
 
     if (openWindowCount >= MAX_OPEN_WINDOWS) {
       return JSON.stringify({
@@ -219,6 +220,7 @@ export const browserProberTool: Tool = {
 
       const mainFrameHeaders: Record<string, string> = {};
       let mainFrameStatus: number | null = null;
+      const networkActivity = { inFlight: 0, idleSince: Date.now() };
 
       openWindowCount++;
       win = new BrowserWindow({
@@ -249,16 +251,37 @@ export const browserProberTool: Tool = {
           });
         });
 
-        if (interceptRequests) {
-          probeSession.webRequest.onBeforeRequest((details, callback) => {
+        // This is intentionally installed for every request, not only when
+        // request logging is requested. Redirects and subresources must pass
+        // the same allowlist/IP policy as the initial navigation.
+        probeSession.webRequest.onBeforeRequest(async (details, callback) => {
+          if (interceptRequests) {
             result.intercepted_requests.push({
               method: details.method,
               url: details.url,
               resource_type: details.resourceType ?? "unknown",
             });
+          }
+          try {
+            await assertNetworkUrlAllowed(details.url, trustContract, {
+              allowBrowserLocalProtocols: true,
+            });
+            networkActivity.inFlight++;
+            networkActivity.idleSince = Number.POSITIVE_INFINITY;
             callback({ cancel: false });
-          });
-        }
+          } catch (error) {
+            result.error = error instanceof Error ? error.message : "Network request blocked by policy.";
+            callback({ cancel: true });
+          }
+        });
+        probeSession.webRequest.onCompleted(() => {
+          networkActivity.inFlight = Math.max(0, networkActivity.inFlight - 1);
+          if (networkActivity.inFlight <= 2) networkActivity.idleSince = Date.now();
+        });
+        probeSession.webRequest.onErrorOccurred(() => {
+          networkActivity.inFlight = Math.max(0, networkActivity.inFlight - 1);
+          if (networkActivity.inFlight <= 2) networkActivity.idleSince = Date.now();
+        });
 
         probeSession.webRequest.onHeadersReceived((details, callback) => {
           if (details.resourceType === "mainFrame") {
@@ -305,7 +328,7 @@ export const browserProberTool: Tool = {
           await waitForDomReady(win);
         } else if (waitFor === "networkidle") {
           await waitForLoad(win);
-          await waitForNetworkIdle(win, 500, Math.min(timeoutMs / 2, 5000));
+          await waitForNetworkIdle(networkActivity, 500, Math.min(timeoutMs / 2, 5000));
         }
 
         if (script && win && !win.isDestroyed()) {
@@ -372,6 +395,8 @@ export const browserProberTool: Tool = {
       } finally {
         probeSession.webRequest.onBeforeRequest(null as never);
         probeSession.webRequest.onHeadersReceived(null as never);
+        probeSession.webRequest.onCompleted(null as never);
+        probeSession.webRequest.onErrorOccurred(null as never);
         if (win && !win.isDestroyed()) {
           try {
             win.webContents.removeAllListeners();

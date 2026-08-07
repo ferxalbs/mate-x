@@ -1,6 +1,6 @@
-import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 import type { Tool } from '../tool-service';
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from './tool-utils';
 
 export const envSafetyTool: Tool = {
   name: 'env_audit',
@@ -17,16 +17,15 @@ export const envSafetyTool: Tool = {
   },
   async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = args.path || '.';
-    const targetDir = join(workspacePath, relativePath);
-
     try {
+      const targetDir = await resolveWorkspacePathForRead(workspacePath, relativePath);
       const files = await readdir(targetDir);
       const results: string[] = [];
       const envFiles = files.filter(f => f.includes('.env'));
       
       let gitIgnoreContent = '';
       try {
-        gitIgnoreContent = await readFile(join(workspacePath, '.gitignore'), 'utf8');
+        ({ content: gitIgnoreContent } = await readUtf8FileSafe(workspacePath, '.gitignore'));
       } catch {
         results.push('[MAJOR] .gitignore is missing. This is a high risk for secret leakage!');
       }

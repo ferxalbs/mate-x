@@ -1,8 +1,9 @@
-import { stat } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { lstat, realpath } from 'node:fs/promises';
+import { relative } from 'node:path';
 import type { Tool } from '../tool-service';
 import { failTool } from '../tool-result';
 import { execFileAbortable } from './process';
+import { resolveWorkspacePathForRead } from './tool-utils';
 
 const RG_MAX_BUFFER = 1024 * 1024 * 12;
 const RG_FILE_BATCH_CHAR_LIMIT = process.platform === 'win32' ? 24_000 : 120_000;
@@ -124,19 +125,6 @@ function shouldSkipFile(file: string) {
 
 function normalizePathForScan(file: string) {
   return file.replace(/\\/g, '/');
-}
-
-function resolveWorkspaceScope(workspacePath: string, relativePath: string) {
-  if (relativePath.split(/[\\/]+/).includes('..')) {
-    throw new Error('Scan path must stay inside the selected workspace.');
-  }
-  const workspaceRoot = resolve(workspacePath);
-  const targetPath = resolve(workspaceRoot, relativePath || '.');
-  const scopedPath = relative(workspaceRoot, targetPath);
-  if (scopedPath.startsWith('..')) {
-    throw new Error('Scan path must stay inside the selected workspace.');
-  }
-  return scopedPath === '' ? '.' : scopedPath;
 }
 
 export function batchFilesForRg(files: string[], charLimit = RG_FILE_BATCH_CHAR_LIMIT) {
@@ -333,12 +321,14 @@ export async function scanAttackSurfaceCandidates(params: {
     error.name = 'AbortError';
     throw error;
   }
-  const safeRelativePath = resolveWorkspaceScope(workspacePath, relativePath);
-  const targetStat = await stat(resolve(workspacePath, safeRelativePath));
+  const canonicalWorkspace = await realpath(workspacePath);
+  const targetPath = await resolveWorkspacePathForRead(workspacePath, relativePath);
+  const safeRelativePath = relative(canonicalWorkspace, targetPath) || '.';
+  const targetStat = await lstat(targetPath);
   const files = targetStat.isFile()
     ? [safeRelativePath]
     : (await execFileAbortable('rg', ['--files', '--', safeRelativePath], {
-        cwd: workspacePath,
+        cwd: canonicalWorkspace,
         signal,
       })).stdout.split('\n').filter(Boolean);
   const scannedFiles = files.filter((file) => !shouldSkipFile(file));
@@ -351,7 +341,7 @@ export async function scanAttackSurfaceCandidates(params: {
         const result = await execFileAbortable(
           'rg',
           ['-n', '--no-heading', '-e', searchPattern, '--', ...batch],
-          { cwd: workspacePath, maxBuffer: RG_MAX_BUFFER, signal },
+          { cwd: canonicalWorkspace, maxBuffer: RG_MAX_BUFFER, signal },
         );
         return result.stdout;
       } catch (error) {

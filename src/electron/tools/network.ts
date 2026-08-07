@@ -1,8 +1,8 @@
 import { stat } from 'node:fs/promises';
-import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
+import { resolveWorkspacePathForRead } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -144,7 +144,8 @@ export const networkMapTool: Tool = {
     const relativePath = args.path || '.';
     
     try {
-      const targetStat = await stat(join(workspacePath, relativePath));
+      const targetPath = await resolveWorkspacePathForRead(workspacePath, relativePath);
+      const targetStat = await stat(targetPath);
       const files = targetStat.isFile()
         ? [relativePath]
         : (await execFileAsync('rg', ['--files', '--', relativePath], { cwd: workspacePath })).stdout.split('\n').filter(Boolean);

@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "./tool-utils";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_RESULTS = 5;
@@ -12,11 +11,6 @@ const MAX_CONTEXT_LINES = 200;
 const MAX_BLOCK_LINES = 1600;
 const DECLARATION_PATTERN =
   /^\s*(export\s+)?(async\s+)?(function\b|class\b|interface\b|type\b|enum\b|const\s+\w+\s*=\s*(async\s*)?(\([^)]*\)|\w+)\s*=>|const\s+\w+\s*=\s*(async\s*)?function\b|let\s+\w+\s*=\s*(async\s*)?(\([^)]*\)|\w+)\s*=>|var\s+\w+\s*=\s*(async\s*)?(\([^)]*\)|\w+)\s*=>)/;
-
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/"));
-};
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === "number" ? value : Number(value);
@@ -103,8 +97,9 @@ export const astGrepTool: Tool = {
 
     if (!query) return "Query is required.";
 
-    const targetPath = resolve(workspacePath, path);
-    if (!isInsideWorkspace(workspacePath, targetPath)) {
+    try {
+      await resolveWorkspacePathForRead(workspacePath, path);
+    } catch {
       return "Refusing to scan outside the workspace.";
     }
 
@@ -142,13 +137,7 @@ export const astGrepTool: Tool = {
         const lineNum = parseInt(lineStr, 10);
 
         try {
-          const filePath = resolve(workspacePath, file);
-          if (!isInsideWorkspace(workspacePath, filePath)) {
-            results.push(`--- FILE: ${file} (Line ${lineNum}) ---\nRefusing to read outside workspace.\n`);
-            continue;
-          }
-
-          const content = await readFile(filePath, "utf8");
+          const { content } = await readUtf8FileSafe(workspacePath, file);
           const fileLines = content.split("\n");
           const { startLine, endLine } = findBlockBounds(fileLines, lineNum, contextLines);
           const extractedLines = fileLines.slice(startLine, endLine + 1);

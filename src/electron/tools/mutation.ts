@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
 import type { Tool } from "../tool-service";
-import { resolveWorkspacePath } from "./tool-utils";
+import {
+  readUtf8FileSafe,
+  resolveWorkspacePathForWrite,
+  writeWorkspaceFileSecure,
+} from "./tool-utils";
 
 const MUTATION_TIMEOUT_MS = 5 * 60 * 1000;
 const mutationQueues = new Map<string, Promise<void>>();
@@ -118,13 +121,16 @@ export const mutationTesterTool: Tool = {
       return `Mutation failed: ${(error as Error).message}`;
     }
 
-    const targetFile = resolveWorkspacePath(workspacePath, path);
+    const targetFile = await resolveWorkspacePathForWrite(workspacePath, path);
     const releaseMutationSlot = await acquireMutationSlot(workspacePath);
     const startedAt = Date.now();
     const snapshots = new Map<string, string>();
 
     try {
-      const originalContent = await readFile(targetFile, "utf8");
+      const { content: originalContent } = await readUtf8FileSafe(
+        workspacePath,
+        targetFile,
+      );
       snapshots.set(targetFile, originalContent);
 
       if (!originalContent.includes(searchString)) {
@@ -133,7 +139,7 @@ export const mutationTesterTool: Tool = {
 
       const mutatedContent = originalContent.split(searchString).join(mutationString);
       const mutationsInjected = originalContent.split(searchString).length - 1;
-      await writeFile(targetFile, mutatedContent, "utf8");
+      await writeWorkspaceFileSecure(workspacePath, targetFile, mutatedContent);
 
       const commandResult = await runMutationCommand(cmd, cmdArgs, workspacePath);
       const commandStatus = commandResult.timedOut
@@ -171,7 +177,7 @@ export const mutationTesterTool: Tool = {
     } finally {
       try {
         for (const [filePath, content] of snapshots) {
-          await writeFile(filePath, content, "utf8");
+          await writeWorkspaceFileSecure(workspacePath, filePath, content);
         }
       } catch (restoreError) {
         console.error(`CRITICAL: Failed to restore mutation in ${path}`, restoreError);

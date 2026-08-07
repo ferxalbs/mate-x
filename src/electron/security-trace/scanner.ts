@@ -1,9 +1,8 @@
-import { readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { SOURCE_PATTERNS, SINK_PATTERNS, TRANSFORM_REGEX } from './patterns';
 import type { SecurityTrace, TraceEvidence, TraceNode, TraceOptions } from './types';
+import { readUtf8FileSafe } from '../tools/tool-utils';
 
 const execFileAsync = promisify(execFile);
 const CODE_EXTENSIONS = /\.(cjs|mjs|js|jsx|ts|tsx)$/;
@@ -411,9 +410,9 @@ export async function traceSecurityPaths(workspacePath: string, options: TraceOp
   const lines: LineRecord[] = [];
 
   for (const file of files) {
-    const content = await readFile(join(workspacePath, file), 'utf8').catch(() => '');
+    const content = await readUtf8FileSafe(workspacePath, file).then(({ content }) => content).catch(() => '');
     content.split(/\r?\n/).forEach((text, index) => {
-      lines.push({ file: relative(workspacePath, join(workspacePath, file)), line: index + 1, text });
+      lines.push({ file, line: index + 1, text });
     });
   }
 

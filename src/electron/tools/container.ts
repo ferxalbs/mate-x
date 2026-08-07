@@ -1,9 +1,7 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Tool } from '../tool-service';
-import { isPathInsideRoot } from './tool-utils';
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from './tool-utils';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_FINDINGS = 50;
@@ -193,11 +191,7 @@ export const containerAuditTool: Tool = {
   async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = String(args.path || '.');
     const maxFindings = toPositiveInteger(args.maxFindings, DEFAULT_MAX_FINDINGS, MAX_FINDINGS_LIMIT);
-    const targetPath = resolve(workspacePath, relativePath);
-
-    if (!isPathInsideRoot(workspacePath, targetPath)) {
-      return 'Refusing to scan outside the workspace.';
-    }
+    await resolveWorkspacePathForRead(workspacePath, relativePath);
 
     try {
       // -- prevents argument injection from relativePath
@@ -236,10 +230,7 @@ export const containerAuditTool: Tool = {
       for (const file of files) {
         if (findings.length >= maxFindings) break;
 
-        const filePath = resolve(workspacePath, file);
-        if (!isPathInsideRoot(workspacePath, filePath)) continue;
-
-        const content = await readFile(filePath, 'utf8');
+        const { content } = await readUtf8FileSafe(workspacePath, file);
         for (const rule of CONTAINER_RULES) {
           if (!rule.appliesTo(file)) continue;
 

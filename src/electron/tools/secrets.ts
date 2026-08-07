@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Tool } from "../tool-service";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "./tool-utils";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LIMIT = 100;
@@ -56,11 +55,6 @@ const SECRET_PATTERNS = [
   { name: "Slack Token", severity: "critical", regex: /xox[baprs]-[0-9a-zA-Z-]{10,80}/g },
   { name: "Stripe API Key", severity: "critical", regex: /sk_live_[0-9a-zA-Z]{24,}/g },
 ];
-
-const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
-  const relativePath = relative(workspacePath, targetPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-};
 
 const toPositiveInteger = (value: unknown, fallback: number, max: number) => {
   const numberValue = typeof value === "number" ? value : Number(value);
@@ -266,7 +260,6 @@ export const secretScanTool: Tool = {
   },
   async execute(args, { workspacePath, settings: _settings }) {
     const relativePath = String(args.path || ".");
-    const targetPath = resolve(workspacePath, relativePath);
     const limit = toPositiveInteger(args.limit, DEFAULT_LIMIT, MAX_LIMIT);
     const maxFileBytes = toPositiveInteger(args.maxFileBytes, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES);
     const useOnnx = args.useOnnx !== false;
@@ -274,11 +267,8 @@ export const secretScanTool: Tool = {
     const onnxMinConfidence = Math.max(0.1, Math.min(0.99, Number(args.onnxMinConfidence) || 0.72));
     const onnxMaxFiles = toPositiveInteger(args.onnxMaxFiles, DEFAULT_ONNX_MAX_FILES, MAX_ONNX_FILES);
 
-    if (!isInsideWorkspace(workspacePath, targetPath)) {
-      return "Refusing to scan outside the workspace.";
-    }
-
     try {
+      await resolveWorkspacePathForRead(workspacePath, relativePath);
       // Use rg to find potential files first to be efficient
       // -- prevents argument injection from relativePath
       const { stdout } = await execFileAsync(
@@ -296,10 +286,7 @@ export const secretScanTool: Tool = {
         if (!args.includeGenerated && SKIP_PATH_PATTERN.test(file)) continue;
 
         try {
-          const filePath = resolve(workspacePath, file);
-          if (!isInsideWorkspace(workspacePath, filePath)) continue;
-
-          const content = await readFile(join(workspacePath, file), "utf8");
+          const { content } = await readUtf8FileSafe(workspacePath, file);
           if (Buffer.byteLength(content, "utf8") > maxFileBytes) continue;
 
           const fileResults: string[] = [];

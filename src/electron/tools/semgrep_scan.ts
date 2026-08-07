@@ -1,9 +1,9 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Tool } from "../tool-service";
 import { failTool } from "../tool-result";
 import { execFileAbortable } from "./process";
-import { resolveWorkspacePath } from "./tool-utils";
+import { readUtf8FileSafe, resolveWorkspacePathForRead } from "./tool-utils";
 
 // Common security hotspots for built-in fallback scanner
 const SECURITY_HOTSPOTS = [
@@ -107,7 +107,7 @@ export const semgrepScanTool: Tool = {
 
     let targetPath: string;
     try {
-      targetPath = resolveWorkspacePath(workspacePath, targetInput);
+      targetPath = await resolveWorkspacePathForRead(workspacePath, targetInput);
     } catch (err) {
       return failTool("semgrep_scan", (err as Error).message, "FORBIDDEN");
     }
@@ -183,7 +183,7 @@ export const semgrepScanTool: Tool = {
 
       for (const file of filesToScan) {
         const relativeFile = file.replace(workspacePath + "/", "");
-        const content = await readFile(file, "utf8");
+        const { content } = await readUtf8FileSafe(workspacePath, file);
         const lines = content.split("\n");
 
         for (let i = 0; i < lines.length; i++) {

@@ -20,8 +20,25 @@ import {
   isValidationResolutionCause,
   validationRequirementForCommand,
 } from "../../validation-command";
+import {
+  redactSecretPayload,
+  redactSensitiveText,
+} from "../../secret-redaction";
 
-export async function executeAgentToolCall({
+export async function executeAgentToolCall(
+  input: Parameters<typeof executeAgentToolCallInternal>[0],
+): Promise<Awaited<ReturnType<typeof executeAgentToolCallInternal>>> {
+  const result = await executeAgentToolCallInternal(input);
+  const safeEvents = redactSecretPayload(input.events);
+  input.events.splice(0, input.events.length, ...safeEvents);
+  return {
+    ...result,
+    content: redactSensitiveText(result.content),
+    toolExecution: redactSecretPayload(result.toolExecution),
+  };
+}
+
+async function executeAgentToolCallInternal({
   toolCall,
   toolIndex,
   iteration,
@@ -123,6 +140,8 @@ export async function executeAgentToolCall({
           workspacePath: snapshot.workspace.path,
           toolName,
           requiredCapability: authorization.capability,
+          // The policy service HMACs the exact in-memory args for approval
+          // binding; it stores only the resulting digest, never these values.
           operationArgs: toolArgs,
           severity: "warning",
           policyId: authorization.code,
@@ -189,13 +208,13 @@ export async function executeAgentToolCall({
         outcome,
         toolExecution: {
           toolName,
-          args: toolArgs,
+          args: redactSecretPayload(toolArgs),
           output: cancelledMessage,
           parsedOutput: {
             policyStop,
             status: cancelled ? "cancelled" : "error",
           },
-          evidence: normalizeToolEvidence(toolName, toolArgs, cancelledMessage, {
+          evidence: normalizeToolEvidence(toolName, redactSecretPayload(toolArgs), cancelledMessage, {
             policyStop,
             status: cancelled ? "cancelled" : "error",
           }),
@@ -227,13 +246,13 @@ export async function executeAgentToolCall({
         outcome,
         toolExecution: {
           toolName,
-          args: toolArgs,
+          args: redactSecretPayload(toolArgs),
           output: declinedMessage,
           parsedOutput: {
             policyStop: resolvedStop,
             status: "declined",
           },
-          evidence: normalizeToolEvidence(toolName, toolArgs, declinedMessage, {
+          evidence: normalizeToolEvidence(toolName, redactSecretPayload(toolArgs), declinedMessage, {
             policyStop: resolvedStop,
             status: "declined",
           }),
@@ -280,7 +299,10 @@ export async function executeAgentToolCall({
       });
     }
     if (toolEvent) {
-      Object.assign(toolEvent, createPublicToolProgress(toolName, toolArgs));
+      Object.assign(
+        toolEvent,
+        createPublicToolProgress(toolName, redactSecretPayload(toolArgs)),
+      );
     }
     approvedValidationOverride = toolName === "run_tests" || toolName === "sandbox_run";
     emitProgress();
@@ -290,7 +312,7 @@ export async function executeAgentToolCall({
     events.push({
       id: eventId,
       executionId: toolCall.id,
-      ...createPublicToolProgress(toolName, toolArgs),
+      ...createPublicToolProgress(toolName, redactSecretPayload(toolArgs)),
     });
     emitProgress();
   }
@@ -346,9 +368,9 @@ export async function executeAgentToolCall({
         toolEvent,
         createPublicToolProgress(
           toolName,
-          toolArgs,
+          redactSecretPayload(toolArgs),
           outputIndicatesFailure ? "failed" : "completed",
-          parsedOutput ?? undefined,
+          redactSecretPayload(parsedOutput ?? undefined),
         ),
       );
     }
@@ -367,8 +389,8 @@ export async function executeAgentToolCall({
       const { failureMemoryEngine } = await import("../../failure-memory-engine");
       await failureMemoryEngine.recordFailure({
         workspaceId: snapshot.workspace.id,
-        command: String(toolArgs.command ?? toolArgs.script ?? toolName),
-        output: rawResult,
+        command: redactSensitiveText(String(toolArgs.command ?? toolArgs.script ?? toolName)),
+        output: redactSensitiveText(rawResult),
       }).catch((error) => {
         console.warn("Failure memory record failed:", error);
       });
@@ -377,7 +399,7 @@ export async function executeAgentToolCall({
       const { failureMemoryEngine } = await import("../../failure-memory-engine");
       await failureMemoryEngine.recordResolution({
         workspaceId: snapshot.workspace.id,
-        command: String(toolArgs.command ?? toolArgs.script ?? toolName),
+        command: redactSensitiveText(String(toolArgs.command ?? toolArgs.script ?? toolName)),
         retryFixed: true,
       }).catch((error) => {
         console.warn("Failure memory resolution failed:", error);
@@ -399,7 +421,10 @@ export async function executeAgentToolCall({
       toolCall.id,
       approvedValidationOverride,
     );
-    const modelContent = truncateToolOutputForModel(toolName, rawResult);
+    const modelContent = truncateToolOutputForModel(
+      toolName,
+      redactSensitiveText(rawResult),
+    );
     const evidence = normalizeToolEvidence(
       toolName,
       toolArgs,
@@ -416,8 +441,8 @@ export async function executeAgentToolCall({
       content: modelContent,
       toolExecution: {
         toolName,
-        args: toolArgs,
-        output: rawResult,
+        args: redactSecretPayload(toolArgs),
+        output: redactSensitiveText(rawResult),
         parsedOutput: enrichedParsed ?? parsedOutput ?? undefined,
         evidence,
         validationAuthorization: finalValidationAuthorization,
@@ -431,7 +456,11 @@ export async function executeAgentToolCall({
     if (toolEvent) {
       Object.assign(
         toolEvent,
-        createPublicToolProgress(toolName, toolArgs, "failed"),
+        createPublicToolProgress(
+          toolName,
+          redactSecretPayload(toolArgs),
+          "failed",
+        ),
       );
     }
     if (policyStop) {
@@ -448,16 +477,16 @@ export async function executeAgentToolCall({
       }),
       toolExecution: {
         toolName,
-        args: toolArgs,
-        output: `Tool ${toolName} failed: ${message}`,
-        parsedOutput: { status: "error", error: message },
+        args: redactSecretPayload(toolArgs),
+        output: redactSensitiveText(`Tool ${toolName} failed: ${message}`),
+        parsedOutput: { status: "error", error: redactSensitiveText(message) },
         validationAuthorization:
           approvedValidationOverride ? "approved_override" : undefined,
         evidence: normalizeToolEvidence(
           toolName,
-          toolArgs,
-          `Tool ${toolName} failed: ${message}`,
-          { status: "error", error: message },
+          redactSecretPayload(toolArgs),
+          redactSensitiveText(`Tool ${toolName} failed: ${message}`),
+          { status: "error", error: redactSensitiveText(message) },
         ),
       } satisfies ToolExecutionRecord,
       executionPolicy,
@@ -477,7 +506,7 @@ function blockedToolResult(input: {
 }) {
   const publicProgress = createPublicToolProgress(
     input.toolName,
-    input.toolArgs,
+    redactSecretPayload(input.toolArgs),
     "failed",
   );
   const blockedLabel =
@@ -521,7 +550,7 @@ function blockedToolResult(input: {
     outcome,
     toolExecution: {
       toolName: input.toolName,
-      args: input.toolArgs,
+      args: redactSecretPayload(input.toolArgs),
       output: serialized,
       parsedOutput: {
         status: "blocked",
@@ -529,7 +558,7 @@ function blockedToolResult(input: {
       },
       evidence: normalizeToolEvidence(
         input.toolName,
-        input.toolArgs,
+        redactSecretPayload(input.toolArgs),
         serialized,
         {
           status: "blocked",
@@ -542,7 +571,7 @@ function blockedToolResult(input: {
 }
 
 function safeToolDiagnostic(message: string) {
-  return message.replace(/\s+/g, " ").trim().slice(0, 500) || "Action failed.";
+  return redactSensitiveText(message).replace(/\s+/g, " ").trim().slice(0, 500) || "Action failed.";
 }
 
 function tryParseJsonObject(value: string) {

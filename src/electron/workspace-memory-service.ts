@@ -11,6 +11,7 @@ import type {
   WorkspaceMemoryRunSummary,
   WorkspaceMemoryStatus,
 } from "../contracts/workspace";
+import { redactSensitiveText } from "./secret-redaction";
 
 const MEMORY_FILES: Record<
   WorkspaceMemoryFileKind,
@@ -102,10 +103,11 @@ export class WorkspaceMemoryService {
   ): Promise<WorkspaceMemoryStatus> {
     this.assertValidKind(kind);
     this.assertValidContent(content);
+    const safeContent = redactSensitiveText(content);
 
     const metadata = await this.ensureWorkspaceMemory(workspaceId, repoPath);
     const filePath = this.getMemoryFilePath(metadata.memoryWorkspaceId, kind);
-    await writeFile(filePath, content, "utf8");
+    await writeFile(filePath, safeContent, "utf8");
     await this.touchMetadata(metadata);
 
     return this.readStatus({
@@ -176,14 +178,16 @@ export class WorkspaceMemoryService {
   ): Promise<WorkspaceMemoryProposedUpdate[]> {
     const metadata = await this.ensureWorkspaceMemory(workspaceId, repoPath);
     const createdAt = summary.completedAt;
-    const responseSummary = this.summarizeText(this.stripToolTraceNoise(summary.response));
+    const safePrompt = redactSensitiveText(this.stripToolTraceNoise(summary.prompt));
+    const safeResponse = redactSensitiveText(this.stripToolTraceNoise(summary.response));
+    const responseSummary = this.summarizeText(safeResponse);
     const touchedPaths = summary.touchedPaths.slice(0, 12);
     const toolNames = Array.from(new Set(summary.toolNames)).slice(0, 12);
 
     await this.appendGeneratedSection(metadata, "workstate", [
       `## Session Summary - ${this.formatDate(createdAt)}`,
       "<!-- mate-x:generated:start -->",
-      `- Prompt: ${this.singleLine(this.stripToolTraceNoise(summary.prompt))}`,
+      `- Prompt: ${this.singleLine(safePrompt)}`,
       `- Result: ${responseSummary}`,
       touchedPaths.length > 0
         ? `- Touched paths: ${touchedPaths.join(", ")}`
@@ -199,13 +203,13 @@ export class WorkspaceMemoryService {
     const memoryContent = [
       `## Proposed Durable Memory - ${this.formatDate(createdAt)}`,
       "<!-- mate-x:generated:start -->",
-      `- User intent: ${this.singleLine(this.stripToolTraceNoise(summary.prompt))}`,
+      `- User intent: ${this.singleLine(safePrompt)}`,
       `- Outcome: ${responseSummary}`,
       touchedPaths.length > 0 ? `- Relevant paths: ${touchedPaths.join(", ")}` : "",
       "<!-- mate-x:generated:end -->",
     ].filter(Boolean).join("\n");
 
-    const guardrailContent = this.extractGuardrailProposal(summary.response, createdAt);
+    const guardrailContent = this.extractGuardrailProposal(safeResponse, createdAt);
     const proposals: WorkspaceMemoryProposedUpdate[] = [
       {
         kind: "memory",
@@ -309,13 +313,17 @@ export class WorkspaceMemoryService {
         const filePath = this.getMemoryFilePath(metadata.memoryWorkspaceId, kind);
         const fileStat = await stat(filePath);
         const content = await readFile(filePath, "utf8");
+        const safeContent = redactSensitiveText(content);
+        if (safeContent !== content) {
+          await writeFile(filePath, safeContent, "utf8");
+        }
 
         return {
           kind,
           filename: definition.filename,
           title: definition.title,
           description: definition.description,
-          content,
+          content: safeContent,
           updatedAt: fileStat.mtime.toISOString(),
         };
       }),
@@ -354,8 +362,10 @@ export class WorkspaceMemoryService {
   ) {
     const filePath = this.getMemoryFilePath(metadata.memoryWorkspaceId, kind);
     const current = await readFile(filePath, "utf8");
-    const separator = current.endsWith("\n") ? "\n" : "\n\n";
-    await writeFile(filePath, `${current}${separator}${section}\n`, "utf8");
+    const safeCurrent = redactSensitiveText(current);
+    const safeSection = redactSensitiveText(section);
+    const separator = safeCurrent.endsWith("\n") ? "\n" : "\n\n";
+    await writeFile(filePath, `${safeCurrent}${separator}${safeSection}\n`, "utf8");
   }
 
   private getMemoryFilePath(memoryWorkspaceId: string, kind: WorkspaceMemoryFileKind) {

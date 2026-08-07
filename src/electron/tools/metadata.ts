@@ -1,7 +1,7 @@
-import { stat } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import { relative } from "node:path";
 import type { Tool } from '../tool-service';
-import { resolveWorkspacePath } from "./tool-utils";
+import { resolveWorkspacePathForRead } from "./tool-utils";
 
 export const fileMetadataTool: Tool = {
   name: 'file_metadata',
@@ -20,8 +20,8 @@ export const fileMetadataTool: Tool = {
     const { path } = args;
 
     try {
-      const targetFile = resolveWorkspacePath(workspacePath, path);
-      const stats = await stat(targetFile);
+      const targetFile = await resolveWorkspacePathForRead(workspacePath, path);
+      const stats = await lstat(targetFile);
       const isUnix = process.platform !== 'win32';
       
       const details = {

@@ -3,13 +3,16 @@ import {
   chmod,
   mkdir,
   open,
-  readFile,
   rename,
   rm,
 } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 
-import { resolveWorkspacePathSecure } from "../tools/tool-utils";
+import {
+  assertWorkspacePathForWrite,
+  readUtf8FileSafe,
+  resolveWorkspacePathForWrite,
+} from "../tools/tool-utils";
 import {
   verifyFileStructure,
   type StructuralVerification,
@@ -52,13 +55,13 @@ export async function writeVerifiedMutation(input: {
   runId?: string;
 }): Promise<MutationResult> {
   return withPathLease(input.targetFile, async () => {
-    const targetFile = await resolveWorkspacePathSecure(
+    const targetFile = await resolveWorkspacePathForWrite(
       input.workspacePath,
-      relative(input.workspacePath, input.targetFile),
+      input.targetFile,
     );
     const relativePath = relative(input.workspacePath, targetFile);
     const beforeHash = sha256(input.beforeContent);
-    const current = await readCurrent(targetFile);
+    const current = await readCurrent(input.workspacePath, targetFile);
     if (
       current.exists !== input.beforeExists ||
       (current.exists && sha256(current.content) !== beforeHash)
@@ -103,16 +106,13 @@ export async function writeVerifiedMutation(input: {
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
     });
 
-    if (!input.beforeExists) {
-      await mkdir(dirname(targetFile), { recursive: true });
-    }
     await atomicWriteFile(
       input.workspacePath,
       targetFile,
       input.finalContent,
       input.beforeMode,
     );
-    const written = await readFile(targetFile, "utf8");
+    const { content: written } = await readUtf8FileSafe(input.workspacePath, targetFile);
     const afterHash = sha256(written);
     await updateMutationRecoveryRecord(vaultPath, {
       afterHash,
@@ -129,7 +129,7 @@ export async function writeVerifiedMutation(input: {
           };
 
     if (verification.status === "failed") {
-      const latest = await readCurrent(targetFile);
+      const latest = await readCurrent(input.workspacePath, targetFile);
       if (!latest.exists || sha256(latest.content) !== afterHash) {
         session?.record({
           kind: "recovery.conflict",
@@ -162,7 +162,9 @@ export async function writeVerifiedMutation(input: {
           input.beforeMode,
         );
       } else {
-        await rm(targetFile, { force: true });
+        await rm(await assertWorkspacePathForWrite(input.workspacePath, targetFile), {
+          force: true,
+        });
       }
       session?.record({
         kind: "mutation.reverted",
@@ -218,11 +220,11 @@ export async function writeVerifiedMutation(input: {
 export async function reconcileVerifiedMutation(
   record: MutationRecoveryRecord,
 ): Promise<"no_effect" | "reverted" | "conflict" | "committed"> {
-  const targetFile = await resolveWorkspacePathSecure(
+  const targetFile = await resolveWorkspacePathForWrite(
     record.workspacePath,
     record.relativePath,
   );
-  const current = await readCurrent(targetFile);
+  const current = await readCurrent(record.workspacePath, targetFile);
   const currentHash = current.exists ? sha256(current.content) : sha256("");
 
   if (record.state === "committed") return "committed";
@@ -244,7 +246,9 @@ export async function reconcileVerifiedMutation(
       record.beforeMode,
     );
   } else {
-    await rm(targetFile, { force: true });
+    await rm(await assertWorkspacePathForWrite(record.workspacePath, targetFile), {
+      force: true,
+    });
   }
   return "reverted";
 }
@@ -270,10 +274,11 @@ async function withPathLease<T>(
 }
 
 async function readCurrent(
+  workspacePath: string,
   targetFile: string,
 ): Promise<{ exists: true; content: string } | { exists: false; content: "" }> {
   try {
-    return { exists: true, content: await readFile(targetFile, "utf8") };
+    return { exists: true, content: (await readUtf8FileSafe(workspacePath, targetFile)).content };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return { exists: false, content: "" };
@@ -284,11 +289,17 @@ async function readCurrent(
 
 async function atomicWriteFile(
   workspacePath: string,
-  targetFile: string,
+  requestedTargetFile: string,
   content: string,
   mode: number | null,
 ): Promise<void> {
+  let targetFile = await assertWorkspacePathForWrite(
+    workspacePath,
+    requestedTargetFile,
+  );
   const targetDirectory = dirname(targetFile);
+  await mkdir(targetDirectory, { recursive: true });
+  targetFile = await assertWorkspacePathForWrite(workspacePath, targetFile);
   const tempFile = join(
     targetDirectory,
     `.${basename(targetFile)}.matex-${process.pid}-${Date.now()}-${randomUUID()}.tmp`,
@@ -301,10 +312,7 @@ async function atomicWriteFile(
     await handle.close();
     handle = null;
     if (mode !== null) await chmod(tempFile, mode);
-    await resolveWorkspacePathSecure(
-      workspacePath,
-      relative(workspacePath, targetFile),
-    );
+    targetFile = await assertWorkspacePathForWrite(workspacePath, targetFile);
     await rename(tempFile, targetFile);
   } catch (error) {
     if (handle) await handle.close().catch(() => undefined);
